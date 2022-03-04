@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,7 +34,9 @@ public class NormalizerResult implements ToXContentObject, Writeable {
     static final ParseField NORMALIZED_SCORE_FIELD = new ParseField("normalized_score");
 
     public static final ObjectParser<NormalizerResult, Void> PARSER = new ObjectParser<>(
-            LEVEL_FIELD.getPreferredName(), NormalizerResult::new);
+        LEVEL_FIELD.getPreferredName(),
+        NormalizerResult::new
+    );
 
     static {
         PARSER.declareString(NormalizerResult::setLevel, LEVEL_FIELD);
@@ -58,8 +60,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
     private double probability;
     private double normalizedScore;
 
-    public NormalizerResult() {
-    }
+    public NormalizerResult() {}
 
     public NormalizerResult(StreamInput in) throws IOException {
         level = in.readOptionalString();
@@ -176,8 +177,17 @@ public class NormalizerResult implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, partitionFieldName, partitionFieldValue, personFieldName, personFieldValue,
-                functionName, valueFieldName, probability, normalizedScore);
+        return Objects.hash(
+            level,
+            partitionFieldName,
+            partitionFieldValue,
+            personFieldName,
+            personFieldValue,
+            functionName,
+            valueFieldName,
+            probability,
+            normalizedScore
+        );
     }
 
     /**
@@ -193,16 +203,16 @@ public class NormalizerResult implements ToXContentObject, Writeable {
             return false;
         }
 
-        NormalizerResult that = (NormalizerResult)other;
+        NormalizerResult that = (NormalizerResult) other;
 
         return Objects.equals(this.level, that.level)
-                && Objects.equals(this.partitionFieldName, that.partitionFieldName)
-                && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
-                && Objects.equals(this.personFieldName, that.personFieldName)
-                && Objects.equals(this.personFieldValue, that.personFieldValue)
-                && Objects.equals(this.functionName, that.functionName)
-                && Objects.equals(this.valueFieldName, that.valueFieldName)
-                && this.probability == that.probability
-                && this.normalizedScore == that.normalizedScore;
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.personFieldName, that.personFieldName)
+            && Objects.equals(this.personFieldValue, that.personFieldValue)
+            && Objects.equals(this.functionName, that.functionName)
+            && Objects.equals(this.valueFieldName, that.valueFieldName)
+            && this.probability == that.probability
+            && this.normalizedScore == that.normalizedScore;
     }
 }

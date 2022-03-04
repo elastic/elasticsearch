@@ -10,13 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.CharArrays;
 
-import javax.crypto.Cipher;
-import javax.crypto.EncryptedPrivateKeyInfo;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,14 +44,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import javax.crypto.Cipher;
+import javax.crypto.EncryptedPrivateKeyInfo;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
 public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
     private static final String OPENSSL_DSA_HEADER = "-----BEGIN DSA PRIVATE KEY-----";
     private static final String OPENSSL_DSA_FOOTER = "-----END DSA PRIVATE KEY-----";
-    private static final String OPENSSL_DSA_PARAMS_HEADER ="-----BEGIN DSA PARAMETERS-----";
-    private static final String OPENSSL_DSA_PARAMS_FOOTER ="-----END DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_HEADER = "-----BEGIN DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_FOOTER = "-----END DSA PARAMETERS-----";
     private static final String PKCS8_HEADER = "-----BEGIN PRIVATE KEY-----";
     private static final String PKCS8_FOOTER = "-----END PRIVATE KEY-----";
     private static final String PKCS8_ENCRYPTED_HEADER = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
@@ -135,8 +136,11 @@ public final class PemUtils {
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
-                throw new SslConfigException("cannot read PEM private key [" + keyPath.toAbsolutePath()
-                    + "] because the file does not contain a supported key format");
+                throw new SslConfigException(
+                    "cannot read PEM private key ["
+                        + keyPath.toAbsolutePath()
+                        + "] because the file does not contain a supported key format"
+                );
             }
         }
     }
@@ -221,7 +225,7 @@ public final class PemUtils {
      * @throws IOException if the algorithm identifier can not be parsed from DER
      * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
      */
-    public static PrivateKey parsePKCS8PemString(String pemString) throws IOException, GeneralSecurityException{
+    public static PrivateKey parsePKCS8PemString(String pemString) throws IOException, GeneralSecurityException {
         byte[] keyBytes = Base64.getDecoder().decode(pemString);
         String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
@@ -353,8 +357,7 @@ public final class PemUtils {
      * @throws IOException              if the file can't be read
      * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
      */
-    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException,
-        GeneralSecurityException {
+    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException, GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
         while (line != null) {
@@ -448,10 +451,10 @@ public final class PemUtils {
         byte[] keyBytes = Base64.getDecoder().decode(keyContents);
         String procType = pemHeaders.get("Proc-Type");
         if ("4,ENCRYPTED".equals(procType)) {
-            //We only handle PEM encryption
+            // We only handle PEM encryption
             String encryptionParameters = pemHeaders.get("DEK-Info");
             if (null == encryptionParameters) {
-                //malformed pem
+                // malformed pem
                 throw new IOException("Malformed PEM File, DEK-Info header is missing");
             }
             char[] password = passwordSupplier.get();
@@ -477,8 +480,7 @@ public final class PemUtils {
      * for the cipher
      * @throws IOException if the DEK-Info PEM header is invalid
      */
-    private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws
-        GeneralSecurityException, IOException {
+    private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws GeneralSecurityException, IOException {
         final String padding = "PKCS5Padding";
         final SecretKey encryptionKey;
         final String[] valueTokens = dekHeaderValue.split(",");
@@ -563,8 +565,9 @@ public final class PemUtils {
             }
             return data;
         } else {
-            throw new IllegalStateException("Hexadecimal string [" + hexString +
-                "] has odd length and cannot be converted to a byte array");
+            throw new IllegalStateException(
+                "Hexadecimal string [" + hexString + "] has odd length and cannot be converted to a byte array"
+            );
         }
     }
 
@@ -575,8 +578,7 @@ public final class PemUtils {
      * @return {@link ECPrivateKeySpec}
      * @throws IOException if the DER encoded key can't be parsed
      */
-    private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException,
-            GeneralSecurityException {
+    private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException, GeneralSecurityException {
         DerParser parser = new DerParser(keyBytes);
         DerParser.Asn1Object sequence = parser.readAsn1Object();
         parser = sequence.getParser();
@@ -652,16 +654,14 @@ public final class PemUtils {
         DerParser.Asn1Object algSequence = parser.readAsn1Object();
         parser = algSequence.getParser();
         String oidString = parser.readAsn1Object().getOid();
-        switch (oidString) {
-            case "1.2.840.10040.4.1":
-                return "DSA";
-            case "1.2.840.113549.1.1.1":
-                return "RSA";
-            case "1.2.840.10045.2.1":
-                return "EC";
-        }
-        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID [" + oidString +
-            "] is not supported");
+        return switch (oidString) {
+            case "1.2.840.10040.4.1" -> "DSA";
+            case "1.2.840.113549.1.1.1" -> "RSA";
+            case "1.2.840.10045.2.1" -> "EC";
+            default -> throw new GeneralSecurityException(
+                "Error parsing key algorithm identifier. Algorithm with OID [" + oidString + "] is not supported"
+            );
+        };
     }
 
     public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
@@ -680,91 +680,55 @@ public final class PemUtils {
     }
 
     private static String getAlgorithmNameFromOid(String oidString) throws GeneralSecurityException {
-        switch (oidString) {
-            case "1.2.840.10040.4.1":
-                return "DSA";
-            case "1.2.840.113549.1.1.1":
-                return "RSA";
-            case "1.2.840.10045.2.1":
-                return "EC";
-            case "1.3.14.3.2.7":
-                return "DES-CBC";
-            case "2.16.840.1.101.3.4.1.1":
-                return "AES-128_ECB";
-            case "2.16.840.1.101.3.4.1.2":
-                return "AES-128_CBC";
-            case "2.16.840.1.101.3.4.1.3":
-                return "AES-128_OFB";
-            case "2.16.840.1.101.3.4.1.4":
-                return "AES-128_CFB";
-            case "2.16.840.1.101.3.4.1.6":
-                return "AES-128_GCM";
-            case "2.16.840.1.101.3.4.1.21":
-                return "AES-192_ECB";
-            case "2.16.840.1.101.3.4.1.22":
-                return "AES-192_CBC";
-            case "2.16.840.1.101.3.4.1.23":
-                return "AES-192_OFB";
-            case "2.16.840.1.101.3.4.1.24":
-                return "AES-192_CFB";
-            case "2.16.840.1.101.3.4.1.26":
-                return "AES-192_GCM";
-            case "2.16.840.1.101.3.4.1.41":
-                return "AES-256_ECB";
-            case "2.16.840.1.101.3.4.1.42":
-                return "AES-256_CBC";
-            case "2.16.840.1.101.3.4.1.43":
-                return "AES-256_OFB";
-            case "2.16.840.1.101.3.4.1.44":
-                return "AES-256_CFB";
-            case "2.16.840.1.101.3.4.1.46":
-                return "AES-256_GCM";
-            case "2.16.840.1.101.3.4.1.5":
-                return "AESWrap-128";
-            case "2.16.840.1.101.3.4.1.25":
-                return "AESWrap-192";
-            case "2.16.840.1.101.3.4.1.45":
-                return "AESWrap-256";
-        }
-        return null;
+        return switch (oidString) {
+            case "1.2.840.10040.4.1" -> "DSA";
+            case "1.2.840.113549.1.1.1" -> "RSA";
+            case "1.2.840.10045.2.1" -> "EC";
+            case "1.3.14.3.2.7" -> "DES-CBC";
+            case "2.16.840.1.101.3.4.1.1" -> "AES-128_ECB";
+            case "2.16.840.1.101.3.4.1.2" -> "AES-128_CBC";
+            case "2.16.840.1.101.3.4.1.3" -> "AES-128_OFB";
+            case "2.16.840.1.101.3.4.1.4" -> "AES-128_CFB";
+            case "2.16.840.1.101.3.4.1.6" -> "AES-128_GCM";
+            case "2.16.840.1.101.3.4.1.21" -> "AES-192_ECB";
+            case "2.16.840.1.101.3.4.1.22" -> "AES-192_CBC";
+            case "2.16.840.1.101.3.4.1.23" -> "AES-192_OFB";
+            case "2.16.840.1.101.3.4.1.24" -> "AES-192_CFB";
+            case "2.16.840.1.101.3.4.1.26" -> "AES-192_GCM";
+            case "2.16.840.1.101.3.4.1.41" -> "AES-256_ECB";
+            case "2.16.840.1.101.3.4.1.42" -> "AES-256_CBC";
+            case "2.16.840.1.101.3.4.1.43" -> "AES-256_OFB";
+            case "2.16.840.1.101.3.4.1.44" -> "AES-256_CFB";
+            case "2.16.840.1.101.3.4.1.46" -> "AES-256_GCM";
+            case "2.16.840.1.101.3.4.1.5" -> "AESWrap-128";
+            case "2.16.840.1.101.3.4.1.25" -> "AESWrap-192";
+            case "2.16.840.1.101.3.4.1.45" -> "AESWrap-256";
+            default -> null;
+        };
     }
 
     private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {
-        switch (oidString) {
+        return switch (oidString) {
             // see https://tools.ietf.org/html/rfc5480#section-2.1.1.1
-            case "1.2.840.10045.3.1":
-                return "secp192r1";
-            case "1.3.132.0.1":
-                return "sect163k1";
-            case "1.3.132.0.15":
-                return "sect163r2";
-            case "1.3.132.0.33":
-                return "secp224r1";
-            case "1.3.132.0.26":
-                return "sect233k1";
-            case "1.3.132.0.27":
-                return "sect233r1";
-            case "1.2.840.10045.3.1.7":
-                return "secp256r1";
-            case "1.3.132.0.16":
-                return "sect283k1";
-            case "1.3.132.0.17":
-                return "sect283r1";
-            case "1.3.132.0.34":
-                return "secp384r1";
-            case "1.3.132.0.36":
-                return "sect409k1";
-            case "1.3.132.0.37":
-                return "sect409r1";
-            case "1.3.132.0.35":
-                return "secp521r1";
-            case "1.3.132.0.38":
-                return "sect571k1";
-            case "1.3.132.0.39":
-                return "sect571r1";
-        }
-        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString
-            + " is not supported");
+            case "1.2.840.10045.3.1" -> "secp192r1";
+            case "1.3.132.0.1" -> "sect163k1";
+            case "1.3.132.0.15" -> "sect163r2";
+            case "1.3.132.0.33" -> "secp224r1";
+            case "1.3.132.0.26" -> "sect233k1";
+            case "1.3.132.0.27" -> "sect233r1";
+            case "1.2.840.10045.3.1.7" -> "secp256r1";
+            case "1.3.132.0.16" -> "sect283k1";
+            case "1.3.132.0.17" -> "sect283r1";
+            case "1.3.132.0.34" -> "secp384r1";
+            case "1.3.132.0.36" -> "sect409k1";
+            case "1.3.132.0.37" -> "sect409r1";
+            case "1.3.132.0.35" -> "secp521r1";
+            case "1.3.132.0.38" -> "sect571k1";
+            case "1.3.132.0.39" -> "sect571r1";
+            default -> throw new GeneralSecurityException(
+                "Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not supported"
+            );
+        };
     }
 
 }

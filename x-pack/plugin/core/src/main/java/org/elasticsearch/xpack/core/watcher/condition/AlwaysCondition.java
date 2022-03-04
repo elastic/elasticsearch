@@ -14,7 +14,7 @@ public class AlwaysCondition implements Condition {
     public static final String TYPE = "always";
     public static final Condition INSTANCE = new AlwaysCondition();
 
-    protected AlwaysCondition() { }
+    protected AlwaysCondition() {}
 
     @Override
     public boolean equals(Object obj) {

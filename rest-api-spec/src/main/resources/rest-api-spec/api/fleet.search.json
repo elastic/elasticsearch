@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/{index}/_fleet/_search",
+          "path":"/{index}/_fleet/_fleet_search",
           "methods":[
             "GET",
             "POST"

@@ -185,36 +185,27 @@ public class Segment implements Writeable {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortedSetSortField(field, reverse,
-                    max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+                fields[i] = new SortedSetSortField(field, reverse, max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
                 if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ?
-                        SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
                 }
             } else {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                final SortField.Type numericType;
-                switch (type) {
-                    case 1:
-                        numericType = SortField.Type.INT;
-                        break;
-                    case 2:
-                        numericType = SortField.Type.FLOAT;
-                        break;
-                    case 3:
-                        numericType = SortField.Type.DOUBLE;
-                        break;
-                    case 4:
-                        numericType = SortField.Type.LONG;
-                        break;
-                    default:
-                        throw new IOException("invalid index sort type:[" + type +
-                            "] for numeric field:[" + field + "]");
-                }
-                fields[i] = new SortedNumericSortField(field, numericType, reverse, max ?
-                    SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN);
+                final SortField.Type numericType = switch (type) {
+                    case 1 -> SortField.Type.INT;
+                    case 2 -> SortField.Type.FLOAT;
+                    case 3 -> SortField.Type.DOUBLE;
+                    case 4 -> SortField.Type.LONG;
+                    default -> throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
+                };
+                fields[i] = new SortedNumericSortField(
+                    field,
+                    numericType,
+                    reverse,
+                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+                );
                 if (missing != null) {
                     fields[i].setMissingValue(missing);
                 }
@@ -233,26 +224,16 @@ public class Segment implements Writeable {
             out.writeString(field.getField());
             if (field instanceof SortedSetSortField) {
                 out.writeByte((byte) 0);
-                out.writeOptionalBoolean(field.getMissingValue() == null ?
-                    null : field.getMissingValue() == SortField.STRING_FIRST);
+                out.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
                 out.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
                 out.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
                 switch (((SortedNumericSortField) field).getNumericType()) {
-                    case INT:
-                        out.writeByte((byte) 1);
-                        break;
-                    case FLOAT:
-                        out.writeByte((byte) 2);
-                        break;
-                    case DOUBLE:
-                        out.writeByte((byte) 3);
-                        break;
-                    case LONG:
-                        out.writeByte((byte) 4);
-                        break;
-                    default:
-                        throw new IOException("invalid index sort field:" + field);
+                    case INT -> out.writeByte((byte) 1);
+                    case FLOAT -> out.writeByte((byte) 2);
+                    case DOUBLE -> out.writeByte((byte) 3);
+                    case LONG -> out.writeByte((byte) 4);
+                    default -> throw new IOException("invalid index sort field:" + field);
                 }
                 out.writeGenericValue(field.getMissingValue());
                 out.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
@@ -274,19 +255,33 @@ public class Segment implements Writeable {
 
     @Override
     public String toString() {
-        return "Segment{" +
-                "name='" + name + '\'' +
-                ", generation=" + generation +
-                ", committed=" + committed +
-                ", search=" + search +
-                ", sizeInBytes=" + sizeInBytes +
-                ", docCount=" + docCount +
-                ", delDocCount=" + delDocCount +
-                ", version='" + version + '\'' +
-                ", compound=" + compound +
-                ", mergeId='" + mergeId + '\'' +
-                (segmentSort != null ? ", sort=" + segmentSort : "") +
-                ", attributes=" + attributes +
-                '}';
+        return "Segment{"
+            + "name='"
+            + name
+            + '\''
+            + ", generation="
+            + generation
+            + ", committed="
+            + committed
+            + ", search="
+            + search
+            + ", sizeInBytes="
+            + sizeInBytes
+            + ", docCount="
+            + docCount
+            + ", delDocCount="
+            + delDocCount
+            + ", version='"
+            + version
+            + '\''
+            + ", compound="
+            + compound
+            + ", mergeId='"
+            + mergeId
+            + '\''
+            + (segmentSort != null ? ", sort=" + segmentSort : "")
+            + ", attributes="
+            + attributes
+            + '}';
     }
 }

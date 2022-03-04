@@ -41,9 +41,13 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         int noConditionals = randomIntBetween(1, 5);
         List<Expression> expressions = new ArrayList<>(noConditionals + 1);
         for (int i = 0; i < noConditionals; i++) {
-            expressions.add(new IfConditional(
-                randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
-                randomIntLiteral()));
+            expressions.add(
+                new IfConditional(
+                    randomSource(),
+                    new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
+                    randomIntLiteral()
+                )
+            );
 
         }
         // default else
@@ -72,8 +76,10 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         Case c = randomCase();
 
         Source newSource = randomValueOtherThan(c.source(), SourceTests::randomSource);
-        assertEquals(new Case(c.source(), c.children()),
-            c.transformPropertiesOnly(Object.class, p -> Objects.equals(p, c.source()) ? newSource: p));
+        assertEquals(
+            new Case(c.source(), c.children()),
+            c.transformPropertiesOnly(Object.class, p -> Objects.equals(p, c.source()) ? newSource : p)
+        );
     }
 
     @Override
@@ -88,34 +94,36 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // CASE WHEN 1 = 1 THEN NULL
         // ELSE 'default'
         // END
-        Case c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL), literal("default")));
+        Case c = new Case(
+            EMPTY,
+            Arrays.asList(new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL), literal("default"))
+        );
         assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN 'foo'
         // ELSE NULL
         // END
-        c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), literal("foo")),
-            Literal.NULL));
+        c = new Case(EMPTY, Arrays.asList(new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), literal("foo")), Literal.NULL));
         assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN NULL
         // ELSE NULL
         // END
-        c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL),
-            Literal.NULL));
+        c = new Case(EMPTY, Arrays.asList(new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL), Literal.NULL));
         assertEquals(NULL, c.dataType());
 
         // CASE WHEN 1 = 1 THEN NULL
-        //      WHEN 2 = 2 THEN 'foo'
+        // WHEN 2 = 2 THEN 'foo'
         // ELSE NULL
         // END
-        c = new Case(EMPTY, Arrays.asList(
+        c = new Case(
+            EMPTY,
+            Arrays.asList(
                 new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL),
                 new IfConditional(EMPTY, equalsOf(literal(2), literal(2)), literal("foo")),
-            Literal.NULL));
+                Literal.NULL
+            )
+        );
         assertEquals(KEYWORD, c.dataType());
     }
 
@@ -135,9 +143,13 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
             int rndIdx = randomInt(c.conditions().size());
             for (int i = 0; i < c.conditions().size(); i++) {
                 if (i == rndIdx) {
-                    expressions.add(new IfConditional(randomValueOtherThan(c.conditions().get(i).source(), SourceTests::randomSource),
-                        new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
-                        randomValueOtherThan(c.conditions().get(i).condition(), FunctionTestUtils::randomStringLiteral)));
+                    expressions.add(
+                        new IfConditional(
+                            randomValueOtherThan(c.conditions().get(i).source(), SourceTests::randomSource),
+                            new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
+                            randomValueOtherThan(c.conditions().get(i).condition(), FunctionTestUtils::randomStringLiteral)
+                        )
+                    );
                 } else {
                     expressions.add(c.conditions().get(i));
                 }

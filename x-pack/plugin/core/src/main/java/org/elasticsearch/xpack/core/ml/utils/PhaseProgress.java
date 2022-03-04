@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,8 +26,11 @@ public class PhaseProgress implements ToXContentObject, Writeable {
     public static final ParseField PHASE = new ParseField("phase");
     public static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
 
-    public static final ConstructingObjectParser<PhaseProgress, Void> PARSER = new ConstructingObjectParser<>("phase_progress",
-        true, a -> new PhaseProgress((String) a[0], (int) a[1]));
+    public static final ConstructingObjectParser<PhaseProgress, Void> PARSER = new ConstructingObjectParser<>(
+        "phase_progress",
+        true,
+        a -> new PhaseProgress((String) a[0], (int) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PHASE);

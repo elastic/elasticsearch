@@ -10,8 +10,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.security.support.ServiceTokenInfo;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,8 +25,7 @@ public class ServiceAccountCredentialsNodesResponse {
     private final NodesResponseHeader header;
     private final List<ServiceTokenInfo> fileTokenInfos;
 
-    public ServiceAccountCredentialsNodesResponse(
-        NodesResponseHeader header, List<ServiceTokenInfo> fileTokenInfos) {
+    public ServiceAccountCredentialsNodesResponse(NodesResponseHeader header, List<ServiceTokenInfo> fileTokenInfos) {
         this.header = header;
         this.fileTokenInfos = fileTokenInfos;
     }
@@ -55,8 +54,9 @@ public class ServiceAccountCredentialsNodesResponse {
             } else if ("file_tokens".equals(parser.currentName())) {
                 fileTokenInfos = parseFileToken(parser);
             } else {
-                throw new IllegalArgumentException("expecting field of either [_nodes] or [file_tokens], found ["
-                    + parser.currentName() + "]");
+                throw new IllegalArgumentException(
+                    "expecting field of either [_nodes] or [file_tokens], found [" + parser.currentName() + "]"
+                );
             }
         }
         return new ServiceAccountCredentialsNodesResponse(header, fileTokenInfos);

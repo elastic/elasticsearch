@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
@@ -35,11 +35,23 @@ public class RollupIndexerJobStats extends IndexerJobStats {
     private static ParseField SEARCH_FAILURES = new ParseField("search_failures");
     private static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
-    public static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(),
-            args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
-                (long) args[4], (long) args[5], (long) args[6], (long) args[7],  (long) args[8], (long) args[9],
-                (long) args[10], (long) args[11]));
+    public static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        args -> new RollupIndexerJobStats(
+            (long) args[0],
+            (long) args[1],
+            (long) args[2],
+            (long) args[3],
+            (long) args[4],
+            (long) args[5],
+            (long) args[6],
+            (long) args[7],
+            (long) args[8],
+            (long) args[9],
+            (long) args[10],
+            (long) args[11]
+        )
+    );
 
     static {
         PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -60,11 +72,34 @@ public class RollupIndexerJobStats extends IndexerJobStats {
         super();
     }
 
-    public RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                                 long indexTime, long searchTime, long processingTime, long indexTotal, long searchTotal,
-                                 long processingTotal, long indexFailures, long searchFailures) {
-        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime, processingTime,
-            indexTotal, searchTotal, processingTotal, indexFailures, searchFailures);
+    public RollupIndexerJobStats(
+        long numPages,
+        long numInputDocuments,
+        long numOuputDocuments,
+        long numInvocations,
+        long indexTime,
+        long searchTime,
+        long processingTime,
+        long indexTotal,
+        long searchTotal,
+        long processingTotal,
+        long indexFailures,
+        long searchFailures
+    ) {
+        super(
+            numPages,
+            numInputDocuments,
+            numOuputDocuments,
+            numInvocations,
+            indexTime,
+            searchTime,
+            processingTime,
+            indexTotal,
+            searchTotal,
+            processingTotal,
+            indexFailures,
+            searchFailures
+        );
     }
 
     public RollupIndexerJobStats(StreamInput in) throws IOException {

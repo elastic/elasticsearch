@@ -25,7 +25,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHea
 
 public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportPutRollupJobAction.class);
 
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -90,6 +90,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
         this.persistentTasksService = persistentTasksService;
         this.client = client;
+
     }
 
     @Override
@@ -114,7 +115,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             }
 
             RollupJob job = createRollupJob(request.getConfig(), threadPool);
-            createIndex(job, l, persistentTasksService, client, logger);
+            createIndex(job, l, persistentTasksService, client, LOGGER);
         }));
     }
 
@@ -122,7 +123,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "deprecated_timezone",
                 "Creating Rollup job ["
@@ -138,9 +139,12 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         }
     }
 
-    private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
+    private RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
-        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
         return new RollupJob(config, filteredHeaders);
     }
 

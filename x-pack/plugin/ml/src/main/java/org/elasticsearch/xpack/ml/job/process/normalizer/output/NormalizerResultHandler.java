@@ -78,9 +78,10 @@ public class NormalizerResultHandler {
     }
 
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
-        try (InputStream stream = bytesRef.streamInput();
-             XContentParser parser = xContent
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = bytesRef.streamInput();
+            XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
             normalizedResults.add(result);
         }
@@ -95,4 +96,3 @@ public class NormalizerResultHandler {
         return -1;
     }
 }
-

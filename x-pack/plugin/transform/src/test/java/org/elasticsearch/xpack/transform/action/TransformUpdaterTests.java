@@ -13,7 +13,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -127,6 +128,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {
@@ -141,7 +143,7 @@ public class TransformUpdaterTests extends ESTestCase {
 
         TransformConfig minCompatibleConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            TransformConfig.CONFIG_VERSION_LAST_CHANGED
+            TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED
         );
         transformConfigManager.putTransformConfiguration(minCompatibleConfig, ActionListener.wrap(r -> {}, e -> {}));
 
@@ -159,6 +161,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {
@@ -168,7 +171,7 @@ public class TransformUpdaterTests extends ESTestCase {
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(minCompatibleConfig.getId(), listener), config -> {
             assertNotNull(config);
-            assertEquals(TransformConfig.CONFIG_VERSION_LAST_CHANGED, config.getVersion());
+            assertEquals(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED, config.getVersion());
         });
     }
 
@@ -180,7 +183,7 @@ public class TransformUpdaterTests extends ESTestCase {
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.V_7_2_0,
-                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_CHANGED)
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
         );
 
@@ -227,6 +230,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {
@@ -256,14 +260,17 @@ public class TransformUpdaterTests extends ESTestCase {
                 assertEquals(stateDoc.getTransformStats(), storedDocAndVersion.v1().getTransformStats());
             }
         );
+    }
 
-        // same as dry run
+    public void testTransformUpdateDryRun() throws InterruptedException {
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+
         TransformConfig oldConfigForDryRunUpdate = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.V_7_2_0,
-                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_CHANGED)
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
         );
 
@@ -273,6 +280,7 @@ public class TransformUpdaterTests extends ESTestCase {
             config -> {}
         );
 
+        TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
                 securityContext,
@@ -287,6 +295,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 true,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {

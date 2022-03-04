@@ -10,8 +10,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,9 +38,9 @@ public class ForecastJobActionRequestTests extends AbstractSerializingTestCase<R
             request.setExpiresIn(TimeValue.timeValueSeconds(randomIntBetween(0, 1_000_000)).getStringRep());
         }
         if (randomBoolean()) {
-            request.setMaxModelMemory(randomLongBetween(
-                new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(),
-                new ByteSizeValue(499, ByteSizeUnit.MB).getBytes()));
+            request.setMaxModelMemory(
+                randomLongBetween(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(), new ByteSizeValue(499, ByteSizeUnit.MB).getBytes())
+            );
         }
         return request;
     }

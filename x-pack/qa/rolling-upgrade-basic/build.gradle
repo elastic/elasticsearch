@@ -9,7 +9,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [bwcVersion.toString(), project.version]

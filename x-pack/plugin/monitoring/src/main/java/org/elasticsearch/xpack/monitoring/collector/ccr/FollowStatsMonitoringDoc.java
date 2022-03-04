@@ -26,15 +26,15 @@ public class FollowStatsMonitoringDoc extends MonitoringDoc {
     }
 
     public FollowStatsMonitoringDoc(
-            final String cluster,
-            final long timestamp,
-            final long intervalMillis,
-            final MonitoringDoc.Node node,
-            final ShardFollowNodeTaskStatus status) {
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        final MonitoringDoc.Node node,
+        final ShardFollowNodeTaskStatus status
+    ) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.status = Objects.requireNonNull(status, "status");
     }
-
 
     @Override
     protected void innerToXContent(final XContentBuilder builder, final Params params) throws IOException {

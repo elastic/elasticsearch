@@ -8,8 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,6 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -386,7 +385,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
         PlainActionFuture.<Void, RuntimeException>get(
             future -> clusterService.getClusterApplierService()
-                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future)
+                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future),
+            10,
+            TimeUnit.SECONDS
         );
     }
 
@@ -435,7 +436,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Index index = indexMetadata.getIndex();
 
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
-        routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new IntHashSet()).build());
+        routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new HashSet<>()).build());
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
             currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)

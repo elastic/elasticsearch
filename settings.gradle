@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.6.4"
+  id "com.gradle.enterprise" version "3.7.1"
 }
 
 includeBuild "build-conventions"
@@ -57,6 +57,7 @@ List projects = [
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
+  'distribution:tools:ansi-console',
   'server',
   'server:cli',
   'test:framework',

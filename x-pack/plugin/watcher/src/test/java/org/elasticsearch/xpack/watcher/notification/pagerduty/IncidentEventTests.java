@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 
@@ -62,8 +62,17 @@ public class IncidentEventTests extends ESTestCase {
 
         HttpProxy proxy = rarely() ? null : HttpProxy.NO_PROXY;
 
-        IncidentEvent event = new IncidentEvent(description, eventType, incidentKey, client, clientUrl, account,
-            attachPayload, contexts, proxy);
+        IncidentEvent event = new IncidentEvent(
+            description,
+            eventType,
+            incidentKey,
+            client,
+            clientUrl,
+            account,
+            attachPayload,
+            contexts,
+            proxy
+        );
 
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject(); // since its a snippet
@@ -75,19 +84,22 @@ public class IncidentEventTests extends ESTestCase {
         ObjectPath objectPath = ObjectPath.createFromXContent(jsonBuilder.contentType().xContent(), BytesReference.bytes(jsonBuilder));
 
         String actualServiceKey = objectPath.evaluate(IncidentEvent.Fields.ROUTING_KEY.getPreferredName());
-        String actualWatchId = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
-            + "." + IncidentEvent.Fields.SOURCE.getPreferredName());
+        String actualWatchId = objectPath.evaluate(
+            IncidentEvent.Fields.PAYLOAD.getPreferredName() + "." + IncidentEvent.Fields.SOURCE.getPreferredName()
+        );
         if (actualWatchId == null) {
             actualWatchId = "watcher"; // hardcoded if the SOURCE is null
         }
-        String actualDescription = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
-            + "." + IncidentEvent.Fields.SUMMARY.getPreferredName());
+        String actualDescription = objectPath.evaluate(
+            IncidentEvent.Fields.PAYLOAD.getPreferredName() + "." + IncidentEvent.Fields.SUMMARY.getPreferredName()
+        );
         String actualEventType = objectPath.evaluate(IncidentEvent.Fields.EVENT_ACTION.getPreferredName());
         String actualIncidentKey = objectPath.evaluate(IncidentEvent.Fields.DEDUP_KEY.getPreferredName());
         String actualClient = objectPath.evaluate(IncidentEvent.Fields.CLIENT.getPreferredName());
         String actualClientUrl = objectPath.evaluate(IncidentEvent.Fields.CLIENT_URL.getPreferredName());
-        String actualSeverity = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
-            + "." + IncidentEvent.Fields.SEVERITY.getPreferredName());
+        String actualSeverity = objectPath.evaluate(
+            IncidentEvent.Fields.PAYLOAD.getPreferredName() + "." + IncidentEvent.Fields.SEVERITY.getPreferredName()
+        );
         Map<String, Object> payloadDetails = objectPath.evaluate("payload.custom_details.payload");
         Payload actualPayload = null;
 

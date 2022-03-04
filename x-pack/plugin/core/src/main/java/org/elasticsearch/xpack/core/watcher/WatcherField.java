@@ -15,12 +15,14 @@ import java.io.InputStream;
 
 public final class WatcherField {
 
-    public static final Setting<InputStream> ENCRYPTION_KEY_SETTING =
-            SecureSetting.secureFile("xpack.watcher.encryption_key", null);
+    public static final Setting<InputStream> ENCRYPTION_KEY_SETTING = SecureSetting.secureFile("xpack.watcher.encryption_key", null);
 
     public static final String EMAIL_NOTIFICATION_SSL_PREFIX = "xpack.notification.email.ssl.";
-    public static final LicensedFeature.Momentary WATCHER_FEATURE =
-        LicensedFeature.momentary(null, "watcher", License.OperationMode.STANDARD);
+    public static final LicensedFeature.Momentary WATCHER_FEATURE = LicensedFeature.momentary(
+        null,
+        "watcher",
+        License.OperationMode.STANDARD
+    );
 
     private WatcherField() {}
 }

@@ -62,24 +62,30 @@ public final class AnalysisRegistry implements Closeable {
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers;
 
-    public AnalysisRegistry(Environment environment,
-                            Map<String, AnalysisProvider<CharFilterFactory>> charFilters,
-                            Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilters,
-                            Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
-                            Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
-                            Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
-                            Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
-                            Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-                            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
-                            Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
+    public AnalysisRegistry(
+        Environment environment,
+        Map<String, AnalysisProvider<CharFilterFactory>> charFilters,
+        Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilters,
+        Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
+        Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
+        Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
+        Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
+        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
+        Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+        Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers
+    ) {
         this.environment = environment;
         this.charFilters = unmodifiableMap(charFilters);
         this.tokenFilters = unmodifiableMap(tokenFilters);
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
-        prebuiltAnalysis =
-            new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers, preConfiguredAnalyzers);
+        prebuiltAnalysis = new PrebuiltAnalysis(
+            preConfiguredCharFilters,
+            preConfiguredTokenFilters,
+            preConfiguredTokenizers,
+            preConfiguredAnalyzers
+        );
     }
 
     private static Settings getSettingsFromIndexSettings(IndexSettings indexSettings, String groupName) {
@@ -99,11 +105,14 @@ public final class AnalysisRegistry implements Closeable {
         Settings.EMPTY
     );
 
-    private <T> T getComponentFactory(IndexSettings settings, NameOrDefinition nod,
-                                      String componentType,
-                                      Function<String, AnalysisProvider<T>> globalComponentProvider,
-                                      Function<String, AnalysisProvider<T>> prebuiltComponentProvider,
-                                      BiFunction<String, IndexSettings, AnalysisProvider<T>> indexComponentProvider) throws IOException {
+    private <T> T getComponentFactory(
+        IndexSettings settings,
+        NameOrDefinition nod,
+        String componentType,
+        Function<String, AnalysisProvider<T>> globalComponentProvider,
+        Function<String, AnalysisProvider<T>> prebuiltComponentProvider,
+        BiFunction<String, IndexSettings, AnalysisProvider<T>> indexComponentProvider
+    ) throws IOException {
         if (nod.definition != null) {
             // custom component, so we build it from scratch
             String type = nod.definition.get("type");
@@ -170,12 +179,12 @@ public final class AnalysisRegistry implements Closeable {
         if (analyzerProvider == null) {
             AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> provider = analyzers.get(analyzer);
             return provider == null ? null : cachedAnalyzer.computeIfAbsent(analyzer, (key) -> {
-                        try {
-                            return provider.get(environment, key).get();
-                        } catch (IOException ex) {
-                            throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
-                        }}
-            );
+                try {
+                    return provider.get(environment, key).get();
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
+                }
+            });
         }
         return analyzerProvider.get(environment, analyzer).get();
     }
@@ -206,29 +215,59 @@ public final class AnalysisRegistry implements Closeable {
      *
      * Callers are responsible for closing the returned Analyzer
      */
-    public NamedAnalyzer buildCustomAnalyzer(IndexSettings indexSettings, boolean normalizer, NameOrDefinition tokenizer,
-                                             List<NameOrDefinition> charFilters, List<NameOrDefinition> tokenFilters) throws IOException {
-        TokenizerFactory tokenizerFactory
-            = getComponentFactory(indexSettings, tokenizer, "tokenizer",
-            this::getTokenizerProvider, prebuiltAnalysis::getTokenizerFactory, this::getTokenizerProvider);
+    public NamedAnalyzer buildCustomAnalyzer(
+        IndexSettings indexSettings,
+        boolean normalizer,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> charFilters,
+        List<NameOrDefinition> tokenFilters
+    ) throws IOException {
+        TokenizerFactory tokenizerFactory = getComponentFactory(
+            indexSettings,
+            tokenizer,
+            "tokenizer",
+            this::getTokenizerProvider,
+            prebuiltAnalysis::getTokenizerFactory,
+            this::getTokenizerProvider
+        );
 
         List<CharFilterFactory> charFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : charFilters) {
-            charFilterFactories.add(getComponentFactory(indexSettings, nod, "char_filter",
-                this::getCharFilterProvider, prebuiltAnalysis::getCharFilterFactory, this::getCharFilterProvider));
+            charFilterFactories.add(
+                getComponentFactory(
+                    indexSettings,
+                    nod,
+                    "char_filter",
+                    this::getCharFilterProvider,
+                    prebuiltAnalysis::getCharFilterFactory,
+                    this::getCharFilterProvider
+                )
+            );
         }
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
-            TokenFilterFactory tff = getComponentFactory(indexSettings, nod, "filter",
-                this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
+            TokenFilterFactory tff = getComponentFactory(
+                indexSettings,
+                nod,
+                "filter",
+                this::getTokenFilterProvider,
+                prebuiltAnalysis::getTokenFilterFactory,
+                this::getTokenFilterProvider
+            );
             if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
             }
             tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
                 try {
-                    return getComponentFactory(indexSettings, new NameOrDefinition(name), "filter",
-                        this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
+                    return getComponentFactory(
+                        indexSettings,
+                        new NameOrDefinition(name),
+                        "filter",
+                        this::getTokenFilterProvider,
+                        prebuiltAnalysis::getTokenFilterFactory,
+                        this::getTokenFilterProvider
+                    );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -236,9 +275,11 @@ public final class AnalysisRegistry implements Closeable {
             tokenFilterFactories.add(tff);
         }
 
-        Analyzer analyzer = new CustomAnalyzer(tokenizerFactory,
-            charFilterFactories.toArray(new CharFilterFactory[]{}),
-            tokenFilterFactories.toArray(new TokenFilterFactory[]{}));
+        Analyzer analyzer = new CustomAnalyzer(
+            tokenizerFactory,
+            charFilterFactories.toArray(new CharFilterFactory[] {}),
+            tokenFilterFactories.toArray(new TokenFilterFactory[] {})
+        );
         return produceAnalyzer("__custom__", new AnalyzerProvider<>() {
             @Override
             public String name() {
@@ -260,8 +301,13 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, this.tokenFilters,
-                prebuiltAnalysis.preConfiguredTokenFilters);
+        return buildMapping(
+            Component.FILTER,
+            indexSettings,
+            tokenFiltersSettings,
+            this.tokenFilters,
+            prebuiltAnalysis.preConfiguredTokenFilters
+        );
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -271,8 +317,13 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters,
-            prebuiltAnalysis.preConfiguredCharFilterFactories);
+        return buildMapping(
+            Component.CHAR_FILTER,
+            indexSettings,
+            charFiltersSettings,
+            charFilters,
+            prebuiltAnalysis.preConfiguredCharFilterFactories
+        );
     }
 
     private Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
@@ -294,8 +345,14 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link TokenizerFactory} provider or <code>null</code>
      */
     private AnalysisProvider<TokenizerFactory> getTokenizerProvider(String tokenizer, IndexSettings indexSettings) {
-        return getProvider(Component.TOKENIZER, tokenizer, indexSettings, "index.analysis.tokenizer", tokenizers,
-                this::getTokenizerProvider);
+        return getProvider(
+            Component.TOKENIZER,
+            tokenizer,
+            indexSettings,
+            "index.analysis.tokenizer",
+            tokenizers,
+            this::getTokenizerProvider
+        );
     }
 
     /**
@@ -307,8 +364,14 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link TokenFilterFactory} provider or <code>null</code>
      */
     private AnalysisProvider<TokenFilterFactory> getTokenFilterProvider(String tokenFilter, IndexSettings indexSettings) {
-        return getProvider(Component.FILTER, tokenFilter, indexSettings, "index.analysis.filter", tokenFilters,
-                this::getTokenFilterProvider);
+        return getProvider(
+            Component.FILTER,
+            tokenFilter,
+            indexSettings,
+            "index.analysis.filter",
+            tokenFilters,
+            this::getTokenFilterProvider
+        );
     }
 
     /**
@@ -320,12 +383,24 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link CharFilterFactory} provider or <code>null</code>
      */
     private AnalysisProvider<CharFilterFactory> getCharFilterProvider(String charFilter, IndexSettings indexSettings) {
-        return getProvider(Component.CHAR_FILTER, charFilter, indexSettings, "index.analysis.char_filter", charFilters,
-                this::getCharFilterProvider);
+        return getProvider(
+            Component.CHAR_FILTER,
+            charFilter,
+            indexSettings,
+            "index.analysis.char_filter",
+            charFilters,
+            this::getCharFilterProvider
+        );
     }
 
-    private <T> AnalysisProvider<T> getProvider(Component componentType, String componentName, IndexSettings indexSettings,
-            String componentSettings, Map<String, AnalysisProvider<T>> providers, Function<String, AnalysisProvider<T>> providerFunction) {
+    private <T> AnalysisProvider<T> getProvider(
+        Component componentType,
+        String componentName,
+        IndexSettings indexSettings,
+        String componentSettings,
+        Map<String, AnalysisProvider<T>> providers,
+        Function<String, AnalysisProvider<T>> providerFunction
+    ) {
         final Map<String, Settings> subSettings = indexSettings.getSettings().getGroups(componentSettings);
         if (subSettings.containsKey(componentName)) {
             Settings currentSettings = subSettings.get(componentName);
@@ -369,9 +444,13 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Map<String, T> buildMapping(Component component, IndexSettings settings, Map<String, Settings> settingsMap,
-                    Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
-                    Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {
+    private <T> Map<String, T> buildMapping(
+        Component component,
+        IndexSettings settings,
+        Map<String, Settings> settingsMap,
+        Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
+        Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance
+    ) throws IOException {
         Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
@@ -384,8 +463,9 @@ public final class AnalysisRegistry implements Closeable {
                     if (currentSettings.get("tokenizer") != null) {
                         factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                     } else {
-                        throw new IllegalArgumentException(component + " [" + name + "] " +
-                            "must specify either an analyzer type, or a tokenizer");
+                        throw new IllegalArgumentException(
+                            component + " [" + name + "] " + "must specify either an analyzer type, or a tokenizer"
+                        );
                     }
                 } else if (typeName.equals("custom")) {
                     factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
@@ -439,8 +519,12 @@ public final class AnalysisRegistry implements Closeable {
         return factories;
     }
 
-    private static <T> AnalysisProvider<T> getAnalysisProvider(Component component, Map<String, ? extends AnalysisProvider<T>> providerMap,
-            String name, String typeName) {
+    private static <T> AnalysisProvider<T> getAnalysisProvider(
+        Component component,
+        Map<String, ? extends AnalysisProvider<T>> providerMap,
+        String name,
+        String typeName
+    ) {
         if (typeName == null) {
             throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
         }
@@ -459,10 +543,11 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, ? extends AnalysisProvider<CharFilterFactory>> preConfiguredCharFilterFactories;
 
         private PrebuiltAnalysis(
-                Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
-                Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
-                Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
+            Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
+            Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
+            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+            Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers
+        ) {
 
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
             analyzerProviderFactories.putAll(preConfiguredAnalyzers);
@@ -496,33 +581,53 @@ public final class AnalysisRegistry implements Closeable {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(analyzerProviderFactories.values().stream()
-                .map((a) -> ((PreBuiltAnalyzerProviderFactory)a)).collect(Collectors.toList()));
+            IOUtils.close(
+                analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory) a)).collect(Collectors.toList())
+            );
         }
     }
 
-    public IndexAnalyzers build(IndexSettings indexSettings,
-                                Map<String, AnalyzerProvider<?>> analyzerProviders,
-                                Map<String, AnalyzerProvider<?>> normalizerProviders,
-                                Map<String, TokenizerFactory> tokenizerFactoryFactories,
-                                Map<String, CharFilterFactory> charFilterFactoryFactories,
-                                Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
+    public IndexAnalyzers build(
+        IndexSettings indexSettings,
+        Map<String, AnalyzerProvider<?>> analyzerProviders,
+        Map<String, AnalyzerProvider<?>> normalizerProviders,
+        Map<String, TokenizerFactory> tokenizerFactoryFactories,
+        Map<String, CharFilterFactory> charFilterFactoryFactories,
+        Map<String, TokenFilterFactory> tokenFilterFactoryFactories
+    ) {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
-            analyzers.merge(entry.getKey(), produceAnalyzer(entry.getKey(), entry.getValue(), tokenFilterFactoryFactories,
-                    charFilterFactoryFactories, tokenizerFactoryFactories), (k, v) -> {
-                        throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
-                    });
+            analyzers.merge(
+                entry.getKey(),
+                produceAnalyzer(
+                    entry.getKey(),
+                    entry.getValue(),
+                    tokenFilterFactoryFactories,
+                    charFilterFactoryFactories,
+                    tokenizerFactoryFactories
+                ),
+                (k, v) -> { throw new IllegalStateException("already registered analyzer with name: " + entry.getKey()); }
+            );
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
+            processNormalizerFactory(
+                entry.getKey(),
+                entry.getValue(),
+                normalizers,
                 TokenizerFactory.newFactory("keyword", KeywordTokenizer::new),
-                tokenFilterFactoryFactories, charFilterFactoryFactories);
-            processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
+                tokenFilterFactoryFactories,
+                charFilterFactoryFactories
+            );
+            processNormalizerFactory(
+                entry.getKey(),
+                entry.getValue(),
+                whitespaceNormalizers,
                 TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
-                tokenFilterFactoryFactories, charFilterFactoryFactories);
+                tokenFilterFactoryFactories,
+                charFilterFactoryFactories
+            );
         }
 
         for (Analyzer analyzer : normalizers.values()) {
@@ -530,10 +635,16 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (analyzers.containsKey(DEFAULT_ANALYZER_NAME) == false) {
-            analyzers.put(DEFAULT_ANALYZER_NAME,
-                    produceAnalyzer(DEFAULT_ANALYZER_NAME,
-                            new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.EMPTY),
-                            tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories));
+            analyzers.put(
+                DEFAULT_ANALYZER_NAME,
+                produceAnalyzer(
+                    DEFAULT_ANALYZER_NAME,
+                    new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.EMPTY),
+                    tokenFilterFactoryFactories,
+                    charFilterFactoryFactories,
+                    tokenizerFactoryFactories
+                )
+            );
         }
         NamedAnalyzer defaultAnalyzer = analyzers.get(DEFAULT_ANALYZER_NAME);
         if (defaultAnalyzer == null) {
@@ -542,8 +653,12 @@ public final class AnalysisRegistry implements Closeable {
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
 
         if (analyzers.containsKey("default_index")) {
-            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
-                "[index.analysis.analyzer.default] instead for index [" + indexSettings.getIndex().getName() + "]");
+            throw new IllegalArgumentException(
+                "setting [index.analysis.analyzer.default_index] is not supported anymore, use "
+                    + "[index.analysis.analyzer.default] instead for index ["
+                    + indexSettings.getIndex().getName()
+                    + "]"
+            );
         }
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
@@ -554,11 +669,13 @@ public final class AnalysisRegistry implements Closeable {
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
-    private static NamedAnalyzer produceAnalyzer(String name,
-                                        AnalyzerProvider<?> analyzerFactory,
-                                        Map<String, TokenFilterFactory> tokenFilters,
-                                        Map<String, CharFilterFactory> charFilters,
-                                        Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(
+        String name,
+        AnalyzerProvider<?> analyzerFactory,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, CharFilterFactory> charFilters,
+        Map<String, TokenizerFactory> tokenizers
+    ) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -597,12 +714,13 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     private void processNormalizerFactory(
-            String name,
-            AnalyzerProvider<?> normalizerFactory,
-            Map<String, NamedAnalyzer> normalizers,
-            TokenizerFactory tokenizerFactory,
-            Map<String, TokenFilterFactory> tokenFilters,
-            Map<String, CharFilterFactory> charFilters) {
+        String name,
+        AnalyzerProvider<?> normalizerFactory,
+        Map<String, NamedAnalyzer> normalizers,
+        TokenizerFactory tokenizerFactory,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, CharFilterFactory> charFilters
+    ) {
         if (tokenizerFactory == null) {
             throw new IllegalStateException("keyword tokenizer factory is null, normalizers require analysis-common module");
         }
@@ -622,15 +740,16 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     // Some analysis components emit deprecation warnings or throw exceptions when used
-    // with the wrong version of elasticsearch.  These exceptions and warnings are
+    // with the wrong version of elasticsearch. These exceptions and warnings are
     // normally thrown when tokenstreams are constructed, which unless we build a
-    // tokenstream up-front does not happen until a document is indexed.  In order to
+    // tokenstream up-front does not happen until a document is indexed. In order to
     // surface these warnings or exceptions as early as possible, we build an empty
     // tokenstream and pull it through an Analyzer at construction time.
     private static void checkVersions(Analyzer analyzer) {
         try (TokenStream ts = analyzer.tokenStream("", "")) {
             ts.reset();
-            while (ts.incrementToken()) {}
+            while (ts.incrementToken()) {
+            }
             ts.end();
         } catch (IOException e) {
             throw new UncheckedIOException(e);

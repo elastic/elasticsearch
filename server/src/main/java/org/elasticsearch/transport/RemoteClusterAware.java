@@ -110,12 +110,14 @@ public abstract class RemoteClusterAware {
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
             ProxyConnectionStrategy.PROXY_ADDRESS,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME);
+            ProxyConnectionStrategy.SERVER_NAME
+        );
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {
         return clusterAlias == null || LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)
-            ? indexName : clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
+            ? indexName
+            : clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
     }
 }

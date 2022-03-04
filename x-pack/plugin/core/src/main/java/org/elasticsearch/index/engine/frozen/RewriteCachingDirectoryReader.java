@@ -42,8 +42,8 @@ import java.util.Map;
  */
 final class RewriteCachingDirectoryReader extends DirectoryReader {
 
-    RewriteCachingDirectoryReader(Directory directory, List<LeafReaderContext> segmentReaders,
-                                  Comparator<LeafReader> leafSorter) throws IOException {
+    RewriteCachingDirectoryReader(Directory directory, List<LeafReaderContext> segmentReaders, Comparator<LeafReader> leafSorter)
+        throws IOException {
         super(directory, wrap(segmentReaders), leafSorter);
     }
 
@@ -94,7 +94,8 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
     @Override
     public CacheHelper getReaderCacheHelper() {
-        throw new UnsupportedOperationException();
+        // this reader is used for fast operations that don't require caching
+        return null;
     }
 
     // except of a couple of selected methods everything else will
@@ -125,12 +126,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                         int docCount = pointValues.getDocCount();
                         valuesMap.put(info.name, new PointValues() {
                             @Override
-                            public void intersect(IntersectVisitor visitor) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            @Override
-                            public long estimatePointCount(IntersectVisitor visitor) {
+                            public PointTree getPointTree() {
                                 throw new UnsupportedOperationException();
                             }
 
@@ -241,8 +237,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void checkIntegrity() {
-        }
+        public void checkIntegrity() {}
 
         @Override
         public LeafMetaData getMetaData() {
@@ -270,8 +265,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        protected void doClose() {
-        }
+        protected void doClose() {}
 
         @Override
         public CacheHelper getReaderCacheHelper() {

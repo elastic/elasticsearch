@@ -56,8 +56,11 @@ public class NioGroupFactoryTests extends ESTestCase {
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                          Config.ServerSocket socketConfig) {
+        public NioServerSocketChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> {};
             Consumer<NioSocketChannel> acceptor = (c) -> {};

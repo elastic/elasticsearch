@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -27,10 +28,10 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.Map;
 
 import static java.util.function.Function.identity;
 
@@ -60,21 +61,17 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final long timestamp = clock.millis();
         final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
-        BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
-            .filter(transformConfig.getSource().getQueryConfig().getQuery())
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(transformConfig.getSource().getQueryConfig().getQuery())
             .filter(
-                new RangeQueryBuilder(timeSyncConfig.getField())
-                    .gte(lastCheckpoint.getTimeUpperBound())
+                new RangeQueryBuilder(timeSyncConfig.getField()).gte(lastCheckpoint.getTimeUpperBound())
                     .lt(timeUpperBound)
                     .format("epoch_millis")
             );
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .size(0)
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)
             // we only want to know if there is at least 1 new document
             .trackTotalHitsUpTo(1)
             .query(queryBuilder);
-        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex())
-            .allowPartialSearchResults(false)
+        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .source(sourceBuilder);
 
@@ -86,10 +83,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             client,
             SearchAction.INSTANCE,
             searchRequest,
-            ActionListener.wrap(
-                r -> listener.onResponse(r.getHits().getTotalHits().value > 0L),
-                listener::onFailure
-            )
+            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value > 0L), listener::onFailure)
         );
     }
 
@@ -123,6 +117,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
             return identity();
         }
+        // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".
+        if (transformConfig.getVersion() == null || transformConfig.getVersion().before(Version.V_7_15_0)) {
+            return identity();
+        }
         if (transformConfig.getPivotConfig() == null) {
             return identity();
         }
@@ -133,12 +131,12 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         if (groups == null || groups.isEmpty()) {
             return identity();
         }
-        Optional<DateHistogramGroupSource> dateHistogramGroupSource =
-            groups.values().stream()
-                .filter(DateHistogramGroupSource.class::isInstance)
-                .map(DateHistogramGroupSource.class::cast)
-                .filter(group -> Objects.equals(group.getField(), transformConfig.getSyncConfig().getField()))
-                .findFirst();
+        Optional<DateHistogramGroupSource> dateHistogramGroupSource = groups.values()
+            .stream()
+            .filter(DateHistogramGroupSource.class::isInstance)
+            .map(DateHistogramGroupSource.class::cast)
+            .filter(group -> Objects.equals(group.getField(), transformConfig.getSyncConfig().getField()))
+            .findFirst();
         if (dateHistogramGroupSource.isEmpty()) {
             return identity();
         }

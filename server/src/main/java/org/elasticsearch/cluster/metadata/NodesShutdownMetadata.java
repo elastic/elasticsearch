@@ -9,11 +9,11 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -70,9 +70,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
         assert state != null : "cluster state should never be null";
-        return Optional.ofNullable(state)
-            .map(ClusterState::metadata)
-            .map(m -> m.custom(TYPE));
+        return Optional.ofNullable(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
     }
 
     private final Map<String, SingleNodeShutdownMetadata> nodes;
@@ -180,9 +178,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(
-                nodesDiff.apply(((NodesShutdownMetadata) part).nodes)
-            );
+            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodesShutdownMetadata) part).nodes));
             return new NodesShutdownMetadata(newNodes);
         }
 
@@ -197,8 +193,14 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         static Diff<SingleNodeShutdownMetadata> readNodesDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return NODE_SHUTDOWN_VERSION;
+        }
+
     }
 
 }

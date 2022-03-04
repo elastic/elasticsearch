@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -23,10 +23,10 @@ import org.junit.Before;
 
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,15 +76,25 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
+        MlInitializationService initializationService = new MlInitializationService(
+            Settings.EMPTY,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier
+        );
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
+        MlInitializationService initializationService = new MlInitializationService(
+            Settings.EMPTY,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier
+        );
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));
     }
@@ -92,8 +102,12 @@ public class MlInitializationServiceTests extends ESTestCase {
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
 
-        MlInitializationService initializationService =
-            new MlInitializationService(client, threadPool, initialDailyMaintenanceService, clusterService);
+        MlInitializationService initializationService = new MlInitializationService(
+            client,
+            threadPool,
+            initialDailyMaintenanceService,
+            clusterService
+        );
         initializationService.offMaster();
         verify(initialDailyMaintenanceService).stop();
 

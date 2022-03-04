@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,8 +39,9 @@ public class BlockedTests extends AbstractSerializingTestCase<Blocked> {
 
     public static Blocked createRandom() {
         Blocked.Reason reason = randomFrom(Blocked.Reason.values());
-        TaskId taskId = (reason != Blocked.Reason.NONE && randomBoolean()) ?
-            new TaskId(randomAlphaOfLength(10) + ":" + randomNonNegativeLong()) : null;
+        TaskId taskId = (reason != Blocked.Reason.NONE && randomBoolean())
+            ? new TaskId(randomAlphaOfLength(10) + ":" + randomNonNegativeLong())
+            : null;
         return new Blocked(reason, taskId);
     }
 

@@ -28,7 +28,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * @author crazybob@google.com (Bob Lee)
  */
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RUNTIME)
 @ScopeAnnotation
 public @interface Singleton {

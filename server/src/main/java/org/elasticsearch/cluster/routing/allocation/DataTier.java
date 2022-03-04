@@ -11,16 +11,19 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -45,12 +48,18 @@ public class DataTier {
 
     public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
 
-    // this setting is for migrating from 7.x (where a tier preference was not required, and did not necessarily
+    // deprecated setting for migrating from 7.x (where a tier preference was not required, and did not necessarily
     // have a default value), to 8.x (where a tier preference will be required, and a default value will be injected).
-    // it will be removed as a breaking change in some future version, likely 9.0.
+    // in version 8.0 and onward, this setting doesn't control any logic anymore, and it will be removed as a breaking change in
+    // some future version, likely 9.0.
     public static final String ENFORCE_DEFAULT_TIER_PREFERENCE = "cluster.routing.allocation.enforce_default_tier_preference";
-    public static final Setting<Boolean> ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING =
-        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, true, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING = Setting.boolSetting(
+        ENFORCE_DEFAULT_TIER_PREFERENCE,
+        true,
+        Property.Dynamic,
+        Property.NodeScope,
+        Property.DeprecatedWarning
+    );
 
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
@@ -72,8 +81,10 @@ public class DataTier {
     static {
         for (String tier : ALL_DATA_TIERS) {
             assert tier.equals(DATA_FROZEN) || tier.contains(DATA_FROZEN) == false
-                : "can't have two tier names containing [" + DATA_FROZEN + "] because it would break setting validation optimizations" +
-                " in the data tier allocation decider";
+                : "can't have two tier names containing ["
+                    + DATA_FROZEN
+                    + "] because it would break setting validation optimizations"
+                    + " in the data tier allocation decider";
         }
     }
 
@@ -89,8 +100,8 @@ public class DataTier {
         final Map<String, Settings> tmpSettings = new HashMap<>();
         for (int i = 0, ordered_frozen_to_hot_tiersSize = ORDERED_FROZEN_TO_HOT_TIERS.size(); i < ordered_frozen_to_hot_tiersSize; i++) {
             String tier = ORDERED_FROZEN_TO_HOT_TIERS.get(i);
-            final String prefTierString =
-                String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size())).intern();
+            final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
+                .intern();
             tmp.put(tier, prefTierString);
             tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
         }
@@ -181,6 +192,37 @@ public class DataTier {
     }
 
     /**
+     * Compares the provided tiers for coldness order (eg. warm is colder than hot).
+     *
+     * Similar to {@link java.util.Comparator#compare(Object, Object)} returns
+     *   -1 if tier1 is colder than tier2 (ie. compare("data_cold", "data_hot"))
+     *   0 if tier1 is as cold as tier2 (ie. tier1.equals(tier2) )
+     *   1 if tier1 is warmer than tier2 (ie. compare("data_hot", "data_cold"))
+     *
+     * The provided tiers parameters must be valid data tiers values (ie. {@link #ALL_DATA_TIERS}.
+     * NOTE: `data_content` is treated as "equal to data_hot" in the tiers hierarchy.
+     * If invalid tier names are passed the result is non-deterministic.
+     */
+    public static int compare(String tier1, String tier2) {
+        if (tier1.equals(DATA_CONTENT)) {
+            tier1 = DATA_HOT;
+        }
+        if (tier2.equals(DATA_CONTENT)) {
+            tier2 = DATA_HOT;
+        }
+        int indexOfTier1 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier1);
+        assert indexOfTier1 >= 0 : "expecting a valid tier to compare but got:" + tier1;
+        int indexOfTier2 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier2);
+        assert indexOfTier2 >= 0 : "expecting a valid tier to compare but got:" + tier2;
+
+        if (indexOfTier1 == indexOfTier2) {
+            return 0;
+        } else {
+            return indexOfTier1 < indexOfTier2 ? -1 : 1;
+        }
+    }
+
+    /**
      * This setting provider injects the setting allocating all newly created indices with
      * {@code index.routing.allocation.include._tier_preference: "data_hot"} for a data stream index
      * or {@code index.routing.allocation.include._tier_preference: "data_content"} for an index not part of
@@ -191,27 +233,34 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
-            Set<String> settings = indexSettings.keySet();
+        public Settings getAdditionalIndexSettings(
+            String indexName,
+            String dataStreamName,
+            IndexMode templateIndexMode,
+            Metadata metadata,
+            Instant resolvedAt,
+            Settings allSettings
+        ) {
+            Set<String> settings = allSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
                 return NULL_TIER_PREFERENCE_SETTINGS;
-            } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
-                settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
-                settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
-                // A different index level require, include, or exclude has been specified, so don't put the setting
-                logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
-                return Settings.EMPTY;
-            } else {
-                // Otherwise, put the setting in place by default, the "hot"
-                // tier if the index is part of a data stream, the "content"
-                // tier if it is not.
-                if (isDataStreamIndex) {
-                    return DATA_HOT_TIER_PREFERENCE_SETTINGS;
+            } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "."))
+                || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "."))
+                || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
+                    // A different index level require, include, or exclude has been specified, so don't put the setting
+                    logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
+                    return Settings.EMPTY;
                 } else {
-                    return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;
+                    // Otherwise, put the setting in place by default, the "hot"
+                    // tier if the index is part of a data stream, the "content"
+                    // tier if it is not.
+                    if (dataStreamName != null) {
+                        return DATA_HOT_TIER_PREFERENCE_SETTINGS;
+                    } else {
+                        return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;
+                    }
                 }
-            }
         }
     }
 
@@ -237,7 +286,8 @@ public class DataTier {
                 for (String s : parseTierList(value)) {
                     if (validTierName(s) == false) {
                         throw new IllegalArgumentException(
-                            "invalid tier names found in [" + value + "] allowed values are " + ALL_DATA_TIERS);
+                            "invalid tier names found in [" + value + "] allowed values are " + ALL_DATA_TIERS
+                        );
                     }
                 }
             }
@@ -248,8 +298,13 @@ public class DataTier {
             if (exists && value != null) {
                 if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {
                     if (value.equals(DATA_FROZEN) == false) {
-                        throw new IllegalArgumentException("only the [" + DATA_FROZEN +
-                            "] tier preference may be used for partial searchable snapshots (got: [" + value + "])");
+                        throw new IllegalArgumentException(
+                            "only the ["
+                                + DATA_FROZEN
+                                + "] tier preference may be used for partial searchable snapshots (got: ["
+                                + value
+                                + "])"
+                        );
                     }
                 } else {
                     if (value.contains(DATA_FROZEN)) {

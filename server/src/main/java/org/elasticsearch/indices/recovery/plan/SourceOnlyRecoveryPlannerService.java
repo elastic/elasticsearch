@@ -21,20 +21,24 @@ import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
 public class SourceOnlyRecoveryPlannerService implements RecoveryPlannerService {
     public static final RecoveryPlannerService INSTANCE = new SourceOnlyRecoveryPlannerService();
+
     @Override
-    public void computeRecoveryPlan(ShardId shardId,
-                                    @Nullable String shardStateIdentifier,
-                                    Store.MetadataSnapshot sourceMetadata,
-                                    Store.MetadataSnapshot targetMetadata,
-                                    long startingSeqNo,
-                                    int translogOps,
-                                    Version targetVersion,
-                                    boolean useSnapshots,
-                                    ActionListener<ShardRecoveryPlan> listener) {
+    public void computeRecoveryPlan(
+        ShardId shardId,
+        @Nullable String shardStateIdentifier,
+        Store.MetadataSnapshot sourceMetadata,
+        Store.MetadataSnapshot targetMetadata,
+        long startingSeqNo,
+        int translogOps,
+        Version targetVersion,
+        boolean useSnapshots,
+        ActionListener<ShardRecoveryPlan> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(targetMetadata);
             List<StoreFileMetadata> filesMissingInTarget = concatLists(recoveryDiff.missing, recoveryDiff.different);
-            return new ShardRecoveryPlan(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
+            return new ShardRecoveryPlan(
+                ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
                 filesMissingInTarget,
                 recoveryDiff.identical,
                 startingSeqNo,

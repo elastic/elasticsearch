@@ -23,8 +23,12 @@ public class MachineLearningInfoTransportAction extends XPackInfoFeatureTranspor
     private final XPackLicenseState licenseState;
 
     @Inject
-    public MachineLearningInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                              Settings settings, XPackLicenseState licenseState) {
+    public MachineLearningInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.MACHINE_LEARNING.name(), transportService, actionFilters);
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.licenseState = licenseState;

@@ -19,7 +19,6 @@ public class NullInferenceConfig implements InferenceConfig {
 
     private final boolean requestingFeatureImportance;
 
-
     public NullInferenceConfig(boolean requestingFeatureImportance) {
         this.requestingFeatureImportance = requestingFeatureImportance;
     }

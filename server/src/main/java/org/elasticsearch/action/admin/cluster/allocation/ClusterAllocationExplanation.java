@@ -16,13 +16,13 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -37,10 +37,10 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
  */
 public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
 
-    static final String NO_SHARD_SPECIFIED_MESSAGE = "No shard was specified in the explain API request, so this response " +
-        "explains a randomly chosen unassigned shard. There may be other unassigned shards in this cluster which cannot be assigned for " +
-        "different reasons. It may not be possible to assign this shard until one of the other shards is assigned correctly. To explain " +
-        "the allocation of other shards (whether assigned or unassigned) you must specify the target shard in the request to this API.";
+    static final String NO_SHARD_SPECIFIED_MESSAGE = "No shard was specified in the explain API request, so this response "
+        + "explains a randomly chosen unassigned shard. There may be other unassigned shards in this cluster which cannot be assigned for "
+        + "different reasons. It may not be possible to assign this shard until one of the other shards is assigned correctly. To explain "
+        + "the allocation of other shards (whether assigned or unassigned) you must specify the target shard in the request to this API.";
 
     private final boolean specificShard;
     private final ShardRouting shardRouting;
@@ -55,7 +55,8 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         @Nullable DiscoveryNode currentNode,
         @Nullable DiscoveryNode relocationTargetNode,
         @Nullable ClusterInfo clusterInfo,
-        ShardAllocationDecision shardAllocationDecision) {
+        ShardAllocationDecision shardAllocationDecision
+    ) {
 
         this.specificShard = specificShard;
         this.shardRouting = shardRouting;
@@ -155,7 +156,8 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(); {
+        builder.startObject();
+        {
             if (isSpecificShard() == false) {
                 builder.field("note", NO_SHARD_SPECIFIED_MESSAGE);
             }
@@ -171,14 +173,15 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
                 {
                     discoveryNodeToXContent(currentNode, true, builder);
                     if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
-                            && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
+                        && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
                         builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());
                     }
                 }
                 builder.endObject();
             }
             if (this.clusterInfo != null) {
-                builder.startObject("cluster_info"); {
+                builder.startObject("cluster_info");
+                {
                     this.clusterInfo.toXContent(builder, params);
                 }
                 builder.endObject(); // end "cluster_info"
@@ -188,12 +191,18 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
             } else {
                 String explanation;
                 if (shardRouting.state() == ShardRoutingState.RELOCATING) {
-                    explanation = "the shard is in the process of relocating from node [" + currentNode.getName() + "] " +
-                                  "to node [" + relocationTargetNode.getName() + "], wait until relocation has completed";
+                    explanation = "the shard is in the process of relocating from node ["
+                        + currentNode.getName()
+                        + "] "
+                        + "to node ["
+                        + relocationTargetNode.getName()
+                        + "], wait until relocation has completed";
                 } else {
                     assert shardRouting.state() == ShardRoutingState.INITIALIZING;
-                    explanation = "the shard is in the process of initializing on node [" + currentNode.getName() + "], " +
-                                  "wait until initialization has completed";
+                    explanation = "the shard is in the process of initializing on node ["
+                        + currentNode.getName()
+                        + "], "
+                        + "wait until initialization has completed";
                 }
                 builder.field("explanation", explanation);
             }
@@ -202,14 +211,12 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         return builder;
     }
 
-    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder)
-        throws IOException {
+    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
 
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.getReason());
-        builder.field("at",
-            UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
-        if (unassignedInfo.getNumFailedAllocations() >  0) {
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
+        if (unassignedInfo.getNumFailedAllocations() > 0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
         String details = unassignedInfo.getDetails();

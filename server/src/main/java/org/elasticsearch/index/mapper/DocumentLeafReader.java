@@ -67,9 +67,7 @@ class DocumentLeafReader extends LeafReader {
             // this means that a mapper script is referring to another calculated field;
             // in which case we need to execute that field first. We also check for loops here
             if (fieldPath.add(field) == false) {
-                throw new IllegalArgumentException(
-                    "Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field
-                );
+                throw new IllegalArgumentException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
             }
             calculatedFields.get(field).accept(this.getContext());
             fieldPath.remove(field);
@@ -79,7 +77,8 @@ class DocumentLeafReader extends LeafReader {
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
         checkField(field);
-        List<Number> values = document.getFields().stream()
+        List<Number> values = document.getFields()
+            .stream()
             .filter(f -> Objects.equals(f.name(), field))
             .filter(f -> f.fieldType().docValuesType() == DocValuesType.NUMERIC)
             .map(IndexableField::numericValue)
@@ -91,7 +90,8 @@ class DocumentLeafReader extends LeafReader {
     @Override
     public BinaryDocValues getBinaryDocValues(String field) throws IOException {
         checkField(field);
-        List<BytesRef> values = document.getFields().stream()
+        List<BytesRef> values = document.getFields()
+            .stream()
             .filter(f -> Objects.equals(f.name(), field))
             .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
             .map(IndexableField::binaryValue)
@@ -103,7 +103,8 @@ class DocumentLeafReader extends LeafReader {
     @Override
     public SortedDocValues getSortedDocValues(String field) throws IOException {
         checkField(field);
-        List<BytesRef> values = document.getFields().stream()
+        List<BytesRef> values = document.getFields()
+            .stream()
             .filter(f -> Objects.equals(f.name(), field))
             .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED)
             .map(IndexableField::binaryValue)
@@ -115,7 +116,8 @@ class DocumentLeafReader extends LeafReader {
     @Override
     public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
         checkField(field);
-        List<Number> values = document.getFields().stream()
+        List<Number> values = document.getFields()
+            .stream()
             .filter(f -> Objects.equals(f.name(), field))
             .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
             .map(IndexableField::numericValue)
@@ -127,7 +129,8 @@ class DocumentLeafReader extends LeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         checkField(field);
-        List<BytesRef> values = document.getFields().stream()
+        List<BytesRef> values = document.getFields()
+            .stream()
             .filter(f -> Objects.equals(f.name(), field))
             .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET)
             .map(IndexableField::binaryValue)
@@ -143,9 +146,7 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-        List<IndexableField> fields = document.getFields().stream()
-            .filter(f -> f.fieldType().stored())
-            .collect(Collectors.toList());
+        List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).collect(Collectors.toList());
         for (IndexableField field : fields) {
             FieldInfo fieldInfo = fieldInfo(field.name());
             if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
@@ -461,7 +462,7 @@ class DocumentLeafReader extends LeafReader {
 
             @Override
             public BytesRef lookupOrd(long ord) {
-                return values.get((int)ord);
+                return values.get((int) ord);
             }
 
             @Override

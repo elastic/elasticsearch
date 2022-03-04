@@ -13,17 +13,17 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -160,8 +160,11 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected void waitUntilJobIsClosed(String jobId, TimeValue waitTime) throws Exception {
-        assertBusy(() -> assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.CLOSED)),
-                waitTime.getMillis(), TimeUnit.MILLISECONDS);
+        assertBusy(
+            () -> assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.CLOSED)),
+            waitTime.getMillis(),
+            TimeUnit.MILLISECONDS
+        );
     }
 
     protected List<Job> getJob(String jobId) {
@@ -208,8 +211,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected List<CategoryDefinition> getCategories(String jobId) {
-        GetCategoriesAction.Request getCategoriesRequest =
-                new GetCategoriesAction.Request(jobId);
+        GetCategoriesAction.Request getCategoriesRequest = new GetCategoriesAction.Request(jobId);
         getCategoriesRequest.setPageParams(new PageParams());
         GetCategoriesAction.Response categoriesResponse = client().execute(GetCategoriesAction.INSTANCE, getCategoriesRequest).actionGet();
         return categoriesResponse.getResult().results();
@@ -245,16 +247,17 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
-    protected void waitForecastStatus(String jobId,
-                                      String forecastId,
-                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
+    protected void waitForecastStatus(String jobId, String forecastId, ForecastRequestStats.ForecastRequestStatus... status)
+        throws Exception {
         waitForecastStatus(30, jobId, forecastId, status);
     }
 
-    protected void waitForecastStatus(int maxWaitTimeSeconds,
-                                      String jobId,
-                                      String forecastId,
-                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
+    protected void waitForecastStatus(
+        int maxWaitTimeSeconds,
+        String jobId,
+        String forecastId,
+        ForecastRequestStats.ForecastRequestStatus... status
+    ) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
@@ -264,13 +267,16 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
-        client().admin().indices().prepareRefresh(AnnotationIndex.INDEX_NAME)
+        client().admin()
+            .indices()
+            .prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .execute()
             .actionGet();
 
-        SearchRequest searchRequest =
-            new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         List<Annotation> annotations = new ArrayList<>();
         for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -292,9 +298,14 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                    NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    searchResponse.getHits().getHits()[0].getSourceRef().streamInput())) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    searchResponse.getHits().getHits()[0].getSourceRef().streamInput()
+                )
+        ) {
             return ForecastRequestStats.STRICT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -305,15 +316,22 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         List<ForecastRequestStats> forecastStats = new ArrayList<>();
 
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-                .setSize(1000)
-                .setQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE)))
-                .execute().actionGet();
+            .setSize(1000)
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
+            )
+            .execute()
+            .actionGet();
         SearchHits hits = searchResponse.getHits();
         for (SearchHit hit : hits) {
             try {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef().streamInput());
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        hit.getSourceRef().streamInput()
+                    );
                 forecastStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
@@ -324,30 +342,39 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected long countForecastDocs(String jobId, String forecastId) {
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-                .setQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
-                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                        .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId)))
-                .execute().actionGet();
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                    .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
+            )
+            .execute()
+            .actionGet();
         return searchResponse.getHits().getTotalHits().value;
     }
 
     protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) {
         List<Forecast> forecasts = new ArrayList<>();
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-                .setSize((int) forecastRequestStats.getRecordCount())
-                .setQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
-                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                        .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastRequestStats.getForecastId())))
-                .addSort(SortBuilders.fieldSort(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC))
-                .execute().actionGet();
+            .setSize((int) forecastRequestStats.getRecordCount())
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                    .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastRequestStats.getForecastId()))
+            )
+            .addSort(SortBuilders.fieldSort(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC))
+            .execute()
+            .actionGet();
         SearchHits hits = searchResponse.getHits();
         for (SearchHit hit : hits) {
             try {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        hit.getSourceRef().streamInput());
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        hit.getSourceRef().streamInput()
+                    );
                 forecasts.add(Forecast.STRICT_PARSER.apply(parser, null));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
@@ -371,8 +398,12 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         return client().execute(PersistJobAction.INSTANCE, request).actionGet();
     }
 
-    protected List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount,
-                                      Function<Integer, Integer> timeToCountFunction) throws IOException {
+    protected List<String> generateData(
+        long timestamp,
+        TimeValue bucketSpan,
+        int bucketCount,
+        Function<Integer, Integer> timeToCountFunction
+    ) throws IOException {
         List<String> data = new ArrayList<>();
         long now = timestamp;
         for (int bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {

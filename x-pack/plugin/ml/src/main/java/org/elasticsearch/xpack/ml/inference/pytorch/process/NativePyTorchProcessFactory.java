@@ -39,15 +39,13 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     private final String nodeName;
     private volatile Duration processConnectTimeout;
 
-    public NativePyTorchProcessFactory(Environment env,
-                                       NativeController nativeController,
-                                       ClusterService clusterService) {
+    public NativePyTorchProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.nodeName = clusterService.getNodeName();
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
-            this::setProcessConnectTimeout);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -55,8 +53,11 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     @Override
-    public NativePyTorchProcess createProcess(TrainedModelDeploymentTask task, ExecutorService executorService,
-                                              Consumer<String> onProcessCrash) {
+    public NativePyTorchProcess createProcess(
+        TrainedModelDeploymentTask task,
+        ExecutorService executorService,
+        Consumer<String> onProcessCrash
+    ) {
         ProcessPipes processPipes = new ProcessPipes(
             env,
             NAMED_PIPE_HELPER,
@@ -73,12 +74,18 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
 
         executeProcess(processPipes, task);
 
-        NativePyTorchProcess process = new NativePyTorchProcess(task.getModelId(), nativeController, processPipes, 0,
-            Collections.emptyList(), onProcessCrash);
+        NativePyTorchProcess process = new NativePyTorchProcess(
+            task.getModelId(),
+            nativeController,
+            processPipes,
+            0,
+            Collections.emptyList(),
+            onProcessCrash
+        );
 
         try {
             process.start(executorService);
-        } catch(IOException | EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
             String msg = "Failed to connect to pytorch process for job " + task.getModelId();
             logger.error(msg);
             try {

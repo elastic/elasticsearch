@@ -9,10 +9,10 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
 
 public class ScriptDocValuesLongsTests extends ESTestCase {
     public void testLongs() throws IOException {
@@ -24,25 +24,35 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }
 
-        Longs longs = wrap(values);
+        LongDocValuesField longField = wrap(values);
+        Longs longs = (Longs) longField.getScriptDocValues();
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
-            longs.setNextDocId(d);
+            longField.setNextDocId(d);
             if (values[d].length > 0) {
                 assertEquals(values[d][0], longs.getValue());
                 assertEquals(values[d][0], (long) longs.get(0));
+                assertEquals(values[d][0], longField.get(Long.MIN_VALUE));
+                assertEquals(values[d][0], longField.get(0, Long.MIN_VALUE));
             } else {
-                Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+                Exception e = expectThrows(IllegalStateException.class, longs::getValue);
+                assertEquals(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!",
+                    e.getMessage()
+                );
                 e = expectThrows(IllegalStateException.class, () -> longs.get(0));
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+                assertEquals(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!",
+                    e.getMessage()
+                );
             }
-            assertEquals(values[d].length, longs.size());
+            assertEquals(values[d].length, longField.size());
             for (int i = 0; i < values[d].length; i++) {
                 assertEquals(values[d][i], longs.get(i).longValue());
+                assertEquals(values[d][i], longField.get(i, Long.MIN_VALUE));
             }
 
             Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.add(100L));
@@ -50,8 +60,8 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         }
     }
 
-    private Longs wrap(long[][] values) {
-        return new Longs(new AbstractSortedNumericDocValues() {
+    private LongDocValuesField wrap(long[][] values) {
+        return new LongDocValuesField(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
 
@@ -61,14 +71,16 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 current = values[doc];
                 return current.length > 0;
             }
+
             @Override
             public int docValueCount() {
                 return current.length;
             }
+
             @Override
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, "test");
     }
 }

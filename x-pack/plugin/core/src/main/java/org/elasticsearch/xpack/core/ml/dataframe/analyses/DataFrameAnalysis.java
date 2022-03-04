@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 
@@ -91,6 +91,7 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     default double getTrainingPercent() {
         return 100.0;
     }
+
     /**
      * Summarizes information about the fields that is necessary for analysis to generate
      * the parameters needed for the process configuration.

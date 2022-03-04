@@ -18,13 +18,15 @@ import java.util.Map;
 
 public class TransformRegistry {
 
-    private final Map<String, TransformFactory<? extends Transform, ? extends Transform.Result,
-        ? extends ExecutableTransform<?, ?>>> factories;
+    private final Map<
+        String,
+        TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories;
 
-    public TransformRegistry(Map<String,
-        TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories) {
-        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> map
-            = new HashMap<>(factories);
+    public TransformRegistry(
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories
+    ) {
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> map =
+            new HashMap<>(factories);
         map.put(ChainTransform.TYPE, new ChainTransformFactory(this));
         this.factories = Collections.unmodifiableMap(map);
     }
@@ -50,8 +52,9 @@ public class TransformRegistry {
 
     private ExecutableTransform<? extends Transform, ? extends Transform.Result> parse(String watchId, String type, XContentParser parser)
         throws IOException {
-        TransformFactory<? extends Transform, ? extends Transform.Result,
-            ? extends ExecutableTransform<?, ?>> factory = factories.get(type);
+        TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>> factory = factories.get(
+            type
+        );
         if (factory == null) {
             throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
@@ -59,8 +62,9 @@ public class TransformRegistry {
     }
 
     public Transform parseTransform(String watchId, String type, XContentParser parser) throws IOException {
-        TransformFactory<? extends Transform, ? extends Transform.Result,
-            ? extends ExecutableTransform<?, ?>> factory = factories.get(type);
+        TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>> factory = factories.get(
+            type
+        );
         if (factory == null) {
             throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }

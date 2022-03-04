@@ -62,9 +62,12 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
                 }
             }
         }
-        if (clusterPrivileges != null && clusterPrivileges.length == 0
-            && indexPrivileges != null && indexPrivileges.length == 0
-            && applicationPrivileges != null && applicationPrivileges.length == 0) {
+        if (clusterPrivileges != null
+            && clusterPrivileges.length == 0
+            && indexPrivileges != null
+            && indexPrivileges.length == 0
+            && applicationPrivileges != null
+            && applicationPrivileges.length == 0) {
             validationException = addValidationError("must specify at least one privilege", validationException);
         }
         return validationException;

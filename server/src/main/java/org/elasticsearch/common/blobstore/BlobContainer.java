@@ -127,8 +127,8 @@ public interface BlobContainer {
      * @param atomic              whether the write should be atomic in case the implementation supports it
      * @param writer              consumer for an output stream that will write the blob contents to the stream
      */
-    void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic,
-                   CheckedConsumer<OutputStream, IOException> writer) throws IOException;
+    void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException;
 
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,

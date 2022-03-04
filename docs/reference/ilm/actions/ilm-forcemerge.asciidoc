@@ -6,15 +6,35 @@ Phases allowed: hot, warm.
 
 <<indices-forcemerge,Force merges>> the index into 
 the specified maximum number of <<indices-segments,segments>>.
-
 This action makes the index <<dynamic-index-settings,read-only>>.
-
-To use the `forcemerge` action in the `hot` phase, the `rollover` action *must* be present.
-If no rollover action is configured, {ilm-init} will reject the policy. 
 
 [NOTE]
 The `forcemerge` action is best effort. It might happen that some of the
 shards are relocating, in which case they will not be merged.
+
+To use the `forcemerge` action in the `hot` phase, the `rollover` action *must* be present.
+If no rollover action is configured, {ilm-init} will reject the policy. 
+
+[[ilm-forcemerge-performance]]
+.Performance considerations
+****
+Force merge is a resource-intensive operation. 
+If too many force merges are triggered at once, it can negatively impact your cluster. 
+This can happen when you apply an {ilm-init} policy that includes a force merge action 
+to existing indices.
+If they meet the `min_age` criteria, they can immediately proceed through multiple phases. 
+You can prevent this by increasing the `min_age` or setting `index.lifecycle.origination_date` 
+to change how the index age is calculated. 
+
+If you experience a force merge task queue backlog,
+you might need to increase the size of the force merge threadpool so  
+indices can be force merged in parallel. 
+To do this, configure the `thread_pool.force_merge.size` <<cluster-get-settings,cluster setting>>.
+
+IMPORTANT: This can have cascading performance impacts. 
+Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
+****
+
 
 [[ilm-forcemerge-options]]
 ==== Options

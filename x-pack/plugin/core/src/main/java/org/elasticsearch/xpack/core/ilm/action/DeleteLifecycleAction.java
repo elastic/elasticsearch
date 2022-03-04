@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,8 +41,7 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
             policyName = in.readString();
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public String getPolicyName() {
             return policyName;

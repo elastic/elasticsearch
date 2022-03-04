@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[info-api]]
 == Info API
 
@@ -79,6 +78,10 @@ Example response:
           "enabled" : true
       },
       "analytics" : {
+          "available" : true,
+          "enabled" : true
+      },
+      "archive" : {
           "available" : true,
           "enabled" : true
       },

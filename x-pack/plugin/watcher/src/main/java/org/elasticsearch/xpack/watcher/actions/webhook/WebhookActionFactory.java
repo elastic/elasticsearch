@@ -27,8 +27,7 @@ public class WebhookActionFactory extends ActionFactory {
 
     @Override
     public ExecutableWebhookAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser),
-                actionLogger, httpClient, templateEngine);
+        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser), actionLogger, httpClient, templateEngine);
 
     }
 }

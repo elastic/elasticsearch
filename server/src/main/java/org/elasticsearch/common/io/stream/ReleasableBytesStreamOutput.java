@@ -9,10 +9,10 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance

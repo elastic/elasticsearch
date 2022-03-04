@@ -38,10 +38,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
 
         public static final ParseField VOCABULARY = new ParseField("vocabulary");
 
-        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
-            "put_trained_model_vocabulary",
-            Builder::new
-        );
+        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("put_trained_model_vocabulary", Builder::new);
         static {
             PARSER.declareStringArray(Builder::setVocabulary, VOCABULARY);
         }
@@ -78,8 +75,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(modelId, request.modelId)
-                && Objects.equals(vocabulary, request.vocabulary);
+            return Objects.equals(modelId, request.modelId) && Objects.equals(vocabulary, request.vocabulary);
         }
 
         @Override

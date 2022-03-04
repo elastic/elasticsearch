@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.Objects;
-
 
 /**
  * Parses the JSON output of a process.
@@ -43,7 +42,7 @@ public class ProcessResultsParser<T> {
     public Iterator<T> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in);
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in);
             XContentParser.Token token = parser.nextToken();
             // if start of an array ignore it, we expect an array of results
             if (token != XContentParser.Token.START_ARRAY) {
@@ -88,4 +87,3 @@ public class ProcessResultsParser<T> {
         }
     }
 }
-

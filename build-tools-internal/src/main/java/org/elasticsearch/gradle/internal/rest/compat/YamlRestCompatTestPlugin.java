@@ -81,7 +81,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:minor", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies()
+            .project(Map.of("path", ":distribution:bwc:maintenance", "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
@@ -149,7 +150,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             task.setDestinationDir(project.getLayout().getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
             task.setIncludeEmptyDirs(false);
             task.from(copyCompatYamlSpecTask.flatMap(t -> t.getOutputResourceDir().map(d -> d.dir(RELATIVE_API_PATH.toString()))));
-            task.from(yamlCompatTestSourceSet.getResources(), s -> {
+            task.from(yamlCompatTestSourceSet.getProcessResourcesTaskName(), s -> {
                 s.include(RELATIVE_API_PATH + "/*");
                 s.eachFile(
                     details -> details.setRelativePath(

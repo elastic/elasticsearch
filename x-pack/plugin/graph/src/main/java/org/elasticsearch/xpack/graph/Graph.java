@@ -51,17 +51,19 @@ public class Graph extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
-        return Arrays.asList(
-            new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class),
-            usageAction,
-            infoAction);
+        return Arrays.asList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class), usageAction, infoAction);
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (false == enabled) {
             return emptyList();
         }

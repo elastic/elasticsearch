@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,8 +52,18 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             throttleTimeInMillis = in.readLong();
         }
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount,
-                        long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
+        public Stats(
+            long indexCount,
+            long indexTimeInMillis,
+            long indexCurrent,
+            long indexFailedCount,
+            long deleteCount,
+            long deleteTimeInMillis,
+            long deleteCurrent,
+            long noopUpdateCount,
+            boolean isThrottled,
+            long throttleTimeInMillis
+        ) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
@@ -79,29 +89,37 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount += stats.noopUpdateCount;
             throttleTimeInMillis += stats.throttleTimeInMillis;
             if (isThrottled != stats.isThrottled) {
-                isThrottled = true; //When combining if one is throttled set result to throttled.
+                isThrottled = true; // When combining if one is throttled set result to throttled.
             }
         }
 
         /**
          * The total number of indexing operations
          */
-        public long getIndexCount() { return indexCount; }
+        public long getIndexCount() {
+            return indexCount;
+        }
 
         /**
          * The number of failed indexing operations
          */
-        public long getIndexFailedCount() { return indexFailedCount; }
+        public long getIndexFailedCount() {
+            return indexFailedCount;
+        }
 
         /**
          * The total amount of time spend on executing index operations.
          */
-        public TimeValue getIndexTime() { return new TimeValue(indexTimeInMillis); }
+        public TimeValue getIndexTime() {
+            return new TimeValue(indexTimeInMillis);
+        }
 
         /**
          * Returns the currently in-flight indexing operations.
          */
-        public long getIndexCurrent() { return indexCurrent;}
+        public long getIndexCurrent() {
+            return indexCurrent;
+        }
 
         /**
          * Returns the number of delete operation executed
@@ -113,12 +131,16 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         /**
          * Returns if the index is under merge throttling control
          */
-        public boolean isThrottled() { return isThrottled; }
+        public boolean isThrottled() {
+            return isThrottled;
+        }
 
         /**
          * Gets the amount of time in a TimeValue that the index has been under merge throttling control
          */
-        public TimeValue getThrottleTime() { return new TimeValue(throttleTimeInMillis); }
+        public TimeValue getThrottleTime() {
+            return new TimeValue(throttleTimeInMillis);
+        }
 
         /**
          * The total amount of time spend on executing delete operations.
@@ -215,7 +237,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEXING);
         totalStats.toXContent(builder, params);
-        if(builder.getRestApiVersion() == RestApiVersion.V_7 && params.param("types") != null){
+        if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.param("types") != null) {
             builder.startObject(Fields.TYPES);
             builder.startObject(MapperService.SINGLE_MAPPING_NAME);
             totalStats.toXContent(builder, params);

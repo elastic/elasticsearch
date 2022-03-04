@@ -106,7 +106,7 @@ GET /_search
   ]
 }
 ----
-// TEST[catch:missing]
+// TEST[catch:unavailable]
 
 <1> PIT ID for the search.
 <2> Sorts hits for the search with an implicit tiebreak on `_shard_doc` ascending.
@@ -138,7 +138,7 @@ GET /_search
   ]
 }
 ----
-// TEST[catch:missing]
+// TEST[catch:unavailable]
 
 <1> PIT ID for the search.
 <2> Sorts hits for the search with an explicit tiebreak on `_shard_doc` descending.
@@ -205,7 +205,7 @@ GET /_search
   "track_total_hits": false                        <3>
 }
 ----
-// TEST[catch:missing]
+// TEST[catch:unavailable]
 
 <1> PIT ID returned by the previous search.
 <2> Sort values from the previous search's last hit.

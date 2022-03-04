@@ -26,15 +26,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.plugins.cli.InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES;
 
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
-class RemovePluginAction {
+public class RemovePluginAction {
 
     // exit codes for remove
     /** A plugin cannot be removed because it is extended by another plugin. */
@@ -42,7 +42,7 @@ class RemovePluginAction {
 
     private final Terminal terminal;
     private final Environment env;
-    private final boolean purge;
+    private boolean purge;
 
     /**
      * Creates a new action.
@@ -51,9 +51,13 @@ class RemovePluginAction {
      * @param env        the environment for the local node
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      */
-    RemovePluginAction(Terminal terminal, Environment env, boolean purge) {
+    public RemovePluginAction(Terminal terminal, Environment env, boolean purge) {
         this.terminal = terminal;
         this.env = env;
+        this.purge = purge;
+    }
+
+    public void setPurge(boolean purge) {
         this.purge = purge;
     }
 
@@ -66,7 +70,7 @@ class RemovePluginAction {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }
@@ -112,6 +116,7 @@ class RemovePluginAction {
 
     private void checkCanRemove(PluginDescriptor plugin) throws UserException {
         String pluginId = plugin.getId();
+
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
         final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);
@@ -123,12 +128,19 @@ class RemovePluginAction {
          */
         if ((Files.exists(pluginDir) == false && Files.exists(pluginConfigDir) == false && Files.exists(removing) == false)
             || (Files.exists(pluginDir) == false && Files.exists(pluginConfigDir) && this.purge == false)) {
-            final String message = String.format(
-                Locale.ROOT,
-                "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
-                pluginId
-            );
-            throw new UserException(ExitCodes.CONFIG, message);
+
+            if (PLUGINS_CONVERTED_TO_MODULES.contains(pluginId)) {
+                terminal.errorPrintln(
+                    "plugin [" + pluginId + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                );
+            } else {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
+                    pluginId
+                );
+                throw new UserException(ExitCodes.CONFIG, message);
+            }
         }
 
         final Path pluginBinDir = env.binFile().resolve(pluginId);
@@ -155,7 +167,7 @@ class RemovePluginAction {
          */
         if (Files.exists(pluginDir)) {
             try (Stream<Path> paths = Files.list(pluginDir)) {
-                pluginPaths.addAll(paths.collect(Collectors.toList()));
+                pluginPaths.addAll(paths.toList());
             }
             terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         }
@@ -163,7 +175,7 @@ class RemovePluginAction {
         final Path pluginBinDir = env.binFile().resolve(pluginId);
         if (Files.exists(pluginBinDir)) {
             try (Stream<Path> paths = Files.list(pluginBinDir)) {
-                pluginPaths.addAll(paths.collect(Collectors.toList()));
+                pluginPaths.addAll(paths.toList());
             }
             pluginPaths.add(pluginBinDir);
             terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
@@ -172,7 +184,7 @@ class RemovePluginAction {
         if (Files.exists(pluginConfigDir)) {
             if (this.purge) {
                 try (Stream<Path> paths = Files.list(pluginConfigDir)) {
-                    pluginPaths.addAll(paths.collect(Collectors.toList()));
+                    pluginPaths.addAll(paths.toList());
                 }
                 pluginPaths.add(pluginConfigDir);
                 terminal.println(VERBOSE, "removing [" + pluginConfigDir + "]");

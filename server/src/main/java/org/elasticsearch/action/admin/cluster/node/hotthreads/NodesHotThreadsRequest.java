@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
 
     int threads = 3;
     HotThreads.ReportType type = HotThreads.ReportType.CPU;
+    HotThreads.SortOrder sortOrder = HotThreads.SortOrder.TOTAL;
     TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
     int snapshots = 10;
     boolean ignoreIdleThreads = true;
@@ -34,6 +36,9 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         type = HotThreads.ReportType.of(in.readString());
         interval = in.readTimeValue();
         snapshots = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            sortOrder = HotThreads.SortOrder.of(in.readString());
+        }
     }
 
     /**
@@ -78,6 +83,15 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         return this.type;
     }
 
+    public NodesHotThreadsRequest sortOrder(HotThreads.SortOrder sortOrder) {
+        this.sortOrder = sortOrder;
+        return this;
+    }
+
+    public HotThreads.SortOrder sortOrder() {
+        return this.sortOrder;
+    }
+
     public NodesHotThreadsRequest interval(TimeValue interval) {
         this.interval = interval;
         return this;
@@ -104,5 +118,8 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         out.writeString(type.getTypeValue());
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeString(sortOrder.getOrderValue());
+        }
     }
 }

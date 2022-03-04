@@ -17,7 +17,6 @@ public class TestUtils {
     public static String normalizeString(String input, File projectRootDir) {
         try {
             String normalizedPathPrefix = projectRootDir.getCanonicalPath().replaceAll("\\\\", "/");
-            System.out.println("normalizedPathPrefix = " + normalizedPathPrefix);
             return input.lines()
                 .map(it -> it.replaceAll("\\\\", "/"))
                 .map(it -> it.replaceAll(normalizedPathPrefix, "."))

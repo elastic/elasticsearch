@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.util.List;
-
 import org.apache.commons.codec.binary.Hex;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+
+import java.util.List;
 
 /**
  * A very lightweight {@link AuthenticationToken} to hold SAML content.
@@ -62,7 +62,6 @@ public class SamlToken implements AuthenticationToken {
     public String getAuthenticatingRealm() {
         return authenticatingRealm;
     }
-
 
     @Override
     public String toString() {

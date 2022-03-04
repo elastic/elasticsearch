@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -29,7 +29,8 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
         ConstructingObjectParser<IndexLocation, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new IndexLocation((String) a[0]));
+            a -> new IndexLocation((String) a[0])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), NAME);
         return parser;
     }

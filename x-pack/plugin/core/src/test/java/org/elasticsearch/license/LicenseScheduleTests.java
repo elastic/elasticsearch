@@ -30,14 +30,12 @@ public class LicenseScheduleTests extends ESTestCase {
 
     public void testExpiredLicenseSchedule() throws Exception {
         long triggeredTime = license.expiryDate() + randomIntBetween(1, 1000);
-        assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime),
-                equalTo(-1L));
+        assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime), equalTo(-1L));
     }
 
     public void testInvalidLicenseSchedule() throws Exception {
         long triggeredTime = license.issueDate() - randomIntBetween(1, 1000);
-        assertThat(schedule.nextScheduledTimeAfter(triggeredTime, triggeredTime),
-                equalTo(license.issueDate()));
+        assertThat(schedule.nextScheduledTimeAfter(triggeredTime, triggeredTime), equalTo(license.issueDate()));
     }
 
     public void testDailyWarningPeriod() {
@@ -49,12 +47,18 @@ public class LicenseScheduleTests extends ESTestCase {
             long triggeredTime = nextOffset + randomLongBetween(1, millisInDay);
             long expectedTime = nextOffset + millisInDay;
             long scheduledTime = schedule.nextScheduledTimeAfter(triggeredTime, triggeredTime);
-            assertThat(String.format(Locale.ROOT,"Incorrect schedule:\nexpected  [%s]\ngot       [%s]\ntriggered [%s]\nexpiry    [%s]",
-                DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(expectedTime)),
-                DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(scheduledTime)),
-                DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(triggeredTime)),
-                DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(license.expiryDate()))),
-                scheduledTime, equalTo(expectedTime));
+            assertThat(
+                String.format(
+                    Locale.ROOT,
+                    "Incorrect schedule:\nexpected  [%s]\ngot       [%s]\ntriggered [%s]\nexpiry    [%s]",
+                    DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(expectedTime)),
+                    DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(scheduledTime)),
+                    DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(triggeredTime)),
+                    DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(license.expiryDate()))
+                ),
+                scheduledTime,
+                equalTo(expectedTime)
+            );
 
             warningOffset -= millisInDay;
         } while (warningOffset > 0);

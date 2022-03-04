@@ -14,7 +14,10 @@ public class SearchableSnapshotsConstants {
     // This should really be in the searchable-snapshots module, but ILM needs access to it
     // to short-circuit if not allowed. We should consider making the coupling looser,
     // perhaps through SPI.
-    public static final LicensedFeature.Momentary SEARCHABLE_SNAPSHOT_FEATURE =
-        LicensedFeature.momentary(null, "searchable-snapshots", License.OperationMode.ENTERPRISE);
+    public static final LicensedFeature.Momentary SEARCHABLE_SNAPSHOT_FEATURE = LicensedFeature.momentary(
+        null,
+        "searchable-snapshots",
+        License.OperationMode.ENTERPRISE
+    );
 
 }

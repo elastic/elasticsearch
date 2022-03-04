@@ -39,9 +39,20 @@ public abstract class IndexerJobStats {
     protected final long indexFailures;
     protected final long searchFailures;
 
-    public IndexerJobStats(long numPages, long numInputDocuments, long numOutputDocuments, long numInvocations,
-                           long indexTime, long searchTime, long processingTime, long indexTotal, long searchTotal, long processingTotal,
-                           long indexFailures, long searchFailures) {
+    public IndexerJobStats(
+        long numPages,
+        long numInputDocuments,
+        long numOutputDocuments,
+        long numInvocations,
+        long indexTime,
+        long searchTime,
+        long processingTime,
+        long indexTotal,
+        long searchTotal,
+        long processingTotal,
+        long indexFailures,
+        long searchFailures
+    ) {
         this.numPages = numPages;
         this.numInputDocuments = numInputDocuments;
         this.numOuputDocuments = numOutputDocuments;
@@ -141,7 +152,6 @@ public abstract class IndexerJobStats {
         return processingTotal;
     }
 
-
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -154,39 +164,63 @@ public abstract class IndexerJobStats {
 
         IndexerJobStats that = (IndexerJobStats) other;
         return Objects.equals(this.numPages, that.numPages)
-                && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-                && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-                && Objects.equals(this.numInvocations, that.numInvocations)
-                && Objects.equals(this.indexTime, that.indexTime)
-                && Objects.equals(this.searchTime, that.searchTime)
-                && Objects.equals(this.processingTime, that.processingTime)
-                && Objects.equals(this.indexFailures, that.indexFailures)
-                && Objects.equals(this.searchFailures, that.searchFailures)
-                && Objects.equals(this.searchTotal, that.searchTotal)
-                && Objects.equals(this.processingTotal, that.processingTotal)
-                && Objects.equals(this.indexTotal, that.indexTotal);
+            && Objects.equals(this.numInputDocuments, that.numInputDocuments)
+            && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+            && Objects.equals(this.numInvocations, that.numInvocations)
+            && Objects.equals(this.indexTime, that.indexTime)
+            && Objects.equals(this.searchTime, that.searchTime)
+            && Objects.equals(this.processingTime, that.processingTime)
+            && Objects.equals(this.indexFailures, that.indexFailures)
+            && Objects.equals(this.searchFailures, that.searchFailures)
+            && Objects.equals(this.searchTotal, that.searchTotal)
+            && Objects.equals(this.processingTotal, that.processingTotal)
+            && Objects.equals(this.indexTotal, that.indexTotal);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-                indexTime, searchTime, processingTime, indexFailures, searchFailures, searchTotal,
-                indexTotal, processingTotal);
+        return Objects.hash(
+            numPages,
+            numInputDocuments,
+            numOuputDocuments,
+            numInvocations,
+            indexTime,
+            searchTime,
+            processingTime,
+            indexFailures,
+            searchFailures,
+            searchTotal,
+            indexTotal,
+            processingTotal
+        );
     }
 
     @Override
     public final String toString() {
-        return "{pages=" + numPages
-                + ", input_docs=" + numInputDocuments
-                + ", output_docs=" + numOuputDocuments
-                + ", invocations=" + numInvocations
-                + ", index_failures=" + indexFailures
-                + ", search_failures=" + searchFailures
-                + ", index_time_in_ms=" + indexTime
-                + ", index_total=" + indexTotal
-                + ", search_time_in_ms=" + searchTime
-                + ", search_total=" + searchTotal
-                + ", processing_time_in_ms=" + processingTime
-                + ", processing_total=" + processingTotal + "}";
+        return "{pages="
+            + numPages
+            + ", input_docs="
+            + numInputDocuments
+            + ", output_docs="
+            + numOuputDocuments
+            + ", invocations="
+            + numInvocations
+            + ", index_failures="
+            + indexFailures
+            + ", search_failures="
+            + searchFailures
+            + ", index_time_in_ms="
+            + indexTime
+            + ", index_total="
+            + indexTotal
+            + ", search_time_in_ms="
+            + searchTime
+            + ", search_total="
+            + searchTotal
+            + ", processing_time_in_ms="
+            + processingTime
+            + ", processing_total="
+            + processingTotal
+            + "}";
     }
 }

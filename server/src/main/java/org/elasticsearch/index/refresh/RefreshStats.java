@@ -34,8 +34,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
      */
     private int listeners;
 
-    public RefreshStats() {
-    }
+    public RefreshStats() {}
 
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
@@ -91,7 +90,9 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     /*
      * The total number of external refresh executed.
      */
-    public long getExternalTotal() { return this.externalTotal; }
+    public long getExternalTotal() {
+        return this.externalTotal;
+    }
 
     /**
      * The total time spent executing refreshes (in milliseconds).
@@ -120,6 +121,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public TimeValue getExternalTotalTime() {
         return new TimeValue(externalTotalTimeInMillis);
     }
+
     /**
      * The number of waiting refresh listeners.
      */
@@ -146,10 +148,10 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         }
         RefreshStats rhs = (RefreshStats) obj;
         return total == rhs.total
-                && totalTimeInMillis == rhs.totalTimeInMillis
-                && externalTotal == rhs.externalTotal
-                && externalTotalTimeInMillis == rhs.externalTotalTimeInMillis
-                && listeners == rhs.listeners;
+            && totalTimeInMillis == rhs.totalTimeInMillis
+            && externalTotal == rhs.externalTotal
+            && externalTotalTimeInMillis == rhs.externalTotalTimeInMillis
+            && listeners == rhs.listeners;
     }
 
     @Override

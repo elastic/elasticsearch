@@ -10,10 +10,10 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;

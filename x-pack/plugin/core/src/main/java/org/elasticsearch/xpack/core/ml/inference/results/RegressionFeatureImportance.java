@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -26,10 +26,10 @@ public class RegressionFeatureImportance extends AbstractFeatureImportance {
     static final String IMPORTANCE = "importance";
     static final String FEATURE_NAME = "feature_name";
 
-    private static final ConstructingObjectParser<RegressionFeatureImportance, Void> PARSER =
-        new ConstructingObjectParser<>("regression_feature_importance",
-            a -> new RegressionFeatureImportance((String) a[0], (Double) a[1])
-        );
+    private static final ConstructingObjectParser<RegressionFeatureImportance, Void> PARSER = new ConstructingObjectParser<>(
+        "regression_feature_importance",
+        a -> new RegressionFeatureImportance((String) a[0], (Double) a[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(RegressionFeatureImportance.FEATURE_NAME));
@@ -75,11 +75,14 @@ public class RegressionFeatureImportance extends AbstractFeatureImportance {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         RegressionFeatureImportance that = (RegressionFeatureImportance) object;
-        return Objects.equals(featureName, that.featureName)
-            && Objects.equals(importance, that.importance);
+        return Objects.equals(featureName, that.featureName) && Objects.equals(importance, that.importance);
     }
 
     @Override

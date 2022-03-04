@@ -49,9 +49,9 @@ class LatLonShapeDocValuesQuery extends Query {
     }
 
     @Override
-    public String toString(String field) {
+    public String toString(String otherField) {
         StringBuilder sb = new StringBuilder();
-        if (this.field.equals(field) == false) {
+        if (this.field.equals(otherField) == false) {
             sb.append(this.field);
             sb.append(':');
             sb.append(relation);
@@ -88,11 +88,11 @@ class LatLonShapeDocValuesQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-         if (relation == ShapeField.QueryRelation.CONTAINS) {
-             return getContainsWeight(scoreMode, boost);
-         } else {
+        if (relation == ShapeField.QueryRelation.CONTAINS) {
+            return getContainsWeight(scoreMode, boost);
+        } else {
             return getStandardWeight(scoreMode, boost);
-         }
+        }
     }
 
     private ConstantScoreWeight getStandardWeight(ScoreMode scoreMode, float boost) {
@@ -138,8 +138,7 @@ class LatLonShapeDocValuesQuery extends Query {
         final List<Component2D> components2D = new ArrayList<>(geometries.length);
         for (int i = 0; i < geometries.length; i++) {
             LatLonGeometry geometry = geometries[i];
-            if (geometry instanceof Rectangle) {
-                Rectangle r = (Rectangle) geometry;
+            if (geometry instanceof Rectangle r) {
                 if (r.minLon > r.maxLon) {
                     components2D.add(LatLonGeometry.create(new Rectangle(r.minLat, r.maxLat, r.minLon, 180)));
                     components2D.add(LatLonGeometry.create(new Rectangle(r.minLat, r.maxLat, -180, r.maxLon)));

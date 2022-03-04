@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import java.util.Map;
 
-
 /**
  * A test class which contains a singleton instance of the {@link SystemIndices} class that has been created with no
  * non-standard system indices defined except for those defined within the class itself.

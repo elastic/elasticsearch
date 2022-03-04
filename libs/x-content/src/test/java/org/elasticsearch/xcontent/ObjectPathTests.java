@@ -9,7 +9,6 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ObjectPath;
 
 import java.util.ArrayList;
 import java.util.Arrays;

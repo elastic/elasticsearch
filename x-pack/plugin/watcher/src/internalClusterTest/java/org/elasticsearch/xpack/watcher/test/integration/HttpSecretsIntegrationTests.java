@@ -82,24 +82,29 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             return Settings.builder()
-                    .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                    .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
-                    .setSecureSettings(secureSettings)
-                    .build();
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
+                .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
+                .setSecureSettings(secureSettings)
+                .build();
         }
         return super.nodeSettings(nodeOrdinal, otherSettings);
     }
 
     public void testHttpInput() throws Exception {
         new PutWatchRequestBuilder(client()).setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0 0 0 1 * ? 2020")))
-                        .input(httpInput(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0 0 0 1 * ? 2020")))
+                    .input(
+                        httpInput(
+                            HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
                                 .path("/")
-                                .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_logging", loggingAction("executed")))
-                        .get();
+                                .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))
+                        )
+                    )
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("_logging", loggingAction("executed"))
+            )
+            .get();
 
         // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, and when it's not enabled, it's stored in plain text
@@ -140,15 +145,17 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // now lets execute the watch manually
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200)
+                .setBody(BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString())
+        );
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
         ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client()).setId("_id")
-                .setRecordExecution(false)
-                .setTriggerEvent(triggerEvent)
-                .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
-                .get();
+            .setRecordExecution(false)
+            .setTriggerEvent(triggerEvent)
+            .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
+            .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getRecordSource();
         value = contentSource.getValue("result.input.http.status_code");
@@ -156,28 +163,34 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(value, is((Object) 200));
 
         assertThat(webServer.requests(), hasSize(1));
-        assertThat(webServer.requests().get(0).getHeader("Authorization"),
-                is(headerValue(USERNAME, PASSWORD.toCharArray())));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"), is(headerValue(USERNAME, PASSWORD.toCharArray())));
 
         // now trigger the by the scheduler and make sure that the password is also correctly transmitted
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-            BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200)
+                .setBody(BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString())
+        );
         timeWarp().trigger("_id");
         assertThat(webServer.requests(), hasSize(2));
-        assertThat(webServer.requests().get(1).getHeader("Authorization"),
-            is(headerValue(USERNAME, PASSWORD.toCharArray())));
+        assertThat(webServer.requests().get(1).getHeader("Authorization"), is(headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
     public void testWebhookAction() throws Exception {
         new PutWatchRequestBuilder(client()).setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0 0 0 1 * ? 2020")))
-                        .input(simpleInput())
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_webhook", webhookAction(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0 0 0 1 * ? 2020")))
+                    .input(simpleInput())
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction(
+                        "_webhook",
+                        webhookAction(
+                            HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
                                 .path("/")
-                                .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray())))))
-                        .get();
+                                .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))
+                        )
+                    )
+            )
+            .get();
 
         // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, when it's not enabled, the password should be stored in plain text
@@ -219,15 +232,17 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // now lets execute the watch manually
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200)
+                .setBody(BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString())
+        );
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
         ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client()).setId("_id")
-                .setRecordExecution(false)
-                .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
-                .setTriggerEvent(triggerEvent)
-                .get();
+            .setRecordExecution(false)
+            .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
+            .setTriggerEvent(triggerEvent)
+            .get();
         assertThat(executeResponse, notNullValue());
 
         contentSource = executeResponse.getRecordSource();
@@ -252,8 +267,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         }
 
         assertThat(webServer.requests(), hasSize(1));
-        assertThat(webServer.requests().get(0).getHeader("Authorization"),
-                is(headerValue(USERNAME, PASSWORD.toCharArray())));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"), is(headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
     private String headerValue(String username, char[] password) {

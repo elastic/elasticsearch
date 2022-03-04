@@ -46,7 +46,7 @@ public class GetAliasesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeImmutableMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
         out.writeMap(dataStreamAliases, StreamOutput::writeString, StreamOutput::writeList);
     }
 
@@ -59,8 +59,7 @@ public class GetAliasesResponse extends ActionResponse {
             return false;
         }
         GetAliasesResponse that = (GetAliasesResponse) o;
-        return Objects.equals(aliases, that.aliases) &&
-            Objects.equals(dataStreamAliases, that.dataStreamAliases);
+        return Objects.equals(aliases, that.aliases) && Objects.equals(dataStreamAliases, that.dataStreamAliases);
     }
 
     @Override

@@ -20,7 +20,7 @@ public class NestedPathFieldMapperTests extends MapperServiceTestCase {
 
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
     }
 }

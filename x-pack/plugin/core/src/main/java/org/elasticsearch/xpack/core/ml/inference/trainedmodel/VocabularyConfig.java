@@ -25,13 +25,13 @@ public class VocabularyConfig implements ToXContentObject, Writeable {
     private static final ParseField INDEX = new ParseField("index");
 
     public static String docId(String modelId) {
-        return modelId+ "_vocabulary";
+        return modelId + "_vocabulary";
     }
 
     private static final ConstructingObjectParser<VocabularyConfig, Void> PARSER = new ConstructingObjectParser<>(
         "vocabulary_config",
         true,
-        a -> new VocabularyConfig((String)a[0])
+        a -> new VocabularyConfig((String) a[0])
     );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);

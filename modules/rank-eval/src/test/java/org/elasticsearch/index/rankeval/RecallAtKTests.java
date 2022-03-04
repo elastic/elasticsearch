@@ -10,6 +10,10 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,10 +21,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,7 +75,7 @@ public class RecallAtKTests extends ESTestCase {
 
         RecallAtK recallAtN = new RecallAtK(2, 5);
 
-        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0,3), "test"), rated);
+        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0, 3), "test"), rated);
         assertEquals((double) 1 / 3, evaluated.metricScore(), 0.00001);
         assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
@@ -187,8 +187,7 @@ public class RecallAtKTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RecallAtK original = createTestItem();
-        RecallAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-            RecallAtK::new);
+        RecallAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), RecallAtK::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -203,21 +202,14 @@ public class RecallAtKTests extends ESTestCase {
     }
 
     private static RecallAtK mutate(RecallAtK original) {
-        RecallAtK recallAtK;
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                recallAtK = new RecallAtK(
-                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.forcedSearchSize().getAsInt());
-                break;
-            case 1:
-                recallAtK = new RecallAtK(
-                    original.getRelevantRatingThreshold(),
-                    original.forcedSearchSize().getAsInt() + 1);
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
-        }
+        RecallAtK recallAtK = switch (randomIntBetween(0, 1)) {
+            case 0 -> new RecallAtK(
+                randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                original.forcedSearchSize().getAsInt()
+            );
+            case 1 -> new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
+        };
         return recallAtK;
     }
 

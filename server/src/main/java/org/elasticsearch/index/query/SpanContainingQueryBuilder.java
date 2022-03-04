@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanContainingQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -117,16 +118,20 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
                     little = (SpanQueryBuilder) query;
                     checkNoBoost(NAME, currentFieldName, parser, little);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[span_containing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[span_containing] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 boost = parser.floatValue();
             } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 queryName = parser.text();
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[span_containing] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[span_containing] query does not support [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -151,12 +156,16 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
     @Override
     protected boolean doEquals(SpanContainingQueryBuilder other) {
-        return Objects.equals(big, other.big) &&
-               Objects.equals(little, other.little);
+        return Objects.equals(big, other.big) && Objects.equals(little, other.little);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

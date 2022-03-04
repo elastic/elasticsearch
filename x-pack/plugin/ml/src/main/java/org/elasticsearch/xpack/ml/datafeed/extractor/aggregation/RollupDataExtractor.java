@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -21,7 +21,10 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 class RollupDataExtractor extends AbstractAggregationDataExtractor<RollupSearchAction.RequestBuilder> {
 
     RollupDataExtractor(
-            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        AggregationDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         super(client, dataExtractorContext, timingStatsReporter);
     }
 

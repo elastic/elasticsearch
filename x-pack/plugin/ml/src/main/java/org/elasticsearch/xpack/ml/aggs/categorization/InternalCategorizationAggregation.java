@@ -13,14 +13,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,9 +31,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_REF;
-
 
 public class InternalCategorizationAggregation extends InternalMultiBucketAggregation<
     InternalCategorizationAggregation,
@@ -54,14 +56,14 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return docCount;
         }
 
-        public Bucket reduce(BucketKey key, ReduceContext reduceContext) {
+        public Bucket reduce(BucketKey bucketKey, AggregationReduceContext reduceContext) {
             List<InternalAggregations> innerAggs = new ArrayList<>(toReduce.size());
-            long docCount = 0;
+            long totalDocCount = 0;
             for (Bucket bucket : toReduce) {
                 innerAggs.add(bucket.aggregations);
-                docCount += bucket.docCount;
+                totalDocCount += bucket.docCount;
             }
-            return new Bucket(key, docCount, InternalAggregations.reduce(innerAggs, reduceContext));
+            return new Bucket(bucketKey, totalDocCount, InternalAggregations.reduce(innerAggs, reduceContext));
         }
 
         public DelayedCategorizationBucket add(Bucket bucket) {
@@ -212,7 +214,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return builder;
         }
 
-        BucketKey getRawKey()  {
+        BucketKey getRawKey() {
             return key;
         }
 
@@ -317,7 +319,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalCategorizationAggregation create(List<Bucket> buckets) {
+    public InternalCategorizationAggregation create(List<Bucket> bucketList) {
         return new InternalCategorizationAggregation(
             name,
             requiredSize,
@@ -326,7 +328,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             maxMatchTokens,
             similarityThreshold,
             super.metadata,
-            buckets
+            bucketList
         );
     }
 
@@ -336,7 +338,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         throw new IllegalArgumentException("For optimization purposes, typical bucket path is not supported");
     }
 
@@ -351,7 +353,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
             CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(
                 maxUniqueTokens,
@@ -359,7 +361,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 similarityThreshold
             );
             // TODO: Could we do a merge sort similar to terms?
-            //  It would require us returning partial reductions sorted by key, not by doc_count
+            // It would require us returning partial reductions sorted by key, not by doc_count
             // First, make sure we have all the counts for equal categorizations
             Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
             for (InternalAggregation aggregation : aggregations) {
@@ -369,13 +371,9 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 }
             }
 
-            reduced.values()
-                .stream()
-                .sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed())
-                .forEach(bucket ->
-                    // Parse tokens takes document count into account and merging on smallest groups
-                    categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount)
-                );
+            reduced.values().stream().sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed()).forEach(bucket ->
+            // Parse tokens takes document count into account and merging on smallest groups
+            categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount));
             categorizationTokenTree.mergeSmallestChildren();
             Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
             for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
@@ -387,13 +385,13 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     );
                 BytesRef[] categoryTokens = hash.getDeeps(group.getCategorization());
 
-                BucketKey key = reduceContext.isFinalReduce() ?
-                    BucketKey.withCollapsedWildcards(categoryTokens) :
-                    new BucketKey(categoryTokens);
+                BucketKey key = reduceContext.isFinalReduce()
+                    ? BucketKey.withCollapsedWildcards(categoryTokens)
+                    : new BucketKey(categoryTokens);
                 mergedBuckets.computeIfAbsent(
-                        key,
-                        k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
-                    ).add(delayedBucket);
+                    key,
+                    k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
+                ).add(delayedBucket);
             }
 
             final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());
@@ -432,6 +430,28 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 Arrays.asList(bucketList)
             );
         }
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalCategorizationAggregation(
+            name,
+            requiredSize,
+            minDocCount,
+            maxUniqueTokens,
+            maxMatchTokens,
+            similarityThreshold,
+            metadata,
+            buckets.stream()
+                .map(
+                    b -> new Bucket(
+                        b.key,
+                        samplingContext.scaleUp(b.docCount),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
+                    )
+                )
+                .collect(Collectors.toList())
+        );
     }
 
     public int getMaxUniqueTokens() {

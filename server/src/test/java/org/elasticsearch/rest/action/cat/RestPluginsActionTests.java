@@ -54,10 +54,7 @@ public class RestPluginsActionTests extends ESTestCase {
      */
     public void testIsolatedPluginOnly() {
         final Table table = buildTable(
-            List.of(
-                plugin("test-plugin", PluginType.ISOLATED),
-                plugin("ignored-plugin", PluginType.BOOTSTRAP)
-            ),
+            List.of(plugin("test-plugin", PluginType.ISOLATED), plugin("ignored-plugin", PluginType.BOOTSTRAP)),
             false
         );
 

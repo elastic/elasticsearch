@@ -71,7 +71,8 @@ final class Spawner implements Closeable {
                 final String message = String.format(
                     Locale.ROOT,
                     "module [%s] does not have permission to fork native controller",
-                    modules.getFileName());
+                    modules.getFileName()
+                );
                 throw new IllegalArgumentException(message);
             }
             final Process process = spawnNativeController(spawnPath, environment.tmpFile(), inheritIo);

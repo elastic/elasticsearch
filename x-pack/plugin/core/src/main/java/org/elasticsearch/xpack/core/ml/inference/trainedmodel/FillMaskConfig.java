@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -40,22 +40,19 @@ public class FillMaskConfig implements NlpConfig {
 
     private static ObjectParser<FillMaskConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<FillMaskConfig.Builder, Void> parser = new ObjectParser<>(NAME, ignoreUnknownFields, Builder::new);
-        parser.declareObject(
-            Builder::setVocabularyConfig,
-            (p, c) -> {
-                if (ignoreUnknownFields == false) {
-                    throw ExceptionsHelper.badRequestException(
-                        "illegal setting [{}] on inference model creation",
-                        VOCABULARY.getPreferredName()
-                    );
-                }
-                return VocabularyConfig.fromXContentLenient(p);
-            },
-            VOCABULARY
-        );
+        parser.declareObject(Builder::setVocabularyConfig, (p, c) -> {
+            if (ignoreUnknownFields == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "illegal setting [{}] on inference model creation",
+                    VOCABULARY.getPreferredName()
+                );
+            }
+            return VocabularyConfig.fromXContentLenient(p);
+        }, VOCABULARY);
         parser.declareNamedObject(
-            Builder::setTokenization, (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
-                TOKENIZATION
+            Builder::setTokenization,
+            (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
+            TOKENIZATION
         );
         parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
         parser.declareString(Builder::setResultsField, RESULTS_FIELD);
@@ -67,15 +64,24 @@ public class FillMaskConfig implements NlpConfig {
     private final int numTopClasses;
     private final String resultsField;
 
-    public FillMaskConfig(@Nullable VocabularyConfig vocabularyConfig,
-                          @Nullable Tokenization tokenization,
-                          @Nullable Integer numTopClasses,
-                          @Nullable String resultsField) {
+    public FillMaskConfig(
+        @Nullable VocabularyConfig vocabularyConfig,
+        @Nullable Tokenization tokenization,
+        @Nullable Integer numTopClasses,
+        @Nullable String resultsField
+    ) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_RESULTS : numTopClasses;
         this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public FillMaskConfig(StreamInput in) throws IOException {
@@ -203,10 +209,7 @@ public class FillMaskConfig implements NlpConfig {
         }
 
         public FillMaskConfig build() {
-            return new FillMaskConfig(vocabularyConfig,
-                tokenization,
-                numTopClasses,
-                resultsField);
+            return new FillMaskConfig(vocabularyConfig, tokenization, numTopClasses, resultsField);
         }
     }
 }

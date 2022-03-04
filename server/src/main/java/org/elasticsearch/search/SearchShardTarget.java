@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -103,9 +103,9 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             return false;
         }
         SearchShardTarget that = (SearchShardTarget) o;
-        return Objects.equals(nodeId, that.nodeId) &&
-            Objects.equals(shardId, that.shardId) &&
-            Objects.equals(clusterAlias, that.clusterAlias);
+        return Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(shardId, that.shardId)
+            && Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
@@ -115,8 +115,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     @Override
     public String toString() {
-        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(
-            clusterAlias, shardId.getIndexName()) + "][" + shardId.getId() + "]";
+        String shardToString = "["
+            + RemoteClusterAware.buildRemoteIndexName(clusterAlias, shardId.getIndexName())
+            + "]["
+            + shardId.getId()
+            + "]";
         if (nodeId == null) {
             return "[_na_]" + shardToString;
         }

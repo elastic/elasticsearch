@@ -33,8 +33,8 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        boolean present = DataTierAllocationDecider.preferredAvailableTier(
-            DataTier.parseTierList(tierPreference), clusterState.nodes()).isPresent();
+        boolean present = DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList(tierPreference), clusterState.nodes())
+            .isPresent();
         SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);
     }

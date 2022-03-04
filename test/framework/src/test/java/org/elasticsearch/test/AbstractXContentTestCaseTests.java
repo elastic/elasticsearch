@@ -30,14 +30,18 @@ public class AbstractXContentTestCaseTests extends ESTestCase {
             builder.field("field", 1);
         }
         builder.endObject();
-        BytesReference insertRandomFieldsAndShuffle = RandomizedContext.current().runWithPrivateRandomness(1,
+        BytesReference insertRandomFieldsAndShuffle = RandomizedContext.current()
+            .runWithPrivateRandomness(
+                1,
                 () -> AbstractXContentTestCase.insertRandomFieldsAndShuffle(
-                        BytesReference.bytes(builder),
-                        XContentType.JSON,
-                        true,
-                        new String[] {},
-                        null,
-                        this::createParser));
+                    BytesReference.bytes(builder),
+                    XContentType.JSON,
+                    true,
+                    new String[] {},
+                    null,
+                    this::createParser
+                )
+            );
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), insertRandomFieldsAndShuffle)) {
             Map<String, Object> mapOrdered = parser.mapOrdered();
             assertThat(mapOrdered.size(), equalTo(2));

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,8 +28,7 @@ public class GeoResults implements ToXContentObject, Writeable {
     public static final ObjectParser<GeoResults, Void> LENIENT_PARSER = createParser(true);
 
     private static ObjectParser<GeoResults, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<GeoResults, Void> parser = new ObjectParser<>(GEO_RESULTS.getPreferredName(), ignoreUnknownFields,
-            GeoResults::new);
+        ObjectParser<GeoResults, Void> parser = new ObjectParser<>(GEO_RESULTS.getPreferredName(), ignoreUnknownFields, GeoResults::new);
         parser.declareString(GeoResults::setActualPoint, ACTUAL_POINT);
         parser.declareString(GeoResults::setTypicalPoint, TYPICAL_POINT);
         return parser;

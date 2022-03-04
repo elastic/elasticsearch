@@ -39,8 +39,13 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(Settings settings, ClusterSettings clusterSettings, XPackLicenseState licenseState, ThreadPool threadPool,
-                   ExecutionScheduler executionScheduler) {
+    CleanerService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        ExecutionScheduler executionScheduler
+    ) {
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
@@ -58,8 +63,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())),
-            executorName());
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), executorName());
         logger.debug("cleaning service started");
     }
 
@@ -225,9 +229,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         @Override
         public TimeValue nextExecutionDelay(ZonedDateTime now) {
             // Runs at 01:00 AM today or the next day if it's too late
-            ZonedDateTime next = now.toLocalDate()
-                .atStartOfDay(now.getZone())
-                .plusHours(1);
+            ZonedDateTime next = now.toLocalDate().atStartOfDay(now.getZone()).plusHours(1);
             // if it's not after now, then it needs to be the next day!
             if (next.isAfter(now) == false) {
                 next = next.plusDays(1);

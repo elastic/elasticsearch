@@ -8,10 +8,19 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+
 import java.io.IOException;
 
 public interface DocValuesField<T> extends Field<T> {
 
     /** Set the current document ID. */
     void setNextDocId(int docId) throws IOException;
+
+    /**
+     * Returns a {@code ScriptDocValues} of the appropriate type for this field.
+     * This is used to support backwards compatibility for accessing field values
+     * through the {@code doc} variable.
+     */
+    ScriptDocValues<?> getScriptDocValues();
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,7 +32,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class TransportClusterHealthActionTests extends ESTestCase {
 
     public void testWaitForInitializingShards() throws Exception {
-        final String[] indices = {"test"};
+        final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
@@ -52,7 +51,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
     }
 
     public void testWaitForAllShards() {
-        final String[] indices = {"test"};
+        final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForActiveShards(ActiveShardCount.ALL);
 
@@ -66,16 +65,19 @@ public class TransportClusterHealthActionTests extends ESTestCase {
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
-        final IndexMetadata indexMetadata = IndexMetadata
-            .builder(index)
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT))
             .numberOfShards(between(1, 10))
             .numberOfReplicas(randomInt(20))
             .build();
 
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
-        IntStream.range(0, between(1, 30)).forEach(i -> shardRoutingStates.add(randomFrom(
-            ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)));
+        IntStream.range(0, between(1, 30))
+            .forEach(
+                i -> shardRoutingStates.add(
+                    randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)
+                )
+            );
         IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
         Randomness.shuffle(shardRoutingStates);
 
@@ -86,7 +88,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             shardRoutingStates.set(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
 
-        final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex());
 
         // Primary
@@ -94,9 +96,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             ShardRoutingState state = shardRoutingStates.remove(0);
             String node = "node";
             String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" : null;
-            routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state)
-            );
+            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state));
         }
 
         // Replicas

@@ -177,7 +177,7 @@ setup:
         end: "2017-02-01T01:00:00Z"
 
 ---
-"Test start given datafeed index does not exist":
+"Test start datafeed given concrete index that does not exist":
   - do:
       ml.update_datafeed:
         datafeed_id: start-stop-datafeed-datafeed-1
@@ -192,6 +192,25 @@ setup:
 
   - do:
       catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because index \[utopia\] does not exist/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+
+---
+"Test start datafeed given index pattern with no matching indices":
+  - do:
+      ml.update_datafeed:
+        datafeed_id: start-stop-datafeed-datafeed-1
+        body:  >
+          {
+            "indexes":["utopia*"]
+          }
+
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+
+  - do:
+      catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because no index matches datafeed's indices \[utopia\*\]/
       ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
 
@@ -251,14 +270,6 @@ setup:
         allow_no_match: true
   - match: { stopped: true }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      ml.stop_datafeed:
-        datafeed_id: "missing-*"
-        allow_no_datafeeds: true
-  - match: { stopped: true }
-
 ---
 "Test stop with expression that does not match and not allow_no_match":
   - skip:
@@ -270,14 +281,6 @@ setup:
       ml.stop_datafeed:
         datafeed_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.stop_datafeed:
-        datafeed_id: "missing-*"
-        allow_no_datafeeds: false
 
 ---
 "Test stop with body params":
@@ -300,27 +303,6 @@ setup:
         body:  >
           {
             "allow_no_match" : true
-          }
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.stop_datafeed:
-        datafeed_id: missing-*
-        body:  >
-          {
-            "allow_no_datafeeds" : false
-          }
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      ml.stop_datafeed:
-        datafeed_id: missing-*
-        body:  >
-          {
-            "allow_no_datafeeds" : true
           }
 
 ---

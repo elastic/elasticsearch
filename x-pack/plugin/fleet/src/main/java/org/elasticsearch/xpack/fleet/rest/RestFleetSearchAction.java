@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.fleet.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,7 +38,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_fleet/_search"), new Route(POST, "/{index}/_fleet/_search"));
+        return List.of(new Route(GET, "/{index}/_fleet/_fleet_search"), new Route(POST, "/{index}/_fleet/_fleet_search"));
     }
 
     @Override
@@ -76,7 +76,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
                             "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
                         );
                     }
-                    sr.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
+                    if (waitForCheckpoints.length != 0) {
+                        sr.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
+                    }
                     final TimeValue waitForCheckpointsTimeout = request.paramAsTime(
                         "wait_for_checkpoints_timeout",
                         TimeValue.timeValueSeconds(30)

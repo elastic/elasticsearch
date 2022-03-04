@@ -36,7 +36,7 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
 
     public static class Request extends AcknowledgedRequest<GetSnapshotLifecycleStatsAction.Request> {
 
-        public Request() { }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -57,7 +57,7 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
 
         private SnapshotLifecycleStats slmStats;
 
-        public Response() { }
+        public Response() {}
 
         public Response(SnapshotLifecycleStats slmStats) {
             this.slmStats = slmStats;

@@ -4,8 +4,9 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
- */
-/*
+ *
+ * =============================================================================
+ *
  * Copyright 2012 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,
@@ -27,15 +28,15 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
-
 
 /**
  * This class is adapted from {@link NioSocketChannel} class in the Netty project. It overrides the channel
@@ -50,8 +51,9 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
 @SuppressForbidden(reason = "Channel#write")
 public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
 
-    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("es.transport.buffer.size", "1m"), "es.transport.buffer.size").getBytes());
+    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(System.getProperty("es.transport.buffer.size", "1m"), "es.transport.buffer.size").getBytes()
+    );
 
     private static final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
     private final WriteConfig writeConfig = new WriteConfig();
@@ -85,12 +87,12 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
             } else {
                 // Zero length buffers are not added to nioBuffers by ChannelOutboundBuffer, so there is no need
                 // to check if the total size of all the buffers is non-zero.
-                ByteBuffer ioBuffer = getIoBuffer();
-                copyBytes(nioBuffers, nioBufferCnt, ioBuffer);
-                ioBuffer.flip();
+                ByteBuffer buffer = getIoBuffer();
+                copyBytes(nioBuffers, nioBufferCnt, buffer);
+                buffer.flip();
 
-                int attemptedBytes = ioBuffer.remaining();
-                final int localWrittenBytes = writeToSocketChannel(javaChannel(), ioBuffer);
+                int attemptedBytes = buffer.remaining();
+                final int localWrittenBytes = writeToSocketChannel(javaChannel(), buffer);
                 if (localWrittenBytes <= 0) {
                     incompleteWrite(true);
                     return;
@@ -110,29 +112,29 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
         final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
         int writeableBytes = Math.min(byteBuf.writableBytes(), MAX_BYTES_PER_WRITE);
         allocHandle.attemptedBytesRead(writeableBytes);
-        ByteBuffer ioBuffer = getIoBuffer().limit(writeableBytes);
-        int bytesRead = readFromSocketChannel(javaChannel(), ioBuffer);
-        ioBuffer.flip();
+        ByteBuffer limit = getIoBuffer().limit(writeableBytes);
+        int bytesRead = readFromSocketChannel(javaChannel(), limit);
+        limit.flip();
         if (bytesRead > 0) {
-            byteBuf.writeBytes(ioBuffer);
+            byteBuf.writeBytes(limit);
         }
         return bytesRead;
     }
 
     // Protected so that tests can verify behavior and simulate partial writes
-    protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-        return socketChannel.write(ioBuffer);
+    protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
+        return socketChannel.write(buffer);
     }
 
     // Protected so that tests can verify behavior
-    protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-        return socketChannel.read(ioBuffer);
+    protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
+        return socketChannel.read(buffer);
     }
 
     private static ByteBuffer getIoBuffer() {
-        ByteBuffer ioBuffer = CopyBytesSocketChannel.ioBuffer.get();
-        ioBuffer.clear();
-        return ioBuffer;
+        ByteBuffer buffer = CopyBytesSocketChannel.ioBuffer.get();
+        buffer.clear();
+        return buffer;
     }
 
     private void adjustMaxBytesPerGatheringWrite(int attempted, int written, int oldMaxBytesPerGatheringWrite) {

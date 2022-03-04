@@ -9,9 +9,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -105,9 +105,11 @@ interface SearchPhaseContext extends Executor {
      * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
-    default void sendReleaseSearchContext(ShardSearchContextId contextId,
-                                          Transport.Connection connection,
-                                          OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(
+        ShardSearchContextId contextId,
+        Transport.Connection connection,
+        OriginalIndices originalIndices
+    ) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);

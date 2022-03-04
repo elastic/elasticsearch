@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -24,10 +24,7 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerial
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        return new StartDataFrameAnalyticsAction.TaskParams(
-            randomAlphaOfLength(10),
-            randomVersion(random()),
-            randomBoolean());
+        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), randomVersion(random()), randomBoolean());
     }
 
     @Override

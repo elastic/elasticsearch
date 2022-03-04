@@ -147,21 +147,21 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     /**
      * Add a array of coordinates to the collection
      *
-     * @param coordinates array of {@link Coordinate}s to add
+     * @param coordinatesToAdd array of {@link Coordinate}s to add
      * @return this
      */
-    public E coordinates(Coordinate... coordinates) {
-        return this.coordinates(Arrays.asList(coordinates));
+    public E coordinates(Coordinate... coordinatesToAdd) {
+        return this.coordinates(Arrays.asList(coordinatesToAdd));
     }
 
     /**
      * Add a collection of coordinates to the collection
      *
-     * @param coordinates array of {@link Coordinate}s to add
+     * @param coordinatesToAdd array of {@link Coordinate}s to add
      * @return this
      */
-    public E coordinates(Collection<? extends Coordinate> coordinates) {
-        this.coordinates.addAll(coordinates);
+    public E coordinates(Collection<? extends Coordinate> coordinatesToAdd) {
+        this.coordinates.addAll(coordinatesToAdd);
         return thisRef();
     }
 

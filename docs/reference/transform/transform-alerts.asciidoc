@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-alerts]]
-= {transform-cap} alerts
+= Generating alerts for {transforms}
 
 beta::[]
 

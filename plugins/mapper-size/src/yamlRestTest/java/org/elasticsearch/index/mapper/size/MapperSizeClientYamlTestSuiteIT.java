@@ -25,4 +25,3 @@ public class MapperSizeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return createParameters();
     }
 }
-

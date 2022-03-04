@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import com.sun.net.httpserver.HttpsServer;
+
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -81,18 +82,17 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     public void testHttps() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .path(new TextTemplate("/test/_id"))
-                .body(new TextTemplate("{key=value}"))
-                .method(HttpMethod.POST);
+            .scheme(Scheme.HTTPS)
+            .path(new TextTemplate("/test/_id"))
+            .body(new TextTemplate("{key=value}"))
+            .method(HttpMethod.POST);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         timeWarp().trigger("_id");
         refresh();
@@ -102,8 +102,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
         assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
 
-        SearchResponse response =
-                searchWatchRecords(b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed")));
+        SearchResponse response = searchWatchRecords(
+            b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"))
+        );
 
         assertNoFailures(response);
         XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
@@ -119,19 +120,18 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     public void testHttpsAndBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(new TextTemplate("/test/_id"))
-                .body(new TextTemplate("{key=value}"))
-                .method(HttpMethod.POST);
+            .scheme(Scheme.HTTPS)
+            .auth(new BasicAuth("_username", "_password".toCharArray()))
+            .path(new TextTemplate("/test/_id"))
+            .body(new TextTemplate("{key=value}"))
+            .method(HttpMethod.POST);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         timeWarp().trigger("_id");
         refresh();
@@ -151,9 +151,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
             return List.of("TLSv1.2");
         } else {
-            JavaVersion full =
-                AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            JavaVersion full = AccessController.doPrivileged(
+                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+            );
             if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
                 return List.of("TLSv1.2");
             }

@@ -19,8 +19,9 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Collection;
 
-public class TransportGetCertificateInfoAction extends HandledTransportAction<GetCertificateInfoAction.Request,
-        GetCertificateInfoAction.Response> {
+public class TransportGetCertificateInfoAction extends HandledTransportAction<
+    GetCertificateInfoAction.Request,
+    GetCertificateInfoAction.Response> {
 
     private final SSLService sslService;
 
@@ -31,8 +32,11 @@ public class TransportGetCertificateInfoAction extends HandledTransportAction<Ge
     }
 
     @Override
-    protected void doExecute(Task task, GetCertificateInfoAction.Request request,
-                             ActionListener<GetCertificateInfoAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetCertificateInfoAction.Request request,
+        ActionListener<GetCertificateInfoAction.Response> listener
+    ) {
         try {
             Collection<CertificateInfo> certificates = sslService.getLoadedCertificates();
             listener.onResponse(new GetCertificateInfoAction.Response(certificates));

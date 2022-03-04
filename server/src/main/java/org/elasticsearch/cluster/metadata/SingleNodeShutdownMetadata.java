@@ -10,19 +10,18 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -31,10 +30,7 @@ import java.util.Objects;
 /**
  * Contains data about a single node's shutdown readiness.
  */
-public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutdownMetadata>
-    implements
-        ToXContentObject,
-        Diffable<SingleNodeShutdownMetadata> {
+public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_7_16_0;
 
@@ -68,7 +64,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), NODE_SEEN_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()), ALLOCATION_DELAY_FIELD,
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()),
+            ALLOCATION_DELAY_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TARGET_NODE_NAME_FIELD);
@@ -85,8 +82,10 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final String reason;
     private final long startedAtMillis;
     private final boolean nodeSeen;
-    @Nullable private final TimeValue allocationDelay;
-    @Nullable private final String targetNodeName;
+    @Nullable
+    private final TimeValue allocationDelay;
+    @Nullable
+    private final String targetNodeName;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
@@ -113,8 +112,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         }
         this.allocationDelay = allocationDelay;
         if (targetNodeName != null && type != Type.REPLACE) {
-            throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
-                "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
+            throw new IllegalArgumentException(
+                new ParameterizedMessage(
+                    "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
+                    type,
+                    targetNodeName
+                ).getFormattedMessage()
+            );
         } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }
@@ -245,21 +249,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            getNodeId(),
-            getType(),
-            getReason(),
-            getStartedAtMillis(),
-            getNodeSeen(),
-            allocationDelay,
-            targetNodeName
-        );
+        return Objects.hash(getNodeId(), getType(), getReason(), getStartedAtMillis(), getNodeSeen(), allocationDelay, targetNodeName);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         final StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder
-            .append("{")
+        stringBuilder.append("{")
             .append("nodeId=[")
             .append(nodeId)
             .append(']')
@@ -269,16 +265,10 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             .append(reason)
             .append(']');
         if (allocationDelay != null) {
-            stringBuilder
-                .append(", allocationDelay=[")
-                .append(allocationDelay)
-                .append("]");
+            stringBuilder.append(", allocationDelay=[").append(allocationDelay).append("]");
         }
         if (targetNodeName != null) {
-            stringBuilder
-                .append(", targetNodeName=[")
-                .append(targetNodeName)
-                .append("]");
+            stringBuilder.append(", targetNodeName=[").append(targetNodeName).append("]");
         }
         stringBuilder.append("}");
         return stringBuilder.toString();
@@ -292,8 +282,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         if (original == null) {
             return builder();
         }
-        return new Builder()
-            .setNodeId(original.getNodeId())
+        return new Builder().setNodeId(original.getNodeId())
             .setType(original.getType())
             .setReason(original.getReason())
             .setStartedAtMillis(original.getStartedAtMillis())
@@ -380,15 +369,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
                 throw new IllegalArgumentException("start timestamp must be set");
             }
 
-            return new SingleNodeShutdownMetadata(
-                nodeId,
-                type,
-                reason,
-                startedAtMillis,
-                nodeSeen,
-                allocationDelay,
-                targetNodeName
-            );
+            return new SingleNodeShutdownMetadata(nodeId, type, reason, startedAtMillis, nodeSeen, allocationDelay, targetNodeName);
         }
     }
 

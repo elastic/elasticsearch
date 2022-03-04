@@ -25,8 +25,7 @@ public class GetStats implements Writeable, ToXContentFragment {
     private long missingTimeInMillis;
     private long current;
 
-    public GetStats() {
-    }
+    public GetStats() {}
 
     public GetStats(StreamInput in) throws IOException {
         existsCount = in.readVLong();

@@ -88,13 +88,13 @@ public class DoubleRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinary
 
         @Override
         protected boolean isDisjoint(Range o) {
-            DoubleTestRange other = (DoubleTestRange)o;
+            DoubleTestRange other = (DoubleTestRange) o;
             return this.min > other.max || this.max < other.min;
         }
 
         @Override
         protected boolean isWithin(Range o) {
-            DoubleTestRange other = (DoubleTestRange)o;
+            DoubleTestRange other = (DoubleTestRange) o;
             if ((this.min >= other.min && this.max <= other.max) == false) {
                 // not within:
                 return false;

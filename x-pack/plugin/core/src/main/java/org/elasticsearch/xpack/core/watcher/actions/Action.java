@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.watcher.actions;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

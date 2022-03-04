@@ -90,7 +90,6 @@ public class LikePattern extends AbstractStringPattern {
         }
 
         LikePattern other = (LikePattern) obj;
-        return Objects.equals(pattern, other.pattern)
-                && escape == other.escape;
+        return Objects.equals(pattern, other.pattern) && escape == other.escape;
     }
 }

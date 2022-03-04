@@ -31,8 +31,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
 
         private Builder() {
             super(NAME);
@@ -64,7 +63,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(new Explicit<>(false, false), new SizeFieldType()),
+        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
         c -> new Builder()
     );
 

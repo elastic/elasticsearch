@@ -66,11 +66,15 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
     }
 
     private RequestedAuthnContext buildRequestedAuthnContext() {
-        RequestedAuthnContext requestedAuthnContext = SamlUtils.buildObject(RequestedAuthnContext.class, RequestedAuthnContext
-            .DEFAULT_ELEMENT_NAME);
+        RequestedAuthnContext requestedAuthnContext = SamlUtils.buildObject(
+            RequestedAuthnContext.class,
+            RequestedAuthnContext.DEFAULT_ELEMENT_NAME
+        );
         for (String authnCtxClass : super.serviceProvider.getReqAuthnCtxClassRef()) {
-            AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(AuthnContextClassRef.class, AuthnContextClassRef
-                .DEFAULT_ELEMENT_NAME);
+            AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(
+                AuthnContextClassRef.class,
+                AuthnContextClassRef.DEFAULT_ELEMENT_NAME
+            );
             authnContextClassRef.setURI(authnCtxClass);
             requestedAuthnContext.getAuthnContextClassRefs().add(authnContextClassRef);
         }
@@ -90,8 +94,12 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
     private String getIdpLocation() {
         final String location = getIdentityProviderEndpoint(idpBinding, IDPSSODescriptor::getSingleSignOnServices);
         if (location == null) {
-            throw new ElasticsearchException("Cannot find [{}]/[{}] in descriptor [{}]",
-                    IDPSSODescriptor.DEFAULT_ELEMENT_NAME, idpBinding, identityProvider.getID());
+            throw new ElasticsearchException(
+                "Cannot find [{}]/[{}] in descriptor [{}]",
+                IDPSSODescriptor.DEFAULT_ELEMENT_NAME,
+                idpBinding,
+                identityProvider.getID()
+            );
         }
         return location;
     }

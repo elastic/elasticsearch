@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -89,12 +89,14 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         private final boolean failLoadShardSnapshot;
         private final boolean failLoadShardSnapshots;
 
-        public FailingRepo(RepositoryMetadata metadata,
-                    Environment environment,
-                    NamedXContentRegistry namedXContentRegistry,
-                    ClusterService clusterService,
-                    BigArrays bigArrays,
-                    RecoverySettings recoverySettings) {
+        public FailingRepo(
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
             super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.failGetRepositoryData = metadata.settings().getAsBoolean(FAIL_GET_REPOSITORY_DATA_SETTING_KEY, false);
             this.failLoadShardSnapshot = metadata.settings().getAsBoolean(FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY, false);
@@ -124,9 +126,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId,
-                                                                            int shardId,
-                                                                            ShardGeneration shardGen) throws IOException {
+        public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, ShardGeneration shardGen)
+            throws IOException {
             if (failLoadShardSnapshots) {
                 throw new FileNotFoundException("Failed to get blob store index shard snapshots");
             }
@@ -232,16 +233,19 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         for (Tuple<String, Path> failingRepo : failingRepos) {
             // Update repository settings to fail fetching the repository information at any stage
-            String repoFailureType =
-                randomFrom(FailingRepo.FAIL_GET_REPOSITORY_DATA_SETTING_KEY,
-                    FailingRepo.FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY,
-                    FailingRepo.FAIL_LOAD_SHARD_SNAPSHOTS_SETTING_KEY
-                );
+            String repoFailureType = randomFrom(
+                FailingRepo.FAIL_GET_REPOSITORY_DATA_SETTING_KEY,
+                FailingRepo.FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY,
+                FailingRepo.FAIL_LOAD_SHARD_SNAPSHOTS_SETTING_KEY
+            );
 
-            assertAcked(client().admin().cluster().preparePutRepository(failingRepo.v1())
-                .setType(FailingRepoPlugin.TYPE)
-                .setVerify(false)
-                .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .preparePutRepository(failingRepo.v1())
+                    .setType(FailingRepoPlugin.TYPE)
+                    .setVerify(false)
+                    .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
             );
         }
 
@@ -277,9 +281,9 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         createRepository(repositoryName, "fs", randomRepoPath(), true);
         createSnapshot(repositoryName, snapshotName, indexName);
 
-        RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
-        ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
+        ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
         ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService) {
             @Override
             protected boolean masterSupportsFetchingLatestSnapshots() {
@@ -301,9 +305,9 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private ShardSnapshotsService getShardSnapshotsService() {
-        RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
-        ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
+        ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
         return new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService);
     }
 
@@ -313,21 +317,21 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private void createRepository(String repositoryName, String type, Path location, boolean recoveryEnabledRepo) {
-        assertAcked(client().admin().cluster().preparePutRepository(repositoryName)
-            .setType(type)
-            .setVerify(false)
-            .setSettings(Settings.builder()
-                .put("location", location)
-                .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
-            )
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(repositoryName)
+                .setType(type)
+                .setVerify(false)
+                .setSettings(
+                    Settings.builder()
+                        .put("location", location)
+                        .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
+                )
         );
     }
 
     private void createSnapshot(String repoName, String snapshotName, String index) {
-        clusterAdmin()
-            .prepareCreateSnapshot(repoName, snapshotName)
-            .setWaitForCompletion(true)
-            .setIndices(index)
-            .get();
+        clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(index).get();
     }
 }

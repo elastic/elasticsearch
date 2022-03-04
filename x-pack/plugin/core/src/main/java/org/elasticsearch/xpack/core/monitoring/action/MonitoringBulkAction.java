@@ -17,4 +17,3 @@ public class MonitoringBulkAction extends ActionType<MonitoringBulkResponse> {
         super(NAME, MonitoringBulkResponse::new);
     }
 }
-

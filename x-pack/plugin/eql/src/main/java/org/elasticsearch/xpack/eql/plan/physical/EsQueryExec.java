@@ -52,7 +52,6 @@ public class EsQueryExec extends LeafExec {
         return output;
     }
 
-    
     /*
      * {@param includeFetchFields} should be true for event queries and false for in progress sequence queries
      * Fetching fields during in progress sequence queries is unnecessary.
@@ -60,8 +59,12 @@ public class EsQueryExec extends LeafExec {
     public SearchSourceBuilder source(EqlSession session, boolean includeFetchFields) {
         EqlConfiguration cfg = session.configuration();
         // by default use the configuration size
-        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), includeFetchFields ? cfg.fetchFields() : null,
-            cfg.runtimeMappings());
+        return SourceGenerator.sourceBuilder(
+            queryContainer,
+            cfg.filter(),
+            includeFetchFields ? cfg.fetchFields() : null,
+            cfg.runtimeMappings()
+        );
     }
 
     @Override
@@ -99,8 +102,7 @@ public class EsQueryExec extends LeafExec {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(queryContainer, other.queryContainer)
-                && Objects.equals(output, other.output);
+        return Objects.equals(queryContainer, other.queryContainer) && Objects.equals(output, other.output);
     }
 
     @Override

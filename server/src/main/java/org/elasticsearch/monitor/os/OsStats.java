@@ -59,7 +59,9 @@ public class OsStats implements Writeable, ToXContentFragment {
         return timestamp;
     }
 
-    public Cpu getCpu() { return cpu; }
+    public Cpu getCpu() {
+        return cpu;
+    }
 
     public Mem getMem() {
         return mem;
@@ -469,7 +471,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             final CpuStat cpuStat,
             final String memoryControlGroup,
             final String memoryLimitInBytes,
-            final String memoryUsageInBytes) {
+            final String memoryUsageInBytes
+        ) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
             this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);

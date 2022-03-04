@@ -31,8 +31,7 @@ public class MockSecureSettings implements SecureSettings {
     private Set<String> settingNames = new HashSet<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public MockSecureSettings() {
-    }
+    public MockSecureSettings() {}
 
     private MockSecureSettings(MockSecureSettings source) {
         secureStrings.putAll(source.secureStrings);

@@ -10,13 +10,13 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -67,15 +67,20 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
     }
 
     public void testHttpFields() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort()).path("/input/path")))
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
-                        .path("/webhook/path")
-                        .method(HttpMethod.POST)
-                        .body("_body"))))
-                .get();
+                .addAction(
+                    "_webhook",
+                    webhookAction(
+                        HttpRequestTemplate.builder("localhost", webServer.getPort())
+                            .path("/webhook/path")
+                            .method(HttpMethod.POST)
+                            .body("_body")
+                    )
+                )
+        ).get();
 
         // one for the input, one for the webhook
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
@@ -89,11 +94,13 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
-                .aggregation(terms("input_result_path").field("result.input.http.request.path"))
-                .aggregation(terms("input_result_host").field("result.input.http.request.host"))
-                .aggregation(terms("webhook_path").field("result.actions.webhook.request.path")))
-                .get();
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+            .setSource(
+                searchSource().aggregation(terms("input_result_path").field("result.input.http.request.path"))
+                    .aggregation(terms("input_result_host").field("result.input.http.request.host"))
+                    .aggregation(terms("webhook_path").field("result.actions.webhook.request.path"))
+            )
+            .get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
@@ -131,18 +138,27 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
             webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
         }
 
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), id).setSource(watchBuilder()
-                .trigger(schedule(interval("1h")))
-                .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
-                        .path("/")
-                        .readTimeout(abortAtInput ? TimeValue.timeValueMillis(10) : TimeValue.timeValueSeconds(10))))
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), id).setSource(
+            watchBuilder().trigger(schedule(interval("1h")))
+                .input(
+                    httpInput(
+                        HttpRequestTemplate.builder("localhost", webServer.getPort())
+                            .path("/")
+                            .readTimeout(abortAtInput ? TimeValue.timeValueMillis(10) : TimeValue.timeValueSeconds(10))
+                    )
+                )
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
-                        .readTimeout(TimeValue.timeValueMillis(10))
-                        .path("/webhook/path")
-                        .method(HttpMethod.POST)
-                        .body("_body"))))
-                .get();
+                .addAction(
+                    "_webhook",
+                    webhookAction(
+                        HttpRequestTemplate.builder("localhost", webServer.getPort())
+                            .readTimeout(TimeValue.timeValueMillis(10))
+                            .path("/webhook/path")
+                            .method(HttpMethod.POST)
+                            .body("_body")
+                    )
+                )
+        ).get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         new ExecuteWatchRequestBuilder(client(), id).setRecordExecution(true).get();
@@ -150,8 +166,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure watcher history index has been written with this id
         flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery("watch_id", id))
-                .get();
+            .setQuery(QueryBuilders.termQuery("watch_id", id))
+            .get();
         assertHitCount(searchResponse, 1L);
 
         // ensure that enabled is set to false

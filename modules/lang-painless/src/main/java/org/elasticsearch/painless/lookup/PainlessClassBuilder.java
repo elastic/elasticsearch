@@ -42,8 +42,18 @@ final class PainlessClassBuilder {
     }
 
     PainlessClass build() {
-        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod, annotations,
-                runtimeMethods, getterMethodHandles, setterMethodHandles);
+        return new PainlessClass(
+            constructors,
+            staticMethods,
+            methods,
+            staticFields,
+            fields,
+            functionalInterfaceMethod,
+            annotations,
+            runtimeMethods,
+            getterMethodHandles,
+            setterMethodHandles
+        );
     }
 
     @Override
@@ -56,15 +66,15 @@ final class PainlessClassBuilder {
             return false;
         }
 
-        PainlessClassBuilder that = (PainlessClassBuilder)object;
+        PainlessClassBuilder that = (PainlessClassBuilder) object;
 
-        return Objects.equals(constructors, that.constructors) &&
-                Objects.equals(staticMethods, that.staticMethods) &&
-                Objects.equals(methods, that.methods) &&
-                Objects.equals(staticFields, that.staticFields) &&
-                Objects.equals(fields, that.fields) &&
-                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod) &&
-                Objects.equals(annotations, that.annotations);
+        return Objects.equals(constructors, that.constructors)
+            && Objects.equals(staticMethods, that.staticMethods)
+            && Objects.equals(methods, that.methods)
+            && Objects.equals(staticFields, that.staticFields)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod)
+            && Objects.equals(annotations, that.annotations);
     }
 
     @Override

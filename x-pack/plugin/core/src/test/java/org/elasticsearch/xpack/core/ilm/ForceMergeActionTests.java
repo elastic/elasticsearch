@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -74,8 +74,10 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         ForceMergeStep fourthStep = (ForceMergeStep) steps.get(3);
         SegmentCountStep fifthStep = (SegmentCountStep) steps.get(4);
 
-        assertThat(firstStep.getKey(),
-            equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP)));
+        assertThat(
+            firstStep.getKey(),
+            equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
+        );
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
         assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
         assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
@@ -107,17 +109,23 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey waitForGreen = new StepKey(phase, ForceMergeAction.NAME, WaitForIndexColorStep.NAME);
         StepKey forceMerge = new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME);
         StepKey segmentCount = new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME);
-        assertThat(steps.get(0).getKey(), is(new StepKey(phase, ForceMergeAction.NAME,
-            ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP)));
-        assertThat(stepKeys, contains(
-            new Tuple<>(checkNotWriteIndex, readOnly),
-            new Tuple<>(readOnly, closeIndex),
-            new Tuple<>(closeIndex, updateCodec),
-            new Tuple<>(updateCodec, openIndex),
-            new Tuple<>(openIndex, waitForGreen),
-            new Tuple<>(waitForGreen, forceMerge),
-            new Tuple<>(forceMerge, segmentCount),
-            new Tuple<>(segmentCount, nextStepKey)));
+        assertThat(
+            steps.get(0).getKey(),
+            is(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
+        );
+        assertThat(
+            stepKeys,
+            contains(
+                new Tuple<>(checkNotWriteIndex, readOnly),
+                new Tuple<>(readOnly, closeIndex),
+                new Tuple<>(closeIndex, updateCodec),
+                new Tuple<>(updateCodec, openIndex),
+                new Tuple<>(openIndex, waitForGreen),
+                new Tuple<>(waitForGreen, forceMerge),
+                new Tuple<>(forceMerge, segmentCount),
+                new Tuple<>(segmentCount, nextStepKey)
+            )
+        );
 
         UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
         UpdateSettingsStep fifthStep = (UpdateSettingsStep) steps.get(4);
@@ -128,21 +136,26 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
 
     public void testMissingMaxNumSegments() throws IOException {
         BytesReference emptyObject = BytesReference.bytes(JsonXContent.contentBuilder().startObject().endObject());
-        XContentParser parser = XContentHelper.createParser(null, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            emptyObject, XContentType.JSON);
+        XContentParser parser = XContentHelper.createParser(
+            null,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            emptyObject,
+            XContentType.JSON
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> ForceMergeAction.parse(parser));
         assertThat(e.getMessage(), equalTo("Required [max_num_segments]"));
     }
 
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> new
-            ForceMergeAction(randomIntBetween(-10, 0), null));
+        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), null));
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 
     public void testInvalidCodec() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> new
-            ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields"));
+        Exception r = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields")
+        );
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
     }
 

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,8 +27,11 @@ public class WaitForSnapshotAction implements LifecycleAction, ToXContentObject 
     public static final String NAME = "wait_for_snapshot";
     public static final ParseField POLICY_FIELD = new ParseField("policy");
 
-    private static final ConstructingObjectParser<WaitForSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        true, a -> new WaitForSnapshotAction((String) a[0]));
+    private static final ConstructingObjectParser<WaitForSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new WaitForSnapshotAction((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_FIELD);

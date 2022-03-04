@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

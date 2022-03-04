@@ -142,17 +142,23 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            // No need to take format and showDocCountError, they are attributes
-            // of the parent terms aggregation object that are only copied here
-            // for serialization purposes
+            if (showDocCountError && docCountError != that.docCountError) {
+                /*
+                 * docCountError doesn't matter if not showing it and
+                 * serialization sets it to -1 no matter what it was
+                 * before.
+                 */
+                return false;
+            }
             return Objects.equals(docCount, that.docCount)
-                && Objects.equals(docCountError, that.docCountError)
+                && Objects.equals(showDocCountError, that.showDocCountError)
+                && Objects.equals(format, that.format)
                 && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), docCount, docCountError, aggregations);
+            return Objects.hash(getClass(), docCount, format, showDocCountError, showDocCountError ? docCountError : -1, aggregations);
         }
     }
 

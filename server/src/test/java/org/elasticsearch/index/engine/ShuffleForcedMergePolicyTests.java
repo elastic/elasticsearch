@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.BaseMergePolicyTestCase;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -23,6 +22,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.BaseMergePolicyTestCase;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -77,10 +77,8 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     }
 
     @Override
-    protected void assertSegmentInfos(MergePolicy policy, SegmentInfos infos) throws IOException {
-    }
+    protected void assertSegmentInfos(MergePolicy policy, SegmentInfos infos) throws IOException {}
 
     @Override
-    protected void assertMerge(MergePolicy policy, MergePolicy.MergeSpecification merge) throws IOException {
-    }
+    protected void assertMerge(MergePolicy policy, MergePolicy.MergeSpecification merge) throws IOException {}
 }

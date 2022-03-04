@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -18,10 +18,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
     protected static final String SHARDS_PARSE_FIELD_NAME = "shards_acknowledged";
+
     private static ConstructingObjectParser<ShardsAcknowledgedResponse, Void> buildParser() {
 
-        ConstructingObjectParser<ShardsAcknowledgedResponse, Void> p = new ConstructingObjectParser<>("freeze", true,
-            args -> new ShardsAcknowledgedResponse((boolean) args[0], (boolean) args[1]));
+        ConstructingObjectParser<ShardsAcknowledgedResponse, Void> p = new ConstructingObjectParser<>(
+            "freeze",
+            true,
+            args -> new ShardsAcknowledgedResponse((boolean) args[0], (boolean) args[1])
+        );
         p.declareBoolean(constructorArg(), new ParseField(AcknowledgedResponse.PARSE_FIELD_NAME));
         p.declareBoolean(constructorArg(), new ParseField(SHARDS_PARSE_FIELD_NAME));
         return p;

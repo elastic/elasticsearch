@@ -64,7 +64,6 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "1.2.3").endObject()),
                 XContentType.JSON
@@ -101,7 +100,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         );
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
             "failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
@@ -126,7 +125,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         );
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
             "failed to parse field [field] of type [version] in document with id '1'. "

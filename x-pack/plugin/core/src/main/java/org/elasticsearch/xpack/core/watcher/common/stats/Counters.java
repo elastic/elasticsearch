@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.watcher.common.stats;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,13 +29,13 @@ public class Counters implements Writeable {
     private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
 
     public Counters(StreamInput in) throws IOException {
-        int counters = in.readVInt();
-        for (int i = 0; i < counters; i++) {
+        int numCounters = in.readVInt();
+        for (int i = 0; i < numCounters; i++) {
             inc(in.readString(), in.readVLong());
         }
     }
 
-    public Counters(String ... names) {
+    public Counters(String... names) {
         for (String name : names) {
             set(name);
         }

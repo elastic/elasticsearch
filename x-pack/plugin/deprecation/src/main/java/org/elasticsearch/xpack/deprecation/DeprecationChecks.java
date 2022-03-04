@@ -11,12 +11,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,27 +26,68 @@ import java.util.stream.Collectors;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
-        Setting.listSetting(
-            "deprecation.skip_deprecated_settings",
-            Collections.emptyList(),
-            Function.identity(),
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
-        );
-
-    private DeprecationChecks() {
-    }
-
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
-        ClusterDeprecationChecks::checkTransientSettingsExistence
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+        "deprecation.skip_deprecated_settings",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
-        NodeDeprecationChecks::checkSharedDataPathSetting,
-        NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-        NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting
-    );
+    private DeprecationChecks() {}
+
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
+
+    static final List<
+        NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS = List
+            .of(
+                NodeDeprecationChecks::checkSharedDataPathSetting,
+                NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+                NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
+                NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+                NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+                NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+                NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+                NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+                NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+                NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+                NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+                NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+                NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+                NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingExportersType,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+                NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+                NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+                NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+                NodeDeprecationChecks::checkScriptContextCache,
+                NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+                NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+                NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+                NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+                NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+                NodeDeprecationChecks::checkEqlEnabledSetting,
+                NodeDeprecationChecks::checkNodeAttrData
+            );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
         IndexDeprecationChecks::oldIndicesCheck,
@@ -68,4 +109,8 @@ public class DeprecationChecks {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
+    @FunctionalInterface
+    public interface NodeDeprecationCheck<A, B, C, D, R> {
+        R apply(A first, B second, C third, D fourth);
+    }
 }

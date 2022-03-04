@@ -23,8 +23,12 @@ public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction 
     private final XPackLicenseState licenseState;
 
     @Inject
-    public WatcherInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      Settings settings, XPackLicenseState licenseState) {
+    public WatcherInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.WATCHER.name(), transportService, actionFilters);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.licenseState = licenseState;

@@ -30,8 +30,8 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 
@@ -198,11 +198,10 @@ public class LogConfigurator {
                     }
                 }
                 // end hack
-                return new PropertiesConfigurationBuilder()
-                        .setConfigurationSource(source)
-                        .setRootProperties(properties)
-                        .setLoggerContext(loggerContext)
-                        .build();
+                return new PropertiesConfigurationBuilder().setConfigurationSource(source)
+                    .setRootProperties(properties)
+                    .setLoggerContext(loggerContext)
+                    .build();
             }
         };
         final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
@@ -217,9 +216,7 @@ public class LogConfigurator {
         });
 
         if (configurations.isEmpty()) {
-            throw new UserException(
-                    ExitCodes.CONFIG,
-                    "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
+            throw new UserException(ExitCodes.CONFIG, "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
         }
 
         context.start(new CompositeConfiguration(configurations));
@@ -228,10 +225,14 @@ public class LogConfigurator {
 
         final String deprecatedLocationsString = String.join("\n  ", locationsWithDeprecatedPatterns);
         if (deprecatedLocationsString.length() > 0) {
-            LogManager.getLogger(LogConfigurator.class).warn("Some logging configurations have %marker but don't have %node_name. "
-                    + "We will automatically add %node_name to the pattern to ease the migration for users who customize "
-                    + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
-                    + "`[%node_name]%marker ` in these locations:\n  {}", deprecatedLocationsString);
+            LogManager.getLogger(LogConfigurator.class)
+                .warn(
+                    "Some logging configurations have %marker but don't have %node_name. "
+                        + "We will automatically add %node_name to the pattern to ease the migration for users who customize "
+                        + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
+                        + "`[%node_name]%marker ` in these locations:\n  {}",
+                    deprecatedLocationsString
+                );
         }
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
@@ -259,10 +260,11 @@ public class LogConfigurator {
         }
         Loggers.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
-            .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false).forEach(s -> {
-            final Level level = s.get(settings);
-            Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
-        });
+            .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false)
+            .forEach(s -> {
+                final Level level = s.get(settings);
+                Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
+            });
     }
 
     /**

@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.calendars;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -152,8 +152,8 @@ public class Calendar implements ToXContentObject, Writeable {
             return calendarId;
         }
 
-        public void setId(String calendarId) {
-            this.calendarId = calendarId;
+        public void setId(String id) {
+            this.calendarId = id;
         }
 
         public Builder setJobIds(List<String> jobIds) {

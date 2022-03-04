@@ -10,21 +10,21 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
@@ -32,8 +32,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> {
 
@@ -82,8 +82,12 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
                 }
                 return result;
             }, SORT_FIELD);
-            PARSER.declareField(optionalConstructorArg(), (p, c) -> SearchAfterBuilder.fromXContent(p), SEARCH_AFTER_FIELD,
-                ObjectParser.ValueType.VALUE_ARRAY);
+            PARSER.declareField(
+                optionalConstructorArg(),
+                (p, c) -> SearchAfterBuilder.fromXContent(p),
+                SEARCH_AFTER_FIELD,
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
         }
 
         public static Request fromXContent(XContentParser parser) throws IOException {
@@ -109,11 +113,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             searchAfter = in.readOptionalWriteable(SearchAfterBuilder::new);
         }
 
-        public Request(Integer from,
-                       Integer size,
-                       QueryBuilder query,
-                       List<FieldSortBuilder> sorts,
-                       SearchAfterBuilder searchAfter) {
+        public Request(Integer from, Integer size, QueryBuilder query, List<FieldSortBuilder> sorts, SearchAfterBuilder searchAfter) {
             this.from = from;
             this.size = size;
             this.query = query;
@@ -191,11 +191,11 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(from, request.from) &&
-                Objects.equals(size, request.size) &&
-                Objects.equals(query, request.query) &&
-                Objects.equals(sorts, request.sorts) &&
-                Objects.equals(searchAfter, request.searchAfter);
+            return Objects.equals(from, request.from)
+                && Objects.equals(size, request.size)
+                && Objects.equals(query, request.query)
+                && Objects.equals(sorts, request.sorts)
+                && Objects.equals(searchAfter, request.searchAfter);
         }
 
         @Override
@@ -253,8 +253,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return watchTotalCount == response.watchTotalCount &&
-                watches.equals(response.watches);
+            return watchTotalCount == response.watchTotalCount && watches.equals(response.watches);
         }
 
         @Override
@@ -319,7 +318,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field("_id", id);
                 builder.field("watch", source, params);
-                builder.field("status", status,  params);
+                builder.field("status", status, params);
                 builder.field("_seq_no", seqNo);
                 builder.field("_primary_term", primaryTerm);
                 return builder;
@@ -330,10 +329,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 Item item = (Item) o;
-                return seqNo == item.seqNo &&
-                    primaryTerm == item.primaryTerm &&
-                    id.equals(item.id) &&
-                    source.equals(item.source);
+                return seqNo == item.seqNo && primaryTerm == item.primaryTerm && id.equals(item.id) && source.equals(item.source);
             }
 
             @Override

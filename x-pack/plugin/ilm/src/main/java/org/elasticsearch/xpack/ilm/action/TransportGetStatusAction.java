@@ -28,10 +28,24 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Response;
 public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportGetStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            Request::new, indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+    public TransportGetStatusAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetStatusAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            indexNameExpressionResolver,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override

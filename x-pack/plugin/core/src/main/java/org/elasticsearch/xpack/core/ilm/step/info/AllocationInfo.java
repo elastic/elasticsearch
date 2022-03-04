@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.ilm.step.info;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,8 +32,10 @@ public class AllocationInfo implements ToXContentObject {
     static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
     static final ParseField ALL_SHARDS_ACTIVE = new ParseField("all_shards_active");
     static final ParseField MESSAGE = new ParseField("message");
-    static final ConstructingObjectParser<AllocationInfo, Void> PARSER = new ConstructingObjectParser<>("allocation_routed_step_info",
-        a -> new AllocationInfo((long) a[0], (long) a[1], (boolean) a[2], (String) a[3]));
+    static final ConstructingObjectParser<AllocationInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "allocation_routed_step_info",
+        a -> new AllocationInfo((long) a[0], (long) a[1], (boolean) a[2], (String) a[3])
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_REPLICAS);
@@ -54,8 +56,7 @@ public class AllocationInfo implements ToXContentObject {
      * particular index.
      */
     public static AllocationInfo waitingForActiveShardsAllocationInfo(long numReplicas) {
-        return new AllocationInfo(numReplicas, -1, false,
-            "Waiting for all shard copies to be active");
+        return new AllocationInfo(numReplicas, -1, false, "Waiting for all shard copies to be active");
     }
 
     /**
@@ -63,8 +64,12 @@ public class AllocationInfo implements ToXContentObject {
      * but there are still {@link #numberShardsLeftToAllocate} left to be allocated.
      */
     public static AllocationInfo allShardsActiveAllocationInfo(long numReplicas, long numberShardsLeftToAllocate) {
-        return new AllocationInfo(numReplicas, numberShardsLeftToAllocate, true, "Waiting for [" + numberShardsLeftToAllocate +
-            "] shards to be allocated to nodes matching the given filters");
+        return new AllocationInfo(
+            numReplicas,
+            numberShardsLeftToAllocate,
+            true,
+            "Waiting for [" + numberShardsLeftToAllocate + "] shards to be allocated to nodes matching the given filters"
+        );
     }
 
     public long getNumberOfReplicas() {
@@ -108,10 +113,10 @@ public class AllocationInfo implements ToXContentObject {
             return false;
         }
         AllocationInfo other = (AllocationInfo) obj;
-        return Objects.equals(numberOfReplicas, other.numberOfReplicas) &&
-            Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate) &&
-            Objects.equals(message, other.message) &&
-            Objects.equals(allShardsActive, other.allShardsActive);
+        return Objects.equals(numberOfReplicas, other.numberOfReplicas)
+            && Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate)
+            && Objects.equals(message, other.message)
+            && Objects.equals(allShardsActive, other.allShardsActive);
     }
 
     @Override

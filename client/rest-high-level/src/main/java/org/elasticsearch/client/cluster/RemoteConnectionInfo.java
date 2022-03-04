@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.cluster;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,23 +31,21 @@ public final class RemoteConnectionInfo {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RemoteConnectionInfo, String> PARSER = new ConstructingObjectParser<>(
-            "RemoteConnectionInfoObjectParser",
-            false,
-            (args, clusterAlias) -> {
-                String mode = (String) args[1];
-                ModeInfo modeInfo;
-                if (mode.equals(ProxyModeInfo.NAME)) {
-                    modeInfo = new ProxyModeInfo((String) args[4], (String) args[5], (int) args[6], (int) args[7]);
-                } else if (mode.equals(SniffModeInfo.NAME)) {
-                    modeInfo = new SniffModeInfo((List<String>) args[8], (int) args[9], (int) args[10]);
-                } else {
-                    throw new IllegalArgumentException("mode cannot be " + mode);
-                }
-                return new RemoteConnectionInfo(clusterAlias,
-                        modeInfo,
-                        (String) args[2],
-                        (boolean) args[3]);
-            });
+        "RemoteConnectionInfoObjectParser",
+        false,
+        (args, clusterAlias) -> {
+            String mode = (String) args[1];
+            ModeInfo modeInfo;
+            if (mode.equals(ProxyModeInfo.NAME)) {
+                modeInfo = new ProxyModeInfo((String) args[4], (String) args[5], (int) args[6], (int) args[7]);
+            } else if (mode.equals(SniffModeInfo.NAME)) {
+                modeInfo = new SniffModeInfo((List<String>) args[8], (int) args[9], (int) args[10]);
+            } else {
+                throw new IllegalArgumentException("mode cannot be " + mode);
+            }
+            return new RemoteConnectionInfo(clusterAlias, modeInfo, (String) args[2], (boolean) args[3]);
+        }
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField(CONNECTED));
@@ -109,10 +107,10 @@ public final class RemoteConnectionInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteConnectionInfo that = (RemoteConnectionInfo) o;
-        return skipUnavailable == that.skipUnavailable &&
-                Objects.equals(modeInfo, that.modeInfo) &&
-                Objects.equals(initialConnectionTimeoutString, that.initialConnectionTimeoutString) &&
-                Objects.equals(clusterAlias, that.clusterAlias);
+        return skipUnavailable == that.skipUnavailable
+            && Objects.equals(modeInfo, that.modeInfo)
+            && Objects.equals(initialConnectionTimeoutString, that.initialConnectionTimeoutString)
+            && Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override

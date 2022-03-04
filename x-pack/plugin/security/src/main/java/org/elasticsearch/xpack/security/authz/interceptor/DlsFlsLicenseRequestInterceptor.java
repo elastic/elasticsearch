@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -43,8 +44,8 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener)
-    {
+        ActionListener<Void> listener
+    ) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
             // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
@@ -58,20 +59,37 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
                     boolean incompatibleLicense = false;
                     if (dlsFlsUsage.hasFieldLevelSecurity()) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "User [{}] has field level security on [{}]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithFieldLevelSecurity()
+                            )
+                        );
                         if (false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }
                     }
                     if (dlsFlsUsage.hasDocumentLevelSecurity()) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "User [{}] has document level security on [{}]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithDocumentLevelSecurity()
+                            )
+                        );
                         if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }
                     }
                     if (incompatibleLicense) {
-                        final ElasticsearchSecurityException licenseException =
-                            LicenseUtils.newComplianceException("field and document level security");
+                        final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
+                            "field and document level security"
+                        );
                         licenseException.addMetadata(
-                            "es.indices_with_dls_or_fls", indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity());
+                            "es.indices_with_dls_or_fls",
+                            indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
+                        );
                         listener.onFailure(licenseException);
                         return;
                     }

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +44,7 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
 
     public void setFailures(List<Object> failures) {
         if (failures != null) {
-            for (Object object: failures) {
+            for (Object object : failures) {
                 if (object instanceof Failure) {
                     bulkFailures.add((Failure) object);
                 } else if (object instanceof SearchFailure) {

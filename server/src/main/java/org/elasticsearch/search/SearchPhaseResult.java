@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -84,7 +84,9 @@ public abstract class SearchPhaseResult extends TransportResponse {
     /**
      * Returns the fetch result iff it's included in this response otherwise <code>null</code>
      */
-    public FetchSearchResult fetchResult() { return null; }
+    public FetchSearchResult fetchResult() {
+        return null;
+    }
 
     @Nullable
     public ShardSearchRequest getShardSearchRequest() {

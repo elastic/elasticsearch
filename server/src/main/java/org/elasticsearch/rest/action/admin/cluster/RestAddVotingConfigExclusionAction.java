@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -26,9 +26,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
 
-    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} " +
-        "has been removed. You must use POST /_cluster/voting_config_exclusions?node_ids=... " +
-        "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
+    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} "
+        + "has been removed. You must use POST /_cluster/voting_config_exclusions?node_ids=... "
+        + "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
 
     @Override
     public String getName() {
@@ -40,7 +40,8 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         return List.of(
             new Route(POST, "/_cluster/voting_config_exclusions"),
             Route.builder(POST, "/_cluster/voting_config_exclusions/{node_name}")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
         );
     }
 

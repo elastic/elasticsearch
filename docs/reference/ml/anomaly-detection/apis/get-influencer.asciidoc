@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-influencer]]
 = Get influencers API
 ++++
@@ -33,8 +32,9 @@ the anomalies. Influencer results are available only if an
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-[[ml-get-influencer-request-body]]
-== {api-request-body-title}
+
+[[ml-get-influencer-query-parms]]
+== {api-query-parms-title}
 
 `desc`::
 (Optional, Boolean)
@@ -49,16 +49,17 @@ specific timestamps.
 (Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
+`from`::
+(Optional, integer)
+Skips the specified number of influencers. Defaults to `0`.
+
 `influencer_score`::
 (Optional, double) Returns influencers with anomaly scores greater than or
 equal to this value. Defaults to `0.0`.
 
-`page`.`from`::
-(Optional, integer) Skips the specified number of influencers. Defaults to `0`.
-
-`page`.`size`::
-(Optional, integer) Specifies the maximum number of influencers to obtain. 
-Defaults to `100`.
+`size`::
+(Optional, integer)
+Specifies the maximum number of influencers to obtain. Defaults to `100`.
 
 `sort`::
 (Optional, string) Specifies the sort field for the requested influencers. By
@@ -68,6 +69,27 @@ default, the influencers are sorted by the `influencer_score` value.
 (Optional, string) Returns influencers with timestamps after this time. Defaults 
 to `-1`, which means it is unset and results are not limited to specific 
 timestamps.
+
+
+[[ml-get-influencer-request-body]]
+== {api-request-body-title}
+
+You can also specify the query parameters in the request body; the exception are
+`from` and `size`, use `page` instead:
+
+`page`::
++
+.Properties of `page`
+[%collapsible%open]
+====
+
+`from`:::
+(Optional, integer) Skips the specified number of influencers. Defaults to `0`.
+
+`size`:::
+(Optional, integer) Specifies the maximum number of influencers to obtain. 
+Defaults to `100`.
+====
 
 [[ml-get-influencer-results]]
 == {api-response-body-title}

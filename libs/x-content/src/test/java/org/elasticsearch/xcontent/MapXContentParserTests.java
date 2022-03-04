@@ -8,12 +8,12 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -53,7 +53,7 @@ public class MapXContentParserTests extends ESTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            builder.field("bytes", new byte[]{1, 2, 3});
+            builder.field("bytes", new byte[] { 1, 2, 3 });
             builder.nullField("nothing");
             builder.endObject();
         });
@@ -112,8 +112,14 @@ public class MapXContentParserTests extends ESTestCase {
             }
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
-                try (XContentParser mapParser = new MapXContentParser(
-                    xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
+                try (
+                    XContentParser mapParser = new MapXContentParser(
+                        xContentRegistry(),
+                        LoggingDeprecationHandler.INSTANCE,
+                        map,
+                        xContentType
+                    )
+                ) {
                     assertEquals(parser.contentType(), mapParser.contentType().canonical());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
@@ -124,8 +130,7 @@ public class MapXContentParserTests extends ESTestCase {
                         assertEquals(token, mapToken);
                         assertEquals(parser.currentName(), mapParser.currentName());
                         if (token != null && (token.isValue() || token == XContentParser.Token.VALUE_NULL)) {
-                            if ((xContentType.canonical() != XContentType.YAML) ||
-                                token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            if ((xContentType.canonical() != XContentType.YAML) || token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 // YAML struggles with converting byte arrays into text, because it
                                 // does weird base64 decoding to the values. We don't do this
                                 // weirdness in the MapXContentParser, so don't try to stringify it.
@@ -133,14 +138,12 @@ public class MapXContentParserTests extends ESTestCase {
                                 assertEquals(parser.textOrNull(), mapParser.textOrNull());
                             }
                             switch (token) {
-                                case VALUE_STRING:
-                                    assertEquals(parser.text(), mapParser.text());
-                                    break;
-                                case VALUE_NUMBER:
+                                case VALUE_STRING -> assertEquals(parser.text(), mapParser.text());
+                                case VALUE_NUMBER -> {
                                     assertEquals(parser.numberType(), mapParser.numberType());
                                     assertEquals(parser.numberValue(), mapParser.numberValue());
-                                    if (parser.numberType() == XContentParser.NumberType.LONG ||
-                                        parser.numberType() == XContentParser.NumberType.INT) {
+                                    if (parser.numberType() == XContentParser.NumberType.LONG
+                                        || parser.numberType() == XContentParser.NumberType.INT) {
                                         assertEquals(parser.longValue(), mapParser.longValue());
                                         if (parser.longValue() <= Integer.MAX_VALUE && parser.longValue() >= Integer.MIN_VALUE) {
                                             assertEquals(parser.intValue(), mapParser.intValue());
@@ -151,16 +154,10 @@ public class MapXContentParserTests extends ESTestCase {
                                     } else {
                                         assertEquals(parser.doubleValue(), mapParser.doubleValue(), 0.000001);
                                     }
-                                    break;
-                                case VALUE_BOOLEAN:
-                                    assertEquals(parser.booleanValue(), mapParser.booleanValue());
-                                    break;
-                                case VALUE_EMBEDDED_OBJECT:
-                                    assertArrayEquals(parser.binaryValue(), mapParser.binaryValue());
-                                    break;
-                                case VALUE_NULL:
-                                    assertNull(mapParser.textOrNull());
-                                    break;
+                                }
+                                case VALUE_BOOLEAN -> assertEquals(parser.booleanValue(), mapParser.booleanValue());
+                                case VALUE_EMBEDDED_OBJECT -> assertArrayEquals(parser.binaryValue(), mapParser.binaryValue());
+                                case VALUE_NULL -> assertNull(mapParser.textOrNull());
                             }
                             assertEquals(parser.currentName(), mapParser.currentName());
                             assertEquals(parser.isClosed(), mapParser.isClosed());

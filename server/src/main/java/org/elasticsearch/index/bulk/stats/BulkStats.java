@@ -60,12 +60,10 @@ public class BulkStats implements Writeable, ToXContentFragment {
             return;
         }
         if (this.totalOperations > 0 || bulkStats.totalOperations > 0) {
-            this.avgTimeInMillis =
-                (avgTimeInMillis * totalOperations + bulkStats.avgTimeInMillis * bulkStats.totalOperations) / (totalOperations
-                    + bulkStats.totalOperations);
-            this.avgSizeInBytes =
-                (avgSizeInBytes * totalOperations + bulkStats.avgSizeInBytes * bulkStats.totalOperations) / (totalOperations
-                    + bulkStats.totalOperations);
+            this.avgTimeInMillis = (avgTimeInMillis * totalOperations + bulkStats.avgTimeInMillis * bulkStats.totalOperations)
+                / (totalOperations + bulkStats.totalOperations);
+            this.avgSizeInBytes = (avgSizeInBytes * totalOperations + bulkStats.avgSizeInBytes * bulkStats.totalOperations)
+                / (totalOperations + bulkStats.totalOperations);
         }
         this.totalOperations += bulkStats.totalOperations;
         this.totalTimeInMillis += bulkStats.totalTimeInMillis;
@@ -100,7 +98,8 @@ public class BulkStats implements Writeable, ToXContentFragment {
         return avgSizeInBytes;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalOperations);
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(totalSizeInBytes);
@@ -108,7 +107,8 @@ public class BulkStats implements Writeable, ToXContentFragment {
         out.writeVLong(avgSizeInBytes);
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.BULK);
         builder.field(Fields.TOTAL_OPERATIONS, totalOperations);
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
@@ -129,8 +129,10 @@ public class BulkStats implements Writeable, ToXContentFragment {
         }
 
         final BulkStats that = (BulkStats) o;
-        return Objects.equals(this.totalOperations, that.totalOperations) && Objects.equals(this.totalTimeInMillis, that.totalTimeInMillis)
-            && Objects.equals(this.totalSizeInBytes, that.totalSizeInBytes) && Objects.equals(this.avgTimeInMillis, that.avgTimeInMillis)
+        return Objects.equals(this.totalOperations, that.totalOperations)
+            && Objects.equals(this.totalTimeInMillis, that.totalTimeInMillis)
+            && Objects.equals(this.totalSizeInBytes, that.totalSizeInBytes)
+            && Objects.equals(this.avgTimeInMillis, that.avgTimeInMillis)
             && Objects.equals(this.avgSizeInBytes, that.avgSizeInBytes);
     }
 
@@ -150,4 +152,3 @@ public class BulkStats implements Writeable, ToXContentFragment {
         static final String AVG_SIZE_IN_BYTES = "avg_size_in_bytes";
     }
 }
-

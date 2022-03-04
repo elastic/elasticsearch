@@ -96,8 +96,12 @@ public class YearlySchedule extends CronnableSchedule {
                 }
                 return times.isEmpty() ? new YearlySchedule() : new YearlySchedule(times.toArray(new YearTimes[times.size()]));
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
-                    "of objects representing year times, but found [{}] instead", TYPE, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either an object or an array "
+                    + "of objects representing year times, but found [{}] instead",
+                TYPE,
+                parser.currentToken()
+            );
         }
     }
 
@@ -105,8 +109,7 @@ public class YearlySchedule extends CronnableSchedule {
 
         private final Set<YearTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder time(YearTimes time) {
             times.add(time);

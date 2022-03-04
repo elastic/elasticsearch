@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.rollup;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -15,6 +14,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -38,11 +38,18 @@ public class RollupField {
     public static final String TYPE_NAME = "_doc";
     public static final String AGG = "agg";
     public static final String ROLLUP_MISSING = "ROLLUP_MISSING_40710B25931745D4B0B8B310F6912A69";
-    public static final List<String> SUPPORTED_NUMERIC_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
-            SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
-    public static final List<String> SUPPORTED_DATE_METRICS = Arrays.asList(MaxAggregationBuilder.NAME,
+    public static final List<String> SUPPORTED_NUMERIC_METRICS = Arrays.asList(
+        MaxAggregationBuilder.NAME,
         MinAggregationBuilder.NAME,
-        ValueCountAggregationBuilder.NAME);
+        SumAggregationBuilder.NAME,
+        AvgAggregationBuilder.NAME,
+        ValueCountAggregationBuilder.NAME
+    );
+    public static final List<String> SUPPORTED_DATE_METRICS = Arrays.asList(
+        MaxAggregationBuilder.NAME,
+        MinAggregationBuilder.NAME,
+        ValueCountAggregationBuilder.NAME
+    );
 
     // a set of ALL our supported metrics, to be a union of all other supported metric types (numeric, date, etc.)
     public static final Set<String> SUPPORTED_METRICS;
@@ -62,8 +69,10 @@ public class RollupField {
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
 
-    public static final List<String> DATE_FIELD_MAPPER_TYPES = List.of(DateFieldMapper.CONTENT_TYPE,
-        DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+    public static final List<String> DATE_FIELD_MAPPER_TYPES = List.of(
+        DateFieldMapper.CONTENT_TYPE,
+        DateFieldMapper.DATE_NANOS_CONTENT_TYPE
+    );
 
     /**
      * Format to the appropriate Rollup field name convention

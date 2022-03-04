@@ -11,20 +11,17 @@ package org.elasticsearch.xcontent.cbor;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
-import org.elasticsearch.core.RestApiVersion;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -52,8 +49,7 @@ public class CborXContent implements XContent {
         cborXContent = new CborXContent();
     }
 
-    private CborXContent() {
-    }
+    private CborXContent() {}
 
     @Override
     public XContentType type() {
@@ -66,76 +62,52 @@ public class CborXContent implements XContent {
     }
 
     @Override
+    public boolean detectContent(byte[] bytes, int offset, int length) {
+        // CBOR logic similar to CBORFactory#hasCBORFormat
+        if (bytes[offset] == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1) {
+            return true;
+        }
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, bytes[offset]) && length > 2) {
+            // Actually, specific "self-describe tag" is a very good indicator
+            if (bytes[offset] == (byte) 0xD9 && bytes[offset + 1] == (byte) 0xD9 && bytes[offset + 2] == (byte) 0xF7) {
+                return true;
+            }
+        }
+        // for small objects, some encoders just encode as major type object, we can safely
+        // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, bytes[offset])) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean detectContent(CharSequence chars) {
+        return false;
+    }
+
+    @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(content));
+    public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
+        return new CborXContentParser(config, cborFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is));
+    public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
+        return new CborXContentParser(config, cborFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        InputStream is,
-        FilterPath[] includes,
-        FilterPath[] excludes
-    ) throws IOException {
-        return new CborXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            cborFactory.createParser(is),
-            RestApiVersion.current(),
-            includes,
-            excludes
-        );
+    public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
+        return new CborXContentParser(config, cborFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
-        return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
+    public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
+        return new CborXContentParser(config, cborFactory.createParser(reader));
     }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
-        return createParserForCompatibility(xContentRegistry, deprecationHandler, data, offset, length, RestApiVersion.current());
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                       DeprecationHandler deprecationHandler, Reader reader) throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(reader));
-    }
-
-    @Override
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is,
-                                                       RestApiVersion restApiVersion)
-        throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is), restApiVersion);
-    }
-
-    @Override
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                       byte[] data, int offset, int length, RestApiVersion restApiVersion)
-        throws IOException {
-        return new CborXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            cborFactory.createParser(new ByteArrayInputStream(data, offset, length)),
-            restApiVersion
-        );
-    }
-
 }

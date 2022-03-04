@@ -11,6 +11,7 @@ import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -50,19 +52,36 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final double minFrequency, maxFrequency;
         private final int minSegmentSize;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptField<SortedSetDocValues> toScriptField;
 
-        public Builder(String name, double minFrequency, double maxFrequency, int minSegmentSize, ValuesSourceType valuesSourceType) {
+        public Builder(
+            String name,
+            double minFrequency,
+            double maxFrequency,
+            int minSegmentSize,
+            ValuesSourceType valuesSourceType,
+            ToScriptField<SortedSetDocValues> toScriptField
+        ) {
             this.name = name;
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
             this.minSegmentSize = minSegmentSize;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService,
-                    minFrequency, maxFrequency, minSegmentSize);
+            return new PagedBytesIndexFieldData(
+                name,
+                valuesSourceType,
+                cache,
+                breakerService,
+                minFrequency,
+                maxFrequency,
+                minSegmentSize,
+                toScriptField
+            );
         }
     }
 
@@ -73,24 +92,37 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         CircuitBreakerService breakerService,
         double minFrequency,
         double maxFrequency,
-        int minSegmentSize
+        int minSegmentSize,
+        ToScriptField<SortedSetDocValues> toScriptField
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptField);
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
         this.minSegmentSize = minSegmentSize;
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
@@ -99,11 +131,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         LeafReader reader = context.reader();
         LeafOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator =
-            new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(
+            context,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            getFieldName()
+        );
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
-            data = AbstractLeafOrdinalsFieldData.empty();
+            data = AbstractLeafOrdinalsFieldData.empty(toScriptField);
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -134,7 +169,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build();
 
-            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
+            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals, toScriptField);
             success = true;
             return data;
         } finally {
@@ -210,12 +245,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 docCount = reader.maxDoc();
             }
             if (docCount >= minSegmentSize) {
-                final int minFreq = minFrequency > 1.0
-                    ? (int) minFrequency
-                    : (int)(docCount * minFrequency);
-                final int maxFreq = maxFrequency > 1.0
-                    ? (int) maxFrequency
-                    : (int)(docCount * maxFrequency);
+                final int minFreq = minFrequency > 1.0 ? (int) minFrequency : (int) (docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0 ? (int) maxFrequency : (int) (docCount * maxFrequency);
                 if (minFreq > 1 || maxFreq < docCount) {
                     iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
                 }

@@ -20,8 +20,7 @@ public final class TimeSeriesParams {
     public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
     public static final String TIME_SERIES_DIMENSION_PARAM = "time_series_dimension";
 
-    private TimeSeriesParams() {
-    }
+    private TimeSeriesParams() {}
 
     public enum MetricType {
         gauge,

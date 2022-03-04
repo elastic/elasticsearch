@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -36,7 +35,8 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
         ConstructingObjectParser<WeightedSum, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new WeightedSum((List<Double>)a[0]));
+            a -> new WeightedSum((List<Double>) a[0])
+        );
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
     }

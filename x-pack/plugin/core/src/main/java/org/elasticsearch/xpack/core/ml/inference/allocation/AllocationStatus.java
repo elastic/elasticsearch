@@ -48,7 +48,7 @@ public class AllocationStatus implements Writeable, ToXContentObject {
 
     private static final ConstructingObjectParser<AllocationStatus, Void> PARSER = new ConstructingObjectParser<>(
         "allocation_health",
-        a -> new AllocationStatus((int)a[0], (int)a[1])
+        a -> new AllocationStatus((int) a[0], (int) a[1])
     );
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), ALLOCATION_COUNT);

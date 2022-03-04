@@ -42,7 +42,7 @@ timed out.
 [[fleet-search-api-request]]
 ==== {api-request-title}
 
-`GET /<target>/_fleet/_search`
+`GET /<target>/_fleet/_fleet_search`
 
 [[fleet-search-api-path-params]]
 ==== {api-path-parms-title}

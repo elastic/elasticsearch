@@ -13,12 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,8 +51,14 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     private final long nodeTime;
     private final List<ProfileResult> children;
 
-    public ProfileResult(String type, String description, Map<String, Long> breakdown, Map<String, Object> debug,
-            long nodeTime, List<ProfileResult> children) {
+    public ProfileResult(
+        String type,
+        String description,
+        Map<String, Long> breakdown,
+        Map<String, Object> debug,
+        long nodeTime,
+        List<ProfileResult> children
+    ) {
         this.type = type;
         this.description = description;
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
@@ -64,7 +70,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     /**
      * Read from a stream.
      */
-    public ProfileResult(StreamInput in) throws IOException{
+    public ProfileResult(StreamInput in) throws IOException {
         this.type = in.readString();
         this.description = in.readString();
         this.nodeTime = in.readLong();
@@ -184,8 +190,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
 
     private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
     static {
-        InstantiatingObjectParser.Builder<ProfileResult, Void> parser =
-                InstantiatingObjectParser.builder("profile_result", true, ProfileResult.class);
+        InstantiatingObjectParser.Builder<ProfileResult, Void> parser = InstantiatingObjectParser.builder(
+            "profile_result",
+            true,
+            ProfileResult.class
+        );
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
         parser.declareObject(
@@ -198,6 +207,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
         PARSER = parser.build();
     }
+
     public static ProfileResult fromXContent(XContentParser p) throws IOException {
         return PARSER.parse(p, null);
     }

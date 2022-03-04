@@ -9,8 +9,8 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,10 +35,22 @@ public final class DataStream {
     @Nullable
     private final Map<String, Object> metadata;
     private final boolean allowCustomRouting;
+    private final boolean replicated;
 
-    public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
-                      @Nullable String indexTemplate, @Nullable String ilmPolicyName, @Nullable  Map<String, Object> metadata,
-                      boolean hidden, boolean system, boolean allowCustomRouting) {
+    public DataStream(
+        String name,
+        String timeStampField,
+        List<String> indices,
+        long generation,
+        ClusterHealthStatus dataStreamStatus,
+        @Nullable String indexTemplate,
+        @Nullable String ilmPolicyName,
+        @Nullable Map<String, Object> metadata,
+        boolean hidden,
+        boolean system,
+        boolean allowCustomRouting,
+        boolean replicated
+    ) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -50,6 +62,7 @@ public final class DataStream {
         this.hidden = hidden;
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
+        this.replicated = replicated;
     }
 
     public String getName() {
@@ -96,6 +109,10 @@ public final class DataStream {
         return allowCustomRouting;
     }
 
+    public boolean isReplicated() {
+        return replicated;
+    }
+
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -107,26 +124,38 @@ public final class DataStream {
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+    public static final ParseField REPLICATED = new ParseField("replicated");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> {
-            String dataStreamName = (String) args[0];
-            String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
-            List<String> indices =
-                ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
-            Long generation = (Long) args[3];
-            String statusStr = (String) args[4];
-            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-            String indexTemplate = (String) args[5];
-            String ilmPolicy = (String) args[6];
-            Map<String, Object> metadata = (Map<String, Object>) args[7];
-            boolean hidden = args[8] != null && (boolean) args[8];
-            boolean system = args[9] != null && (boolean) args[9];
-            boolean allowCustomRouting = args[10] != null && (boolean) args[10];
-            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy, metadata, hidden,
-                system, allowCustomRouting);
-        });
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
+        String dataStreamName = (String) args[0];
+        String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
+        List<String> indices = ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
+        Long generation = (Long) args[3];
+        String statusStr = (String) args[4];
+        ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+        String indexTemplate = (String) args[5];
+        String ilmPolicy = (String) args[6];
+        Map<String, Object> metadata = (Map<String, Object>) args[7];
+        boolean hidden = args[8] != null && (boolean) args[8];
+        boolean system = args[9] != null && (boolean) args[9];
+        boolean allowCustomRouting = args[10] != null && (boolean) args[10];
+        boolean replicated = args[11] != null && (boolean) args[11];
+        return new DataStream(
+            dataStreamName,
+            timeStampField,
+            indices,
+            generation,
+            status,
+            indexTemplate,
+            ilmPolicy,
+            metadata,
+            hidden,
+            system,
+            allowCustomRouting,
+            replicated
+        );
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -140,6 +169,7 @@ public final class DataStream {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -151,22 +181,35 @@ public final class DataStream {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
-        return generation == that.generation &&
-            name.equals(that.name) &&
-            timeStampField.equals(that.timeStampField) &&
-            indices.equals(that.indices) &&
-            dataStreamStatus == that.dataStreamStatus &&
-            hidden == that.hidden &&
-            system == that.system &&
-            Objects.equals(indexTemplate, that.indexTemplate) &&
-            Objects.equals(ilmPolicyName, that.ilmPolicyName) &&
-            Objects.equals(metadata, that.metadata) &&
-            allowCustomRouting == that.allowCustomRouting;
+        return generation == that.generation
+            && name.equals(that.name)
+            && timeStampField.equals(that.timeStampField)
+            && indices.equals(that.indices)
+            && dataStreamStatus == that.dataStreamStatus
+            && hidden == that.hidden
+            && system == that.system
+            && Objects.equals(indexTemplate, that.indexTemplate)
+            && Objects.equals(ilmPolicyName, that.ilmPolicyName)
+            && Objects.equals(metadata, that.metadata)
+            && allowCustomRouting == that.allowCustomRouting
+            && replicated == that.replicated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName, metadata, hidden,
-            system, allowCustomRouting);
+        return Objects.hash(
+            name,
+            timeStampField,
+            indices,
+            generation,
+            dataStreamStatus,
+            indexTemplate,
+            ilmPolicyName,
+            metadata,
+            hidden,
+            system,
+            allowCustomRouting,
+            replicated
+        );
     }
 }

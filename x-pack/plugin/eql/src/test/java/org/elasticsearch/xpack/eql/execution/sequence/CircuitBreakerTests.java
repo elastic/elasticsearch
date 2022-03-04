@@ -35,11 +35,13 @@ import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
@@ -58,9 +60,9 @@ public class CircuitBreakerTests extends ESTestCase {
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
             SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
-            searchHit.sortValues(new SearchSortValues(
-                    new Long[] { (long) ordinal, 1L },
-                    new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }));
+            searchHit.sortValues(
+                new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
+            );
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
             SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
@@ -87,42 +89,48 @@ public class CircuitBreakerTests extends ESTestCase {
 
         for (int i = 0; i < stages; i++) {
             final int j = i;
-            criteria.add(new Criterion<>(i,
-                    new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
-                            .size(10)
-                            .query(matchAllQuery())
-                            .terminateAfter(j), "@timestamp", emptyList()),
+            criteria.add(
+                new Criterion<>(
+                    i,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
                     keyExtractors,
                     tsExtractor,
                     null,
                     implicitTbExtractor,
-                    false));
+                    false
+                )
+            );
         }
 
         SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, CIRCUIT_BREAKER);
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
-        window.execute(wrap(p -> {}, ex -> {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }));
+        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
 
         CIRCUIT_BREAKER.startBreaking();
         RuntimeException e = expectThrows(
-                RuntimeException.class,
-                () -> window.execute(wrap(p -> {}, ex -> { throw new RuntimeException(ex); }))
+            RuntimeException.class,
+            () -> window.execute(wrap(p -> {}, ex -> { throw new RuntimeException(ex); }))
         );
         assertEquals(CircuitBreakingException.class, e.getCause().getClass());
 
         CIRCUIT_BREAKER.stopBreaking();
-        window.execute(wrap(p -> {}, ex -> {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }));
+        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 
     public void testCircuitBreakerSequnceMatcher() {
         List<Tuple<KeyAndOrdinal, HitReference>> hits = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            hits.add(new Tuple<>(new KeyAndOrdinal(new SequenceKey(i), new Ordinal(Timestamp.of(String.valueOf(i)), o -> 1, 0)),
-                new HitReference("index", i + "")));
+            hits.add(
+                new Tuple<>(
+                    new KeyAndOrdinal(new SequenceKey(i), new Ordinal(Timestamp.of(String.valueOf(i)), o -> 1, 0)),
+                    new HitReference("index", i + "")
+                )
+            );
         }
 
         // Break on first iteration

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -52,10 +52,10 @@ public class ClusterPermissionTests extends ESTestCase {
 
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
-            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
-            new MockConfigurableClusterPrivilege(r -> false);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
+            r -> r == mockTransportRequest
+        );
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 = new MockConfigurableClusterPrivilege(r -> false);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         builder = mockConfigurableClusterPrivilege2.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
@@ -65,8 +65,15 @@ public class ClusterPermissionTests extends ESTestCase {
         final Set<ClusterPrivilege> privileges = clusterPermission.privileges();
         assertNotNull(privileges);
         assertThat(privileges.size(), is(4));
-        assertThat(privileges, containsInAnyOrder(ClusterPrivilegeResolver.MANAGE_SECURITY, ClusterPrivilegeResolver.MANAGE_ILM,
-            mockConfigurableClusterPrivilege1, mockConfigurableClusterPrivilege2));
+        assertThat(
+            privileges,
+            containsInAnyOrder(
+                ClusterPrivilegeResolver.MANAGE_SECURITY,
+                ClusterPrivilegeResolver.MANAGE_ILM,
+                mockConfigurableClusterPrivilege1,
+                mockConfigurableClusterPrivilege2
+            )
+        );
     }
 
     public void testClusterPermissionCheck() {
@@ -74,19 +81,23 @@ public class ClusterPermissionTests extends ESTestCase {
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
 
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
-            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
-            new MockConfigurableClusterPrivilege(r -> false);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
+            r -> r == mockTransportRequest
+        );
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 = new MockConfigurableClusterPrivilege(r -> false);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         builder = mockConfigurableClusterPrivilege2.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
-        assertThat(clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
-            is(true));
+        assertThat(
+            clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
+            is(true)
+        );
         assertThat(clusterPermission.check("cluster:admin/ilm/stop", mockTransportRequest, mockAuthentication), is(true));
-        assertThat(clusterPermission.check("cluster:admin/xpack/security/privilege/get", mockTransportRequest, mockAuthentication),
-            is(true));
+        assertThat(
+            clusterPermission.check("cluster:admin/xpack/security/privilege/get", mockTransportRequest, mockAuthentication),
+            is(true)
+        );
         assertThat(clusterPermission.check("cluster:admin/snapshot/status", mockTransportRequest, mockAuthentication), is(false));
     }
 
@@ -96,8 +107,10 @@ public class ClusterPermissionTests extends ESTestCase {
         final ClusterPermission clusterPermission = builder.build();
 
         assertThat(clusterPermission.check("cluster:admin/ilm/start", mockTransportRequest, mockAuthentication), is(false));
-        assertThat(clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
-            is(false));
+        assertThat(
+            clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
+            is(false)
+        );
     }
 
     public void testClusterPermissionCheckWithExcludeOnlyActionPatterns() {
@@ -106,8 +119,10 @@ public class ClusterPermissionTests extends ESTestCase {
         final ClusterPermission clusterPermission = builder.build();
 
         assertThat(clusterPermission.check("cluster:admin/ilm/start", mockTransportRequest, mockAuthentication), is(false));
-        assertThat(clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
-            is(false));
+        assertThat(
+            clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
+            is(false)
+        );
     }
 
     public void testClusterPermissionCheckWithActionPatterns() {
@@ -116,8 +131,10 @@ public class ClusterPermissionTests extends ESTestCase {
         final ClusterPermission clusterPermission = builder.build();
 
         assertThat(clusterPermission.check("cluster:admin/ilm/start", mockTransportRequest, mockAuthentication), is(false));
-        assertThat(clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
-            is(true));
+        assertThat(
+            clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
+            is(true)
+        );
     }
 
     public void testClusterPermissionCheckWithActionPatternsAndNoExludePatterns() {
@@ -126,8 +143,10 @@ public class ClusterPermissionTests extends ESTestCase {
         final ClusterPermission clusterPermission = builder.build();
 
         assertThat(clusterPermission.check("cluster:admin/ilm/start", mockTransportRequest, mockAuthentication), is(true));
-        assertThat(clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
-            is(true));
+        assertThat(
+            clusterPermission.check("cluster:admin/xpack/security/token/invalidate", mockTransportRequest, mockAuthentication),
+            is(true)
+        );
     }
 
     public void testNoneClusterPermissionIsImpliedByNone() {
@@ -138,10 +157,10 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
-            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
-            new MockConfigurableClusterPrivilege(r -> false);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
+            r -> r == mockTransportRequest
+        );
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 = new MockConfigurableClusterPrivilege(r -> false);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         builder = mockConfigurableClusterPrivilege2.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
@@ -153,8 +172,9 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
-            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
+            r -> r == mockTransportRequest
+        );
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
@@ -170,16 +190,16 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
-            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
+            r -> r == mockTransportRequest
+        );
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
         ClusterPermission.Builder builder1 = ClusterPermission.builder();
         builder1 = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder1);
         builder1 = mockConfigurableClusterPrivilege1.buildPermission(builder1);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
-            new MockConfigurableClusterPrivilege(r -> false);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 = new MockConfigurableClusterPrivilege(r -> false);
         builder1 = mockConfigurableClusterPrivilege2.buildPermission(builder1);
         final ClusterPermission otherClusterPermission = builder1.build();
 
@@ -216,8 +236,9 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
-            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
+            r -> r == mockTransportRequest
+        );
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
@@ -226,8 +247,7 @@ public class ClusterPermissionTests extends ESTestCase {
 
     public void testClusterPermissionSubsetIsImpliedByAllClusterPermission() {
         final ClusterPermission allClusterPermission = ClusterPrivilegeResolver.ALL.buildPermission(ClusterPermission.builder()).build();
-        ClusterPermission otherClusterPermission =
-            ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(ClusterPermission.builder()).build();
+        ClusterPermission otherClusterPermission = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(ClusterPermission.builder()).build();
 
         assertThat(allClusterPermission.implies(otherClusterPermission), is(true));
     }
@@ -282,8 +302,7 @@ public class ClusterPermissionTests extends ESTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
         public boolean equals(Object o) {
@@ -304,9 +323,7 @@ public class ClusterPermissionTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return "MockConfigurableClusterPrivilege{" +
-                "requestPredicate=" + requestPredicate +
-                '}';
+            return "MockConfigurableClusterPrivilege{" + "requestPredicate=" + requestPredicate + '}';
         }
 
         @Override

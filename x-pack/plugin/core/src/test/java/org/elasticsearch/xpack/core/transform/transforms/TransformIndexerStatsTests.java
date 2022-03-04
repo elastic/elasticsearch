@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 

@@ -34,8 +34,7 @@ class SingleFieldInjector implements SingleMemberInjector {
     final Dependency<?> dependency;
     final InternalFactory<?> factory;
 
-    SingleFieldInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
-            throws ErrorsException {
+    SingleFieldInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors) throws ErrorsException {
         this.injectionPoint = injectionPoint;
         this.field = (Field) injectionPoint.getMember();
         this.dependency = injectionPoint.getDependencies().get(0);

@@ -12,16 +12,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -45,8 +45,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     long nowInMillis;
 
-    public ExplainRequest() {
-    }
+    public ExplainRequest() {}
 
     public ExplainRequest(String index, String id) {
         this.index = index;
@@ -124,7 +123,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public FetchSourceContext fetchSourceContext() {
         return fetchSourceContext;
     }
-
 
     public String[] storedFields() {
         return storedFields;

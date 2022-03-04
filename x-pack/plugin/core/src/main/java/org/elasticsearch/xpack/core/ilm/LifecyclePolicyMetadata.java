@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,8 +24,7 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.Objects;
 
-public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMetadata>
-        implements ToXContentObject, Diffable<LifecyclePolicyMetadata> {
+public class LifecyclePolicyMetadata implements SimpleDiffable<LifecyclePolicyMetadata>, ToXContentObject {
 
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");
@@ -35,11 +33,13 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     static final ParseField MODIFIED_DATE_STRING = new ParseField("modified_date_string");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
-            a -> {
-                LifecyclePolicy policy = (LifecyclePolicy) a[0];
-                return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[1], (long) a[2], (long) a[3]);
-            });
+    public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "policy_metadata",
+        a -> {
+            LifecyclePolicy policy = (LifecyclePolicy) a[0];
+            return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[1], (long) a[2], (long) a[3]);
+        }
+    );
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), XContentParser::mapStrings, HEADERS, ValueType.OBJECT);
@@ -131,10 +131,10 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
             return false;
         }
         LifecyclePolicyMetadata other = (LifecyclePolicyMetadata) obj;
-        return Objects.equals(policy, other.policy) &&
-            Objects.equals(headers, other.headers) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate);
+        return Objects.equals(policy, other.policy)
+            && Objects.equals(headers, other.headers)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate);
     }
 
 }

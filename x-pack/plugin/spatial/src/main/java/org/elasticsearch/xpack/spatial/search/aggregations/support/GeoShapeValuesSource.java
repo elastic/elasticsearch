@@ -14,8 +14,8 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 
 import java.io.IOException;
 import java.util.function.Function;

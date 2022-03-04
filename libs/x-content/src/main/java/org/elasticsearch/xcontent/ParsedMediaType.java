@@ -65,7 +65,8 @@ public class ParsedMediaType {
             final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
 
             final String[] splitMediaType = elements[0].split("/");
-            if ((splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0].trim()).matches()
+            if ((splitMediaType.length == 2
+                && TCHAR_PATTERN.matcher(splitMediaType[0].trim()).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) == false) {
                 throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
@@ -78,7 +79,7 @@ public class ParsedMediaType {
                     if (paramsAsString.isEmpty()) {
                         continue;
                     }
-                    //spaces are allowed between parameters, but not between '=' sign
+                    // spaces are allowed between parameters, but not between '=' sign
                     String[] keyValueParam = paramsAsString.split("=");
                     if (keyValueParam.length != 2 || hasTrailingSpace(keyValueParam[0]) || hasLeadingSpace(keyValueParam[1])) {
                         throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
@@ -87,8 +88,12 @@ public class ParsedMediaType {
                     String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
                     parameters.put(parameterName, parameterValue);
                 }
-                return new ParsedMediaType(headerValue, splitMediaType[0].trim().toLowerCase(Locale.ROOT),
-                    splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
+                return new ParsedMediaType(
+                    headerValue,
+                    splitMediaType[0].trim().toLowerCase(Locale.ROOT),
+                    splitMediaType[1].trim().toLowerCase(Locale.ROOT),
+                    parameters
+                );
             }
         }
         return null;
@@ -97,8 +102,7 @@ public class ParsedMediaType {
     public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
         ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
 
-        return new ParsedMediaType(parsedMediaType.originalHeaderValue,
-            parsedMediaType.type, parsedMediaType.subType, parameters);
+        return new ParsedMediaType(parsedMediaType.originalHeaderValue, parsedMediaType.type, parsedMediaType.subType, parameters);
     }
 
     // simplistic check for media ranges. do not validate if this is a correct header
@@ -107,19 +111,20 @@ public class ParsedMediaType {
     }
 
     private static boolean hasTrailingSpace(String s) {
-        return s.length() == 0 || Character.isWhitespace(s.charAt(s.length()-1));
+        return s.length() == 0 || Character.isWhitespace(s.charAt(s.length() - 1));
     }
 
     private static boolean hasLeadingSpace(String s) {
         return s.length() == 0 || Character.isWhitespace(s.charAt(0));
     }
+
     /**
      * Resolves this instance to a MediaType instance defined in given MediaTypeRegistry.
      * Performs validation against parameters.
      * @param mediaTypeRegistry a registry where a mapping between a raw media type to an instance MediaType is defined
      * @return a MediaType instance or null if no media type could be found or if a known parameter do not passes validation
      */
-    public  <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
+    public <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
         T someType = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
 
         if (someType != null) {
@@ -139,7 +144,7 @@ public class ParsedMediaType {
             Pattern regex = registeredParams.get(paramName);
             return regex.matcher(value).matches();
         }
-        //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
+        // TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
         return true;
     }
 
@@ -152,15 +157,13 @@ public class ParsedMediaType {
         return mediaTypeWithoutParameters() + formatParameters(parameters);
     }
 
-    //used in testing
-    public String responseContentTypeHeader(Map<String,String> params) {
+    // used in testing
+    public String responseContentTypeHeader(Map<String, String> params) {
         return mediaTypeWithoutParameters() + formatParameters(params);
     }
 
     private String formatParameters(Map<String, String> params) {
-        String joined = params.entrySet().stream()
-            .map(e -> e.getKey() + "=" + e.getValue())
-            .collect(Collectors.joining(";"));
+        String joined = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;
     }
 

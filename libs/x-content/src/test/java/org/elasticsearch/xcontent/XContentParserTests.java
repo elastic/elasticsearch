@@ -9,11 +9,12 @@
 package org.elasticsearch.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,20 +69,9 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(value, number.floatValue(), 0.0f);
 
             switch (xContentType) {
-                case VND_CBOR:
-                case VND_SMILE:
-                case CBOR:
-                case SMILE:
-                    assertThat(number, instanceOf(Float.class));
-                    break;
-                case VND_JSON:
-                case VND_YAML:
-                case JSON:
-                case YAML:
-                    assertThat(number, instanceOf(Double.class));
-                    break;
-                default:
-                    throw new AssertionError("unexpected x-content type [" + xContentType + "]");
+                case VND_CBOR, VND_SMILE, CBOR, SMILE -> assertThat(number, instanceOf(Float.class));
+                case VND_JSON, VND_YAML, JSON, YAML -> assertThat(number, instanceOf(Double.class));
+                default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
             }
         }
     }
@@ -129,10 +119,12 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testReadMapStrings() throws IOException {
-        Map<String, String> map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\"}}");
+        Map<String, String> map = readMapStrings("""
+            {"foo": {"kbar":"vbar"}}""");
         assertThat(map.get("kbar"), equalTo("vbar"));
         assertThat(map.size(), equalTo(1));
-        map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\", \"kbaz\":\"vbaz\"}}");
+        map = readMapStrings("""
+            {"foo": {"kbar":"vbar", "kbaz":"vbaz"}}""");
         assertThat(map.get("kbar"), equalTo("vbar"));
         assertThat(map.get("kbaz"), equalTo("vbaz"));
         assertThat(map.size(), equalTo(2));
@@ -141,8 +133,26 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testMap() throws IOException {
-        String source = "{\"i\": {\"_doc\": {\"f1\": {\"type\": \"text\", \"analyzer\": \"english\"}, " +
-            "\"f2\": {\"type\": \"object\", \"properties\": {\"sub1\": {\"type\": \"keyword\", \"foo\": 17}}}}}}";
+        String source = """
+            {
+              "i": {
+                "_doc": {
+                  "f1": {
+                    "type": "text",
+                    "analyzer": "english"
+                  },
+                  "f2": {
+                    "type": "object",
+                    "properties": {
+                      "sub1": {
+                        "type": "keyword",
+                        "foo": 17
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         Map<String, Object> f1 = new HashMap<>();
         f1.put("type", "text");
         f1.put("analyzer", "english");
@@ -249,9 +259,7 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testEmptyList() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startArray("some_array")
-                .endArray().endObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startArray("some_array").endArray().endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -266,12 +274,14 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testSimpleList() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startArray("some_array")
-                .value(1)
-                .value(3)
-                .value(0)
-                .endArray().endObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("some_array")
+            .value(1)
+            .value(3)
+            .value(0)
+            .endArray()
+            .endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -286,12 +296,20 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testNestedList() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startArray("some_array")
-                .startArray().endArray()
-                .startArray().value(1).value(3).endArray()
-                .startArray().value(2).endArray()
-                .endArray().endObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("some_array")
+            .startArray()
+            .endArray()
+            .startArray()
+            .value(1)
+            .value(3)
+            .endArray()
+            .startArray()
+            .value(2)
+            .endArray()
+            .endArray()
+            .endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -301,18 +319,21 @@ public class XContentParserTests extends ESTestCase {
                 // sometimes read the start array token, sometimes not
                 assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
             }
-            assertEquals(
-                    Arrays.asList(Collections.<Integer>emptyList(), Arrays.asList(1, 3), Arrays.asList(2)),
-                    parser.list());
+            assertEquals(Arrays.asList(Collections.<Integer>emptyList(), Arrays.asList(1, 3), Arrays.asList(2)), parser.list());
         }
     }
 
     public void testNestedMapInList() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startArray("some_array")
-                .startObject().field("foo", "bar").endObject()
-                .startObject().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("some_array")
+            .startObject()
+            .field("foo", "bar")
+            .endObject()
+            .startObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -322,18 +343,29 @@ public class XContentParserTests extends ESTestCase {
                 // sometimes read the start array token, sometimes not
                 assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
             }
-            assertEquals(
-                    Arrays.asList(singletonMap("foo", "bar"), emptyMap()),
-                    parser.list());
+            assertEquals(Arrays.asList(singletonMap("foo", "bar"), emptyMap()), parser.list());
         }
     }
 
     public void testGenericMap() throws IOException {
-        String content = "{" +
-            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, " +
-            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
-            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }" +
-            "}";
+        String content = """
+            {
+              "c": {
+                "i": 3,
+                "d": 0.3,
+                "s": "ccc"
+              },
+              "a": {
+                "i": 1,
+                "d": 0.1,
+                "s": "aaa"
+              },
+              "b": {
+                "i": 2,
+                "d": 0.2,
+                "s": "bbb"
+              }
+            }""";
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
@@ -347,11 +379,24 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testGenericMapOrdered() throws IOException {
-        String content = "{" +
-            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, " +
-            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
-            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }" +
-            "}";
+        String content = """
+            {
+              "c": {
+                "i": 3,
+                "d": 0.3,
+                "s": "ccc"
+              },
+              "a": {
+                "i": 1,
+                "d": 0.1,
+                "s": "aaa"
+              },
+              "b": {
+                "i": 2,
+                "d": 0.2,
+                "s": "bbb"
+              }
+            }""";
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
@@ -366,15 +411,29 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testGenericMap_Failure_MapContainingUnparsableValue() throws IOException {
-        String content = "{" +
-            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
-            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": 666 }, " +
-            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
-            "}";
+        String content = """
+            {
+              "a": {
+                "i": 1,
+                "d": 0.1,
+                "s": "aaa"
+              },
+              "b": {
+                "i": 2,
+                "d": 0.2,
+                "s": 666
+              },
+              "c": {
+                "i": 3,
+                "d": 0.3,
+                "s": "ccc"
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             XContentParseException exception = expectThrows(
                 XContentParseException.class,
-                () -> parser.map(HashMap::new, SimpleStruct::fromXContent));
+                () -> parser.map(HashMap::new, SimpleStruct::fromXContent)
+            );
             assertThat(exception, hasMessage(containsString("s doesn't support values of type: VALUE_NUMBER")));
         }
     }
@@ -405,7 +464,7 @@ public class XContentParserTests extends ESTestCase {
                     subParser.skipChildren();
                 }
 
-            }  finally {
+            } finally {
                 assertFalse(subParser.isClosed());
                 subParser.close();
                 assertTrue(subParser.isClosed());
@@ -450,7 +509,7 @@ public class XContentParserTests extends ESTestCase {
                     subParser.skipChildren();
                 }
 
-            }  finally {
+            } finally {
                 assertFalse(subParser.isClosed());
                 subParser.close();
                 assertTrue(subParser.isClosed());
@@ -474,7 +533,6 @@ public class XContentParserTests extends ESTestCase {
             assertEquals("The sub parser has to be created on the start of an object or array", exception.getMessage());
         }
     }
-
 
     public void testCreateRootSubParser() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -501,9 +559,7 @@ public class XContentParserTests extends ESTestCase {
      * Returns the number of tokens in the marked field
      */
     private static int generateRandomObjectForMarking(XContentBuilder builder) throws IOException {
-        builder.startObject()
-            .field("first_field", "foo")
-            .field("marked_field");
+        builder.startObject().field("first_field", "foo").field("marked_field");
         int numberOfTokens = generateRandomObject(builder, 0);
         builder.field("last_field", "bar").endObject();
         return numberOfTokens;
@@ -522,37 +578,32 @@ public class XContentParserTests extends ESTestCase {
     }
 
     private static int generateRandomValue(XContentBuilder builder, int level) throws IOException {
-        @SuppressWarnings("unchecked") CheckedSupplier<Integer, IOException> fieldGenerator = randomFrom(
-            () -> {
-                builder.value(randomInt());
+        @SuppressWarnings("unchecked")
+        CheckedSupplier<Integer, IOException> fieldGenerator = randomFrom(() -> {
+            builder.value(randomInt());
+            return 1;
+        }, () -> {
+            builder.value(randomAlphaOfLength(10));
+            return 1;
+        }, () -> {
+            builder.value(randomDouble());
+            return 1;
+        }, () -> {
+            if (level < 3) {
+                // don't need to go too deep
+                return generateRandomObject(builder, level + 1);
+            } else {
+                builder.value(0);
                 return 1;
-            },
-            () -> {
-                builder.value(randomAlphaOfLength(10));
-                return 1;
-            },
-            () -> {
-                builder.value(randomDouble());
-                return 1;
-            },
-            () -> {
-                if (level < 3) {
-                    // don't need to go too deep
-                    return generateRandomObject(builder, level + 1);
-                } else {
-                    builder.value(0);
-                    return 1;
-                }
-            },
-            () -> {
-                if (level < 5) { // don't need to go too deep
-                    return generateRandomArray(builder, level);
-                } else {
-                    builder.value(0);
-                    return 1;
-                }
             }
-        );
+        }, () -> {
+            if (level < 5) { // don't need to go too deep
+                return generateRandomArray(builder, level);
+            } else {
+                builder.value(0);
+                return 1;
+            }
+        });
         return fieldGenerator.get();
     }
 

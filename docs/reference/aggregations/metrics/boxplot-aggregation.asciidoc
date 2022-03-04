@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-metrics-boxplot-aggregation]]
 === Boxplot aggregation
 ++++

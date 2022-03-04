@@ -14,9 +14,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -78,7 +78,6 @@ public class AutoCreateIndexIT extends ESRestTestCase {
             containsString("no such index [composable template [recipe*] forbids index auto creation]")
         );
     }
-
 
     private void configureAutoCreateIndex(boolean value) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()

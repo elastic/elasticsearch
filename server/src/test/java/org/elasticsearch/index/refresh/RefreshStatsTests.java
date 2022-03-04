@@ -17,8 +17,13 @@ import java.io.IOException;
 public class RefreshStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
-        RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+        RefreshStats stats = new RefreshStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            between(0, Integer.MAX_VALUE)
+        );
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();

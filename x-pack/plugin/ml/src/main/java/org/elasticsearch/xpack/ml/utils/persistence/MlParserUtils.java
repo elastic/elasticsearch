@@ -10,11 +10,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,9 +32,11 @@ public final class MlParserUtils {
      */
     public static <T, U> T parse(SearchHit hit, BiFunction<XContentParser, U, T> objectParser) {
         BytesReference source = hit.getSourceRef();
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse " + hit.getId(), e);

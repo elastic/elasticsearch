@@ -13,11 +13,7 @@ import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Res
 public class UpgradeTransformsActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
 
     public static Response randomUpgradeResponse() {
-        return new Response(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new Response(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override

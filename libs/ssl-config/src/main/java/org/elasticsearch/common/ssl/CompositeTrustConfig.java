@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -19,6 +17,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A TrustConfiguration that merges trust anchors from a number of other trust configs to produce a single {@link X509ExtendedTrustManager}.
@@ -51,16 +52,19 @@ public class CompositeTrustConfig implements SslTrustConfig {
             final KeyStore store = KeyStoreUtil.buildTrustStore(trustedIssuers);
             return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("Cannot combine trust configurations ["
-                + configs.stream().map(SslTrustConfig::toString).collect(Collectors.joining(","))
-                + "]",
-                e);
+            throw new SslConfigException(
+                "Cannot combine trust configurations ["
+                    + configs.stream().map(SslTrustConfig::toString).collect(Collectors.joining(","))
+                    + "]",
+                e
+            );
         }
     }
 
     @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
-        return configs.stream().map(SslTrustConfig::getConfiguredCertificates)
+        return configs.stream()
+            .map(SslTrustConfig::getConfiguredCertificates)
             .flatMap(Collection::stream)
             .collect(Collectors.toUnmodifiableList());
     }

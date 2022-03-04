@@ -64,14 +64,16 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         private final TimeValue keepAlive;
         private final long waitForCheckpoint;
 
-        public Shard(String[] indices,
-                     ShardId shardId,
-                     int shardRequestIndex,
-                     AliasFilter aliasFilter,
-                     float indexBoost,
-                     ShardSearchContextId readerId,
-                     TimeValue keepAlive,
-                     long waitForCheckpoint) {
+        public Shard(
+            String[] indices,
+            ShardId shardId,
+            int shardRequestIndex,
+            AliasFilter aliasFilter,
+            float indexBoost,
+            ShardSearchContextId readerId,
+            TimeValue keepAlive,
+            long waitForCheckpoint
+        ) {
             this.indices = indices;
             this.shardId = shardId;
             this.shardRequestIndex = shardRequestIndex;
@@ -127,7 +129,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         int numberOfShards,
         long nowInMillis,
         @Nullable String clusterAlias
-        ) {
+    ) {
         this.source = searchRequest.source();
         this.indicesOptions = indicesOptions;
         this.shards = new ArrayList<>(shards);
@@ -142,8 +144,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
         this.waitForCheckpointsTimeout = searchRequest.getWaitForCheckpointsTimeout();
-        indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct()
-            .toArray(String[]::new);
+        indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
     }
 
     public CanMatchNodeRequest(StreamInput in) throws IOException {
@@ -156,7 +157,8 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             String[] types = in.readStringArray();
             if (types.length > 0) {
                 throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
+                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
+                );
             }
         }
         scroll = in.readOptionalWriteable(Scroll::new);
@@ -167,8 +169,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         clusterAlias = in.readOptionalString();
         waitForCheckpointsTimeout = in.readTimeValue();
         shards = in.readList(Shard::new);
-        indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct()
-            .toArray(String[]::new);
+        indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
     }
 
     @Override
@@ -201,9 +202,23 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
 
     public ShardSearchRequest createShardSearchRequest(Shard r) {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-            new OriginalIndices(r.indices, indicesOptions), r.shardId, r.shardRequestIndex, numberOfShards, searchType,
-            source, requestCache, r.aliasFilter, r.indexBoost, allowPartialSearchResults, scroll,
-            nowInMillis, clusterAlias, r.readerId, r.keepAlive, r.waitForCheckpoint, waitForCheckpointsTimeout
+            new OriginalIndices(r.indices, indicesOptions),
+            r.shardId,
+            r.shardRequestIndex,
+            numberOfShards,
+            searchType,
+            source,
+            requestCache,
+            r.aliasFilter,
+            r.indexBoost,
+            allowPartialSearchResults,
+            scroll,
+            nowInMillis,
+            clusterAlias,
+            r.readerId,
+            r.keepAlive,
+            r.waitForCheckpoint,
+            waitForCheckpointsTimeout
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

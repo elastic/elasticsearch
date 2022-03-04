@@ -27,13 +27,15 @@ public interface Input extends ToXContentObject {
         private static final ParseField PAYLOAD = new ParseField("payload");
 
         public enum Status {
-            SUCCESS, FAILURE
+            SUCCESS,
+            FAILURE
         }
 
         protected final String type;
         protected final Status status;
         private final Payload payload;
-        @Nullable private final Exception exception;
+        @Nullable
+        private final Exception exception;
 
         protected Result(String type, Payload payload) {
             this.status = Status.SUCCESS;

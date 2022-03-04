@@ -10,13 +10,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -45,10 +45,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
         public static final ParseField JOB_CONFIG = new ParseField("job_config");
 
-        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
-            "preview_datafeed_action",
-            Request.Builder::new
-        );
+        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_datafeed_action", Request.Builder::new);
         static {
             PARSER.declareObject(Builder::setDatafeedBuilder, DatafeedConfig.STRICT_PARSER, DATAFEED_CONFIG);
             PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
@@ -198,9 +195,9 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                         "[datafeed_id] cannot be supplied when either [job_config] or [datafeed_config] is present"
                     );
                 }
-                return datafeedId != null ?
-                    new Request(datafeedId) :
-                    new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
+                return datafeedId != null
+                    ? new Request(datafeedId)
+                    : new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
             }
         }
     }

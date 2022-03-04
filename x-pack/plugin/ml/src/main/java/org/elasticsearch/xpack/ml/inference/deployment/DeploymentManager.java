@@ -16,19 +16,21 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -48,9 +50,12 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
+import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +65,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -79,8 +85,12 @@ public class DeploymentManager {
     private final ThreadPool threadPool;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
 
-    public DeploymentManager(Client client, NamedXContentRegistry xContentRegistry,
-                             ThreadPool threadPool, PyTorchProcessFactory pyTorchProcessFactory) {
+    public DeploymentManager(
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        ThreadPool threadPool,
+        PyTorchProcessFactory pyTorchProcessFactory
+    ) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
@@ -94,76 +104,90 @@ public class DeploymentManager {
     }
 
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
-        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
-            .map(processContext ->
-                new ModelStats(processContext.getResultProcessor().getTimingStats(),
-                    processContext.getResultProcessor().getLastUsed())
+        return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
+            var stats = processContext.getResultProcessor().getResultStats();
+            return new ModelStats(
+                processContext.startTime,
+                stats.timingStats(),
+                stats.lastUsed(),
+                processContext.executorService.queueSize() + stats.numberOfPendingResults(),
+                stats.errorCount(),
+                processContext.rejectedExecutionCount.intValue(),
+                processContext.timeoutCount.intValue(),
+                processContext.inferenceThreads,
+                processContext.modelThreads
             );
+        });
+    }
+
+    // function exposed for testing
+    ProcessContext addProcessContext(Long id, ProcessContext processContext) {
+        return processContextByAllocation.putIfAbsent(id, processContext);
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.debug("[{}] Starting model deployment", task.getModelId());
+        logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
-
-        if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
-            finalListener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
+        if (addProcessContext(task.getId(), processContext) != null) {
+            finalListener.onFailure(
+                ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getModelId())
+            );
             return;
         }
 
-        ActionListener<TrainedModelDeploymentTask> listener = ActionListener.wrap(
-            finalListener::onResponse,
-            failure -> {
-                processContextByAllocation.remove(task.getId());
-                finalListener.onFailure(failure);
-            }
+        ActionListener<TrainedModelDeploymentTask> listener = ActionListener.wrap(finalListener::onResponse, failure -> {
+            processContextByAllocation.remove(task.getId());
+            finalListener.onFailure(failure);
+        });
+
+        ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(success -> {
+            executorServiceForProcess.execute(() -> processContext.getResultProcessor().process(processContext.process.get()));
+            listener.onResponse(task);
+        }, listener::onFailure);
+
+        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
+            assert getModelResponse.getResources().results().size() == 1;
+            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+            processContext.modelInput.set(modelConfig.getInput());
+
+            assert modelConfig.getInferenceConfig() instanceof NlpConfig;
+            NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
+            task.init(nlpConfig);
+
+            SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
+            executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchVocabResponse -> {
+                if (searchVocabResponse.getHits().getHits().length == 0) {
+                    listener.onFailure(
+                        new ResourceNotFoundException(
+                            Messages.getMessage(
+                                Messages.VOCABULARY_NOT_FOUND,
+                                task.getModelId(),
+                                VocabularyConfig.docId(modelConfig.getModelId())
+                            )
+                        )
+                    );
+                    return;
+                }
+
+                Vocabulary vocabulary = parseVocabularyDocLeniently(searchVocabResponse.getHits().getAt(0));
+                NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
+                NlpTask.Processor processor = nlpTask.createProcessor();
+                processContext.nlpTaskProcessor.set(processor);
+                // here, we are being called back on the searching thread, which MAY be a network thread
+                // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+                // executor.
+                executorServiceForDeployment.execute(() -> startAndLoad(processContext, modelConfig.getLocation(), modelLoadedListener));
+            }, listener::onFailure));
+        }, listener::onFailure);
+
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            GetTrainedModelsAction.INSTANCE,
+            new GetTrainedModelsAction.Request(task.getModelId()),
+            getModelListener
         );
-
-        ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(
-            success -> {
-                executorServiceForProcess.execute(() -> processContext.getResultProcessor().process(processContext.process.get()));
-                listener.onResponse(task);
-            },
-            listener::onFailure
-        );
-
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(
-            getModelResponse -> {
-                assert getModelResponse.getResources().results().size() == 1;
-                TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
-                processContext.modelInput.set(modelConfig.getInput());
-
-                assert modelConfig.getInferenceConfig() instanceof NlpConfig;
-                NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
-                task.init(nlpConfig);
-
-                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
-                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-                    searchVocabResponse -> {
-                        if (searchVocabResponse.getHits().getHits().length == 0) {
-                            listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
-                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), VocabularyConfig.docId(modelConfig.getModelId()))));
-                            return;
-                        }
-
-                        Vocabulary vocabulary = parseVocabularyDocLeniently(searchVocabResponse.getHits().getAt(0));
-                        NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
-                        NlpTask.Processor processor = nlpTask.createProcessor();
-                        processContext.nlpTaskProcessor.set(processor);
-                        // here, we are being called back on the searching thread, which MAY be a network thread
-                        // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
-                        // executor.
-                        executorServiceForDeployment.execute(
-                            () -> startAndLoad(processContext,  modelConfig.getLocation(), modelLoadedListener));
-                    },
-                    listener::onFailure
-                ));
-            },
-            listener::onFailure
-        );
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetTrainedModelsAction.INSTANCE, new GetTrainedModelsAction.Request(task.getModelId()),
-            getModelListener);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
@@ -175,12 +199,18 @@ public class DeploymentManager {
     }
 
     Vocabulary parseVocabularyDocLeniently(SearchHit hit) throws IOException {
-        try (InputStream stream = hit.getSourceRef().streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = hit.getSourceRef().streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    stream
+                )
+        ) {
             return Vocabulary.createParser(true).apply(parser, null);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("failed to parse vocabulary [{}]", hit.getId()), e);
+            logger.error(new ParameterizedMessage("failed to parse trained model vocabulary [{}]", hit.getId()), e);
             throw e;
         }
     }
@@ -203,22 +233,23 @@ public class DeploymentManager {
             logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.debug("[{}] No process context to stop", task.getModelId());
+            logger.warn("[{}] No process context to stop", task.getModelId());
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task,
-                      InferenceConfig config,
-                      Map<String, Object> doc,
-                      TimeValue timeout,
-                      ActionListener<InferenceResults> listener) {
+    public void infer(
+        TrainedModelDeploymentTask task,
+        InferenceConfig config,
+        Map<String, Object> doc,
+        TimeValue timeout,
+        ActionListener<InferenceResults> listener
+    ) {
         if (task.isStopped()) {
             listener.onFailure(
-                new IllegalStateException("["
-                    + task.getModelId()
-                    + "] is stopping or stopped due to ["
-                    + task.stoppedReason().orElse("")
-                    + "]"
+                ExceptionsHelper.conflictStatusException(
+                    "[{}] is stopping or stopped due to [{}]",
+                    task.getModelId(),
+                    task.stoppedReason().orElse("")
                 )
             );
             return;
@@ -226,15 +257,33 @@ public class DeploymentManager {
 
         ProcessContext processContext = processContextByAllocation.get(task.getId());
         if (processContext == null) {
-            listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
+            listener.onFailure(ExceptionsHelper.conflictStatusException("[{}] process context missing", task.getModelId()));
             return;
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        executorServiceForProcess.execute(new InferenceAction(requestId, timeout, processContext, config, doc, threadPool, listener));
+        InferenceAction inferenceAction = new InferenceAction(
+            task.getModelId(),
+            requestId,
+            timeout,
+            processContext,
+            config,
+            doc,
+            threadPool,
+            listener
+        );
+        try {
+            processContext.getExecutorService().execute(inferenceAction);
+        } catch (EsRejectedExecutionException e) {
+            processContext.getRejectedExecutionCount().incrementAndGet();
+            inferenceAction.onFailure(e);
+        } catch (Exception e) {
+            inferenceAction.onFailure(e);
+        }
     }
 
-    static class InferenceAction extends AbstractRunnable {
+    static class InferenceAction extends AbstractRunnable implements ActionListener<InferenceResults> {
+        private final String modelId;
         private final long requestId;
         private final TimeValue timeout;
         private final Scheduler.Cancellable timeoutHandler;
@@ -245,6 +294,7 @@ public class DeploymentManager {
         private final AtomicBoolean notified = new AtomicBoolean();
 
         InferenceAction(
+            String modelId,
             long requestId,
             TimeValue timeout,
             ProcessContext processContext,
@@ -253,6 +303,7 @@ public class DeploymentManager {
             ThreadPool threadPool,
             ActionListener<InferenceResults> listener
         ) {
+            this.modelId = modelId;
             this.requestId = requestId;
             this.timeout = timeout;
             this.processContext = processContext;
@@ -268,13 +319,19 @@ public class DeploymentManager {
 
         void onTimeout() {
             if (notified.compareAndSet(false, true)) {
-                processContext.getResultProcessor().requestIgnored(String.valueOf(requestId));
+                processContext.getTimeoutCount().incrementAndGet();
+                processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(
-                    new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.TOO_MANY_REQUESTS, timeout)
+                    new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout)
                 );
                 return;
             }
-            logger.debug("request [{}] received timeout after [{}] but listener already alerted", requestId, timeout);
+            logger.debug("[{}] request [{}] received timeout after [{}] but listener already alerted", modelId, requestId, timeout);
+        }
+
+        @Override
+        public void onResponse(InferenceResults inferenceResults) {
+            onSuccess(inferenceResults);
         }
 
         void onSuccess(InferenceResults inferenceResults) {
@@ -283,24 +340,33 @@ public class DeploymentManager {
                 listener.onResponse(inferenceResults);
                 return;
             }
-            logger.debug("request [{}] received inference response but listener already notified", requestId);
+            logger.debug("[{}] request [{}] received inference response but listener already notified", modelId, requestId);
         }
 
         @Override
         public void onFailure(Exception e) {
             timeoutHandler.cancel();
             if (notified.compareAndSet(false, true)) {
+                processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(e);
                 return;
             }
             logger.debug(
-                () -> new ParameterizedMessage("request [{}] received failure but listener already notified", requestId),
+                () -> new ParameterizedMessage("[{}] request [{}] received failure but listener already notified", modelId, requestId),
                 e
             );
         }
 
         @Override
         protected void doRun() throws Exception {
+            if (notified.get()) {
+                // Should not execute request as it has already timed out while waiting in the queue
+                logger.debug(
+                    () -> new ParameterizedMessage("[{}] skipping inference on request [{}] as it has timed out", modelId, requestId)
+                );
+                return;
+            }
+
             final String requestIdStr = String.valueOf(requestId);
             try {
                 // The request builder expect a list of inputs which are then batched.
@@ -310,65 +376,68 @@ public class DeploymentManager {
                 NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                 processor.validateInputs(text);
                 assert config instanceof NlpConfig;
-                NlpTask.Request request = processor.getRequestBuilder((NlpConfig) config).buildRequest(text, requestIdStr);
-                logger.trace(() -> "Inference Request "+ request.processInput.utf8ToString());
-                PyTorchResultProcessor.PendingResult pendingResult = processContext.getResultProcessor().registerRequest(requestIdStr);
-                processContext.process.get().writeInferenceRequest(request.processInput);
-                waitForResult(
-                    processContext,
-                    pendingResult,
-                    request.tokenization,
-                    requestIdStr,
-                    timeout,
-                    processor.getResultProcessor((NlpConfig) config),
-                    ActionListener.wrap(this::onSuccess,this::onFailure)
-                );
+                NlpConfig nlpConfig = (NlpConfig) config;
+                NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
+                    .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
+                logger.debug(() -> "Inference Request " + request.processInput().utf8ToString());
+                if (request.tokenization().anyTruncated()) {
+                    logger.debug("[{}] [{}] input truncated", modelId, requestId);
+                }
+                processContext.getResultProcessor()
+                    .registerRequest(
+                        requestIdStr,
+                        ActionListener.wrap(
+                            inferenceResult -> processResult(
+                                inferenceResult,
+                                processContext,
+                                request.tokenization(),
+                                processor.getResultProcessor((NlpConfig) config),
+                                this
+                            ),
+                            this::onFailure
+                        )
+                    );
+                processContext.process.get().writeInferenceRequest(request.processInput());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
-                onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                logger.error(new ParameterizedMessage("[{}] error writing to inference process", processContext.task.getModelId()), e);
+                onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
             } catch (Exception e) {
                 onFailure(e);
-            } finally {
-                processContext.getResultProcessor().requestIgnored(String.valueOf(requestId));
             }
         }
 
-        private void waitForResult(ProcessContext processContext,
-                                   PyTorchResultProcessor.PendingResult pendingResult,
-                                   TokenizationResult tokenization,
-                                   String requestId,
-                                   TimeValue timeout,
-                                   NlpTask.ResultProcessor inferenceResultsProcessor,
-                                   ActionListener<InferenceResults> listener) {
-            try {
-                PyTorchResult pyTorchResult = processContext.getResultProcessor().waitForResult(
-                    processContext.process.get(),
-                    requestId,
-                    pendingResult,
-                    timeout
+        private void processResult(
+            PyTorchInferenceResult inferenceResult,
+            ProcessContext context,
+            TokenizationResult tokenization,
+            NlpTask.ResultProcessor inferenceResultsProcessor,
+            ActionListener<InferenceResults> resultsListener
+        ) {
+            if (inferenceResult.isError()) {
+                resultsListener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Error in inference process: [" + inferenceResult.getError() + "]",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    )
                 );
-                if (pyTorchResult == null) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.TOO_MANY_REQUESTS, timeout)
-                    );
-                    return;
-                }
-
-                if (pyTorchResult.isError()) {
-                    listener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(),
-                        RestStatus.INTERNAL_SERVER_ERROR));
-                    return;
-                }
-
-                logger.debug(() -> new ParameterizedMessage(
-                    "[{}] retrieved result for request [{}]", processContext.task.getModelId(), requestId));
-                InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
-                logger.debug(() -> new ParameterizedMessage(
-                    "[{}] processed result for request [{}]", processContext.task.getModelId(), requestId));
-                listener.onResponse(results);
-            } catch (InterruptedException e) {
-                listener.onFailure(e);
+                return;
             }
+
+            logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", context.task.getModelId(), requestId));
+            if (notified.get()) {
+                // The request has timed out. No need to spend cycles processing the result.
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "[{}] skipping result processing for request [{}] as the request has timed out",
+                        context.task.getModelId(),
+                        requestId
+                    )
+                );
+                return;
+            }
+            InferenceResults results = inferenceResultsProcessor.processResult(tokenization, inferenceResult);
+            logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId));
+            resultsListener.onResponse(results);
         }
     }
 
@@ -380,11 +449,25 @@ public class DeploymentManager {
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
+        private final ProcessWorkerExecutorService executorService;
+        private volatile Instant startTime;
+        private volatile Integer inferenceThreads;
+        private volatile Integer modelThreads;
+        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private final AtomicInteger timeoutCount = new AtomicInteger();
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
-            resultProcessor = new PyTorchResultProcessor(task.getModelId());
+            resultProcessor = new PyTorchResultProcessor(task.getModelId(), threadSettings -> {
+                this.inferenceThreads = threadSettings.inferenceThreads();
+                this.modelThreads = threadSettings.modelThreads();
+            });
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
+            this.executorService = new ProcessWorkerExecutorService(
+                threadPool.getThreadContext(),
+                "inference process",
+                task.getParams().getQueueCapacity()
+            );
         }
 
         PyTorchResultProcessor getResultProcessor() {
@@ -393,26 +476,39 @@ public class DeploymentManager {
 
         synchronized void startProcess() {
             process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
+            startTime = Instant.now();
+            executorServiceForProcess.submit(executorService::start);
         }
 
         synchronized void stopProcess() {
             resultProcessor.stop();
-            if (process.get() == null) {
-                return;
-            }
+            executorService.shutdown();
             try {
+                if (process.get() == null) {
+                    return;
+                }
                 stateStreamer.cancel();
                 process.get().kill(true);
                 processContextByAllocation.remove(task.getId());
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Failed to kill process", task.getModelId()), e);
+            } finally {
+                if (nlpTaskProcessor.get() != null) {
+                    nlpTaskProcessor.get().close();
+                }
             }
         }
 
         private Consumer<String> onProcessCrash() {
             return reason -> {
-                logger.error("[{}] process crashed due to reason [{}]", task.getModelId(), reason);
+                logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
+                resultProcessor.stop();
+                executorService.shutdownWithError(new IllegalStateException(reason));
                 processContextByAllocation.remove(task.getId());
+                if (nlpTaskProcessor.get() != null) {
+                    nlpTaskProcessor.get().close();
+                }
+                task.setFailed("inference process crashed due to reason [" + reason + "]");
             };
         }
 
@@ -422,6 +518,21 @@ public class DeploymentManager {
             } else {
                 throw new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]");
             }
+        }
+
+        // accessor used for mocking in tests
+        AtomicInteger getTimeoutCount() {
+            return timeoutCount;
+        }
+
+        // accessor used for mocking in tests
+        ExecutorService getExecutorService() {
+            return executorService;
+        }
+
+        // accessor used for mocking in tests
+        AtomicInteger getRejectedExecutionCount() {
+            return rejectedExecutionCount;
         }
     }
 }

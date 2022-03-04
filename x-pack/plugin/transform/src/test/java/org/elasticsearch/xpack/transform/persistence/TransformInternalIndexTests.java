@@ -12,14 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -75,16 +75,14 @@ public class TransformInternalIndexTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
 
+        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID());
         csBuilder.routingTable(
             RoutingTable.builder()
                 .add(
-                    IndexRoutingTable.builder(
-                        new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID())
-                    )
+                    IndexRoutingTable.builder(index)
                         .addShard(
                             TestShardRouting.newShardRouting(
-                                TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                                0,
+                                new ShardId(index, 0),
                                 "node_a",
                                 null,
                                 true,
@@ -96,20 +94,6 @@ public class TransformInternalIndexTests extends ESTestCase {
                 .build()
         );
 
-        return csBuilder.build();
-    }
-
-    public static ClusterState randomTransformAuditClusterState() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMapBuilder = ImmutableOpenMap.builder();
-        try {
-            templateMapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.templates(templateMapBuilder.build());
-        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        csBuilder.metadata(metaBuilder.build());
         return csBuilder.build();
     }
 

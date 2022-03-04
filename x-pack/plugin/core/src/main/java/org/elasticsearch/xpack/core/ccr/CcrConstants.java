@@ -12,8 +12,7 @@ import org.elasticsearch.license.LicensedFeature;
 
 public class CcrConstants {
 
-    public static final LicensedFeature.Momentary CCR_FEATURE =
-        LicensedFeature.momentary(null, "ccr", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary CCR_FEATURE = LicensedFeature.momentary(null, "ccr", License.OperationMode.PLATINUM);
 
     // no construction
     private CcrConstants() {}

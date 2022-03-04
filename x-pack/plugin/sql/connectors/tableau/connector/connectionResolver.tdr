@@ -12,6 +12,7 @@
           <attr>port</attr>
           <attr>username</attr>
           <attr>password</attr>
+          <attr>dbname</attr>
           <attr>sslmode</attr>
           <attr>warehouse</attr>
         </attribute-list>

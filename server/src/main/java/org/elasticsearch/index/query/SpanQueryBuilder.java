@@ -33,8 +33,16 @@ public interface SpanQueryBuilder extends QueryBuilder {
         static void checkNoBoost(String queryName, String fieldName, XContentParser parser, SpanQueryBuilder clause) {
             try {
                 if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                    throw new ParsingException(parser.getTokenLocation(), queryName + " [" + fieldName + "] " +
-                        "as a nested span clause can't have non-default boost value [" + clause.boost() + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        queryName
+                            + " ["
+                            + fieldName
+                            + "] "
+                            + "as a nested span clause can't have non-default boost value ["
+                            + clause.boost()
+                            + "]"
+                    );
                 }
             } catch (UnsupportedOperationException ignored) {
                 // if boost is unsupported it can't have been set

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -38,24 +38,24 @@ public class RestGraphActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        for (Tuple<RestRequest.Method, String> methodAndPath :
-            List.of(
-                Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_graph/explore"),
-                Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_graph/explore"),
-                Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore"),
-                Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore")
-            )) {
+        for (Tuple<RestRequest.Method, String> methodAndPath : List.of(
+            Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_graph/explore"),
+            Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_graph/explore"),
+            Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore"),
+            Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore")
+        )) {
 
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withHeaders(Map.of("Accept", compatibleMediaType, "Content-Type",
-                    Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7))))
-                .withMethod(methodAndPath.v1())
-                .withPath(methodAndPath.v2())
-                .withContent(new BytesArray("{}"), null)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+                Map.of(
+                    "Accept",
+                    compatibleMediaType,
+                    "Content-Type",
+                    Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7))
+                )
+            ).withMethod(methodAndPath.v1()).withPath(methodAndPath.v2()).withContent(new BytesArray("{}"), null).build();
 
             dispatchRequest(request);
-            assertWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
+            assertCriticalWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
         }
     }
 }

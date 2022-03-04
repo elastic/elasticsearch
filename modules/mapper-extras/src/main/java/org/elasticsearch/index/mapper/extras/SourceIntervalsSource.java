@@ -40,10 +40,12 @@ public final class SourceIntervalsSource extends IntervalsSource {
     private final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
-    public SourceIntervalsSource(IntervalsSource in,
-            Query approximation,
-            Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
-            Analyzer indexAnalyzer) {
+    public SourceIntervalsSource(
+        IntervalsSource in,
+        Query approximation,
+        Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        Analyzer indexAnalyzer
+    ) {
         this.in = Objects.requireNonNull(in);
         this.approximation = Objects.requireNonNull(approximation);
         this.valueFetcherProvider = Objects.requireNonNull(valueFetcherProvider);
@@ -74,7 +76,7 @@ public final class SourceIntervalsSource extends IntervalsSource {
         if (scorer == null) {
             return null;
         }
-        final DocIdSetIterator approximation = scorer.iterator();
+        final DocIdSetIterator approximationIter = scorer.iterator();
 
         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(ctx);
         return new IntervalIterator() {
@@ -83,27 +85,27 @@ public final class SourceIntervalsSource extends IntervalsSource {
 
             @Override
             public int docID() {
-                return approximation.docID();
+                return approximationIter.docID();
             }
 
             @Override
             public long cost() {
-                return approximation.cost();
+                return approximationIter.cost();
             }
 
             @Override
             public int nextDoc() throws IOException {
-                return doNext(approximation.nextDoc());
+                return doNext(approximationIter.nextDoc());
             }
 
             @Override
             public int advance(int target) throws IOException {
-                return doNext(approximation.advance(target));
+                return doNext(approximationIter.advance(target));
             }
 
             private int doNext(int doc) throws IOException {
                 while (doc != NO_MORE_DOCS && setIterator(doc) == false) {
-                    doc = approximation.nextDoc();
+                    doc = approximationIter.nextDoc();
                 }
                 return doc;
             }

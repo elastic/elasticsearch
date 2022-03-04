@@ -60,7 +60,7 @@ abstract class AbstractProcessor implements ElementVisitor<Boolean> {
         Errors errorsAnyElement = this.errors;
         this.injector = injector;
         try {
-            for (Iterator<Element> i = elements.iterator(); i.hasNext(); ) {
+            for (Iterator<Element> i = elements.iterator(); i.hasNext();) {
                 Element element = i.next();
                 this.errors = errorsAnyElement.withSource(element.getSource());
                 Boolean allDone = element.acceptVisitor(this);

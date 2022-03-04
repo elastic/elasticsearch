@@ -84,6 +84,7 @@ public class CreateTrainedModelAllocationAction extends ActionType<CreateTrained
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> TrainedModelAllocation.fromXContent(p), ALLOCATION);
         }
+
         static Response fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }

@@ -38,116 +38,180 @@ public class SuggestTests extends ScriptTestCase {
     }
 
     public void testSuggestLexer() {
+        compareTokens(getSuggestTokens("test"), SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test");
+
         compareTokens(
-                getSuggestTokens("test"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test"
+            getSuggestTokens("int test;"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "int",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
 
         compareTokens(
-                getSuggestTokens("int test;"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "int",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("ArrayList test;"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "ArrayList",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
 
         compareTokens(
-                getSuggestTokens("ArrayList test;"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("def test;"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "def",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
 
         compareTokens(
-                getSuggestTokens("def test;"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "def",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("int[] test;"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE),
+            "int[]",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
 
         compareTokens(
-                getSuggestTokens("int[] test;"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE), "int[]",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("ArrayList[] test;"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE),
+            "ArrayList[]",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
 
         compareTokens(
-                getSuggestTokens("ArrayList[] test;"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE), "ArrayList[]",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("def[] test;"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE),
+            "def[]",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
 
         compareTokens(
-                getSuggestTokens("def[] test;"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE), "def[]",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("List test = new ArrayList(); test."),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "List",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN),
+            "=",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW),
+            "new",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "ArrayList",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP),
+            "(",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP),
+            ")",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT),
+            "."
         );
 
         compareTokens(
-                getSuggestTokens("List test = new ArrayList(); test."),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "List",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN), "=",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW), "new",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT), "."
+            getSuggestTokens("List test = new ArrayList(); test.add"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "List",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN),
+            "=",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW),
+            "new",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "ArrayList",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP),
+            "(",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP),
+            ")",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT),
+            ".",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOTID),
+            "add"
         );
 
         compareTokens(
-                getSuggestTokens("List test = new ArrayList(); test.add"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "List",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN), "=",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW), "new",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT), ".",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOTID), "add"
+            getSuggestTokens("List test = new ArrayList(); test.add("),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "List",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN),
+            "=",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW),
+            "new",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "ArrayList",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP),
+            "(",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP),
+            ")",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT),
+            ".",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOTID),
+            "add",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP),
+            "("
         );
 
         compareTokens(
-                getSuggestTokens("List test = new ArrayList(); test.add("),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "List",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN), "=",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW), "new",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT), ".",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOTID), "add",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "("
-        );
-
-        compareTokens(
-                getSuggestTokens("def test(int param) {return param;} test(2);"),
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "def",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "int",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "param",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LBRACK), "{",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RETURN), "return",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "param",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RBRACK), "}",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.INTEGER), "2",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
-                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
+            getSuggestTokens("def test(int param) {return param;} test(2);"),
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "def",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP),
+            "(",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE),
+            "int",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "param",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP),
+            ")",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LBRACK),
+            "{",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RETURN),
+            "return",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "param",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RBRACK),
+            "}",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID),
+            "test",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP),
+            "(",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.INTEGER),
+            "2",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP),
+            ")",
+            SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON),
+            ";"
         );
     }
 }

@@ -39,12 +39,12 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 assert leakReleased : "leak should not have been released already";
                 final T ref = v();
                 if (ref instanceof Object[]) {
-                    Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);
+                    Arrays.fill((Object[]) ref, 0, Array.getLength(ref), null);
                 } else if (ref instanceof byte[]) {
-                    Arrays.fill((byte[])ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
+                    Arrays.fill((byte[]) ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
                 } else {
                     for (int i = 0; i < Array.getLength(ref); ++i) {
-                            Array.set(ref, i, (byte) random.nextInt(256));
+                        Array.set(ref, i, (byte) random.nextInt(256));
                     }
                 }
                 v.close();
@@ -67,7 +67,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<byte[]> bytePage(boolean clear) {
         final V<byte[]> page = super.bytePage(clear);
         if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, (byte)random.nextInt(1<<8));
+            Arrays.fill(page.v(), 0, page.v().length, (byte) random.nextInt(1 << 8));
         }
         return wrap(page);
     }

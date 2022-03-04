@@ -10,6 +10,10 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,10 +21,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,11 +119,11 @@ public class MeanReciprocalRankTests extends ESTestCase {
      */
     public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test",  "0", 0));
-        rated.add(new RatedDocument("test",  "1", 1));
-        rated.add(new RatedDocument("test",  "2", 2));
-        rated.add(new RatedDocument("test",  "3", 3));
-        rated.add(new RatedDocument("test",  "4", 4));
+        rated.add(new RatedDocument("test", "0", 0));
+        rated.add(new RatedDocument("test", "1", 1));
+        rated.add(new RatedDocument("test", "2", 2));
+        rated.add(new RatedDocument("test", "3", 3));
+        rated.add(new RatedDocument("test", "4", 4));
         SearchHit[] hits = createSearchHits(0, 5, "test");
 
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank(2, 10);
@@ -178,8 +178,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            XContentParseException exception = expectThrows(XContentParseException.class,
-                    () -> MeanReciprocalRank.fromXContent(parser));
+            XContentParseException exception = expectThrows(XContentParseException.class, () -> MeanReciprocalRank.fromXContent(parser));
             assertThat(exception.getMessage(), containsString("[reciprocal_rank] unknown field"));
         }
     }
@@ -203,8 +202,11 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         MeanReciprocalRank original = createTestItem();
-        MeanReciprocalRank deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                MeanReciprocalRank::new);
+        MeanReciprocalRank deserialized = ESTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            MeanReciprocalRank::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);

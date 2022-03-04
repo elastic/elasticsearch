@@ -61,16 +61,22 @@ public final class NioGroupFactory {
         if (httpWorkerCount == 0) {
             return getGenericGroup();
         } else {
-            return new NioSelectorGroup(daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
-                httpWorkerCount, (s) -> new EventHandler(this::onException, s));
+            return new NioSelectorGroup(
+                daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
+                httpWorkerCount,
+                (s) -> new EventHandler(this::onException, s)
+            );
         }
     }
 
     private NioGroup getGenericGroup() throws IOException {
         if (refCountedGroup == null) {
             ThreadFactory threadFactory = daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-            NioSelectorGroup nioGroup = new NioSelectorGroup(threadFactory, NioTransportPlugin.NIO_WORKER_COUNT.get(settings),
-                (s) -> new EventHandler(this::onException, s));
+            NioSelectorGroup nioGroup = new NioSelectorGroup(
+                threadFactory,
+                NioTransportPlugin.NIO_WORKER_COUNT.get(settings),
+                (s) -> new EventHandler(this::onException, s)
+            );
             this.refCountedGroup = new RefCountedNioGroup(nioGroup);
             return new WrappedNioGroup(refCountedGroup);
         } else {
@@ -80,8 +86,10 @@ public final class NioGroupFactory {
     }
 
     private void onException(Exception exception) {
-        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
-            exception);
+        logger.warn(
+            new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception
+        );
     }
 
     private static class RefCountedNioGroup extends AbstractRefCounted implements NioGroup {

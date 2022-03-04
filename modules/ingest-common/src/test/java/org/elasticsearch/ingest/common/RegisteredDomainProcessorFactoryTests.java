@@ -54,7 +54,6 @@ public class RegisteredDomainProcessorFactoryTests extends ESTestCase {
         assertThat(publicSuffixProcessor.getTargetField(), equalTo(RegisteredDomainProcessor.Factory.DEFAULT_TARGET_FIELD));
     }
 
-
     public void testFieldRequired() throws Exception {
         HashMap<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);

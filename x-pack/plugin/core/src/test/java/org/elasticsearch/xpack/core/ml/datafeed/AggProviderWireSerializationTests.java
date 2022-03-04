@@ -11,9 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
@@ -45,13 +45,15 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
     }
 
     public static AggProvider createRandomValidAggProvider() {
-        Map<String, Object> agg = Collections.singletonMap(randomAlphaOfLengthBetween(1, 10),
-            Collections.singletonMap("avg", Collections.singletonMap("field", randomAlphaOfLengthBetween(1, 10))));
+        Map<String, Object> agg = Collections.singletonMap(
+            randomAlphaOfLengthBetween(1, 10),
+            Collections.singletonMap("avg", Collections.singletonMap("field", randomAlphaOfLengthBetween(1, 10)))
+        );
         try {
             SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-            AggregatorFactories.Builder aggs =
-                XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
-                    .fromMap(agg);
+            AggregatorFactories.Builder aggs = XContentObjectTransformer.aggregatorTransformer(
+                new NamedXContentRegistry(searchModule.getNamedXContents())
+            ).fromMap(agg);
             Exception parsingException = null;
             if (randomBoolean()) {
                 aggs = null;
@@ -66,7 +68,7 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
 
     @Override
     protected AggProvider mutateInstanceForVersion(AggProvider instance, Version version) {
-        if (version.onOrBefore(Version.V_8_0_0)) {
+        if (version.before(Version.V_8_0_0)) {
             return new AggProvider(instance.getAggs(), instance.getParsedAggs(), instance.getParsingException(), false);
         }
         return instance;

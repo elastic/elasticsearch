@@ -16,14 +16,20 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class SubstringFunctionProcessorTests extends ESTestCase {
 
     public void testSubstringFunctionInputsValidation() {
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l(5), l("foo"), null).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Substring(EMPTY, l(5), l("foo"), null).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l("bar"), l(false), null).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Substring(EMPTY, l("bar"), l(false), null).makePipe().asProcessor().process(null)
+        );
         assertEquals("A number is required; received [false]", siae.getMessage());
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> new Substring(EMPTY, l("foo"), l(1), l("abc")).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Substring(EMPTY, l("foo"), l(1), l("abc")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A number is required; received [abc]", siae.getMessage());
     }
 }

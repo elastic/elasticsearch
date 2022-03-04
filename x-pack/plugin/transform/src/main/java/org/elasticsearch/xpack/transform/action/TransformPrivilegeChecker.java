@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -49,8 +49,13 @@ final class TransformPrivilegeChecker {
             listener::onFailure
         );
 
-        HasPrivilegesRequest hasPrivilegesRequest =
-            buildPrivilegesRequest(config, indexNameExpressionResolver, clusterState, username, checkDestIndexPrivileges);
+        HasPrivilegesRequest hasPrivilegesRequest = buildPrivilegesRequest(
+            config,
+            indexNameExpressionResolver,
+            clusterState,
+            username,
+            checkDestIndexPrivileges
+        );
         client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, hasPrivilegesResponseListener);
     }
 
@@ -72,8 +77,11 @@ final class TransformPrivilegeChecker {
 
         if (checkDestIndexPrivileges) {
             final String destIndex = config.getDestination().getIndex();
-            final String[] concreteDest =
-                indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
+            final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(
+                clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                destIndex
+            );
 
             List<String> destPrivileges = new ArrayList<>(3);
             destPrivileges.add("read");

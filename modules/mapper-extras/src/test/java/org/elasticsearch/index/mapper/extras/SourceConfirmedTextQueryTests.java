@@ -21,7 +21,6 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CheckHits;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -31,10 +30,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.CheckHits;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -418,4 +417,16 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         ).build();
         assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
     }
+
+    public void testEmptyIndex() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                PhraseQuery query = new PhraseQuery("body", "a", "b");
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));
+            }
+        }
+    }
+
 }

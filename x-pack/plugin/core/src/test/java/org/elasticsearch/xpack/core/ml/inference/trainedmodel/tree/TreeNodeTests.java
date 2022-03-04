@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
 
@@ -40,12 +40,8 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
         Integer rgt = randomBoolean() ? randomInt(100) : null;
         Double threshold = lft != null || randomBoolean() ? randomDouble() : null;
         Integer featureIndex = lft != null || randomBoolean() ? randomInt(100) : null;
-        return createRandom(randomInt(100),
-            lft,
-            rgt,
-            threshold,
-            featureIndex,
-            randomBoolean() ? null : randomFrom(Operator.values())).build();
+        return createRandom(randomInt(100), lft, rgt, threshold, featureIndex, randomBoolean() ? null : randomFrom(Operator.values()))
+            .build();
     }
 
     public static TreeNode createRandomLeafNode(double internalValue) {
@@ -56,12 +52,14 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
             .build();
     }
 
-    public static TreeNode.Builder createRandom(int nodeId,
-                                                Integer left,
-                                                Integer right,
-                                                Double threshold,
-                                                Integer featureIndex,
-                                                Operator operator) {
+    public static TreeNode.Builder createRandom(
+        int nodeId,
+        Integer left,
+        Integer right,
+        Double threshold,
+        Integer featureIndex,
+        Operator operator
+    ) {
         return TreeNode.builder(nodeId)
             .setLeafValue(left == null ? Collections.singletonList(randomDouble()) : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())

@@ -13,10 +13,10 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Collections;
 
@@ -33,8 +33,13 @@ public class IndicesSegmentResponseTests extends ESTestCase {
         segment.segmentSort = new Sort(sortField);
 
         ShardSegments shardSegments = new ShardSegments(shardRouting, Collections.singletonList(segment));
-        IndicesSegmentResponse response =
-            new IndicesSegmentResponse(new ShardSegments[] { shardSegments }, 1, 1, 0, Collections.emptyList());
+        IndicesSegmentResponse response = new IndicesSegmentResponse(
+            new ShardSegments[] { shardSegments },
+            1,
+            1,
+            0,
+            Collections.emptyList()
+        );
         try (XContentBuilder builder = jsonBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }

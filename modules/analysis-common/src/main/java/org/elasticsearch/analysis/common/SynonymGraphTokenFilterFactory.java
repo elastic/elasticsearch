@@ -25,8 +25,7 @@ import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
-    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
-                                     String name, Settings settings) {
+    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
     }
 
@@ -36,9 +35,12 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
-                                                              List<TokenFilterFactory> previousTokenFilters,
-                                                              Function<String, TokenFilterFactory> allFilters) {
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();

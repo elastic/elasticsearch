@@ -57,11 +57,6 @@ public class DataCountsTests extends AbstractBWCSerializationTestCase<DataCounts
     }
 
     public static DataCounts createRandom() {
-        return new DataCounts(
-            randomAlphaOfLength(10),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new DataCounts(randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

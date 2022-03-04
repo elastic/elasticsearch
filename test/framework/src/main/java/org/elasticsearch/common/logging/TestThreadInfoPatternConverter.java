@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.logging;
 
-import java.util.Arrays;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
@@ -19,21 +15,24 @@ import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Converts {@code %test_thread_info} in log4j patterns into information
  * based on the loggin thread's name. If that thread is part of an
  * {@link ESIntegTestCase} then this information is the node name.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TestInfoPatternConverter")
-@ConverterKeys({"test_thread_info"})
+@ConverterKeys({ "test_thread_info" })
 public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static TestThreadInfoPatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
-            throw new IllegalArgumentException("no options supported but options provided: "
-                    + Arrays.toString(options));
+            throw new IllegalArgumentException("no options supported but options provided: " + Arrays.toString(options));
         }
         return new TestThreadInfoPatternConverter();
     }
@@ -50,14 +49,10 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         }
     }
 
-    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN =
-            Pattern.compile("elasticsearch\\[(.+)\\]\\[.+\\].+");
-    private static final Pattern TEST_THREAD_NAME_PATTERN =
-            Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
-    private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN =
-            Pattern.compile("SUITE-.+-worker");
-    private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN =
-            Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
+    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN = Pattern.compile("elasticsearch\\[(.+)\\]\\[.+\\].+");
+    private static final Pattern TEST_THREAD_NAME_PATTERN = Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
+    private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN = Pattern.compile("SUITE-.+-worker");
+    private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN = Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
 
     static String threadInfo(String threadName) {
         Matcher m = ELASTICSEARCH_THREAD_NAME_PATTERN.matcher(threadName);

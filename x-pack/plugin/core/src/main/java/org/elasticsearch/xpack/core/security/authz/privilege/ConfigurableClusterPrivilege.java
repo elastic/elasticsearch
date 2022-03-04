@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,7 +40,8 @@ public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContent
      * from the categories.
      */
     enum Category {
-        APPLICATION(new ParseField("application"));
+        APPLICATION(new ParseField("application")),
+        PROFILE(new ParseField("profile"));
 
         public final ParseField field;
 

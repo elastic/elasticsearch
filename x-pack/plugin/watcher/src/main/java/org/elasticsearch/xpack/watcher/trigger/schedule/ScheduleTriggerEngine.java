@@ -47,7 +47,6 @@ public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTri
         consumers.add(consumer);
     }
 
-
     @Override
     public ScheduleTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
@@ -77,8 +76,8 @@ public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTri
     }
 
     @Override
-    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws
-            IOException {
+    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
+        throws IOException {
         return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
     }
 }

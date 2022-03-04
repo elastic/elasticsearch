@@ -69,7 +69,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final ByteSizeValue regionSize;
         if (rarely()) {
-            regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
+            regionSize = FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
         } else {
             regionSize = new ByteSizeValue(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
         }
@@ -82,9 +82,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);

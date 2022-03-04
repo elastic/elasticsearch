@@ -36,6 +36,7 @@ public class Installation {
     public final Path envFile;
     @Nullable
     private String elasticPassword; // auto-configured password upon installation
+    public final int port;
 
     private Installation(
         Shell sh,
@@ -47,7 +48,8 @@ public class Installation {
         Path plugins,
         Path modules,
         Path pidDir,
-        Path envFile
+        Path envFile,
+        int port
     ) {
         this.sh = sh;
         this.distribution = distribution;
@@ -62,6 +64,7 @@ public class Installation {
         this.modules = modules;
         this.pidDir = pidDir;
         this.envFile = envFile;
+        this.port = port;
         this.elasticPassword = null;
     }
 
@@ -76,7 +79,8 @@ public class Installation {
             home.resolve("plugins"),
             home.resolve("modules"),
             null,
-            null
+            null,
+            9200
         );
     }
 
@@ -96,11 +100,12 @@ public class Installation {
             Paths.get("/usr/share/elasticsearch/plugins"),
             Paths.get("/usr/share/elasticsearch/modules"),
             Paths.get("/var/run/elasticsearch"),
-            envFile
+            envFile,
+            9200
         );
     }
 
-    public static Installation ofContainer(Shell sh, Distribution distribution) {
+    public static Installation ofContainer(Shell sh, Distribution distribution, int port) {
         String root = "/usr/share/elasticsearch";
         return new Installation(
             sh,
@@ -112,8 +117,13 @@ public class Installation {
             Paths.get(root + "/plugins"),
             Paths.get(root + "/modules"),
             null,
-            null
+            null,
+            port
         );
+    }
+
+    public static Installation ofContainer(Shell sh, Distribution distribution) {
+        return ofContainer(sh, distribution, 9200);
     }
 
     /**
@@ -171,6 +181,10 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
+            return run(args, input, false);
+        }
+
+        public Shell.Result run(String args, String input, boolean ignoreExitCode) {
             String command = path.toString();
             if (Platforms.WINDOWS) {
                 command = "& '" + command + "'";
@@ -183,6 +197,9 @@ public class Installation {
 
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
+            }
+            if (ignoreExitCode) {
+                return sh.runIgnoreExitCode(command + " " + args);
             }
             return sh.run(command + " " + args);
         }
@@ -199,7 +216,9 @@ public class Installation {
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
-        public final Executable resetElasticPasswordTool = new Executable("elasticsearch-reset-elastic-password");
+        public final Executable resetPasswordTool = new Executable("elasticsearch-reset-password");
+        public final Executable createEnrollmentToken = new Executable("elasticsearch-create-enrollment-token");
+        public final Executable nodeReconfigureTool = new Executable("elasticsearch-reconfigure-node");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");

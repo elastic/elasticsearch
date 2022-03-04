@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -36,7 +36,7 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
     @Override
     public DataAttachment parse(String id, XContentParser parser) throws IOException {
         org.elasticsearch.xpack.watcher.notification.email.DataAttachment dataAttachment =
-                org.elasticsearch.xpack.watcher.notification.email.DataAttachment.YAML;
+            org.elasticsearch.xpack.watcher.notification.email.DataAttachment.YAML;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -47,8 +47,11 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but " +
-                            "found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse data attachment. expected string value for [{}] field but " + "found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             }
         }

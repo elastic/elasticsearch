@@ -1,8 +1,6 @@
 [[logging]]
 === Logging
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
-
 You can use {es}'s application logs to monitor your cluster and diagnose issues.
 If you run {es} as a service, the default location of the logs varies based on
 your platform and installation method:
@@ -15,6 +13,9 @@ If you run {es} from the command line, {es} prints logs to the standard output
 [discrete]
 [[loggin-configuration]]
 === Logging configuration
+
+IMPORTANT: Elastic strongly recommends using the Log4j 2 configuration that is shipped by default.
+
 
 Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties

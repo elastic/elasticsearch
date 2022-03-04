@@ -13,15 +13,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -174,7 +174,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         this.repositories = in.readList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
     }
 
@@ -229,8 +229,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                             }
                             pendingGeneration = parser.longValue();
                         } else {
-                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
-                                name, currentFieldName);
+                            throw new ElasticsearchParseException(
+                                "failed to parse repository [{}], unknown field [{}]",
+                                name,
+                                currentFieldName
+                            );
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse repository [{}]", name);

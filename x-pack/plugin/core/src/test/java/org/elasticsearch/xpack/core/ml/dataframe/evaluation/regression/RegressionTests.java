@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -73,8 +73,10 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public void testConstructor_GivenEmptyMetrics() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", "bar", Collections.emptyList()));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Regression("foo", "bar", Collections.emptyList())
+        );
         assertThat(e.getMessage(), equalTo("[regression] must have one or more metrics"));
     }
 
@@ -98,17 +100,17 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public void testBuildSearch() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.boolQuery()
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(QueryBuilders.existsQuery("pred"))
+            .filter(
+                QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
 
         Regression evaluation = new Regression("act", "pred", Arrays.asList(new MeanSquaredError()));
 

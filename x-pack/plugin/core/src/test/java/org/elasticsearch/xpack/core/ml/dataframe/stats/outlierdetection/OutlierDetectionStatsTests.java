@@ -39,8 +39,7 @@ public class OutlierDetectionStatsTests extends AbstractBWCSerializationTestCase
 
     @Override
     protected OutlierDetectionStats doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? OutlierDetectionStats.LENIENT_PARSER.apply(parser, null)
-            : OutlierDetectionStats.STRICT_PARSER.apply(parser, null);
+        return lenient ? OutlierDetectionStats.LENIENT_PARSER.apply(parser, null) : OutlierDetectionStats.STRICT_PARSER.apply(parser, null);
     }
 
     @Override

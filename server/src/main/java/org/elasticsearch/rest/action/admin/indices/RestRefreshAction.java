@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -32,7 +32,8 @@ public class RestRefreshAction extends BaseRestHandler {
             new Route(GET, "/_refresh"),
             new Route(POST, "/_refresh"),
             new Route(GET, "/{index}/_refresh"),
-            new Route(POST, "/{index}/_refresh"));
+            new Route(POST, "/{index}/_refresh")
+        );
     }
 
     @Override

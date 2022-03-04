@@ -15,7 +15,7 @@ dependencies {
 
 tasks.named("integTest").configure { enabled = false }
 
-BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.10.0") &&
+BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
     def cluster = testClusters.register(baseName) {
         versions = [bwcVersion.toString(), project.version]

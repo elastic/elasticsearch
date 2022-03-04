@@ -8,9 +8,9 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.core.BroadcastResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.HashMap;
@@ -34,25 +34,31 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
     }
 
     @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>("reload_analyzer",
-            true, arg -> {
-                Shards shards = (Shards) arg[0];
-                List<Tuple<String, ReloadDetails>> results = (List<Tuple<String, ReloadDetails>>) arg[1];
-                Map<String, ReloadDetails> reloadDetails = new HashMap<>();
-                for (Tuple<String, ReloadDetails> result : results) {
-                    reloadDetails.put(result.v1(), result.v2());
-                }
-                return new ReloadAnalyzersResponse(shards, reloadDetails);
-            });
+    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "reload_analyzer",
+        true,
+        arg -> {
+            Shards shards = (Shards) arg[0];
+            List<Tuple<String, ReloadDetails>> results = (List<Tuple<String, ReloadDetails>>) arg[1];
+            Map<String, ReloadDetails> reloadDetails = new HashMap<>();
+            for (Tuple<String, ReloadDetails> result : results) {
+                reloadDetails.put(result.v1(), result.v2());
+            }
+            return new ReloadAnalyzersResponse(shards, reloadDetails);
+        }
+    );
 
     @SuppressWarnings({ "unchecked" })
     private static final ConstructingObjectParser<Tuple<String, ReloadDetails>, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
-            "reload_analyzer.entry", true, arg -> {
-                String index = (String) arg[0];
-                Set<String> nodeIds = new HashSet<>((List<String>) arg[1]);
-                Set<String> analyzers = new HashSet<>((List<String>) arg[2]);
-                return new Tuple<>(index, new ReloadDetails(index, nodeIds, analyzers));
-            });
+        "reload_analyzer.entry",
+        true,
+        arg -> {
+            String index = (String) arg[0];
+            Set<String> nodeIds = new HashSet<>((List<String>) arg[1]);
+            Set<String> analyzers = new HashSet<>((List<String>) arg[2]);
+            return new Tuple<>(index, new ReloadDetails(index, nodeIds, analyzers));
+        }
+    );
 
     static {
         declareShardsField(PARSER);

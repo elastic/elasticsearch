@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
@@ -35,9 +35,12 @@ public class MlDeprecationCheckerTests extends ESTestCase {
     public void testEnabled() {
         MlDeprecationChecker mlDeprecationChecker = new MlDeprecationChecker();
         assertThat(mlDeprecationChecker.enabled(Settings.EMPTY), is(true));
-        assertThat(mlDeprecationChecker.enabled(Settings.builder()
-            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), Boolean.toString(false))
-            .build()), is(false));
+        assertThat(
+            mlDeprecationChecker.enabled(
+                Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), Boolean.toString(false)).build()
+            ),
+            is(false)
+        );
     }
 
     public void testCheckDataFeedQuery() {

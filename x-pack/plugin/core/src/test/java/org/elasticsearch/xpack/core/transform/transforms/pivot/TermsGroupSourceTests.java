@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 

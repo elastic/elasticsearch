@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.util.List;
 

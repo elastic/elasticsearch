@@ -22,20 +22,20 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -53,17 +53,23 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PublicationTransportHandlerTests extends ESTestCase {
 
     public void testDiffSerializationFailure() {
         final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final TransportService transportService = mock(TransportService.class);
+        final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
+
         final PublicationTransportHandler handler = new PublicationTransportHandler(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
-            mock(TransportService.class),
+            transportService,
             writableRegistry(),
             pu -> null,
-            (pu, l) -> {});
+            (pu, l) -> {}
+        );
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = CoordinationStateTests.clusterState(
@@ -72,7 +78,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build(),
             VotingConfiguration.EMPTY_CONFIG,
             VotingConfiguration.EMPTY_CONFIG,
-            0L);
+            0L
+        );
 
         final ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
             @Override
@@ -95,12 +102,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> handler.newPublicationContext(new ClusterStatePublicationEvent(
-                "test",
-                clusterState,
-                unserializableClusterState,
-                0L,
-                0L)));
+            () -> handler.newPublicationContext(new ClusterStatePublicationEvent("test", clusterState, unserializableClusterState, 0L, 0L))
+        );
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IOException.class));
         assertThat(e.getCause().getMessage(), containsString("Simulated failure of diff serialization"));
@@ -132,6 +135,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final boolean simulateFailures = randomBoolean();
             final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+            final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             final MockTransport mockTransport = new MockTransport() {
 
                 @Nullable
@@ -142,7 +146,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                                 randomNonNegativeLong(),
                                 UUIDs.randomBase64UUID(random()),
                                 randomNonNegativeLong(),
-                                UUIDs.randomBase64UUID(random()));
+                                UUIDs.randomBase64UUID(random())
+                            );
                         }
 
                         if (simulateFailures && randomBoolean()) {
@@ -161,39 +166,46 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                             requestId,
                             new PublishWithJoinResponse(
                                 new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong()),
-                                Optional.empty()));
+                                Optional.empty()
+                            )
+                        );
                     } else {
-                        handleError(requestId, new RemoteTransportException(
-                            node.getName(),
-                            node.getAddress(),
-                            action,
-                            exception));
+                        handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, exception));
                     }
                 }
+
+                @Override
+                public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                    return new RecyclerBytesStreamOutput(recycler);
+                }
             };
+
             final TransportService transportService = mockTransport.createTransportService(
                 Settings.EMPTY,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> localNode,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Collections.emptySet());
+                Collections.emptySet()
+            );
             final PublicationTransportHandler handler = new PublicationTransportHandler(
-                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
                 transportService,
                 writableRegistry(),
                 pu -> null,
-                (pu, l) -> {
-                });
+                (pu, l) -> {}
+            );
             transportService.start();
             transportService.acceptIncomingRequests();
 
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
-                allNodes.add(new DiscoveryNode(
-                    "node-" + allNodes.size(),
-                    buildNewFakeTransportAddress(),
-                    VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
+                allNodes.add(
+                    new DiscoveryNode(
+                        "node-" + allNodes.size(),
+                        buildNewFakeTransportAddress(),
+                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
+                    )
+                );
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();
@@ -212,7 +224,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 prevNodes.build(),
                 VotingConfiguration.EMPTY_CONFIG,
                 VotingConfiguration.EMPTY_CONFIG,
-                0L);
+                0L
+            );
 
             final ClusterState nextClusterState = new ClusterState(
                 randomNonNegativeLong(),
@@ -223,7 +236,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     nextNodes.build(),
                     VotingConfiguration.EMPTY_CONFIG,
                     VotingConfiguration.EMPTY_CONFIG,
-                    0L)) {
+                    0L
+                )
+            ) {
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
@@ -260,7 +275,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             final PublicationTransportHandler.PublicationContext context;
             try {
                 context = handler.newPublicationContext(
-                    new ClusterStatePublicationEvent("test", prevClusterState, nextClusterState, 0L, 0L));
+                    new ClusterStatePublicationEvent("test", prevClusterState, nextClusterState, 0L, 0L)
+                );
             } catch (ElasticsearchException e) {
                 assertTrue(simulateFailures);
                 assertThat(e.getCause(), instanceOf(IOException.class));
@@ -276,13 +292,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     context.sendPublishRequest(
                         discoveryNode,
                         new PublishRequest(nextClusterState),
-                        ActionListener.runAfter(ActionListener.wrap(r -> {
-                        }, e -> {
+                        ActionListener.runAfter(ActionListener.wrap(r -> {}, e -> {
                             assert simulateFailures;
                             final Throwable inner = ExceptionsHelper.unwrap(e, IOException.class);
                             assert inner instanceof IOException : e;
                             assertThat(inner.getMessage(), equalTo("simulated failure"));
-                        }), responsesLatch::countDown));
+                        }), responsesLatch::countDown)
+                    );
                     requestsLatch.countDown();
                 });
             }

@@ -47,10 +47,22 @@ public class QuerySearchResultTests extends ESTestCase {
     private static QuerySearchResult createTestInstance() throws Exception {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
-        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(OriginalIndicesTests.randomOriginalIndices(), searchRequest,
-            shardId, 0, 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null);
-        QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
-            new SearchShardTarget("node", shardId, null), shardSearchRequest);
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndicesTests.randomOriginalIndices(),
+            searchRequest,
+            shardId,
+            0,
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            randomNonNegativeLong(),
+            null
+        );
+        QuerySearchResult result = new QuerySearchResult(
+            new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
+            new SearchShardTarget("node", shardId, null),
+            shardSearchRequest
+        );
         if (randomBoolean()) {
             result.terminatedEarly(randomBoolean());
         }
@@ -70,9 +82,12 @@ public class QuerySearchResultTests extends ESTestCase {
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         boolean delayed = randomBoolean();
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
+        QuerySearchResult deserialized = copyWriteable(
+            querySearchResult,
+            namedWriteableRegistry,
             delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
-            Version.CURRENT);
+            Version.CURRENT
+        );
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
@@ -92,8 +107,7 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testNullResponse() throws Exception {
         QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
-        QuerySearchResult deserialized =
-            copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 }

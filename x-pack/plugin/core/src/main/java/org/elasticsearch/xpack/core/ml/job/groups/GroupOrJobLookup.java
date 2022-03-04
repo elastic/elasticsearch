@@ -77,10 +77,11 @@ public class GroupOrJobLookup {
 
         @Override
         protected Set<String> nameSet() {
-            return groupOrJobLookup.values().stream()
-                    .filter(groupOrJob -> groupOrJob.isGroup() == false)
-                    .map(groupOrJob -> groupOrJob.jobs().get(0).getId())
-                    .collect(Collectors.toSet());
+            return groupOrJobLookup.values()
+                .stream()
+                .filter(groupOrJob -> groupOrJob.isGroup() == false)
+                .map(groupOrJob -> groupOrJob.jobs().get(0).getId())
+                .collect(Collectors.toSet());
         }
 
         @Override

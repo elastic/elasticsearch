@@ -15,15 +15,14 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,7 +54,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
-        //always searchable even if it uses TextSearchInfo.NONE
+        // always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
     }
 
@@ -134,8 +133,10 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", Arrays.asList(10, 20))))
         );
-        assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [field] in the same document",
-                e.getCause().getMessage());
+        assertEquals(
+            "[rank_feature] fields do not support indexing multiple values for the same field [field] in the same document",
+            e.getCause().getMessage()
+        );
 
         e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
@@ -145,8 +146,10 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         })));
-        assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
-                e.getCause().getMessage());
+        assertEquals(
+            "[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
+            e.getCause().getMessage()
+        );
     }
 
     @Override

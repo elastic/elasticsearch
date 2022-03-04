@@ -18,7 +18,7 @@ public class MockTextTemplateEngine extends TextTemplateEngine {
 
     @Override
     public String render(TextTemplate textTemplate, Map<String, Object> model) {
-        if (textTemplate == null ) {
+        if (textTemplate == null) {
             return null;
         }
 

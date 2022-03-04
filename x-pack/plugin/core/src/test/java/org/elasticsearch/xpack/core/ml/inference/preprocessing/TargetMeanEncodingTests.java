@@ -25,9 +25,9 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
 
     @Override
     protected TargetMeanEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ?
-            TargetMeanEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
-            TargetMeanEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
+        return lenient
+            ? TargetMeanEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT)
+            : TargetMeanEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -49,11 +49,7 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(inputField,
-            randomAlphaOfLength(10),
-            valueMap,
-            randomDoubleBetween(0.0, 1.0, false),
-            isCustom);
+        return new TargetMeanEncoding(inputField, randomAlphaOfLength(10), valueMap, randomDoubleBetween(0.0, 1.0, false), isCustom);
     }
 
     @Override
@@ -64,14 +60,16 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
     public void testProcessWithFieldPresent() {
         String field = "categorical";
         List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
-            v -> randomDoubleBetween(0.0, 1.0, false)));
+        Map<String, Double> valueMap = values.stream()
+            .collect(Collectors.toMap(Object::toString, v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
         Double defaultvalue = randomDouble();
         TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue, false);
         Object fieldValue = randomFrom(values);
-        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
-            equalTo(valueMap.get(fieldValue.toString())));
+        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(
+            encodedFeatureName,
+            equalTo(valueMap.get(fieldValue.toString()))
+        );
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         testProcess(encoding, fieldValues, matchers);
 
@@ -86,8 +84,8 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         String encodedFeatureName = randomAlphaOfLength(10);
         Double defaultvalue = randomDouble();
         List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
-            v -> randomDoubleBetween(0.0, 1.0, false)));
+        Map<String, Double> valueMap = values.stream()
+            .collect(Collectors.toMap(Object::toString, v -> randomDoubleBetween(0.0, 1.0, false)));
         TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue, false);
         assertThat(encoding.inputFields(), containsInAnyOrder(field));
         assertThat(encoding.outputFields(), containsInAnyOrder(encodedFeatureName));

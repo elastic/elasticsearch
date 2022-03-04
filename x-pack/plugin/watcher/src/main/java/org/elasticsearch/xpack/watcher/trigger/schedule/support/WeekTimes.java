@@ -117,8 +117,12 @@ public class WeekTimes implements Times {
                         daysSet.add(parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid week day value for [{}] field. expected string/number value or an " +
-                            "array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "invalid week day value for [{}] field. expected string/number value or an "
+                            + "array of string/number values, but found [{}]",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_ARRAY) {
@@ -158,8 +162,7 @@ public class WeekTimes implements Times {
         private final Set<DayOfWeek> days = new HashSet<>();
         private final Set<DayTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder on(DayOfWeek... days) {
             Collections.addAll(this.days, days);

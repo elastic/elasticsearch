@@ -74,10 +74,11 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             b.field("time_series_dimension", true);
         }));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber()))));
-        assertThat(e.getCause().getMessage(),
-            containsString("Dimension field [field] cannot be a multi-valued field"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
     public void testMetricAndDimension() {

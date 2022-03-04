@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,8 +49,11 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
             List<MetricConfig> metricsConfig = (List<MetricConfig>) args[1];
             return new RollupActionConfig(groupConfig, metricsConfig);
         });
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RollupActionGroupConfig.fromXContent(p),
-            new ParseField(RollupActionGroupConfig.NAME));
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> RollupActionGroupConfig.fromXContent(p),
+            new ParseField(RollupActionGroupConfig.NAME)
+        );
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
     }
 
@@ -95,8 +98,10 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         return Collections.unmodifiableSet(fields);
     }
 
-    public void validateMappings(final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 final ActionRequestValidationException validationException) {
+    public void validateMappings(
+        final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        final ActionRequestValidationException validationException
+    ) {
         groupConfig.validateMappings(fieldCapsResponse, validationException);
         for (MetricConfig m : metricsConfig) {
             m.validateMappings(fieldCapsResponse, validationException);
@@ -138,8 +143,7 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         }
 
         final RollupActionConfig that = (RollupActionConfig) other;
-        return Objects.equals(this.groupConfig, that.groupConfig)
-            && Objects.equals(this.metricsConfig, that.metricsConfig);
+        return Objects.equals(this.groupConfig, that.groupConfig) && Objects.equals(this.metricsConfig, that.metricsConfig);
     }
 
     @Override

@@ -54,19 +54,20 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        //TODO change this to use _source instead of the exact form (aka field.keyword for geo shape fields)
-        return new ScriptTemplate(processScript("{sql}.geoDocValue(doc,{})"),
+        // TODO change this to use _source instead of the exact form (aka field.keyword for geo shape fields)
+        return new ScriptTemplate(
+            processScript("{sql}.geoDocValue(doc,{})"),
             paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType());
+            dataType()
+        );
     }
 
     @Override
     public String processScript(String template) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](other_function_or_field_name)
         return super.processScript(
-            format(Locale.ROOT, "{sql}.%s(%s)",
-                StringUtils.underscoreToLowerCamelCase("ST_" + operation().name()),
-                template));
+            format(Locale.ROOT, "{sql}.%s(%s)", StringUtils.underscoreToLowerCamelCase("ST_" + operation().name()), template)
+        );
     }
 
     @Override

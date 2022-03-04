@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -26,15 +26,17 @@ public class BytesReferenceMonitoringDoc extends MonitoringDoc {
     private final XContentType xContentType;
     private final BytesReference source;
 
-    public BytesReferenceMonitoringDoc(final String cluster,
-                                       final long timestamp,
-                                       final long intervalMillis,
-                                       @Nullable final Node node,
-                                       final MonitoredSystem system,
-                                       final String type,
-                                       @Nullable final String id,
-                                       final XContentType xContentType,
-                                       final BytesReference source) {
+    public BytesReferenceMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        @Nullable final Node node,
+        final MonitoredSystem system,
+        final String type,
+        @Nullable final String id,
+        final XContentType xContentType,
+        final BytesReference source
+    ) {
         super(cluster, timestamp, intervalMillis, node, system, type, id);
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = Objects.requireNonNull(source);

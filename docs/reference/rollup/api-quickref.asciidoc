@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-api-quickref]]
 === {rollup-cap} API quick reference
 ++++

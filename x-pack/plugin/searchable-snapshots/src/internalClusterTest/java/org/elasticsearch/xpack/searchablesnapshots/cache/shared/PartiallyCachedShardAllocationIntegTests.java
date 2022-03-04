@@ -54,7 +54,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -65,7 +65,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // default to no cache: the tests create nodes with a cache configured as needed
-            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO)
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO)
             .build();
     }
 
@@ -123,7 +123,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
                     .getDecisions()
                     .stream()
                     .anyMatch(
-                        d -> d.getExplanation().contains(SNAPSHOT_CACHE_SIZE_SETTING.getKey())
+                        d -> d.getExplanation().contains(SHARED_CACHE_SIZE_SETTING.getKey())
                             && d.getExplanation().contains("frozen searchable snapshot shards cannot be allocated to this node")
                     )
             );
@@ -136,7 +136,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final List<String> newNodeNames = internalCluster().startDataOnlyNodes(
             between(1, 3),
             Settings.builder()
-                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .build()
         );
 
@@ -158,7 +158,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final List<String> newNodeNames = internalCluster().startNodes(
             between(1, 3),
             Settings.builder()
-                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .put(onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
                 .build()
         );
@@ -244,7 +244,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final List<String> newNodes = internalCluster().startDataOnlyNodes(
             2,
             Settings.builder()
-                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .build()
         );
         final ActionFuture<RestoreSnapshotResponse> responseFuture = client().execute(MountSearchableSnapshotAction.INSTANCE, req);

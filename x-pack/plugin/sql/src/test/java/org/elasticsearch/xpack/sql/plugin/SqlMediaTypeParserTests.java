@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
@@ -43,62 +43,93 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     }
 
     public void testTsvDetection() {
-        MediaType text = getResponseMediaType(reqWithAccept("text/tab-separated-values"),
-            createTestInstance(false, Mode.PLAIN, false));
+        MediaType text = getResponseMediaType(reqWithAccept("text/tab-separated-values"), createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(TSV));
     }
 
     public void testMediaTypeDetectionWithParameters() {
-        assertThat(getResponseMediaType(reqWithAccept("text/plain; charset=utf-8"),
-            createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
-        assertThat(getResponseMediaType(reqWithAccept("text/plain; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
-        assertThat(getResponseMediaType(reqWithAccept("text/plain; charset=utf-8; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
+        assertThat(
+            getResponseMediaType(reqWithAccept("text/plain; charset=utf-8"), createTestInstance(false, Mode.PLAIN, false)),
+            is(PLAIN_TEXT)
+        );
+        assertThat(
+            getResponseMediaType(reqWithAccept("text/plain; header=present"), createTestInstance(false, Mode.PLAIN, false)),
+            is(PLAIN_TEXT)
+        );
+        assertThat(
+            getResponseMediaType(reqWithAccept("text/plain; charset=utf-8; header=present"), createTestInstance(false, Mode.PLAIN, false)),
+            is(PLAIN_TEXT)
+        );
 
-        assertThat(getResponseMediaType(reqWithAccept("text/csv; charset=utf-8"),
-            createTestInstance(false, Mode.PLAIN, false)), is(CSV));
-        assertThat(getResponseMediaType(reqWithAccept("text/csv; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)), is(CSV));
-        assertThat(getResponseMediaType(reqWithAccept("text/csv; charset=utf-8; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)), is(CSV));
+        assertThat(getResponseMediaType(reqWithAccept("text/csv; charset=utf-8"), createTestInstance(false, Mode.PLAIN, false)), is(CSV));
+        assertThat(getResponseMediaType(reqWithAccept("text/csv; header=present"), createTestInstance(false, Mode.PLAIN, false)), is(CSV));
+        assertThat(
+            getResponseMediaType(reqWithAccept("text/csv; charset=utf-8; header=present"), createTestInstance(false, Mode.PLAIN, false)),
+            is(CSV)
+        );
 
-        assertThat(getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8"),
-            createTestInstance(false, Mode.PLAIN, false)), is(TSV));
-        assertThat(getResponseMediaType(reqWithAccept("text/tab-separated-values; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)), is(TSV));
-        assertThat(getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)), is(TSV));
+        assertThat(
+            getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8"), createTestInstance(false, Mode.PLAIN, false)),
+            is(TSV)
+        );
+        assertThat(
+            getResponseMediaType(reqWithAccept("text/tab-separated-values; header=present"), createTestInstance(false, Mode.PLAIN, false)),
+            is(TSV)
+        );
+        assertThat(
+            getResponseMediaType(
+                reqWithAccept("text/tab-separated-values; charset=utf-8; header=present"),
+                createTestInstance(false, Mode.PLAIN, false)
+            ),
+            is(TSV)
+        );
     }
 
     public void testInvalidFormat() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false)));
-        assertEquals(e.getMessage(),
-            "Invalid request content type: Accept=[text/garbage], Content-Type=[application/json], format=[null]");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false))
+        );
+        assertEquals(e.getMessage(), "Invalid request content type: Accept=[text/garbage], Content-Type=[application/json], format=[null]");
     }
 
     public void testNoFormat() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () ->  getResponseMediaType(new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
-                createTestInstance(false, Mode.PLAIN, false)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+                createTestInstance(false, Mode.PLAIN, false)
+            )
+        );
         assertEquals(e.getMessage(), "Invalid request content type: Accept=[null], Content-Type=[null], format=[null]");
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {
 
-        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withHeaders(Map.of("Content-Type", Collections.singletonList("application/json"),
-                "Accept", Collections.singletonList(acceptHeader)))
-            .build();
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
+            Map.of("Content-Type", Collections.singletonList("application/json"), "Accept", Collections.singletonList(acceptHeader))
+        ).build();
     }
 
     protected SqlQueryRequest createTestInstance(boolean binaryCommunication, Mode mode, boolean columnar) {
-        return new SqlQueryRequest(randomAlphaOfLength(10), Collections.emptyList(), null, null,
-            randomZone(), between(1, Integer.MAX_VALUE), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test"), columnar, randomAlphaOfLength(10),
+        return new SqlQueryRequest(
+            randomAlphaOfLength(10),
+            Collections.emptyList(),
+            null,
+            null,
+            randomZone(),
+            randomAlphaOfLength(9),
+            between(1, Integer.MAX_VALUE),
+            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            columnar,
+            randomAlphaOfLength(10),
             new RequestInfo(mode, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),
-            randomBoolean(), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
-            randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), null, "test")).binaryCommunication(binaryCommunication);
+            randomBoolean(),
+            randomBoolean(),
+            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            randomBoolean(),
+            TimeValue.parseTimeValue(randomTimeValue(), null, "test")
+        ).binaryCommunication(binaryCommunication);
     }
 }

@@ -217,24 +217,16 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return MathOperation.TAN.apply(value);
     }
 
-
-
     //
     // Date/Time functions
     //
     @Deprecated
     public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
-        String extractorName = null;
-        switch (chronoName) {
-            case "DAY_OF_WEEK":
-                extractorName = "ISO_DAY_OF_WEEK";
-                break;
-            case "ALIGNED_WEEK_OF_YEAR":
-                extractorName = "ISO_WEEK_OF_YEAR";
-                break;
-            default:
-                extractorName = chronoName;
-        }
+        String extractorName = switch (chronoName) {
+            case "DAY_OF_WEEK" -> "ISO_DAY_OF_WEEK";
+            case "ALIGNED_WEEK_OF_YEAR" -> "ISO_WEEK_OF_YEAR";
+            default -> chronoName;
+        };
         return dateTimeExtract(dateTime, tzId, extractorName);
     }
 
@@ -284,16 +276,16 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static ZonedDateTime dateAdd(String dateField, Integer numberOfUnits, Object dateTime, String tzId) {
-        return (ZonedDateTime) DateAddProcessor.process(dateField, numberOfUnits, asDateTime(dateTime) , ZoneId.of(tzId));
+        return (ZonedDateTime) DateAddProcessor.process(dateField, numberOfUnits, asDateTime(dateTime), ZoneId.of(tzId));
     }
 
     public static Integer dateDiff(String dateField, Object dateTime1, Object dateTime2, String tzId) {
-        return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2) , ZoneId.of(tzId));
+        return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2), ZoneId.of(tzId));
     }
 
     public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
         if (dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
-           return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
+            return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
         }
         return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }

@@ -25,10 +25,17 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     private final String name;
     private final ProcessResultsParser<Result> resultsParser;
 
-    protected AbstractNativeAnalyticsProcess(String name, ConstructingObjectParser<Result, Void> resultParser, String jobId,
-                                             NativeController nativeController, ProcessPipes processPipes,
-                                             int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                             NamedXContentRegistry namedXContentRegistry) {
+    protected AbstractNativeAnalyticsProcess(
+        String name,
+        ConstructingObjectParser<Result, Void> resultParser,
+        String jobId,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
         super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.name = Objects.requireNonNull(name);
         this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser), namedXContentRegistry);

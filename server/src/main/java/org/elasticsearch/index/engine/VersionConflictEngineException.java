@@ -20,14 +20,26 @@ public class VersionConflictEngineException extends EngineException {
         this(shardId, op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
     }
 
-    public VersionConflictEngineException(ShardId shardId, String id,
-                                          long compareAndWriteSeqNo, long compareAndWriteTerm,
-                                          long currentSeqNo, long currentTerm) {
-        this(shardId, id, "required seqNo [" + compareAndWriteSeqNo + "], primary term [" + compareAndWriteTerm +"]." +
-            (currentSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ?
-                " but no document was found" :
-                " current document has seqNo [" + currentSeqNo + "] and primary term ["+ currentTerm + "]"
-            ));
+    public VersionConflictEngineException(
+        ShardId shardId,
+        String id,
+        long compareAndWriteSeqNo,
+        long compareAndWriteTerm,
+        long currentSeqNo,
+        long currentTerm
+    ) {
+        this(
+            shardId,
+            id,
+            "required seqNo ["
+                + compareAndWriteSeqNo
+                + "], primary term ["
+                + compareAndWriteTerm
+                + "]."
+                + (currentSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
+                    ? " but no document was found"
+                    : " current document has seqNo [" + currentSeqNo + "] and primary term [" + currentTerm + "]")
+        );
     }
 
     public VersionConflictEngineException(ShardId shardId, String id, String explanation) {

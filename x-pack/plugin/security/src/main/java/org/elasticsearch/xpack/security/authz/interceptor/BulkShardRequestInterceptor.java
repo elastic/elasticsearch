@@ -41,11 +41,14 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     }
 
     @Override
-    public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
-                          ActionListener<Void> listener) {
-        if (requestInfo.getRequest() instanceof BulkShardRequest) {
+    public void intercept(
+        RequestInfo requestInfo,
+        AuthorizationEngine authzEngine,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
+    ) {
+        if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
@@ -61,14 +64,21 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                         if ((fls || dls) && isDlsLicensed) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
-                            bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +
-                                    "item request with update requests embedded if field or document level security is enabled",
-                                    RestStatus.BAD_REQUEST));
+                            bulkItemRequest.abort(
+                                bulkItemRequest.index(),
+                                new ElasticsearchSecurityException(
+                                    "Can't execute a bulk "
+                                        + "item request with update requests embedded if field or document level security is enabled",
+                                    RestStatus.BAD_REQUEST
+                                )
+                            );
                         }
                     }
                     if (found == false) {
-                        logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
-                                bulkShardRequest.index());
+                        logger.trace(
+                            "intercepted bulk request for index [{}] without any update requests, continuing execution",
+                            bulkShardRequest.index()
+                        );
                     }
                 }
             }

@@ -16,10 +16,10 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 
 public interface PerFieldKnnVectorsFormatFieldMapper {
 
-     /**
-     * Returns the knn vectors format that is customly set up for this field
-      * or {@code null} if the format is not set up.
-     * @return the knn vectors format for the field, or {@code null} if the default format should be used
-     */
+    /**
+    * Returns the knn vectors format that is customly set up for this field
+     * or {@code null} if the format is not set up.
+    * @return the knn vectors format for the field, or {@code null} if the default format should be used
+    */
     KnnVectorsFormat getKnnVectorsFormatForField();
 }

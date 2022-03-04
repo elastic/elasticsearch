@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * An expression that evaluates to <code>true</code> if at least one of its children

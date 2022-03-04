@@ -31,7 +31,7 @@ public class StringsTests extends ESTestCase {
         assertThat(Strings.isAllOrWildcard("*"), is(true));
         assertThat(Strings.isAllOrWildcard("foo"), is(false));
         assertThat(Strings.isAllOrWildcard(""), is(false));
-        assertThat(Strings.isAllOrWildcard((String)null), is(false));
+        assertThat(Strings.isAllOrWildcard((String) null), is(false));
     }
 
     public void testSubstring() {
@@ -68,17 +68,18 @@ public class StringsTests extends ESTestCase {
         if (randomBoolean()) {
             if (randomBoolean()) {
                 error = false;
-                toXContent  = (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
+                toXContent = (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
             } else {
                 error = true;
-                toXContent  = (builder, params) ->
-                        builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
+                toXContent = (builder, params) -> builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
             }
         } else {
             if (randomBoolean()) {
                 error = false;
-                toXContent = (ToXContentObject) (builder, params) ->
-                        builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
+                toXContent = (ToXContentObject) (builder, params) -> builder.startObject()
+                    .field("ok", "here")
+                    .field("catastrophe", "")
+                    .endObject();
             } else {
                 error = true;
                 toXContent = (ToXContentObject) (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
@@ -102,16 +103,17 @@ public class StringsTests extends ESTestCase {
         // Pass "color" param explicitly
         assertThat(
             Strings.toString(toXContent, new ToXContent.MapParams(Collections.singletonMap("color", "blue"))),
-            containsString("\"color_from_param\":\"blue\""));
+            containsString("\"color_from_param\":\"blue\"")
+        );
     }
 
     public void testSplitStringToSet() {
         assertEquals(Strings.tokenizeByCommaToSet(null), Sets.newHashSet());
         assertEquals(Strings.tokenizeByCommaToSet(""), Sets.newHashSet());
-        assertEquals(Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa","bb","cc"));
+        assertEquals(Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a", "b", "c"));
+        assertEquals(Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a", "b", "c"));
+        assertEquals(Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a", "b", "c"));
+        assertEquals(Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa", "bb", "cc"));
         assertEquals(Strings.tokenizeByCommaToSet(" a "), Sets.newHashSet("a"));
         assertEquals(Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
         assertEquals(Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
@@ -140,8 +142,10 @@ public class StringsTests extends ESTestCase {
         } else if (count == 1) {
             assertThat(completelyTruncatedDescription, equalTo(prefix + strings.get(0) + suffix));
         } else {
-            assertThat(completelyTruncatedDescription, equalTo(prefix + strings.get(0) + suffix + delimiter +
-                "... (" + count + " in total, " + (count - 1) + " omitted)"));
+            assertThat(
+                completelyTruncatedDescription,
+                equalTo(prefix + strings.get(0) + suffix + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
+            );
         }
     }
 
@@ -159,20 +163,19 @@ public class StringsTests extends ESTestCase {
         }
 
         final int fullDescriptionLength = Strings.collectionToDelimitedString(strings, delimiter, prefix, suffix).length();
-        final int lastItemSize = prefix.length() + strings.get(count-1).length() + suffix.length();
+        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
         final int truncatedLength = between(0, fullDescriptionLength - lastItemSize - 1);
         final StringBuilder stringBuilder = new StringBuilder();
         Strings.collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, truncatedLength, stringBuilder);
         final String truncatedDescription = stringBuilder.toString();
 
-        assertThat(truncatedDescription, allOf(
-            containsString("... (" + count + " in total,"),
-            endsWith(" omitted)")
-        ));
+        assertThat(truncatedDescription, allOf(containsString("... (" + count + " in total,"), endsWith(" omitted)")));
 
-        assertThat(truncatedDescription, truncatedDescription.length(), lessThanOrEqualTo(
-            truncatedLength + (prefix + "0123456789" + suffix + delimiter + "... (999 in total, 999 omitted)").length()
-        ));
+        assertThat(
+            truncatedDescription,
+            truncatedDescription.length(),
+            lessThanOrEqualTo(truncatedLength + (prefix + "0123456789" + suffix + delimiter + "... (999 in total, 999 omitted)").length())
+        );
     }
 
     public void testCollectionToDelimitedStringWithLimitNoTruncation() {
@@ -191,13 +194,9 @@ public class StringsTests extends ESTestCase {
             assertThat(fullDescription, containsString(prefix + string + suffix));
         }
 
-        final int lastItemSize = prefix.length() + strings.get(count-1).length() + suffix.length();
+        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
         final int minLimit = fullDescription.length() - lastItemSize;
-        final int limit = randomFrom(
-            between(minLimit, fullDescription.length()),
-            between(minLimit, Integer.MAX_VALUE),
-            Integer.MAX_VALUE
-        );
+        final int limit = randomFrom(between(minLimit, fullDescription.length()), between(minLimit, Integer.MAX_VALUE), Integer.MAX_VALUE);
 
         final StringBuilder stringBuilder = new StringBuilder();
         Strings.collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, limit, stringBuilder);

@@ -27,10 +27,12 @@ import static org.junit.Assert.assertThat;
 public class GreaterThanAssertion extends Assertion {
     public static GreaterThanAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+        Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
         if ((stringObjectTuple.v2() instanceof Comparable) == false) {
-            throw new IllegalArgumentException("gt section can only be used with objects that support natural ordering, found "
-                    + stringObjectTuple.v2().getClass().getSimpleName());
+            throw new IllegalArgumentException(
+                "gt section can only be used with objects that support natural ordering, found "
+                    + stringObjectTuple.v2().getClass().getSimpleName()
+            );
         }
         return new GreaterThanAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
@@ -42,13 +44,19 @@ public class GreaterThanAssertion extends Assertion {
     }
 
     @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is greater than [{}] (field: [{}])", actualValue, expectedValue, getField());
-        assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
-                actualValue, instanceOf(Comparable.class));
-        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
-                expectedValue, instanceOf(Comparable.class));
+        assertThat(
+            "value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
+            actualValue,
+            instanceOf(Comparable.class)
+        );
+        assertThat(
+            "expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
+            expectedValue,
+            instanceOf(Comparable.class)
+        );
         if (actualValue instanceof Long && expectedValue instanceof Integer) {
             expectedValue = (long) (int) expectedValue;
         }

@@ -99,8 +99,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
         boolean isStoppedOrStopping = stopStates.contains(this.state.get());
         // if this is not a data node, we need to start it ourselves possibly
-        if (event.state().nodes().getLocalNode().canContainData() == false &&
-            isWatcherStoppedManually == false && isStoppedOrStopping) {
+        if (event.state().nodes().getLocalNode().canContainData() == false && isWatcherStoppedManually == false && isStoppedOrStopping) {
             this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
@@ -111,9 +110,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                 clearAllocationIds();
                 boolean stopping = this.state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING);
                 if (stopping) {
-                    //waiting to set state to stopped until after all currently running watches are finished
+                    // waiting to set state to stopped until after all currently running watches are finished
                     watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
-                        //only transition from stopping -> stopped (which may not be the case if restarted quickly)
+                        // only transition from stopping -> stopped (which may not be the case if restarted quickly)
                         boolean stopped = state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
                         if (stopped) {
                             logger.info("watcher has stopped");
@@ -205,7 +204,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         return previousShardRoutings.get();
     }
 
-    public Supplier<WatcherState> getState(){
+    public Supplier<WatcherState> getState() {
         return () -> state.get();
     }
 }

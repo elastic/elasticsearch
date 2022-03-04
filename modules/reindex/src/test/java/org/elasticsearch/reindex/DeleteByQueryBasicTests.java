@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -50,14 +50,15 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testBasics() throws Exception {
-        indexRandom(true,
-                client().prepareIndex("test").setId("1").setSource("foo", "a"),
-                client().prepareIndex("test").setId("2").setSource("foo", "a"),
-                client().prepareIndex("test").setId("3").setSource("foo", "b"),
-                client().prepareIndex("test").setId("4").setSource("foo", "c"),
-                client().prepareIndex("test").setId("5").setSource("foo", "d"),
-                client().prepareIndex("test").setId("6").setSource("foo", "e"),
-                client().prepareIndex("test").setId("7").setSource("foo", "f")
+        indexRandom(
+            true,
+            client().prepareIndex("test").setId("1").setSource("foo", "a"),
+            client().prepareIndex("test").setId("2").setSource("foo", "a"),
+            client().prepareIndex("test").setId("3").setSource("foo", "b"),
+            client().prepareIndex("test").setId("4").setSource("foo", "c"),
+            client().prepareIndex("test").setId("5").setSource("foo", "d"),
+            client().prepareIndex("test").setId("6").setSource("foo", "e"),
+            client().prepareIndex("test").setId("7").setSource("foo", "f")
         );
 
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 7);
@@ -117,8 +118,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         indexRandom(true, true, true, builders);
 
         // Deletes all the documents with candidate=true
-        assertThat(deleteByQuery().source("test-*").filter(termQuery("candidate", true)).refresh(true).get(),
-                matcher().deleted(deletions));
+        assertThat(deleteByQuery().source("test-*").filter(termQuery("candidate", true)).refresh(true).get(), matcher().deleted(deletions));
 
         for (int i = 0; i < indices; i++) {
             long remaining = docs - candidates[i];
@@ -176,9 +176,12 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(Integer.toString(i))
+            builders.add(
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setRouting(randomAlphaOfLengthBetween(1, 5))
-                    .setSource("foo", "bar"));
+                    .setSource("foo", "bar")
+            );
         }
         indexRandom(true, true, true, builders);
 
@@ -213,8 +216,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         try {
             enableIndexBlock("test", SETTING_READ_ONLY);
-            assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
-                matcher().deleted(0).failures(docs));
+            assertThat(
+                deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
+                matcher().deleted(0).failures(docs)
+            );
         } finally {
             disableIndexBlock("test", SETTING_READ_ONLY);
         }
@@ -245,19 +250,27 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
             if (diskAllocationDeciderEnabled) {
                 // Fire off the delete-by-query first
-                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse
-                    = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).execute();
+                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse = deleteByQuery().source("test")
+                    .filter(QueryBuilders.matchAllQuery())
+                    .refresh(true)
+                    .execute();
                 // Then refresh the cluster info which checks the disk threshold and releases the block on the index
-                final InternalClusterInfoService clusterInfoService
-                        = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+                final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster()
+                    .getCurrentMasterNodeInstance(ClusterInfoService.class);
                 ClusterInfoServiceUtils.refresh(clusterInfoService);
                 // The delete by query request will be executed successfully because it retries after the block is released
                 assertThat(deleteByQueryResponse.actionGet(), matcher().deleted(docs));
             } else {
                 // The delete by query request will not be executed successfully because the block cannot be released
-                assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
-                        .setMaxRetries(2).setRetryBackoffInitialTime(TimeValue.timeValueMillis(50)).get(),
-                    matcher().deleted(0).failures(docs));
+                assertThat(
+                    deleteByQuery().source("test")
+                        .filter(QueryBuilders.matchAllQuery())
+                        .refresh(true)
+                        .setMaxRetries(2)
+                        .setRetryBackoffInitialTime(TimeValue.timeValueMillis(50))
+                        .get(),
+                    matcher().deleted(0).failures(docs)
+                );
             }
         } finally {
             disableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
@@ -273,14 +286,15 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testSlices() throws Exception {
-        indexRandom(true,
-                client().prepareIndex("test").setId("1").setSource("foo", "a"),
-                client().prepareIndex("test").setId("2").setSource("foo", "a"),
-                client().prepareIndex("test").setId("3").setSource("foo", "b"),
-                client().prepareIndex("test").setId("4").setSource("foo", "c"),
-                client().prepareIndex("test").setId("5").setSource("foo", "d"),
-                client().prepareIndex("test").setId("6").setSource("foo", "e"),
-                client().prepareIndex("test").setId("7").setSource("foo", "f")
+        indexRandom(
+            true,
+            client().prepareIndex("test").setId("1").setSource("foo", "a"),
+            client().prepareIndex("test").setId("2").setSource("foo", "a"),
+            client().prepareIndex("test").setId("3").setSource("foo", "b"),
+            client().prepareIndex("test").setId("4").setSource("foo", "c"),
+            client().prepareIndex("test").setId("5").setSource("foo", "d"),
+            client().prepareIndex("test").setId("6").setSource("foo", "e"),
+            client().prepareIndex("test").setId("7").setSource("foo", "f")
         );
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 7);
 
@@ -289,26 +303,16 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         // Deletes the two docs that matches "foo:a"
         assertThat(
-            deleteByQuery()
-                .source("test")
-                .filter(termQuery("foo", "a"))
-                .refresh(true)
-                .setSlices(slices).get(),
-            matcher()
-                .deleted(2)
-                .slices(hasSize(expectedSlices)));
+            deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(slices).get(),
+            matcher().deleted(2).slices(hasSize(expectedSlices))
+        );
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 5);
 
         // Delete remaining docs
         assertThat(
-            deleteByQuery()
-                .source("test")
-                .filter(QueryBuilders.matchAllQuery())
-                .refresh(true)
-                .setSlices(slices).get(),
-            matcher()
-                .deleted(5)
-                .slices(hasSize(expectedSlices)));
+            deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).setSlices(slices).get(),
+            matcher().deleted(5).slices(hasSize(expectedSlices))
+        );
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
     }
 
@@ -337,14 +341,9 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
 
         assertThat(
-            deleteByQuery()
-                .source(sourceIndexNames)
-                .filter(QueryBuilders.matchAllQuery())
-                .refresh(true)
-                .setSlices(slices).get(),
-            matcher()
-                .deleted(allDocs.size())
-                .slices(hasSize(expectedSlices)));
+            deleteByQuery().source(sourceIndexNames).filter(QueryBuilders.matchAllQuery()).refresh(true).setSlices(slices).get(),
+            matcher().deleted(allDocs.size()).slices(hasSize(expectedSlices))
+        );
 
         for (String index : docs.keySet()) {
             assertHitCount(client().prepareSearch(index).setSize(0).get(), 0);
@@ -353,8 +352,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery()
-            .source("missing-index-*")
+        BulkByScrollResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();
@@ -363,10 +361,11 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
     /** Enables or disables the cluster disk allocation decider **/
     private void setDiskAllocationDeciderEnabled(boolean value) {
-        Settings settings = value ? Settings.builder().putNull(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
-            Settings.builder().put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
+        Settings settings = value
+            ? Settings.builder().putNull(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build()
+            : Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value)
+                .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
     }
 }

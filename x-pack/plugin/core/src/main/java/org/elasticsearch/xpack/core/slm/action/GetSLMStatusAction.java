@@ -60,8 +60,7 @@ public class GetSLMStatusAction extends ActionType<GetSLMStatusAction.Response> 
             super(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public ActionRequestValidationException validate() {

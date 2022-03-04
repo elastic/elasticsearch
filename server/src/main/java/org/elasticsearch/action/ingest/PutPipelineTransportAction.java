@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,12 +33,23 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     private final OriginSettingClient client;
 
     @Inject
-    public PutPipelineTransportAction(ThreadPool threadPool, TransportService transportService,
-        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-        IngestService ingestService, NodeClient client) {
+    public PutPipelineTransportAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IngestService ingestService,
+        NodeClient client
+    ) {
         super(
-            PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME
+            PutPipelineAction.NAME,
+            transportService,
+            ingestService.getClusterService(),
+            threadPool,
+            actionFilters,
+            PutPipelineRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         // This client is only used to perform an internal implementation detail,
         // so uses an internal origin context rather than the user context
@@ -48,17 +59,13 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
 
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-            throws Exception {
-        ingestService.putPipeline(
-            request,
-            listener,
-            (nodeListener) -> {
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear();
-                nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
-                client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
-            }
-        );
+        throws Exception {
+        ingestService.putPipeline(request, listener, (nodeListener) -> {
+            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+            nodesInfoRequest.clear();
+            nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+            client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
+        });
     }
 
     @Override

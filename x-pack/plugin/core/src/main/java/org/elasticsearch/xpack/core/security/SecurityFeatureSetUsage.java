@@ -64,12 +64,20 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public SecurityFeatureSetUsage(boolean enabled, Map<String, Object> realmsUsage,
-                                   Map<String, Object> rolesStoreUsage, Map<String, Object> roleMappingStoreUsage,
-                                   Map<String, Object> sslUsage, Map<String, Object> auditUsage,
-                                   Map<String, Object> ipFilterUsage, Map<String, Object> anonymousUsage,
-                                   Map<String, Object> tokenServiceUsage, Map<String, Object> apiKeyServiceUsage,
-                                   Map<String, Object> fips140Usage, Map<String, Object> operatorPrivilegesUsage) {
+    public SecurityFeatureSetUsage(
+        boolean enabled,
+        Map<String, Object> realmsUsage,
+        Map<String, Object> rolesStoreUsage,
+        Map<String, Object> roleMappingStoreUsage,
+        Map<String, Object> sslUsage,
+        Map<String, Object> auditUsage,
+        Map<String, Object> ipFilterUsage,
+        Map<String, Object> anonymousUsage,
+        Map<String, Object> tokenServiceUsage,
+        Map<String, Object> apiKeyServiceUsage,
+        Map<String, Object> fips140Usage,
+        Map<String, Object> operatorPrivilegesUsage
+    ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
         this.rolesStoreUsage = rolesStoreUsage;
@@ -92,22 +100,22 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(realmsUsage);
-        out.writeMap(rolesStoreUsage);
-        out.writeMap(sslUsage);
+        out.writeGenericMap(realmsUsage);
+        out.writeGenericMap(rolesStoreUsage);
+        out.writeGenericMap(sslUsage);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeMap(tokenServiceUsage);
-            out.writeMap(apiKeyServiceUsage);
+            out.writeGenericMap(tokenServiceUsage);
+            out.writeGenericMap(apiKeyServiceUsage);
         }
-        out.writeMap(auditUsage);
-        out.writeMap(ipFilterUsage);
-        out.writeMap(anonymousUsage);
-        out.writeMap(roleMappingStoreUsage);
+        out.writeGenericMap(auditUsage);
+        out.writeGenericMap(ipFilterUsage);
+        out.writeGenericMap(anonymousUsage);
+        out.writeGenericMap(roleMappingStoreUsage);
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeMap(fips140Usage);
+            out.writeGenericMap(fips140Usage);
         }
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeMap(operatorPrivilegesUsage);
+            out.writeGenericMap(operatorPrivilegesUsage);
         }
     }
 

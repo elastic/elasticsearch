@@ -22,9 +22,13 @@ import java.util.stream.Collectors;
 public class FieldUsageStatsResponse extends BroadcastResponse {
     private final Map<String, List<FieldUsageShardResponse>> stats;
 
-    FieldUsageStatsResponse(int totalShards, int successfulShards, int failedShards,
-                            List<DefaultShardOperationFailedException> shardFailures,
-                            Map<String, List<FieldUsageShardResponse>> stats) {
+    FieldUsageStatsResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures,
+        Map<String, List<FieldUsageShardResponse>> stats
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.stats = stats;
     }
@@ -46,8 +50,10 @@ public class FieldUsageStatsResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final List<Map.Entry<String, List<FieldUsageShardResponse>>> sortedEntries =
-            stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
+        final List<Map.Entry<String, List<FieldUsageShardResponse>>> sortedEntries = stats.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toList());
         for (Map.Entry<String, List<FieldUsageShardResponse>> entry : sortedEntries) {
             builder.startObject(entry.getKey());
             builder.startArray("shards");

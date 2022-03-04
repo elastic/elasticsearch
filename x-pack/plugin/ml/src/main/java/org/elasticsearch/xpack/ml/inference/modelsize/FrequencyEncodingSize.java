@@ -31,7 +31,7 @@ public class FrequencyEncodingSize implements PreprocessorSize {
     private static final ConstructingObjectParser<FrequencyEncodingSize, Void> PARSER = new ConstructingObjectParser<>(
         "frequency_encoding_size",
         false,
-        a -> new FrequencyEncodingSize((Integer)a[0], (Integer)a[1], (List<Integer>)a[2])
+        a -> new FrequencyEncodingSize((Integer) a[0], (Integer) a[1], (List<Integer>) a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), FIELD_LENGTH);
@@ -61,7 +61,8 @@ public class FrequencyEncodingSize implements PreprocessorSize {
         size += sizeOfString(featureNameLength);
         size += sizeOfHashMap(
             Arrays.stream(fieldValueLengths).mapToLong(SizeEstimatorHelper::sizeOfString).boxed().collect(Collectors.toList()),
-            Stream.generate(() -> sizeOfDoubleObject).limit(fieldValueLengths.length).collect(Collectors.toList()));
+            Stream.generate(() -> sizeOfDoubleObject).limit(fieldValueLengths.length).collect(Collectors.toList())
+        );
         return alignObjectSize(size);
     }
 
@@ -85,9 +86,9 @@ public class FrequencyEncodingSize implements PreprocessorSize {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FrequencyEncodingSize that = (FrequencyEncodingSize) o;
-        return fieldLength == that.fieldLength &&
-            featureNameLength == that.featureNameLength &&
-            Arrays.equals(fieldValueLengths, that.fieldValueLengths);
+        return fieldLength == that.fieldLength
+            && featureNameLength == that.featureNameLength
+            && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }
 
     @Override

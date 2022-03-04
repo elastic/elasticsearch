@@ -1,0 +1,6 @@
+pr: 83392
+summary: Fix plumbing in double and keyword runtime fields for the scripting fields
+  API
+area: Infra/Scripting
+type: bug
+issues: []

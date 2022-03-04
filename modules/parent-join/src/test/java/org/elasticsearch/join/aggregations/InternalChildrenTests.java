@@ -8,15 +8,15 @@
 
 package org.elasticsearch.join.aggregations;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 import java.util.Map;
@@ -30,13 +30,23 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(
-                Aggregation.class, new ParseField(ChildrenAggregationBuilder.NAME), (p, c) -> ParsedChildren.fromXContent(p, (String) c)));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(
+                Aggregation.class,
+                new ParseField(ChildrenAggregationBuilder.NAME),
+                (p, c) -> ParsedChildren.fromXContent(p, (String) c)
+            )
+        );
     }
 
     @Override
-    protected InternalChildren createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalChildren createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalChildren(name, docCount, aggregations, metadata);
     }
 

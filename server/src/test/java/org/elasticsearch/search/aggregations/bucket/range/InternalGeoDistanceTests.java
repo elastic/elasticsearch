@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -89,36 +90,25 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         List<InternalGeoDistance.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
+                double to = from + randomDouble();
                 buckets.add(
-                    new InternalGeoDistance.Bucket(
-                        "range_a",
-                        from,
-                        from + randomDouble(),
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false
-                    )
+                    new InternalGeoDistance.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false)
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoDistance(name, buckets, keyed, metadata);
     }

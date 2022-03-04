@@ -8,12 +8,6 @@
 
 package org.elasticsearch.cloud.azure.classic.management;
 
-import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.ServiceLoader;
-
 import com.microsoft.windowsazure.Configuration;
 import com.microsoft.windowsazure.core.Builder;
 import com.microsoft.windowsazure.core.DefaultBuilder;
@@ -22,6 +16,7 @@ import com.microsoft.windowsazure.management.compute.ComputeManagementClient;
 import com.microsoft.windowsazure.management.compute.ComputeManagementService;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -32,10 +27,14 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-public class AzureComputeServiceImpl extends AbstractLifecycleComponent
-    implements AzureComputeService {
-    private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
+import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.ServiceLoader;
 
+public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
+    private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
 
     private final ComputeManagementClient client;
     private final String serviceName;
@@ -65,8 +64,15 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
             Configuration configuration = new Configuration(builder);
             configuration.setProperty(Configuration.PROPERTY_LOG_HTTP_REQUESTS, logger.isTraceEnabled());
 
-            Configuration managementConfig = ManagementConfiguration.configure(null, configuration,
-                    Management.ENDPOINT_SETTING.get(settings), subscriptionId, keystorePath, keystorePassword, keystoreType);
+            Configuration managementConfig = ManagementConfiguration.configure(
+                null,
+                configuration,
+                Management.ENDPOINT_SETTING.get(settings),
+                subscriptionId,
+                keystorePath,
+                keystorePassword,
+                keystoreType
+            );
 
             logger.debug("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
             client = ComputeManagementService.create(managementConfig);
@@ -87,20 +93,20 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     public HostedServiceGetDetailedResponse getServiceDetails() {
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<HostedServiceGetDetailedResponse>)
-                () -> client.getHostedServicesOperations().getDetailed(serviceName));
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<HostedServiceGetDetailedResponse>) () -> client.getHostedServicesOperations()
+                    .getDetailed(serviceName)
+            );
         } catch (PrivilegedActionException e) {
             throw new AzureServiceRemoteException("can not get list of azure nodes", e.getCause());
         }
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
-    }
+    protected void doStart() throws ElasticsearchException {}
 
     @Override
-    protected void doStop() throws ElasticsearchException {
-    }
+    protected void doStop() throws ElasticsearchException {}
 
     @Override
     protected void doClose() throws ElasticsearchException {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
-
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -417,10 +416,7 @@ public final class AggregationResultUtils {
             // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
                 geoShape.put(FIELD_TYPE, POINT);
-                geoShape.put(
-                    FIELD_COORDINATES,
-                    Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat())
-                );
+                geoShape.put(FIELD_COORDINATES, Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
                 // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {

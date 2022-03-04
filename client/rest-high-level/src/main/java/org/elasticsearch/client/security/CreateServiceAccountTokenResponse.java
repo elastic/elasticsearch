@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -41,10 +41,8 @@ public final class CreateServiceAccountTokenResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         CreateServiceAccountTokenResponse that = (CreateServiceAccountTokenResponse) o;
         return Objects.equals(name, that.name) && Objects.equals(value, that.value);
     }
@@ -67,7 +65,8 @@ public final class CreateServiceAccountTokenResponse {
             }
             final Token token = (Token) args[1];
             return new CreateServiceAccountTokenResponse(token.name, new SecureString(token.value.toCharArray()));
-        });
+        }
+    );
 
     static {
         TOKEN_PARSER.declareString(constructorArg(), new ParseField("name"));

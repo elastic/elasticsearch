@@ -8,13 +8,12 @@
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.TreeInferenceModel;
-
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,7 +34,7 @@ public class TreeSizeInfo implements Accountable, ToXContentObject {
     static ConstructingObjectParser<TreeSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "tree_size",
         false,
-        a -> new TreeSizeInfo((Integer)a[0], a[1] == null ? 0 : (Integer)a[1], a[2] == null ? 0 : (Integer)a[2])
+        a -> new TreeSizeInfo((Integer) a[0], a[1] == null ? 0 : (Integer) a[1], a[2] == null ? 0 : (Integer) a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), NUM_LEAVES);
@@ -90,9 +89,7 @@ public class TreeSizeInfo implements Accountable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TreeSizeInfo treeSizeInfo = (TreeSizeInfo) o;
-        return numNodes == treeSizeInfo.numNodes &&
-            numLeaves == treeSizeInfo.numLeaves &&
-            numClasses == treeSizeInfo.numClasses;
+        return numNodes == treeSizeInfo.numNodes && numLeaves == treeSizeInfo.numLeaves && numClasses == treeSizeInfo.numClasses;
     }
 
     @Override

@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.security.cli;
 
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyPair;
@@ -29,6 +25,11 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -44,7 +45,7 @@ import static org.mockito.Mockito.when;
 public class CertGenUtilsTests extends ESTestCase {
 
     @BeforeClass
-    public static void muteInFips(){
+    public static void muteInFips() {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
     }
 
@@ -116,22 +117,49 @@ public class CertGenUtilsTests extends ESTestCase {
         // root CA
         final X500Principal rootCaPrincipal = new X500Principal("DC=example.com");
         final KeyPair rootCaKeyPair = CertGenUtils.generateKeyPair(2048);
-        final X509Certificate rootCaCert = CertGenUtils.generateSignedCertificate(rootCaPrincipal, null, rootCaKeyPair,
-            null, rootCaKeyPair.getPrivate(), true, notBefore, notAfter, null);
+        final X509Certificate rootCaCert = CertGenUtils.generateSignedCertificate(
+            rootCaPrincipal,
+            null,
+            rootCaKeyPair,
+            null,
+            rootCaKeyPair.getPrivate(),
+            true,
+            notBefore,
+            notAfter,
+            null
+        );
 
         // sub CA
         final X500Principal subCaPrincipal = new X500Principal("DC=Sub CA,DC=example.com");
         final KeyPair subCaKeyPair = CertGenUtils.generateKeyPair(2048);
-        final X509Certificate subCaCert = CertGenUtils.generateSignedCertificate(subCaPrincipal, null, subCaKeyPair,
-            rootCaCert, rootCaKeyPair.getPrivate(), true, notBefore, notAfter, null);
+        final X509Certificate subCaCert = CertGenUtils.generateSignedCertificate(
+            subCaPrincipal,
+            null,
+            subCaKeyPair,
+            rootCaCert,
+            rootCaKeyPair.getPrivate(),
+            true,
+            notBefore,
+            notAfter,
+            null
+        );
 
         // end entity
         final X500Principal endEntityPrincipal = new X500Principal("CN=TLS Client\\+Server,DC=Sub CA,DC=example.com");
         final KeyPair endEntityKeyPair = CertGenUtils.generateKeyPair(2048);
-        final X509Certificate endEntityCert = CertGenUtils.generateSignedCertificate(endEntityPrincipal, null, endEntityKeyPair,
-            subCaCert, subCaKeyPair.getPrivate(), true, notBefore, notAfter, null);
+        final X509Certificate endEntityCert = CertGenUtils.generateSignedCertificate(
+            endEntityPrincipal,
+            null,
+            endEntityKeyPair,
+            subCaCert,
+            subCaKeyPair.getPrivate(),
+            true,
+            notBefore,
+            notAfter,
+            null
+        );
 
-        final X509Certificate[] certChain = new X509Certificate[]{endEntityCert, subCaCert, rootCaCert};
+        final X509Certificate[] certChain = new X509Certificate[] { endEntityCert, subCaCert, rootCaCert };
 
         // verify generateSignedCertificate performed DN chaining correctly
         assertThat(endEntityCert.getIssuerX500Principal(), equalTo(subCaCert.getSubjectX500Principal()));
@@ -158,8 +186,10 @@ public class CertGenUtilsTests extends ESTestCase {
      * @throws Exception X509ExtendedTrustManager initialization failed, or cert chain validation failed.
      */
     public static void validateEndEntityTlsChain(
-        final KeyStore trustStore, final X509Certificate[] certChain,
-        final boolean doTlsClientCheck, final boolean doTlsServerCheck
+        final KeyStore trustStore,
+        final X509Certificate[] certChain,
+        final boolean doTlsClientCheck,
+        final boolean doTlsServerCheck
     ) throws Exception {
         final TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("PKIX", "SunJSSE");
         trustManagerFactory.init(trustStore);
@@ -184,8 +214,8 @@ public class CertGenUtilsTests extends ESTestCase {
         }
 
         // EKU=null|serverAuth, KU=digitalSignature, authType=DHE_DSS/DHE_RSA/ECDHE_ECDSA/ECDHE_RSA/RSA_EXPORT/UNKNOWN
-        // EKU=null|serverAuth, KU=keyEncipherment,  authType=RSA
-        // EKU=null|serverAuth, KU=keyAgreement,     authType=DH_DSS/DH_RSA/ECDH_ECDSA/ECDH_RSA
+        // EKU=null|serverAuth, KU=keyEncipherment, authType=RSA
+        // EKU=null|serverAuth, KU=keyAgreement, authType=DH_DSS/DH_RSA/ECDH_ECDSA/ECDH_RSA
         if (doTlsServerCheck) {
             x509ExtendedTrustManager.checkServerTrusted(certChain, "ECDHE_RSA");
         }

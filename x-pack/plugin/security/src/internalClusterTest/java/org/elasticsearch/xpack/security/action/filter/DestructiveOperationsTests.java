@@ -17,7 +17,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String)null).build();
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String) null).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
@@ -26,24 +26,30 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareDelete("*").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareDelete("*").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
             String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareDelete("*", "-index1").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareDelete("*", "-index1").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
             String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareDelete("_all").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareDelete("_all").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
             String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
@@ -62,24 +68,23 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
         }
         createIndex("index1", "index2");
 
-        switch(randomIntBetween(0, 2)) {
-            case 0:
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> {
                 assertAcked(client().admin().indices().prepareClose("*"));
                 assertAcked(client().admin().indices().prepareOpen("*"));
                 assertAcked(client().admin().indices().prepareDelete("*"));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 assertAcked(client().admin().indices().prepareClose("_all"));
                 assertAcked(client().admin().indices().prepareOpen("_all"));
                 assertAcked(client().admin().indices().prepareDelete("_all"));
-                break;
-            case 2:
+            }
+            case 2 -> {
                 assertAcked(client().admin().indices().prepareClose("*", "-index1"));
                 assertAcked(client().admin().indices().prepareOpen("*", "-index1"));
                 assertAcked(client().admin().indices().prepareDelete("*", "-index1"));
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
     }
 
@@ -87,33 +92,45 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareClose("*").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareClose("*").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareClose("*", "-index1").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareClose("*", "-index1").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareClose("_all").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareClose("_all").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareOpen("*").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareOpen("*").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareOpen("*", "-index1").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareOpen("*", "-index1").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareOpen("_all").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().prepareOpen("_all").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
 

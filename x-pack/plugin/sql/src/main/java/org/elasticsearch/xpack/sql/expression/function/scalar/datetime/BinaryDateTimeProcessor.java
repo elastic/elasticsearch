@@ -31,8 +31,7 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
     }
 
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-    }
+    protected void doWrite(StreamOutput out) throws IOException {}
 
     ZoneId zoneId() {
         return zoneId;
@@ -57,8 +56,6 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
         }
 
         BinaryDateTimeProcessor other = (BinaryDateTimeProcessor) obj;
-        return Objects.equals(left(), other.left())
-            && Objects.equals(right(), other.right())
-            && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right()) && Objects.equals(zoneId(), other.zoneId());
     }
 }

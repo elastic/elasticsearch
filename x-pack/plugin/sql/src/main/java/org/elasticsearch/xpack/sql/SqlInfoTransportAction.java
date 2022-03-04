@@ -19,8 +19,7 @@ public class SqlInfoTransportAction extends XPackInfoFeatureTransportAction {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public SqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  XPackLicenseState licenseState) {
+    public SqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.SQL.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

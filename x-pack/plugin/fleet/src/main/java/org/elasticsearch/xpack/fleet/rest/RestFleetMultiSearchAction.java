@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.fleet.rest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -48,10 +48,10 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_fleet/_msearch"),
-            new Route(POST, "/_fleet/_msearch"),
-            new Route(GET, "/{index}/_fleet/_msearch"),
-            new Route(POST, "/{index}/_fleet/_msearch")
+            new Route(GET, "/_fleet/_fleet_msearch"),
+            new Route(POST, "/_fleet/_fleet_msearch"),
+            new Route(GET, "/{index}/_fleet/_fleet_msearch"),
+            new Route(POST, "/{index}/_fleet/_fleet_msearch")
         );
     }
 
@@ -68,7 +68,9 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                     for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
                         waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
                     }
-                    searchRequest.setWaitForCheckpoints(Collections.singletonMap("*", waitForCheckpoints));
+                    if (waitForCheckpoints.length != 0) {
+                        searchRequest.setWaitForCheckpoints(Collections.singletonMap("*", waitForCheckpoints));
+                    }
                     return true;
                 } else if ("wait_for_checkpoints_timeout".equals(key)) {
                     final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value, TimeValue.timeValueSeconds(30));
@@ -96,7 +98,9 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                 }
             }
             long[] checkpoints = searchRequest.getWaitForCheckpoints().get("*");
-            searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], checkpoints));
+            if (checkpoints != null) {
+                searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], checkpoints));
+            }
         }
 
         return channel -> {

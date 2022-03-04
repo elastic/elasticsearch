@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -61,27 +60,8 @@ public class SharedBytes extends AbstractRefCounted {
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
             Preallocate.preallocate(cacheFile, fileSize);
-            // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
-            // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
-            // the file up front
-            final ByteBuffer fillBytes = ByteBuffer.allocate(Channels.WRITE_CHUNK_SIZE);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
-            long written = fileChannel.size();
-            if (fileSize < written) {
-                logger.info("creating shared snapshot cache file [size={}, path={}]", fileSize, cacheFile);
-            } else if (fileSize == written) {
-                logger.debug("reusing existing shared snapshot cache file [size={}, path={}]", fileSize, cacheFile);
-            }
-            fileChannel.position(written);
-            while (written < fileSize) {
-                final int toWrite = Math.toIntExact(Math.min(fileSize - written, Channels.WRITE_CHUNK_SIZE));
-                fillBytes.position(0).limit(toWrite);
-                Channels.writeToChannel(fillBytes, fileChannel);
-                written += toWrite;
-            }
-            if (written > fileChannel.size()) {
-                fileChannel.truncate(fileSize);
-            }
+            assert this.fileChannel.size() == fileSize : "expected file size " + fileSize + " but was " + fileChannel.size();
         } else {
             this.fileChannel = null;
             for (Path path : environment.nodeDataPaths()) {

@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import com.sun.net.httpserver.HttpsServer;
+
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockWebServer;
@@ -27,7 +28,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,19 +36,19 @@ import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 
+import javax.net.ssl.SSLContext;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = Scope.SUITE,
-    numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
 
     private static MockWebServer webServer;
     private MockSecureSettings secureSettings;
-
 
     @AfterClass
     public static void cleanUpStatics() {
@@ -196,7 +196,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         client().admin().cluster().updateSettings(updateSettings).actionGet();
     }
 
-
     /**
      * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
@@ -205,9 +204,9 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
             return List.of("TLSv1.2");
         } else {
-            JavaVersion full =
-                AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            JavaVersion full = AccessController.doPrivileged(
+                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+            );
             if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
                 return List.of("TLSv1.2");
             }

@@ -114,15 +114,6 @@ setup:
   - match: { count: 0 }
   - match: { datafeeds: [] }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      ml.get_datafeed_stats:
-        datafeed_id: "missing-*"
-        allow_no_datafeeds: true
-  - match: { count: 0 }
-  - match: { datafeeds: [] }
-
 ---
 "Test get datafeed stats with expression that does not match and not allow_no_match":
   - skip:
@@ -134,14 +125,6 @@ setup:
       ml.get_datafeed_stats:
         datafeed_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_datafeed_stats:
-        datafeed_id: "missing-*"
-        allow_no_datafeeds: false
 
 ---
 "Test get single datafeed stats":

@@ -29,26 +29,30 @@ public class ShardVersioningTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ShardVersioningTests.class);
 
     public void testSimple() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("start two nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 

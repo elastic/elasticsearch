@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,19 +27,31 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
     private static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
     private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
 
-    private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3]));
+    private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()),
-            MAX_SIZE_FIELD, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            MAX_SIZE_FIELD,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName()),
-            MAX_PRIMARY_SHARD_SIZE_FIELD, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            MAX_PRIMARY_SHARD_SIZE_FIELD,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()),
-            MAX_AGE_FIELD, ValueType.VALUE);
+            MAX_AGE_FIELD,
+            ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
     }
 
@@ -116,10 +128,10 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
             return false;
         }
         RolloverAction other = (RolloverAction) obj;
-        return Objects.equals(maxSize, other.maxSize) &&
-            Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize) &&
-            Objects.equals(maxAge, other.maxAge) &&
-            Objects.equals(maxDocs, other.maxDocs);
+        return Objects.equals(maxSize, other.maxSize)
+            && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
+            && Objects.equals(maxAge, other.maxAge)
+            && Objects.equals(maxDocs, other.maxDocs);
     }
 
     @Override

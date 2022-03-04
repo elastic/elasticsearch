@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -50,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -103,7 +106,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 false,
                 () -> null,
                 (n, c, o) -> parseNullValueAsString(o),
-                m -> toType(m).nullValue
+                m -> toType(m).nullValue,
+                XContentBuilder::field,
+                Objects::toString
             ).acceptsNull();
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
@@ -217,6 +222,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             Long longValue = parseTerm(value);
@@ -286,9 +296,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return (cache, breakerService) -> {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                     name(),
-                    IndexNumericFieldData.NumericType.LONG
+                    IndexNumericFieldData.NumericType.LONG,
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
-                return new UnsignedLongIndexFieldData(signedLongValues);
+                return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
             };
         }
 
@@ -330,7 +341,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isSearchable()) {
+            if (isIndexed()) {
                 // convert from the shifted value back to the original value
                 return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }
@@ -356,8 +367,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     if (lv >= 0) {
                         return lv;
                     }
-                } else if (value instanceof BigInteger) {
-                    BigInteger bigIntegerValue = (BigInteger) value;
+                } else if (value instanceof BigInteger bigIntegerValue) {
                     if (bigIntegerValue.compareTo(BigInteger.ZERO) >= 0 && bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) <= 0) {
                         return bigIntegerValue.longValue();
                     }
@@ -542,6 +552,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = unsignedToSortableSignedLong(numericValue);
         }
 
+        if (dimension && numericValue != null) {
+            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
+        }
+
         List<Field> fields = new ArrayList<>();
         if (indexed) {
             fields.add(new LongPoint(fieldType().name(), numericValue));
@@ -554,19 +568,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             String storedValued = isNullValue ? nullValue : Long.toUnsignedString(unsignedToSortableSignedLong(numericValue));
             fields.add(new StoredField(fieldType().name(), storedValued));
         }
-
-        if (dimension && fields.size() > 0) { // dimension == true requires that field is indexed and has doc-values
-            // Check that a dimension field is single-valued and not an array
-            if (context.doc().getByKey(fieldType().name()) != null) {
-                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-            }
-
-            // Add the field by key so that we can validate if it has been added
-            context.doc().addWithKey(fieldType().name(), new LongPoint(fieldType().name(), numericValue));
-            context.doc().addAll(fields.subList(1, fields.size()));
-        } else {
-            context.doc().addAll(fields);
-        }
+        context.doc().addAll(fields);
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());
@@ -596,8 +598,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value \"" + value + "\" has a decimal part");
                 }
                 return parseUnsignedLong(v.longValue());
-            } else if (value instanceof BigInteger) {
-                BigInteger bigIntegerValue = (BigInteger) value;
+            } else if (value instanceof BigInteger bigIntegerValue) {
                 if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
                     throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
                 }
@@ -648,4 +649,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         return value ^ MASK_2_63;
     }
 
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
+    }
 }

@@ -22,10 +22,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -51,9 +51,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
-    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
-            Property.IndexScope);
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "index.unassigned.node_left.delayed_timeout",
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Reason why the shard is in unassigned state.
      * <p>
@@ -179,34 +183,24 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         public static AllocationStatus readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();
-            switch (id) {
-                case 0:
-                    return DECIDERS_NO;
-                case 1:
-                    return NO_VALID_SHARD_COPY;
-                case 2:
-                    return DECIDERS_THROTTLED;
-                case 3:
-                    return FETCHING_SHARD_DATA;
-                case 4:
-                    return DELAYED_ALLOCATION;
-                case 5:
-                    return NO_ATTEMPT;
-                default:
-                    throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
-            }
+            return switch (id) {
+                case 0 -> DECIDERS_NO;
+                case 1 -> NO_VALID_SHARD_COPY;
+                case 2 -> DECIDERS_THROTTLED;
+                case 3 -> FETCHING_SHARD_DATA;
+                case 4 -> DELAYED_ALLOCATION;
+                case 5 -> NO_ATTEMPT;
+                default -> throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
+            };
         }
 
         public static AllocationStatus fromDecision(Decision.Type decision) {
             Objects.requireNonNull(decision);
-            switch (decision) {
-                case NO:
-                    return DECIDERS_NO;
-                case THROTTLE:
-                    return DECIDERS_THROTTLED;
-                default:
-                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
-            }
+            return switch (decision) {
+                case NO -> DECIDERS_NO;
+                case THROTTLE -> DECIDERS_THROTTLED;
+                default -> throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
+            };
         }
 
         public String value() {
@@ -232,8 +226,18 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * @param message more information about cause.
      **/
     public UnassignedInfo(Reason reason, String message) {
-        this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false,
-             AllocationStatus.NO_ATTEMPT, Collections.emptySet(), null);
+        this(
+            reason,
+            message,
+            null,
+            reason == Reason.ALLOCATION_FAILED ? 1 : 0,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            null
+        );
     }
 
     /**
@@ -269,14 +273,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);
         this.failedNodeIds = Set.copyOf(failedNodeIds);
         this.lastAllocatedNodeId = lastAllocatedNodeId;
-        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) : "failedAllocations: "
-            + failedAllocations
-            + " for reason "
-            + reason;
+        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
+            : "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
-        assert (delayed
-            && reason != Reason.NODE_LEFT
-            && reason != Reason.NODE_RESTARTING) == false : "shard can only be delayed if it is unassigned due to a node leaving";
+        assert (delayed && reason != Reason.NODE_LEFT && reason != Reason.NODE_RESTARTING) == false
+            : "shard can only be delayed if it is unassigned due to a node leaving";
         // The below check should be expanded to require `lastAllocatedNodeId` for `NODE_LEFT` as well, once we no longer have to consider
         // BWC with versions prior to `VERSION_LAST_ALLOCATED_NODE_ADDED`.
         assert (reason == Reason.NODE_RESTARTING && lastAllocatedNodeId == null) == false
@@ -484,7 +485,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
-        if (failedAllocations >  0) {
+        if (failedAllocations > 0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
         if (failedNodeIds.isEmpty() == false) {
@@ -510,7 +511,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
         builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
-        if (failedAllocations >  0) {
+        if (failedAllocations > 0) {
             builder.field("failed_attempts", failedAllocations);
         }
         if (failedNodeIds.isEmpty() == false) {

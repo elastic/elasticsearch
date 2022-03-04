@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -29,7 +31,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.fromXContent(parser);
+        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
     }
 
     @Override
@@ -60,52 +62,25 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             null,
             null
         );
-        return new Request(config);
+        return new Request(config, TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 
     public void testParsingOverwritesIdField() throws IOException {
-        testParsingOverwrites(
-            "",
-            "\"dest\": {"
-                + "\"index\": \"bar\","
-                + "\"pipeline\": \"baz\""
-                + "},",
-            "transform-preview",
-            "bar",
-            "baz"
-        );
+        testParsingOverwrites("", """
+            "dest": {"index": "bar","pipeline": "baz"},""", "transform-preview", "bar", "baz");
     }
 
     public void testParsingOverwritesDestField() throws IOException {
-        testParsingOverwrites(
-            "\"id\": \"bar\",",
-            "",
-            "bar",
-            "unused-transform-preview-index",
-            null
-        );
+        testParsingOverwrites("\"id\": \"bar\",", "", "bar", "unused-transform-preview-index", null);
     }
 
     public void testParsingOverwritesIdAndDestIndexFields() throws IOException {
-        testParsingOverwrites(
-            "",
-            "\"dest\": {"
-                + "\"pipeline\": \"baz\""
-            + "},",
-            "transform-preview",
-            "unused-transform-preview-index",
-            "baz"
-        );
+        testParsingOverwrites("", """
+            "dest": {"pipeline": "baz"},""", "transform-preview", "unused-transform-preview-index", "baz");
     }
 
     public void testParsingOverwritesIdAndDestFields() throws IOException {
-        testParsingOverwrites(
-            "",
-            "",
-            "transform-preview",
-            "unused-transform-preview-index",
-            null
-        );
+        testParsingOverwrites("", "", "transform-preview", "unused-transform-preview-index", null);
     }
 
     private void testParsingOverwrites(
@@ -115,19 +90,33 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
         String expectedDestIndex,
         String expectedDestPipeline
     ) throws IOException {
-        BytesArray json = new BytesArray(
-            "{ "
-                + transformIdJson
-                + "\"source\": {"
-                + "   \"index\": \"foo\", "
-                + "   \"query\": {\"match_all\": {}}},"
-                + destConfigJson
-                + "\"pivot\": {"
-                + "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}},"
-                + "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}"
-                + "}"
-                + "}"
-        );
+        BytesArray json = new BytesArray("""
+            {
+              %s
+              "source": {
+                "index": "foo",
+                "query": {
+                  "match_all": {}
+                }
+              },
+              %s
+              "pivot": {
+                "group_by": {
+                  "destination-field2": {
+                    "terms": {
+                      "field": "term-field"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg_response": {
+                    "avg": {
+                      "field": "responsetime"
+                    }
+                  }
+                }
+              }
+            }""".formatted(transformIdJson, destConfigJson));
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -137,7 +126,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             )
         ) {
 
-            Request request = Request.fromXContent(parser);
+            Request request = Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             assertThat(request.getConfig().getId(), is(equalTo(expectedTransformId)));
             assertThat(request.getConfig().getDestination().getIndex(), is(equalTo(expectedDestIndex)));
             assertThat(request.getConfig().getDestination().getPipeline(), is(equalTo(expectedDestPipeline)));

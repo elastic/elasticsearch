@@ -121,6 +121,8 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
         return CommonUtil.EMPTY_INT_ARRAY;
     }
 
+    // suppress deprecation until https://github.com/checkstyle/checkstyle/issues/11166
+    @SuppressWarnings("deprecation")
     @Override
     public void visitToken(DetailAST ast) {
         if (shouldCheck(ast)) {
@@ -140,14 +142,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
      * @return whether we should check a given node.
      */
     private boolean shouldCheck(final DetailAST ast) {
-        final Scope customScope;
-
-        if (ScopeUtil.isInInterfaceOrAnnotationBlock(ast)) {
-            customScope = Scope.PUBLIC;
-        } else {
-            final DetailAST mods = ast.findFirstToken(TokenTypes.MODIFIERS);
-            customScope = ScopeUtil.getScopeFromMods(mods);
-        }
+        final Scope customScope = ScopeUtil.getScope(ast);
         final Scope surroundingScope = ScopeUtil.getSurroundingScope(ast);
 
         final String outerTypeName = ast.findFirstToken(TokenTypes.IDENT).getText();
@@ -155,9 +150,10 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
         return customScope.isIn(scope)
             && (surroundingScope == null || surroundingScope.isIn(scope))
             && (excludeScope == null
-                || customScope.isIn(excludeScope) == false
-                || surroundingScope != null && surroundingScope.isIn(excludeScope) == false)
-            && AnnotationUtil.containsAnnotation(ast, skipAnnotations) == false
+                || !customScope.isIn(excludeScope)
+                || surroundingScope != null
+                && !surroundingScope.isIn(excludeScope))
+            && !AnnotationUtil.containsAnnotation(ast, skipAnnotations)
             && ignorePattern.matcher(outerTypeName).find() == false;
     }
 

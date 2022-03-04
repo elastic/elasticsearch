@@ -37,13 +37,15 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     private final Map<String, Object> inferenceUsage;
     private final int nodeCount;
 
-    public MachineLearningFeatureSetUsage(boolean available,
-                                          boolean enabled,
-                                          Map<String, Object> jobsUsage,
-                                          Map<String, Object> datafeedsUsage,
-                                          Map<String, Object> analyticsUsage,
-                                          Map<String, Object> inferenceUsage,
-                                          int nodeCount) {
+    public MachineLearningFeatureSetUsage(
+        boolean available,
+        boolean enabled,
+        Map<String, Object> jobsUsage,
+        Map<String, Object> datafeedsUsage,
+        Map<String, Object> analyticsUsage,
+        Map<String, Object> inferenceUsage,
+        int nodeCount
+    ) {
         super(XPackField.MACHINE_LEARNING, available, enabled);
         this.jobsUsage = Objects.requireNonNull(jobsUsage);
         this.datafeedsUsage = Objects.requireNonNull(datafeedsUsage);
@@ -69,10 +71,10 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(jobsUsage);
-        out.writeMap(datafeedsUsage);
-        out.writeMap(analyticsUsage);
-        out.writeMap(inferenceUsage);
+        out.writeGenericMap(jobsUsage);
+        out.writeGenericMap(datafeedsUsage);
+        out.writeGenericMap(analyticsUsage);
+        out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
     }
 

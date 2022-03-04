@@ -29,6 +29,7 @@ public class ElasticsearchParseException extends ElasticsearchException {
     public ElasticsearchParseException(StreamInput in) throws IOException {
         super(in);
     }
+
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

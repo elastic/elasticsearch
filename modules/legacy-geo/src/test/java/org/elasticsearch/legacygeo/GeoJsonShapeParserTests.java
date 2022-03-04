@@ -14,14 +14,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
@@ -2287,7 +2288,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
         GeometryParser geometryParser = new GeometryParser(true, true, true);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "name");
-        return indexer.prepareForIndexing(geometryParser.parse(parser));
+        return GeometryNormalizer.apply(Orientation.CCW, geometryParser.parse(parser));
     }
 }

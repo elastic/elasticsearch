@@ -9,10 +9,10 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -79,8 +79,7 @@ public enum LuceneFilesExtensions {
      * In the future, we would like to add a proper plugin extension point for this.
      */
     private static boolean allowUnknownLuceneFileExtensions() {
-        return Boolean.parseBoolean(
-            System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
+        return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }
 
     /**
@@ -129,7 +128,7 @@ public enum LuceneFilesExtensions {
 
     private static final Map<String, LuceneFilesExtensions> extensions;
     static {
-        final Map<String, LuceneFilesExtensions> map = new HashMap<>(values().length);
+        final Map<String, LuceneFilesExtensions> map = Maps.newMapWithExpectedSize(values().length);
         for (LuceneFilesExtensions extension : values()) {
             map.put(extension.extension, extension);
         }
@@ -140,7 +139,7 @@ public enum LuceneFilesExtensions {
     public static LuceneFilesExtensions fromExtension(String ext) {
         if (ext != null && ext.isEmpty() == false) {
             final LuceneFilesExtensions extension = extensions.get(ext);
-            assert allowUnknownLuceneFileExtensions() || extension != null: "unknown Lucene file extension [" + ext + ']';
+            assert allowUnknownLuceneFileExtensions() || extension != null : "unknown Lucene file extension [" + ext + ']';
             return extension;
         }
         return null;

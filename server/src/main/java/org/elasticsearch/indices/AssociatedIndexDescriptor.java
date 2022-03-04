@@ -106,10 +106,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet()
-            .stream()
-            .filter(this::matchesIndexPattern)
-            .collect(Collectors.toUnmodifiableList());
+        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -123,10 +120,15 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
     @Override
     public String toString() {
-        return "AssociatedIndexDescriptor{" +
-            "indexPattern='" + indexPattern + '\'' +
-            ", description='" + description + '\'' +
-            ", indexPatternAutomaton=" + indexPatternAutomaton +
-            '}';
+        return "AssociatedIndexDescriptor{"
+            + "indexPattern='"
+            + indexPattern
+            + '\''
+            + ", description='"
+            + description
+            + '\''
+            + ", indexPatternAutomaton="
+            + indexPatternAutomaton
+            + '}';
     }
 }

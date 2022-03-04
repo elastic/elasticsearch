@@ -175,8 +175,8 @@ setup:
 ---
 histogram with time series mappings:
   - skip:
-      version: " - 7.99.99"
-      reason: time series mode added in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
 
@@ -187,6 +187,9 @@ histogram with time series mappings:
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

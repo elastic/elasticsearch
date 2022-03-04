@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,8 +31,12 @@ public final class InvalidateTokenRequest implements Validatable, ToXContentObje
         this(accessToken, refreshToken, null, null);
     }
 
-    public InvalidateTokenRequest(@Nullable String accessToken, @Nullable String refreshToken,
-                                  @Nullable String realmName, @Nullable String username) {
+    public InvalidateTokenRequest(
+        @Nullable String accessToken,
+        @Nullable String refreshToken,
+        @Nullable String realmName,
+        @Nullable String username
+    ) {
         if (Strings.hasText(realmName) || Strings.hasText(username)) {
             if (Strings.hasText(accessToken)) {
                 throw new IllegalArgumentException("access token is not allowed when realm name or username are specified");
@@ -43,8 +47,9 @@ public final class InvalidateTokenRequest implements Validatable, ToXContentObje
         } else {
             if (Strings.isNullOrEmpty(accessToken)) {
                 if (Strings.isNullOrEmpty(refreshToken)) {
-                    throw new IllegalArgumentException("Either access token or refresh token is required when neither realm name or " +
-                        "username are specified");
+                    throw new IllegalArgumentException(
+                        "Either access token or refresh token is required when neither realm name or " + "username are specified"
+                    );
                 }
             } else if (Strings.isNullOrEmpty(refreshToken) == false) {
                 throw new IllegalArgumentException("Cannot supply both access token and refresh token");
@@ -123,10 +128,10 @@ public final class InvalidateTokenRequest implements Validatable, ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InvalidateTokenRequest that = (InvalidateTokenRequest) o;
-        return Objects.equals(accessToken, that.accessToken) &&
-            Objects.equals(refreshToken, that.refreshToken) &&
-            Objects.equals(realmName, that.realmName) &&
-            Objects.equals(username, that.username);
+        return Objects.equals(accessToken, that.accessToken)
+            && Objects.equals(refreshToken, that.refreshToken)
+            && Objects.equals(realmName, that.realmName)
+            && Objects.equals(username, that.username);
     }
 
     @Override

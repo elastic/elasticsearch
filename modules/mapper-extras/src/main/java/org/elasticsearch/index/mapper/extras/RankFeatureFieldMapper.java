@@ -15,7 +15,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -26,6 +25,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,13 +52,17 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     private static RankFeatureFieldType ft(FieldMapper in) {
-        return ((RankFeatureFieldMapper)in).fieldType();
+        return ((RankFeatureFieldMapper) in).fieldType();
     }
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> positiveScoreImpact
-            = Parameter.boolParam("positive_score_impact", false, m -> ft(m).positiveScoreImpact, true);
+        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
+            "positive_score_impact",
+            false,
+            m -> ft(m).positiveScoreImpact,
+            true
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -72,9 +76,13 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
-            return new RankFeatureFieldMapper(name,
+            return new RankFeatureFieldMapper(
+                name,
                 new RankFeatureFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                positiveScoreImpact.getValue()
+            );
         }
     }
 
@@ -129,8 +137,13 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private final boolean positiveScoreImpact;
 
-    private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                   MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
+    private RankFeatureFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean positiveScoreImpact
+    ) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
     }
@@ -151,8 +164,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         if (context.doc().getByKey(name()) != null) {
-            throw new IllegalArgumentException("[rank_feature] fields do not support indexing multiple values for the same field [" +
-                name() + "] in the same document");
+            throw new IllegalArgumentException(
+                "[rank_feature] fields do not support indexing multiple values for the same field [" + name() + "] in the same document"
+            );
         }
 
         if (positiveScoreImpact == false) {

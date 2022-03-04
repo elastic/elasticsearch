@@ -20,8 +20,11 @@ import java.io.IOException;
  */
 public final class ResizeResponse extends CreateIndexResponse {
 
-    private static final ConstructingObjectParser<ResizeResponse, Void> PARSER = new ConstructingObjectParser<>("resize_index",
-            true, args -> new ResizeResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<ResizeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "resize_index",
+        true,
+        args -> new ResizeResponse((boolean) args[0], (boolean) args[1], (String) args[2])
+    );
 
     static {
         declareFields(PARSER);

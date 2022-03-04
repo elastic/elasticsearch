@@ -26,14 +26,16 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
 
     private CustomAnalyzer customAnalyzer;
 
-    public CustomNormalizerProvider(IndexSettings indexSettings,
-                                    String name, Settings settings) {
+    public CustomNormalizerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
 
-    public void build(final TokenizerFactory tokenizerFactory, final Map<String, CharFilterFactory> charFilters,
-            final Map<String, TokenFilterFactory> tokenFilters) {
+    public void build(
+        final TokenizerFactory tokenizerFactory,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters
+    ) {
         if (analyzerSettings.get("tokenizer") != null) {
             throw new IllegalArgumentException("Custom normalizer [" + name() + "] cannot configure a tokenizer");
         }
@@ -43,12 +45,12 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
-                throw new IllegalArgumentException("Custom normalizer [" + name() + "] failed to find char_filter under name ["
-                        + charFilterName + "]");
+                throw new IllegalArgumentException(
+                    "Custom normalizer [" + name() + "] failed to find char_filter under name [" + charFilterName + "]"
+                );
             }
             if (charFilter instanceof NormalizingCharFilterFactory == false) {
-                throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use char filter ["
-                        + charFilterName + "]");
+                throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use char filter [" + charFilterName + "]");
             }
             charFiltersList.add(charFilter);
         }
@@ -58,8 +60,9 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name ["
-                        + tokenFilterName + "]");
+                throw new IllegalArgumentException(
+                    "Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]"
+                );
             }
             if (tokenFilter instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use filter [" + tokenFilterName + "]");
@@ -68,9 +71,9 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         }
 
         this.customAnalyzer = new CustomAnalyzer(
-                tokenizerFactory,
-                charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
+            tokenizerFactory,
+            charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
         );
     }
 

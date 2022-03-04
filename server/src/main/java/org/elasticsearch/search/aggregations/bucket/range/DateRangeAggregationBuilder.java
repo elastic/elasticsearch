@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -71,7 +72,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
                 Aggregator parent,
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata) -> {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.AGGREGATIONS,
                     "Range-boolean",
                     "Running Range or DateRange aggregations on [boolean] fields is deprecated"
@@ -125,6 +126,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     @Override

@@ -79,8 +79,15 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
     }
 
     public String toString() {
-        return "{authenticationRequestUrl=" + authenticationRequestUrl + ", state=" + state + ", nonce="
-            + nonce + ", realmName" + realmName + "}";
+        return "{authenticationRequestUrl="
+            + authenticationRequestUrl
+            + ", state="
+            + state
+            + ", nonce="
+            + nonce
+            + ", realmName"
+            + realmName
+            + "}";
     }
 
     @Override
@@ -89,7 +96,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         builder.field("redirect", authenticationRequestUrl);
         builder.field("state", state);
         builder.field("nonce", nonce);
-        if(realmName != null){
+        if (realmName != null) {
             builder.field("realm", realmName);
         }
         builder.endObject();

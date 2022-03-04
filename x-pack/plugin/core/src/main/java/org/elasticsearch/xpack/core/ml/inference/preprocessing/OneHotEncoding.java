@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -46,9 +46,8 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         ConstructingObjectParser<OneHotEncoding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            (a, c) -> new OneHotEncoding((String)a[0],
-                (Map<String, String>)a[1],
-                a[2] == null ? c.isCustomByDefault() : (Boolean)a[2]));
+            (a, c) -> new OneHotEncoding((String) a[0], (Map<String, String>) a[1], a[2] == null ? c.isCustomByDefault() : (Boolean) a[2])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
@@ -56,11 +55,11 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     }
 
     public static OneHotEncoding fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
-        return STRICT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return STRICT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     public static OneHotEncoding fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
-        return LENIENT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return LENIENT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     private final String field;
@@ -163,9 +162,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OneHotEncoding that = (OneHotEncoding) o;
-        return Objects.equals(field, that.field)
-            && Objects.equals(hotMap, that.hotMap)
-            && Objects.equals(custom, that.custom);
+        return Objects.equals(field, that.field) && Objects.equals(hotMap, that.hotMap) && Objects.equals(custom, that.custom);
     }
 
     @Override

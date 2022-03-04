@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -50,12 +50,14 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private final AnomalyDetectionAuditor auditor;
     private volatile Duration processConnectTimeout;
 
-    public NativeAutodetectProcessFactory(Environment env,
-                                          Settings settings,
-                                          NativeController nativeController,
-                                          ClusterService clusterService,
-                                          ResultsPersisterService resultsPersisterService,
-                                          AnomalyDetectionAuditor auditor) {
+    public NativeAutodetectProcessFactory(
+        Environment env,
+        Settings settings,
+        NativeController nativeController,
+        ClusterService clusterService,
+        ResultsPersisterService resultsPersisterService,
+        AnomalyDetectionAuditor auditor
+    ) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
@@ -63,8 +65,8 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.auditor = Objects.requireNonNull(auditor);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
-            this::setProcessConnectTimeout);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -72,14 +74,27 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(String pipelineId,
-                                                     Job job,
-                                                     AutodetectParams params,
-                                                     ExecutorService executorService,
-                                                     Consumer<String> onProcessCrash) {
+    public AutodetectProcess createAutodetectProcess(
+        String pipelineId,
+        Job job,
+        AutodetectParams params,
+        ExecutorService executorService,
+        Consumer<String> onProcessCrash
+    ) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AutodetectBuilder.AUTODETECT,
-            pipelineId, null, false, true, true, params.modelSnapshot() != null, true);
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            NAMED_PIPE_HELPER,
+            processConnectTimeout,
+            AutodetectBuilder.AUTODETECT,
+            pipelineId,
+            null,
+            false,
+            true,
+            true,
+            params.modelSnapshot() != null,
+            true
+        );
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
             && job.getAnalysisConfig().getCategorizationFieldName() != null;
@@ -87,11 +102,19 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
         IndexingStateProcessor stateProcessor = new IndexingStateProcessor(job.getId(), resultsPersisterService, auditor);
-        ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
-            NamedXContentRegistry.EMPTY);
+        ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(
+            AutodetectResult.PARSER,
+            NamedXContentRegistry.EMPTY
+        );
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-            job.getId(), nativeController, processPipes, numberOfFields,
-            filesToDelete, resultsParser, onProcessCrash);
+            job.getId(),
+            nativeController,
+            processPipes,
+            numberOfFields,
+            filesToDelete,
+            resultsParser,
+            onProcessCrash
+        );
         try {
             autodetect.start(executorService, stateProcessor);
             return autodetect;
@@ -107,20 +130,26 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         }
     }
 
-    void createNativeProcess(Job job, AutodetectParams autodetectParams, ProcessPipes processPipes,
-                             List<Path> filesToDelete) {
+    void createNativeProcess(Job job, AutodetectParams autodetectParams, ProcessPipes processPipes, List<Path> filesToDelete) {
         try {
 
             Settings updatedSettings = Settings.builder()
                 .put(settings)
-                .put(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.getKey(),
-                    clusterService.getClusterSettings().get(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC))
+                .put(
+                    AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.getKey(),
+                    clusterService.getClusterSettings().get(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC)
+                )
                 .build();
 
-            AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, logger, env,
-                updatedSettings, nativeController, processPipes)
-                    .referencedFilters(autodetectParams.filters())
-                    .scheduledEvents(autodetectParams.scheduledEvents());
+            AutodetectBuilder autodetectBuilder = new AutodetectBuilder(
+                job,
+                filesToDelete,
+                logger,
+                env,
+                updatedSettings,
+                nativeController,
+                processPipes
+            ).referencedFilters(autodetectParams.filters()).scheduledEvents(autodetectParams.scheduledEvents());
 
             // if state is null or empty it will be ignored
             // else it is used to restore the quantiles
@@ -139,4 +168,3 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
 }
-

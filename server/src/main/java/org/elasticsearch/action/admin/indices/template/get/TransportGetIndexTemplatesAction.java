@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -26,16 +24,29 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-public class TransportGetIndexTemplatesAction extends
-    TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
-    public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetIndexTemplatesRequest::new, indexNameExpressionResolver, GetIndexTemplatesResponse::new, ThreadPool.Names.SAME);
+    public TransportGetIndexTemplatesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetIndexTemplatesAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetIndexTemplatesRequest::new,
+            indexNameExpressionResolver,
+            GetIndexTemplatesResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -44,8 +55,12 @@ public class TransportGetIndexTemplatesAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, GetIndexTemplatesRequest request, ClusterState state,
-                                   ActionListener<GetIndexTemplatesResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        GetIndexTemplatesRequest request,
+        ClusterState state,
+        ActionListener<GetIndexTemplatesResponse> listener
+    ) {
         List<IndexTemplateMetadata> results;
 
         // If we did not ask for a specific name, then we return all templates
@@ -57,9 +72,9 @@ public class TransportGetIndexTemplatesAction extends
 
         for (String name : request.names()) {
             if (Regex.isSimpleMatchPattern(name)) {
-                for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : state.metadata().templates()) {
-                    if (Regex.simpleMatch(name, entry.key)) {
-                        results.add(entry.value);
+                for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().templates().entrySet()) {
+                    if (Regex.simpleMatch(name, entry.getKey())) {
+                        results.add(entry.getValue());
                     }
                 }
             } else if (state.metadata().templates().containsKey(name)) {

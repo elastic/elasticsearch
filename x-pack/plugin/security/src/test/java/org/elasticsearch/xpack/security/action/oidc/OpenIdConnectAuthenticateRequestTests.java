@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;

@@ -10,8 +10,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -81,13 +81,21 @@ public abstract class AliasAction {
         @Nullable
         private final Boolean writeIndex;
 
-        @Nullable final Boolean isHidden;
+        @Nullable
+        final Boolean isHidden;
 
         /**
          * Build the operation.
          */
-        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting,
-                   @Nullable Boolean writeIndex, @Nullable Boolean isHidden) {
+        public Add(
+            String index,
+            String alias,
+            @Nullable String filter,
+            @Nullable String indexRouting,
+            @Nullable String searchRouting,
+            @Nullable Boolean writeIndex,
+            @Nullable Boolean isHidden
+        ) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
@@ -125,8 +133,13 @@ public abstract class AliasAction {
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(alias, indexRouting, searchRouting, filter, writeIndex);
 
-            AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias).filter(filter).indexRouting(indexRouting)
-                    .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
+            AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias)
+                .filter(filter)
+                .indexRouting(indexRouting)
+                .searchRouting(searchRouting)
+                .writeIndex(writeIndex)
+                .isHidden(isHidden)
+                .build();
 
             // Check if this alias already exists
             AliasMetadata currentAliasMd = index.getAliases().get(alias);
@@ -176,7 +189,7 @@ public abstract class AliasAction {
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
                 if (mustExist != null && mustExist) {
-                    throw new ResourceNotFoundException("required alias [" + alias  + "] does not exist");
+                    throw new ResourceNotFoundException("required alias [" + alias + "] does not exist");
                 }
                 return false;
             }

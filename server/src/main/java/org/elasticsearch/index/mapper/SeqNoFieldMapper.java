@@ -20,6 +20,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.script.field.SeqNoDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -79,13 +80,17 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
-                null);
+                null
+            );
         }
 
         public static SequenceIDFields tombstone() {
-            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+            return new SequenceIDFields(
+                new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(PRIMARY_TERM_NAME, 0), new NumericDocValuesField(TOMBSTONE_NAME, 1));
+                new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
+                new NumericDocValuesField(TOMBSTONE_NAME, 1)
+            );
         }
     }
 
@@ -129,6 +134,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
@@ -146,8 +156,13 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower,
-                                boolean includeUpper, SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
@@ -174,7 +189,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new);
         }
     }
 

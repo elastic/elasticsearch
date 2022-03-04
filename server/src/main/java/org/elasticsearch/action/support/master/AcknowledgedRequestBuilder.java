@@ -8,15 +8,19 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 /**
  * Base request builder for master node operations that support acknowledgements
  */
-public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse,
-        RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
-        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+public abstract class AcknowledgedRequestBuilder<
+    Request extends AcknowledgedRequest<Request>,
+    Response extends AcknowledgedResponse,
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
+        Request,
+        Response,
+        RequestBuilder> {
 
     protected AcknowledgedRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

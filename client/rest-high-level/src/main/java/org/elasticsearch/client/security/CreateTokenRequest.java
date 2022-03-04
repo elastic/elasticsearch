@@ -9,9 +9,9 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -41,8 +41,14 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
      * <li>{@link #kerberosGrant(char[])}</li>
      * </ul>
      */
-    public CreateTokenRequest(String grantType, @Nullable String scope, @Nullable String username, @Nullable char[] password,
-                              @Nullable String refreshToken, @Nullable char[] kerberosTicket) {
+    public CreateTokenRequest(
+        String grantType,
+        @Nullable String scope,
+        @Nullable String username,
+        @Nullable char[] password,
+        @Nullable String refreshToken,
+        @Nullable char[] kerberosTicket
+    ) {
         if (Strings.isNullOrEmpty(grantType)) {
             throw new IllegalArgumentException("grant_type is required");
         }
@@ -108,8 +114,7 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("grant_type", grantType);
+        builder.startObject().field("grant_type", grantType);
         if (scope != null) {
             builder.field("scope", scope);
         }
@@ -147,12 +152,12 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
             return false;
         }
         final CreateTokenRequest that = (CreateTokenRequest) o;
-        return Objects.equals(grantType, that.grantType) &&
-            Objects.equals(scope, that.scope) &&
-            Objects.equals(username, that.username) &&
-            Arrays.equals(password, that.password) &&
-            Objects.equals(refreshToken, that.refreshToken) &&
-            Arrays.equals(kerberosTicket, that.kerberosTicket);
+        return Objects.equals(grantType, that.grantType)
+            && Objects.equals(scope, that.scope)
+            && Objects.equals(username, that.username)
+            && Arrays.equals(password, that.password)
+            && Objects.equals(refreshToken, that.refreshToken)
+            && Arrays.equals(kerberosTicket, that.kerberosTicket);
     }
 
     @Override

@@ -85,7 +85,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
         private List<SnapshotLifecyclePolicyItem> lifecycles;
 
-        public Response() { }
+        public Response() {}
 
         public Response(List<SnapshotLifecyclePolicyItem> lifecycles) {
             this.lifecycles = lifecycles;

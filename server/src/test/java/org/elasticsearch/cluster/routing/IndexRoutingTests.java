@@ -7,7 +7,10 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -33,29 +36,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class IndexRoutingTests extends ESTestCase{
+public class IndexRoutingTests extends ESTestCase {
     public void testGenerateShardId() {
-        int[][] possibleValues = new int[][] {
-            {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}
-        };
+        int[][] possibleValues = new int[][] { { 8, 4, 2 }, { 20, 10, 2 }, { 36, 12, 3 }, { 15, 5, 1 } };
         for (int i = 0; i < 10; i++) {
             int[] shardSplits = randomFrom(possibleValues);
             assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
             assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
-            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
-                .numberOfReplicas(1).build();
+            IndexMetadata metadata = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[0])
+                .numberOfReplicas(1)
+                .build();
             String term = randomAlphaOfLength(10);
             final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(metadata), term, null);
-            IndexMetadata shrunk = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+            IndexMetadata shrunk = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[1])
                 .numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[0]).build();
+                .setRoutingNumShards(shardSplits[0])
+                .build();
             int shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(shrunk), term, null);
 
             Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(shrunkShard, metadata, shrunk.getNumberOfShards());
             assertEquals(1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
 
-            shrunk = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[0]).build();
+            shrunk = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[2])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[0])
+                .build();
             shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(shrunk), term, null);
             shardIds = IndexMetadata.selectShrinkShards(shrunkShard, metadata, shrunk.getNumberOfShards());
             assertEquals(Arrays.toString(shardSplits), 1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
@@ -63,28 +74,37 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testGenerateShardIdSplit() {
-        int[][] possibleValues = new int[][] {
-            {2,4,8}, {2, 10, 20}, {3, 12, 36}, {1,5,15}
-        };
+        int[][] possibleValues = new int[][] { { 2, 4, 8 }, { 2, 10, 20 }, { 3, 12, 36 }, { 1, 5, 15 } };
         for (int i = 0; i < 10; i++) {
             int[] shardSplits = randomFrom(possibleValues);
             assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
             assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
-            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
-                .numberOfReplicas(1).setRoutingNumShards(shardSplits[2]).build();
+            IndexMetadata metadata = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[0])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2])
+                .build();
             String term = randomAlphaOfLength(10);
             final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(metadata), term, null);
-            IndexMetadata split = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+            IndexMetadata split = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[1])
                 .numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[2]).build();
+                .setRoutingNumShards(shardSplits[2])
+                .build();
             int shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(split), term, null);
 
             ShardId shardId = IndexMetadata.selectSplitShard(shrunkShard, metadata, split.getNumberOfShards());
             assertNotNull(shardId);
             assertEquals(shard, shardId.getId());
 
-            split = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[2]).build();
+            split = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[2])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2])
+                .build();
             shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(split), term, null);
             shardId = IndexMetadata.selectSplitShard(shrunkShard, metadata, split.getNumberOfShards());
             assertNotNull(shardId);
@@ -363,25 +383,33 @@ public class IndexRoutingTests extends ESTestCase{
             String key = entry.getKey();
             int shardId;
             switch (between(0, 2)) {
-                case 0:
-                    shardId = shardIdFromSimple(indexRouting, key, null);
-                    break;
-                case 1:
-                    shardId = shardIdFromSimple(indexRouting, randomAlphaOfLength(5), key);
-                    break;
-                case 2:
+                case 0 -> shardId = shardIdFromSimple(indexRouting, key, null);
+                case 1 -> shardId = shardIdFromSimple(indexRouting, randomAlphaOfLength(5), key);
+                case 2 -> {
                     AtomicInteger s = new AtomicInteger(-1);
                     indexRouting.collectSearchShards(key, r -> {
                         int old = s.getAndSet(r);
                         assertThat("only called once", old, equalTo(-1));
                     });
                     shardId = s.get();
-                    break;
-                default:
-                    throw new AssertionError("invalid option");
+                }
+                default -> throw new AssertionError("invalid option");
             }
             assertEquals(shardId, entry.getValue().intValue());
         }
+    }
+
+    public void testRequiredRouting() {
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(2)
+                .numberOfReplicas(1)
+                .putMapping("{\"_routing\":{\"required\": true}}")
+                .build()
+        );
+        Exception e = expectThrows(RoutingMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
+        assertThat(e.getMessage(), equalTo("routing is required for [test]/[id]"));
     }
 
     /**
@@ -389,19 +417,14 @@ public class IndexRoutingTests extends ESTestCase{
      * chosen method. All of the random methods <strong>should</strong> return
      * the same results.
      */
-    private int shardIdFromSimple(IndexRouting indexRouting, String key, @Nullable String routing) {
-        switch (between(0, 3)) {
-            case 0:
-                return indexRouting.indexShard(key, routing, null, null);
-            case 1:
-                return indexRouting.updateShard(key, routing);
-            case 2:
-                return indexRouting.deleteShard(key, routing);
-            case 3:
-                return indexRouting.getShard(key, routing);
-            default:
-                throw new AssertionError("invalid option");
-        }
+    private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
+        return switch (between(0, 3)) {
+            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 1 -> indexRouting.updateShard(id, routing);
+            case 2 -> indexRouting.deleteShard(id, routing);
+            case 3 -> indexRouting.getShard(id, routing);
+            default -> throw new AssertionError("invalid option");
+        };
     }
 
     public void testRoutingPathSpecifiedRouting() throws IOException {
@@ -471,13 +494,13 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testRoutingPathOneTopLevel() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo");
         assertIndexShard(routing, Map.of("foo", "cat", "bar", "dog"), Math.floorMod(hash(List.of("foo", "cat")), shards));
     }
 
     public void testRoutingPathManyTopLevel() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "f*");
         assertIndexShard(
             routing,
@@ -487,23 +510,29 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testRoutingPathOneSub() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo.*");
         assertIndexShard(
             routing,
             Map.of("foo", Map.of("bar", "cat"), "baz", "dog"),
-            Math.floorMod(hash(List.of("foo", List.of("bar", "cat"))), shards)
+            Math.floorMod(hash(List.of("foo.bar", "cat")), shards)
         );
     }
 
     public void testRoutingPathManySubs() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo.*,bar.*,baz.*");
         assertIndexShard(
             routing,
             Map.of("foo", Map.of("a", "cat"), "bar", Map.of("thing", "yay", "this", "too")),
-            Math.floorMod(hash(List.of("bar", List.of("thing", "yay", "this", "too"), "foo", List.of("a", "cat"))), shards)
+            Math.floorMod(hash(List.of("bar.thing", "yay", "bar.this", "too", "foo.a", "cat")), shards)
         );
+    }
+
+    public void testRoutingPathDotInName() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "foo.bar");
+        assertIndexShard(routing, Map.of("foo.bar", "cat", "baz", "dog"), Math.floorMod(hash(List.of("foo.bar", "cat")), shards));
     }
 
     public void testRoutingPathBwc() throws IOException {
@@ -517,12 +546,13 @@ public class IndexRoutingTests extends ESTestCase{
          * versions of Elasticsearch must continue to route based on the
          * version on the index.
          */
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 0);
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 4);
         assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 5);
         assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 4);
-        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 5);
-        assertIndexShard(routing, Map.of("top", "a"), 3);
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 2);
+        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 7);
+        assertIndexShard(routing, Map.of("top", "a"), 5);
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(routing, Map.of("dim.a", "a"), 4);
     }
 
     private IndexRouting indexRoutingForPath(int shards, String path) {
@@ -539,8 +569,8 @@ public class IndexRoutingTests extends ESTestCase{
         );
     }
 
-    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int id) throws IOException {
-        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(source)), equalTo(id));
+    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expected) throws IOException {
+        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(source)), equalTo(expected));
     }
 
     private BytesReference source(Map<String, Object> doc) throws IOException {
@@ -560,24 +590,14 @@ public class IndexRoutingTests extends ESTestCase{
     /**
      * Build the hash we expect from the extracter.
      */
-    private int hash(List<?> keysAndValues) {
+    private int hash(List<String> keysAndValues) {
         assertThat(keysAndValues.size() % 2, equalTo(0));
         int hash = 0;
         for (int i = 0; i < keysAndValues.size(); i += 2) {
-            int thisHash =  Murmur3HashFunction.hash(keysAndValues.get(i).toString()) ^ expectedValueHash(keysAndValues.get(i + 1));
-            hash = hash * 31 + thisHash;
+            int keyHash = StringHelper.murmurhash3_x86_32(new BytesRef(keysAndValues.get(i)), 0);
+            int valueHash = StringHelper.murmurhash3_x86_32(new BytesRef(keysAndValues.get(i + 1)), 0);
+            hash = hash * 31 + (keyHash ^ valueHash);
         }
         return hash;
     }
-
-    private int expectedValueHash(Object value) {
-        if (value instanceof List) {
-            return hash((List<?>) value);
-        }
-        if (value instanceof String) {
-            return Murmur3HashFunction.hash((String) value);
-        }
-        throw new IllegalArgumentException("Unsupported value: " + value);
-    }
-
 }

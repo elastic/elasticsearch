@@ -60,9 +60,6 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
 
     @Override
     public String toString() {
-        return new ToStringBuilder(UntargettedBinding.class)
-                .add("key", getKey())
-                .add("source", getSource())
-                .toString();
+        return new ToStringBuilder(UntargettedBinding.class).add("key", getKey()).add("source", getSource()).toString();
     }
 }

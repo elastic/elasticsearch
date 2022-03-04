@@ -9,7 +9,7 @@
         index: timetest
         body:
           mappings:
-            "properties": { "my_time": {"type": "date_nanos", "format": "strict_date_optional_time_nanos"}}
+            "properties": { "my_time": {"type": "date", "format": "strict_date_optional_time_nanos"}}
 
   - do:
       ingest.put_pipeline:
@@ -31,7 +31,7 @@
   - do:
       index:
         index: timetest
-        id: 1
+        id: "1"
         pipeline: "my_timely_pipeline"
         body: {}
 

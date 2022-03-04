@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
@@ -319,7 +319,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         writeIndexGen(
             repository,
             repositoryData.withExtraDetails(
-                Collections.singletonMap(snapshotId, new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1))
+                Collections.singletonMap(
+                    snapshotId,
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1, null)
+                )
             ),
             repositoryData.getGenId()
         );
@@ -376,7 +379,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                 Version.CURRENT,
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             );
             repoData = repoData.addSnapshot(
                 snapshotId,

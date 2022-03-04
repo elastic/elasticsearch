@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.murmur3.Murmur3DocValueField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -69,7 +70,8 @@ public class Murmur3FieldMapper extends FieldMapper {
                 name,
                 new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build());
+                copyTo.build()
+            );
         }
     }
 
@@ -77,6 +79,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
+
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
             super(name, false, isStored, true, TextSearchInfo.NONE, meta);
         }
@@ -89,7 +92,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
         }
 
         @Override
@@ -103,10 +106,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName,
-                                 MappedFieldType mappedFieldType,
-                                 MultiFields multiFields,
-                                 CopyTo copyTo) {
+    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 
@@ -121,8 +121,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(DocumentParserContext context)
-            throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
         if (value != null) {
             final BytesRef bytes = new BytesRef(value.toString());

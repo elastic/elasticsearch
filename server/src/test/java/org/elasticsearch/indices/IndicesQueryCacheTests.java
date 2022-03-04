@@ -66,8 +66,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost)
-                throws IOException {
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
@@ -89,6 +88,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
             public void onUse(Query query) {
 
             }
+
             @Override
             public boolean shouldCache(Query query) {
                 return true;
@@ -108,9 +108,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         s.setQueryCachingPolicy(alwaysCachePolicy());
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
 
@@ -189,9 +189,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         s2.setQueryCachingPolicy(alwaysCachePolicy());
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
         s2.setQueryCache(cache);
@@ -317,9 +317,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         s2.setQueryCachingPolicy(alwaysCachePolicy());
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
         s2.setQueryCache(cache);
@@ -394,14 +394,15 @@ public class IndicesQueryCacheTests extends ESTestCase {
             public boolean shouldCache(Query query) throws IOException {
                 return false; // never cache
             }
+
             @Override
             public void onUse(Query query) {}
         });
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
         Query query = new MatchAllDocsQuery();

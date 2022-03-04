@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
-
 public class GetDataStreamResponse {
 
     private final List<DataStream> dataStreams;

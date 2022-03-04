@@ -9,6 +9,7 @@
 package org.elasticsearch.search.runtime;
 
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;

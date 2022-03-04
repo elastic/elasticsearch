@@ -28,7 +28,6 @@ public interface ESCacheHelper {
      */
     Object getKey();
 
-
     /**
      * Adds a listener which will be called when the resource guarded
      * by {@link #getKey()} is closed.

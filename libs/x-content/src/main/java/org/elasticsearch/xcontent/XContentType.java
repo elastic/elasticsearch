@@ -47,10 +47,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue("application/json"),
-                new HeaderValue("application/x-ndjson"),
-                new HeaderValue("application/*"));
+            return Set.of(new HeaderValue("application/json"), new HeaderValue("application/x-ndjson"), new HeaderValue("application/*"));
         }
     },
     /**
@@ -74,8 +71,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue("application/smile"));
+            return Set.of(new HeaderValue("application/smile"));
         }
     },
     /**
@@ -99,8 +95,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue("application/yaml"));
+            return Set.of(new HeaderValue("application/yaml"));
         }
     },
     /**
@@ -124,8 +119,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue("application/cbor"));
+            return Set.of(new HeaderValue("application/cbor"));
         }
     },
     /**
@@ -150,10 +144,9 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
+            );
         }
 
         @Override
@@ -182,9 +175,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+            return Set.of(new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
 
         @Override
@@ -213,9 +204,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+            return Set.of(new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
 
         @Override
@@ -244,9 +233,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+            return Set.of(new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
 
         @Override
@@ -255,11 +242,13 @@ public enum XContentType implements MediaType {
         }
     };
 
-    public static final MediaTypeRegistry<XContentType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<XContentType>()
-        .register(XContentType.values());
+    public static final MediaTypeRegistry<XContentType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<XContentType>().register(
+        XContentType.values()
+    );
     public static final String VENDOR_APPLICATION_PREFIX = "application/vnd.elasticsearch+";
 
     private final ParsedMediaType mediaType = ParsedMediaType.parseMediaType(mediaTypeWithoutParameters());
+
     /**
      * Accepts a format string, which is most of the time is equivalent to MediaType's subtype i.e. <code>application/<b>json</b></code>
      * and attempts to match the value to an {@link XContentType}.
@@ -279,8 +268,7 @@ public enum XContentType implements MediaType {
     public static XContentType fromMediaType(String mediaTypeHeaderValue) throws IllegalArgumentException {
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaTypeHeaderValue);
         if (parsedMediaType != null) {
-            return parsedMediaType
-                .toMediaType(MEDIA_TYPE_REGISTRY);
+            return parsedMediaType.toMediaType(MEDIA_TYPE_REGISTRY);
         }
         return null;
     }
@@ -294,9 +282,7 @@ public enum XContentType implements MediaType {
     public static Byte parseVersion(String mediaType) {
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType);
         if (parsedMediaType != null) {
-            String version = parsedMediaType
-                .getParameters()
-                .get(COMPATIBLE_WITH_PARAMETER_NAME);
+            String version = parsedMediaType.getParameters().get(COMPATIBLE_WITH_PARAMETER_NAME);
             return version != null ? Byte.parseByte(version) : null;
         }
         return null;
@@ -326,7 +312,7 @@ public enum XContentType implements MediaType {
      * Example: XContentType.VND_JSON has a canonical XContentType.JSON
      * XContentType.JSON has a canonical XContentType.JSON
      */
-    public XContentType canonical(){
+    public XContentType canonical() {
         return this;
     }
 }

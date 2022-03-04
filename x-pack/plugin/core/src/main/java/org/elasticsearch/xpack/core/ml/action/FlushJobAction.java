@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -67,8 +67,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         private String advanceTime;
         private String skipTime;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -162,13 +161,13 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) &&
-                    calcInterim == other.calcInterim &&
-                    waitForNormalization == other.waitForNormalization &&
-                    Objects.equals(start, other.start) &&
-                    Objects.equals(end, other.end) &&
-                    Objects.equals(advanceTime, other.advanceTime) &&
-                    Objects.equals(skipTime, other.skipTime);
+            return Objects.equals(jobId, other.jobId)
+                && calcInterim == other.calcInterim
+                && waitForNormalization == other.waitForNormalization
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(advanceTime, other.advanceTime)
+                && Objects.equals(skipTime, other.skipTime);
         }
 
         @Override
@@ -202,8 +201,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             super(null, null);
             this.flushed = flushed;
             // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
-            this.lastFinalizedBucketEnd =
-                (lastFinalizedBucketEnd != null) ? Instant.ofEpochMilli(lastFinalizedBucketEnd.toEpochMilli()) : null;
+            this.lastFinalizedBucketEnd = (lastFinalizedBucketEnd != null)
+                ? Instant.ofEpochMilli(lastFinalizedBucketEnd.toEpochMilli())
+                : null;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -232,9 +232,11 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.startObject();
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
-                builder.timeField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
+                builder.timeField(
+                    FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
-                    lastFinalizedBucketEnd.toEpochMilli());
+                    lastFinalizedBucketEnd.toEpochMilli()
+                );
             }
             builder.endObject();
             return builder;
@@ -245,8 +247,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return flushed == response.flushed &&
-                    Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
+            return flushed == response.flushed && Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
         }
 
         @Override

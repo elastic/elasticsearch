@@ -7,7 +7,7 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -31,7 +31,10 @@ public class RestGetFeatureUsageAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(TransportGetFeatureUsageAction.TYPE, new GetFeatureUsageRequest(),
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportGetFeatureUsageAction.TYPE,
+            new GetFeatureUsageRequest(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

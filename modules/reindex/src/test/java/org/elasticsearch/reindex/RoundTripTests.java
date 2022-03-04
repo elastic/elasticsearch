@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
@@ -31,10 +32,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
@@ -52,15 +52,26 @@ public class RoundTripTests extends ESTestCase {
             String username = randomBoolean() ? randomAlphaOfLength(5) : null;
             String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
-            Map<String, String> headers = new HashMap<>(headersCount);
+            Map<String, String> headers = Maps.newMapWithExpectedSize(headersCount);
             while (headers.size() < headersCount) {
                 headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
             reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, null,
-                    query, username, password, headers, socketTimeout, connectTimeout));
+                new RemoteInfo(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    port,
+                    null,
+                    query,
+                    username,
+                    password,
+                    headers,
+                    socketTimeout,
+                    connectTimeout
+                )
+            );
         }
         ReindexRequest tripped = new ReindexRequest(toInputByteStream(reindex));
         assertRequestEquals(reindex, tripped);
@@ -140,8 +151,7 @@ public class RoundTripTests extends ESTestCase {
         }
     }
 
-    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
-            AbstractBulkIndexByScrollRequest<?> tripped) {
+    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request, AbstractBulkIndexByScrollRequest<?> tripped) {
         assertRequestEquals((AbstractBulkByScrollRequest<?>) request, (AbstractBulkByScrollRequest<?>) tripped);
         assertEquals(request.getScript(), tripped.getScript());
     }
@@ -164,12 +174,12 @@ public class RoundTripTests extends ESTestCase {
         if (randomBoolean()) {
             request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
         } else {
-            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
+            request.setTargetTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
         RethrottleRequest tripped = new RethrottleRequest(toInputByteStream(request));
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
         assertArrayEquals(request.getActions(), tripped.getActions());
-        assertEquals(request.getTaskId(), tripped.getTaskId());
+        assertEquals(request.getTargetTaskId(), tripped.getTargetTaskId());
     }
 
     private StreamInput toInputByteStream(Writeable example) throws IOException {

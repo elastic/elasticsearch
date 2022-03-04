@@ -69,7 +69,6 @@ public class DataAttachment implements EmailAttachmentParser.EmailAttachment {
         return new Builder(id);
     }
 
-
     public static class Builder {
 
         private String id;

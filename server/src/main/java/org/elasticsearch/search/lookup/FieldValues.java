@@ -58,7 +58,7 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues)  {
+            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
                 List<Object> values = new ArrayList<>();
                 try {
                     fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
@@ -77,8 +77,11 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static <T> ValueFetcher valueListFetcher(FieldValues<T> fieldValues, Function<List<T>, List<Object>> formatter,
-                                             SearchExecutionContext context) {
+    static <T> ValueFetcher valueListFetcher(
+        FieldValues<T> fieldValues,
+        Function<List<T>, List<Object>> formatter,
+        SearchExecutionContext context
+    ) {
         return new ValueFetcher() {
             LeafReaderContext ctx;
 
@@ -88,7 +91,7 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues)  {
+            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
                 List<T> values = new ArrayList<>();
                 try {
                     fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));

@@ -78,7 +78,7 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
                 assertEquals(1, exception.getSuppressed().length);
                 assertSame(expectedExceptions[i--], exception.getSuppressed()[0]);
                 exception = exception.getSuppressed()[0];
-            } while(i >= 0);
+            } while (i >= 0);
         }
     }
 

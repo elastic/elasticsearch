@@ -84,8 +84,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             if (regexOptions == null) {
                 regexOptions = RegexOptions.builder().build();
             }
-            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(),
-                    regexOptions.getMaxDeterminizedStates());
+            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(), regexOptions.getMaxDeterminizedStates());
         } else if (getText() != null) {
             query = createCompletionQuery(getText(), fieldType);
         } else {
@@ -101,11 +100,15 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionQuery createCompletionQuery(BytesRef prefix, CompletionFieldMapper.CompletionFieldType fieldType) {
         final CompletionQuery query;
         if (fuzzyOptions != null) {
-            query = fieldType.fuzzyQuery(prefix.utf8ToString(),
-                    Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
-                    fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
-                    fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
-                    fuzzyOptions.isUnicodeAware());
+            query = fieldType.fuzzyQuery(
+                prefix.utf8ToString(),
+                Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                fuzzyOptions.getFuzzyPrefixLength(),
+                fuzzyOptions.getFuzzyMinLength(),
+                fuzzyOptions.getMaxDeterminizedStates(),
+                fuzzyOptions.isTranspositions(),
+                fuzzyOptions.isUnicodeAware()
+            );
         } else {
             query = fieldType.prefixQuery(prefix);
         }

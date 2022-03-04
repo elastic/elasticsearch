@@ -279,7 +279,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
 
         @Override
@@ -378,8 +378,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value).bytesRef;
+        public BytesRef parseBytesRef(Object value) {
+            return VersionEncoder.encodeVersion(value.toString()).bytesRef;
         }
 
         @Override

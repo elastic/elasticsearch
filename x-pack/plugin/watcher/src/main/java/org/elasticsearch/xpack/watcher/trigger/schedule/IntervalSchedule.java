@@ -97,8 +97,12 @@ public class IntervalSchedule implements Schedule {
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse schedule: {}", e, e.getMessage());
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either a numeric value " +
-                    "(millis) or a string value representing time value (e.g. '5s'), but found [{}]", TYPE, token);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either a numeric value "
+                    + "(millis) or a string value representing time value (e.g. '5s'), but found [{}]",
+                TYPE,
+                token
+            );
         }
     }
 
@@ -137,8 +141,12 @@ public class IntervalSchedule implements Schedule {
                 try {
                     return Long.parseLong(num);
                 } catch (NumberFormatException nfe) {
-                    throw new ElasticsearchParseException("could not parse [{}] schedule. could not parse [{}] as a [{}] duration",
-                            TYPE, num, name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] schedule. could not parse [{}] as a [{}] duration",
+                        TYPE,
+                        num,
+                        name().toLowerCase(Locale.ROOT)
+                    );
                 }
             }
 

@@ -34,16 +34,13 @@ public class SettingsModuleTests extends ModuleTestCase {
         final String balanceSettingMessage = "Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]";
         {
             Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]").build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () ->  new SettingsModule(settings));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
             assertEquals(balanceSettingMessage, ex.getMessage());
         }
 
         {
-            Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]")
-                .put("some.foo.bar", 1).build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new SettingsModule(settings));
+            Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]").put("some.foo.bar", 1).build();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
             final String unknownSettingMessage =
                 "unknown setting [some.foo.bar] please check that any required plugins are installed, or check the breaking "
                     + "changes documentation for removed settings";
@@ -57,10 +54,8 @@ public class SettingsModuleTests extends ModuleTestCase {
         }
 
         {
-            Settings settings = Settings.builder().put("index.codec", "default")
-                .put("index.foo.bar", 1).build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new SettingsModule(settings));
+            Settings settings = Settings.builder().put("index.codec", "default").put("index.foo.bar", 1).build();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
             assertEquals("node settings must not contain any index level settings", ex.getMessage());
         }
 
@@ -92,33 +87,47 @@ public class SettingsModuleTests extends ModuleTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("some.custom.secure.consistent.setting", "secure_value");
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        final Setting<?> concreteConsistentSetting = SecureSetting.secureString("some.custom.secure.consistent.setting", null,
-                Setting.Property.Consistent);
+        final Setting<?> concreteConsistentSetting = SecureSetting.secureString(
+            "some.custom.secure.consistent.setting",
+            null,
+            Setting.Property.Consistent
+        );
         SettingsModule module = new SettingsModule(settings, concreteConsistentSetting);
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         assertThat(module.getConsistentSettings(), Matchers.containsInAnyOrder(concreteConsistentSetting));
 
-        final Setting<?> concreteUnsecureConsistentSetting = Setting.simpleString("some.custom.UNSECURE.consistent.setting",
-                Property.Consistent, Property.NodeScope);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentSetting));
+        final Setting<?> concreteUnsecureConsistentSetting = Setting.simpleString(
+            "some.custom.UNSECURE.consistent.setting",
+            Property.Consistent,
+            Property.NodeScope
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentSetting)
+        );
         assertThat(e.getMessage(), is("Invalid consistent secure setting [some.custom.UNSECURE.consistent.setting]"));
 
         secureSettings = new MockSecureSettings();
         secureSettings.setString("some.custom.secure.consistent.afix.wow.setting", "secure_value");
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings).build();
         final Setting<?> afixConcreteConsistentSetting = Setting.affixKeySetting(
-                "some.custom.secure.consistent.afix.", "setting",
-                key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
-        module = new SettingsModule(settings2,afixConcreteConsistentSetting);
+            "some.custom.secure.consistent.afix.",
+            "setting",
+            key -> SecureSetting.secureString(key, null, Setting.Property.Consistent)
+        );
+        module = new SettingsModule(settings2, afixConcreteConsistentSetting);
         assertInstanceBinding(module, Settings.class, (s) -> s == settings2);
         assertThat(module.getConsistentSettings(), Matchers.containsInAnyOrder(afixConcreteConsistentSetting));
 
         final Setting<?> concreteUnsecureConsistentAfixSetting = Setting.affixKeySetting(
-                "some.custom.secure.consistent.afix.", "setting",
-                key -> Setting.simpleString(key, Setting.Property.Consistent, Property.NodeScope));
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentAfixSetting));
+            "some.custom.secure.consistent.afix.",
+            "setting",
+            key -> Setting.simpleString(key, Setting.Property.Consistent, Property.NodeScope)
+        );
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentAfixSetting)
+        );
         assertThat(e.getMessage(), is("Invalid consistent secure setting [some.custom.secure.consistent.afix.*.setting]"));
     }
 
@@ -139,16 +148,30 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testRegisterSettingsFilter() {
         Settings settings = Settings.builder().put("foo.bar", "false").put("bar.foo", false).put("bar.baz", false).build();
         try {
-            new SettingsModule(settings, Arrays.asList(Setting.boolSetting("foo.bar", true, Property.NodeScope),
-            Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
-            Setting.boolSetting("bar.baz", true, Property.NodeScope)), Arrays.asList("foo.*", "bar.foo"), emptySet());
+            new SettingsModule(
+                settings,
+                Arrays.asList(
+                    Setting.boolSetting("foo.bar", true, Property.NodeScope),
+                    Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
+                    Setting.boolSetting("bar.baz", true, Property.NodeScope)
+                ),
+                Arrays.asList("foo.*", "bar.foo"),
+                emptySet()
+            );
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("filter [bar.foo] has already been registered", ex.getMessage());
         }
-        SettingsModule module = new SettingsModule(settings, Arrays.asList(Setting.boolSetting("foo.bar", true, Property.NodeScope),
-            Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
-            Setting.boolSetting("bar.baz", true, Property.NodeScope)), Arrays.asList("foo.*"), emptySet());
+        SettingsModule module = new SettingsModule(
+            settings,
+            Arrays.asList(
+                Setting.boolSetting("foo.bar", true, Property.NodeScope),
+                Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
+                Setting.boolSetting("bar.baz", true, Property.NodeScope)
+            ),
+            Arrays.asList("foo.*"),
+            emptySet()
+        );
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).size() == 1);
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).keySet().contains("bar.baz"));
@@ -169,18 +192,22 @@ public class SettingsModuleTests extends ModuleTestCase {
         }
         // Some settings have both scopes - that's fine too if they have per-node defaults
         try {
-            new SettingsModule(Settings.EMPTY,
+            new SettingsModule(
+                Settings.EMPTY,
                 Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope),
-                Setting.simpleString("foo.bar", Property.NodeScope));
+                Setting.simpleString("foo.bar", Property.NodeScope)
+            );
             fail("already registered");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
         }
 
         try {
-            new SettingsModule(Settings.EMPTY,
+            new SettingsModule(
+                Settings.EMPTY,
                 Setting.simpleString("foo.bar", Property.IndexScope, Property.NodeScope),
-                Setting.simpleString("foo.bar", Property.IndexScope));
+                Setting.simpleString("foo.bar", Property.IndexScope)
+            );
             fail("already registered");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
@@ -191,21 +218,27 @@ public class SettingsModuleTests extends ModuleTestCase {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
         runSettingWithoutNamespaceTest(
-            key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
+            key,
+            () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of())
+        );
     }
 
     public void testClusterSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
         runSettingWithoutNamespaceTest(
-            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
+            key,
+            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of())
+        );
     }
 
     public void testIndexSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
         runSettingWithoutNamespaceTest(
-            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
+            key,
+            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting))
+        );
     }
 
     private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {

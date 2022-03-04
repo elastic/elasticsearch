@@ -9,10 +9,10 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,19 +30,22 @@ public final class LanguageExamples {
 
     public LanguageExamples() {}
 
-    public  List<LanguageExampleEntry> getLanguageExamples() throws IOException {
+    public List<LanguageExampleEntry> getLanguageExamples() throws IOException {
         String path = "/org/elasticsearch/xpack/core/ml/inference/language_examples.json";
         URL resource = getClass().getResource(path);
         if (resource == null) {
             throw new ElasticsearchException("Could not find resource stored at [" + path + "]");
         }
-        try(XContentParser parser =
-                XContentType.JSON.xContent().createParser(
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    getClass().getResourceAsStream(path))) {
+                    getClass().getResourceAsStream(path)
+                )
+        ) {
             List<LanguageExampleEntry> entries = new ArrayList<>();
-            while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 entries.add(LanguageExampleEntry.PARSER.apply(parser, null));
             }
             return entries;
@@ -58,7 +61,8 @@ public final class LanguageExamples {
         public static ObjectParser<LanguageExampleEntry, Void> PARSER = new ObjectParser<>(
             "language_example_entry",
             true,
-            LanguageExampleEntry::new);
+            LanguageExampleEntry::new
+        );
 
         static {
             PARSER.declareString(LanguageExampleEntry::setLanguage, LANGUAGE);
@@ -75,8 +79,7 @@ public final class LanguageExamples {
         // The raw text on which the prediction is based
         String text;
 
-        private LanguageExampleEntry() {
-        }
+        private LanguageExampleEntry() {}
 
         private void setLanguage(String language) {
             this.language = language;

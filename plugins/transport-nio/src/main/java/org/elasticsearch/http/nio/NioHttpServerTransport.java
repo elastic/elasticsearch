@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerChannel;
@@ -35,6 +34,7 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.PageAllocator;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -73,9 +73,17 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private volatile NioGroup nioGroup;
     private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
 
-    public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                  PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                  Dispatcher dispatcher, NioGroupFactory nioGroupFactory, ClusterSettings clusterSettings) {
+    public NioHttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        NioGroupFactory nioGroupFactory,
+        ClusterSettings clusterSettings
+    ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.nioGroupFactory = nioGroupFactory;
@@ -94,10 +102,15 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         this.tcpSendBufferSize = Math.toIntExact(SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
         this.tcpReceiveBufferSize = Math.toIntExact(SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
 
-
-        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}]," +
-                " pipelining_max_events[{}]",
-            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, pipeliningMaxEvents);
+        logger.debug(
+            "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}],"
+                + " pipelining_max_events[{}]",
+            maxChunkSize,
+            maxHeaderSize,
+            maxInitialLineLength,
+            maxContentLength,
+            pipeliningMaxEvents
+        );
     }
 
     public Logger getLogger() {
@@ -150,30 +163,58 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
 
         private HttpChannelFactory() {
-            super(tcpNoDelay, tcpKeepAlive, tcpKeepIdle, tcpKeepInterval, tcpKeepCount, reuseAddress, tcpSendBufferSize,
-                tcpReceiveBufferSize);
+            super(
+                tcpNoDelay,
+                tcpKeepAlive,
+                tcpKeepIdle,
+                tcpKeepInterval,
+                tcpKeepCount,
+                reuseAddress,
+                tcpSendBufferSize,
+                tcpReceiveBufferSize
+            );
         }
 
         @Override
         public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
-            HttpReadWriteHandler handler = new HttpReadWriteHandler(httpChannel,NioHttpServerTransport.this,
-                handlingSettings, selector.getTaskScheduler(), threadPool::relativeTimeInMillis);
+            HttpReadWriteHandler handler = new HttpReadWriteHandler(
+                httpChannel,
+                NioHttpServerTransport.this,
+                handlingSettings,
+                selector.getTaskScheduler(),
+                threadPool::relativeTimeInMillis
+            );
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
-            SocketChannelContext context = new BytesChannelContext(httpChannel, selector, socketConfig, exceptionHandler, handler,
-                new InboundChannelBuffer(pageAllocator));
+            SocketChannelContext context = new BytesChannelContext(
+                httpChannel,
+                selector,
+                socketConfig,
+                exceptionHandler,
+                handler,
+                new InboundChannelBuffer(pageAllocator)
+            );
             httpChannel.setContext(context);
             return httpChannel;
         }
 
         @Override
-        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                        Config.ServerSocket socketConfig) {
+        public NioHttpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             NioHttpServerChannel httpServerChannel = new NioHttpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(httpServerChannel, e);
             Consumer<NioSocketChannel> acceptor = NioHttpServerTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(httpServerChannel, this, selector, socketConfig, acceptor,
-                exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(
+                httpServerChannel,
+                this,
+                selector,
+                socketConfig,
+                acceptor,
+                exceptionHandler
+            );
             httpServerChannel.setContext(context);
             return httpServerChannel;
         }

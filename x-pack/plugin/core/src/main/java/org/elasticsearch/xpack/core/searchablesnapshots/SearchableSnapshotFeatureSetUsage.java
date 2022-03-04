@@ -51,9 +51,11 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public SearchableSnapshotFeatureSetUsage(boolean available,
-                                             int numberOfFullCopySearchableSnapshotIndices,
-                                             int numberOfSharedCacheSearchableSnapshotIndices) {
+    public SearchableSnapshotFeatureSetUsage(
+        boolean available,
+        int numberOfFullCopySearchableSnapshotIndices,
+        int numberOfSharedCacheSearchableSnapshotIndices
+    ) {
         super(XPackField.SEARCHABLE_SNAPSHOTS, available, true);
         this.numberOfSearchableSnapshotIndices = numberOfFullCopySearchableSnapshotIndices + numberOfSharedCacheSearchableSnapshotIndices;
         this.numberOfFullCopySearchableSnapshotIndices = numberOfFullCopySearchableSnapshotIndices;
@@ -82,8 +84,13 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public int hashCode() {
-        return Objects.hash(available, enabled, numberOfSearchableSnapshotIndices, numberOfFullCopySearchableSnapshotIndices,
-            numberOfSharedCacheSearchableSnapshotIndices);
+        return Objects.hash(
+            available,
+            enabled,
+            numberOfSearchableSnapshotIndices,
+            numberOfFullCopySearchableSnapshotIndices,
+            numberOfSharedCacheSearchableSnapshotIndices
+        );
     }
 
     @Override
@@ -95,11 +102,11 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         SearchableSnapshotFeatureSetUsage other = (SearchableSnapshotFeatureSetUsage) obj;
-        return available == other.available &&
-            enabled == other.enabled &&
-            numberOfSearchableSnapshotIndices == other.numberOfSearchableSnapshotIndices &&
-            numberOfFullCopySearchableSnapshotIndices == other.numberOfFullCopySearchableSnapshotIndices &&
-            numberOfSharedCacheSearchableSnapshotIndices == other.numberOfSharedCacheSearchableSnapshotIndices;
+        return available == other.available
+            && enabled == other.enabled
+            && numberOfSearchableSnapshotIndices == other.numberOfSearchableSnapshotIndices
+            && numberOfFullCopySearchableSnapshotIndices == other.numberOfFullCopySearchableSnapshotIndices
+            && numberOfSharedCacheSearchableSnapshotIndices == other.numberOfSharedCacheSearchableSnapshotIndices;
     }
 
 }

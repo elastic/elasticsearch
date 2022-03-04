@@ -25,9 +25,11 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
     private final Map<ShardId, Exception> failures;
     private final Set<ShardId> unmatchedShardIds;
 
-    FieldCapabilitiesNodeResponse(List<FieldCapabilitiesIndexResponse> indexResponses,
-                                  Map<ShardId, Exception> failures,
-                                  Set<ShardId> unmatchedShardIds) {
+    FieldCapabilitiesNodeResponse(
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        Map<ShardId, Exception> failures,
+        Set<ShardId> unmatchedShardIds
+    ) {
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.failures = Objects.requireNonNull(failures);
         this.unmatchedShardIds = Objects.requireNonNull(unmatchedShardIds);
@@ -35,14 +37,14 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
 
     FieldCapabilitiesNodeResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+        this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readMap(ShardId::new, StreamInput::readException);
         this.unmatchedShardIds = in.readSet(ShardId::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(indexResponses);
+        FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeMap(failures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
         out.writeCollection(unmatchedShardIds);
     }
@@ -64,7 +66,8 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesNodeResponse that = (FieldCapabilitiesNodeResponse) o;
-        return Objects.equals(indexResponses, that.indexResponses) && Objects.equals(failures, that.failures)
+        return Objects.equals(indexResponses, that.indexResponses)
+            && Objects.equals(failures, that.failures)
             && unmatchedShardIds.equals(that.unmatchedShardIds);
     }
 

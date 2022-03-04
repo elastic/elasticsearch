@@ -28,12 +28,12 @@ public class CircuitBreakerUnitTests extends ESTestCase {
         // parent: {:limit 70}, fd: {:limit 50}, request: {:limit 20}
         BreakerSettings fd = new BreakerSettings(CircuitBreaker.FIELDDATA, pctBytes("50%"), 1.0);
         BreakerSettings request = new BreakerSettings(CircuitBreaker.REQUEST, pctBytes("20%"), 1.0);
-        HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[]{fd, request});
+        HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[] { fd, request });
 
         // parent: {:limit 70}, fd: {:limit 40}, request: {:limit 30}
         fd = new BreakerSettings(CircuitBreaker.FIELDDATA, pctBytes("40%"), 1.0);
         request = new BreakerSettings(CircuitBreaker.REQUEST, pctBytes("30%"), 1.0);
-        HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[]{fd, request});
+        HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[] { fd, request });
     }
 
     public void testBreakerSettingsValidationNegativeOverhead() {
@@ -41,11 +41,10 @@ public class CircuitBreakerUnitTests extends ESTestCase {
         BreakerSettings fd = new BreakerSettings(CircuitBreaker.FIELDDATA, pctBytes("50%"), -0.1);
         BreakerSettings request = new BreakerSettings(CircuitBreaker.REQUEST, pctBytes("20%"), 1.0);
         try {
-            HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[]{fd, request});
+            HierarchyCircuitBreakerService.validateSettings(new BreakerSettings[] { fd, request });
             fail("settings are invalid but validate settings did not throw an exception");
         } catch (Exception e) {
-            assertThat("Incorrect message: " + e.getMessage(),
-                    e.getMessage().contains("must be non-negative"), equalTo(true));
+            assertThat("Incorrect message: " + e.getMessage(), e.getMessage().contains("must be non-negative"), equalTo(true));
         }
     }
 

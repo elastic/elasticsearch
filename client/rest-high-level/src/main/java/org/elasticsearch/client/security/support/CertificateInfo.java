@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security.support;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,8 +38,15 @@ public final class CertificateInfo {
     private final boolean hasPrivateKey;
     private final String expiry;
 
-    public CertificateInfo(String path, String format, @Nullable String alias, String subjectDn, String serialNumber, boolean hasPrivateKey,
-                           String expiry) {
+    public CertificateInfo(
+        String path,
+        String format,
+        @Nullable String alias,
+        String subjectDn,
+        String serialNumber,
+        boolean hasPrivateKey,
+        String expiry
+    ) {
         this.path = path;
         this.format = format;
         this.alias = alias;
@@ -78,9 +85,19 @@ public final class CertificateInfo {
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<CertificateInfo, Void> PARSER = new ConstructingObjectParser<>("certificate_info",
-        true, args -> new CertificateInfo((String) args[0], (String) args[1], (String) args[2], (String) args[3], (String) args[4],
-        (boolean) args[5], (String) args[6]));
+    public static final ConstructingObjectParser<CertificateInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "certificate_info",
+        true,
+        args -> new CertificateInfo(
+            (String) args[0],
+            (String) args[1],
+            (String) args[2],
+            (String) args[3],
+            (String) args[4],
+            (boolean) args[5],
+            (String) args[6]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), PATH);

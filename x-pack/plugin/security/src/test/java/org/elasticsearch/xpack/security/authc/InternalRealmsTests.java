@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -29,16 +31,16 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.isA;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class InternalRealmsTests extends ESTestCase {
 
@@ -54,7 +56,7 @@ public class InternalRealmsTests extends ESTestCase {
             securityIndex
         );
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
-        verifyZeroInteractions(securityIndex);
+        verifyNoMoreInteractions(securityIndex);
 
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "test");
         Settings settings = Settings.builder()
@@ -87,14 +89,19 @@ public class InternalRealmsTests extends ESTestCase {
         }
     }
 
-    private boolean isStandardRealm(String type) {
-        switch (type) {
-            case LdapRealmSettings.LDAP_TYPE:
-            case LdapRealmSettings.AD_TYPE:
-            case PkiRealmSettings.TYPE:
-                return true;
-            default:
-                return false;
+    public void testJwtRealmDependsOnBuildType() {
+        // Whether the JWT realm is registered depends on the build type
+        if (Build.CURRENT.isSnapshot()) {
+            assertThat(InternalRealms.isInternalRealm(JwtRealmSettings.TYPE), is(true));
+        } else {
+            assertThat(InternalRealms.isInternalRealm(JwtRealmSettings.TYPE), is(false));
         }
+    }
+
+    private boolean isStandardRealm(String type) {
+        return switch (type) {
+            case LdapRealmSettings.LDAP_TYPE, LdapRealmSettings.AD_TYPE, PkiRealmSettings.TYPE -> true;
+            default -> false;
+        };
     }
 }

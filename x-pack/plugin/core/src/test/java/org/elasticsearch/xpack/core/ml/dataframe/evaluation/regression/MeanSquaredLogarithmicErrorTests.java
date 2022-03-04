@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -42,10 +42,9 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("regression_msle", 0.8123),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(mockSingleValue("regression_msle", 0.8123), mockSingleValue("some_other_single_metric_agg", 0.2377))
+        );
 
         MeanSquaredLogarithmicError msle = new MeanSquaredLogarithmicError((Double) null);
         msle.process(aggs);
@@ -56,9 +55,7 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)));
 
         MeanSquaredLogarithmicError msle = new MeanSquaredLogarithmicError((Double) null);
         msle.process(aggs);

@@ -182,20 +182,31 @@ public class TriggerService {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException("could not parse trigger for [{}]. expected trigger type string field, but found [{}]",
-                    jobName, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger for [{}]. expected trigger type string field, but found [{}]",
+                jobName,
+                token
+            );
         }
         String type = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body," +
-                    " but found [{}]", type, jobName, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body," + " but found [{}]",
+                type,
+                jobName,
+                token
+            );
         }
         Trigger trigger = parseTrigger(jobName, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
-                    type, jobName, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
+                type,
+                jobName,
+                token
+            );
         }
         return trigger;
     }
@@ -213,20 +224,33 @@ public class TriggerService {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. expected trigger type string " +
-                    "field, but found [{}]", context, watchId, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger event for [{}] for watch [{}]. expected trigger type string " + "field, but found [{}]",
+                context,
+                watchId,
+                token
+            );
         }
         String type = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. expected trigger an object as " +
-                    "the trigger body, but found [{}]", context, watchId, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger event for [{}] for watch [{}]. expected trigger an object as "
+                    + "the trigger body, but found [{}]",
+                context,
+                watchId,
+                token
+            );
         }
         TriggerEvent trigger = parseTriggerEvent(watchId, context, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
-                    type, context, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
+                type,
+                context,
+                token
+            );
         }
         return trigger;
     }

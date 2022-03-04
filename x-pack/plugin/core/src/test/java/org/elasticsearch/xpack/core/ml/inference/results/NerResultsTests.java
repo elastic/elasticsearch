@@ -17,7 +17,10 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.NerResults.ENTITY_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
     @Override
@@ -40,8 +43,8 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
                     randomIntBetween(-1, 5),
                     randomIntBetween(5, 10)
                 )
-                ).limit(numEntities)
-                .collect(Collectors.toList())
+            ).limit(numEntities).collect(Collectors.toList()),
+            randomBoolean()
         );
     }
 
@@ -49,20 +52,25 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
     public void testAsMap() {
         NerResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        List<Map<String, Object>> resultList = (List<Map<String, Object>>)asMap.get(ENTITY_FIELD);
+        List<Map<String, Object>> resultList = (List<Map<String, Object>>) asMap.get(ENTITY_FIELD);
         if (resultList == null) {
             return;
         }
         assertThat(resultList, hasSize(testInstance.getEntityGroups().size()));
         assertThat(asMap.get(testInstance.getResultsField()), equalTo(testInstance.getAnnotatedResult()));
+        if (testInstance.isTruncated) {
+            assertThat(asMap.get("is_truncated"), is(true));
+        } else {
+            assertThat(asMap, not(hasKey("is_truncated")));
+        }
         for (int i = 0; i < testInstance.getEntityGroups().size(); i++) {
             NerResults.EntityGroup entity = testInstance.getEntityGroups().get(i);
             Map<String, Object> map = resultList.get(i);
             assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getClassName()));
             assertThat(map.get("entity"), equalTo(entity.getEntity()));
             assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getClassProbability()));
-            Integer startPos = (Integer)map.get(NerResults.EntityGroup.START_POS);
-            Integer endPos = (Integer)map.get(NerResults.EntityGroup.END_POS);
+            Integer startPos = (Integer) map.get(NerResults.EntityGroup.START_POS);
+            Integer endPos = (Integer) map.get(NerResults.EntityGroup.END_POS);
             if (startPos != null) {
                 assertThat(startPos, equalTo(entity.getStartPos()));
             }
@@ -92,8 +100,8 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
                 assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getClassName()));
                 assertThat(map.get("entity"), equalTo(entity.getEntity()));
                 assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getClassProbability()));
-                Integer startPos = (Integer)map.get(NerResults.EntityGroup.START_POS);
-                Integer endPos = (Integer)map.get(NerResults.EntityGroup.END_POS);
+                Integer startPos = (Integer) map.get(NerResults.EntityGroup.START_POS);
+                Integer endPos = (Integer) map.get(NerResults.EntityGroup.END_POS);
                 if (startPos != null) {
                     assertThat(startPos, equalTo(entity.getStartPos()));
                 }

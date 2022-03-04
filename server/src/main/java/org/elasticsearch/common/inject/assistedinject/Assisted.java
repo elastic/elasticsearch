@@ -33,7 +33,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * @author jessewilson@google.com (Jesse Wilson)
  */
 @BindingAnnotation
-@Target({FIELD, PARAMETER, METHOD})
+@Target({ FIELD, PARAMETER, METHOD })
 @Retention(RUNTIME)
 public @interface Assisted {
 

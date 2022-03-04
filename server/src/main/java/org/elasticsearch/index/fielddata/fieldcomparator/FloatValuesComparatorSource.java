@@ -16,8 +16,8 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.FloatComparator;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -37,8 +37,12 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
 
     private final IndexNumericFieldData indexFieldData;
 
-    public FloatValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested) {
+    public FloatValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
     }
@@ -61,13 +65,13 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        FloatComparator comparator = new FloatComparator(numHits, null, null, reversed, sortPos) {
+        return new FloatComparator(numHits, null, null, reversed, false) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {
@@ -78,19 +82,23 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
                 };
             }
         };
-        // TODO: when LUCENE-10154 is available, instead of disableSkipping this comparator should implement `getPointValue`
-        comparator.disableSkipping();
-        return comparator;
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForFloats(bigArrays, sortOrder, format, bucketSize, extra) {
             private final float dMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
-            public boolean needsScores() { return false; }
+            public boolean needsScores() {
+                return false;
+            }
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {

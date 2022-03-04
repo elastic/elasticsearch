@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import java.io.IOException;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 public class ExecuteEnrichPolicyStatus implements Task.Status {
 

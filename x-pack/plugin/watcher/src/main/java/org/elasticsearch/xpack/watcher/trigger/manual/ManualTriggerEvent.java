@@ -42,8 +42,8 @@ public class ManualTriggerEvent extends TriggerEvent {
         builder.endObject();
     }
 
-    public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser) throws
-            IOException {
+    public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser)
+        throws IOException {
         TriggerEvent parsedTriggerEvent = triggerService.parseTriggerEvent(watchId, context, parser);
         return new ManualTriggerEvent(context, parsedTriggerEvent);
     }

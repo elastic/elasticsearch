@@ -69,20 +69,36 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 try {
                     triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, ZoneOffset.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
-                    //Failed to parse as a date try datemath parsing
-                    throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
-                            "date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
+                    // Failed to parse as a date try datemath parsing
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " + "date field [{}]",
+                        pe,
+                        ScheduleTriggerEngine.TYPE,
+                        context,
+                        watchId,
+                        currentFieldName
+                    );
                 }
-            }  else if (Field.SCHEDULED_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+            } else if (Field.SCHEDULED_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, ZoneOffset.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
-                            "date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " + "date field [{}]",
+                        pe,
+                        ScheduleTriggerEngine.TYPE,
+                        context,
+                        watchId,
+                        currentFieldName
+                    );
                 }
-            }else {
-                throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]",
-                        context, watchId, token);
+            } else {
+                throw new ElasticsearchParseException(
+                    "could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]",
+                    context,
+                    watchId,
+                    token
+                );
             }
         }
 

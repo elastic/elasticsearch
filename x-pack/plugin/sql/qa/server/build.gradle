@@ -32,7 +32,7 @@ dependencies {
   api "org.jline:jline-reader:${jlineVersion}"
   api "org.jline:jline-style:${jlineVersion}"
 
-  testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
+  testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }
 
 // this is just a test fixture used by other projects and not in production
@@ -96,7 +96,7 @@ subprojects {
     testRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
     testRuntimeOnly "org.jline:jline-style:${jlineVersion}"
 
-    testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
+    testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 
     // spatial dependency
     testRuntimeOnly project(path: xpackModule('spatial'))

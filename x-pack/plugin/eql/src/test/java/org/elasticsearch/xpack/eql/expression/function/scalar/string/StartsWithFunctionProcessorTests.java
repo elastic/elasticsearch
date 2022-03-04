@@ -7,5 +7,5 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-public class StartsWithFunctionProcessorTests extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithProcessorTests{
-}
+public class StartsWithFunctionProcessorTests extends
+    org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithProcessorTests {}

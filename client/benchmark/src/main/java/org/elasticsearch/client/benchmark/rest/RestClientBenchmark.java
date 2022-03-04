@@ -32,10 +32,10 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
     @Override
     protected RestClient client(String benchmarkTargetHost) {
-        return RestClient
-            .builder(new HttpHost(benchmarkTargetHost, 9200))
-            .setHttpClientConfigCallback(b -> b.setDefaultHeaders(
-                Collections.singleton(new BasicHeader(HttpHeaders.ACCEPT_ENCODING, "gzip"))))
+        return RestClient.builder(new HttpHost(benchmarkTargetHost, 9200))
+            .setHttpClientConfigCallback(
+                b -> b.setDefaultHeaders(Collections.singleton(new BasicHeader(HttpHeaders.ACCEPT_ENCODING, "gzip")))
+            )
             .setRequestConfigCallback(b -> b.setContentCompressionEnabled(true))
             .build();
     }

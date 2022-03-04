@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,10 +38,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParserInterval() throws Exception {
         IntervalSchedule interval = randomIntervalSchedule();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(IntervalSchedule.TYPE, interval)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field(IntervalSchedule.TYPE, interval).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -53,13 +49,8 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
     }
 
     public void testParseCron() throws Exception {
-        Object cron = randomBoolean() ?
-                Schedules.cron("* 0/5 * * * ?") :
-                Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(CronSchedule.TYPE, cron)
-                .endObject();
+        Object cron = randomBoolean() ? Schedules.cron("* 0/5 * * * ?") : Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
+        XContentBuilder builder = jsonBuilder().startObject().field(CronSchedule.TYPE, cron).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -71,10 +62,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParseHourly() throws Exception {
         HourlySchedule hourly = randomHourlySchedule();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(HourlySchedule.TYPE, hourly)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field(HourlySchedule.TYPE, hourly).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -86,10 +74,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParseDaily() throws Exception {
         DailySchedule daily = randomDailySchedule();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(DailySchedule.TYPE, daily)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field(DailySchedule.TYPE, daily).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -101,10 +86,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParseWeekly() throws Exception {
         WeeklySchedule weekly = randomWeeklySchedule();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(WeeklySchedule.TYPE, weekly)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field(WeeklySchedule.TYPE, weekly).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -116,10 +98,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParseMonthly() throws Exception {
         MonthlySchedule monthly = randomMonthlySchedule();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(MonthlySchedule.TYPE, monthly)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field(MonthlySchedule.TYPE, monthly).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();

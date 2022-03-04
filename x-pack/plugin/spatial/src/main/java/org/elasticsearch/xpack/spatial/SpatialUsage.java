@@ -19,8 +19,7 @@ public class SpatialUsage {
 
     private final EnumCounters<SpatialStatsAction.Item> counters = new EnumCounters<>(SpatialStatsAction.Item.class);
 
-    public SpatialUsage() {
-    }
+    public SpatialUsage() {}
 
     /**
      * Track successful parsing.

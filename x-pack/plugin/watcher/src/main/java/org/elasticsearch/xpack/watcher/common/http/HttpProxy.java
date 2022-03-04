@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -77,7 +77,6 @@ public class HttpProxy implements ToXContentFragment {
     public int hashCode() {
         return Objects.hash(host, port, scheme);
     }
-
 
     public static HttpProxy parse(XContentParser parser) throws IOException {
         XContentParser.Token token;

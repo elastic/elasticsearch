@@ -67,7 +67,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
         project.getTasks().withType(TestingConventionsTasks.class).named("testingConventions").configure(t -> {
             t.getNaming().clear();
             t.getNaming()
-                .create("Tests", testingConventionRule -> testingConventionRule.baseClass("org.apache.lucene.util.LuceneTestCase"));
+                .create("Tests", testingConventionRule -> testingConventionRule.baseClass("org.apache.lucene.tests.util.LuceneTestCase"));
             t.getNaming().create("IT", testingConventionRule -> {
                 testingConventionRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
                 testingConventionRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
@@ -82,6 +82,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
                 addNoticeGeneration(p, extension);
             }
 
+            @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);

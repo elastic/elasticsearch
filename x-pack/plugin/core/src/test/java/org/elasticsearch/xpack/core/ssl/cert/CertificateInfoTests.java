@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
-
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -50,9 +49,9 @@ public class CertificateInfoTests extends ESTestCase {
     }
 
     private X509Certificate readSampleCertificate() throws CertificateException, IOException {
-        return CertParsingUtils.
-            readX509Certificates(Collections.singletonList(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")))[0];
+        return CertParsingUtils.readX509Certificates(
+            Collections.singletonList(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+        )[0];
     }
 
     private CertificateInfo serializeAndDeserialize(CertificateInfo cert1) throws IOException {

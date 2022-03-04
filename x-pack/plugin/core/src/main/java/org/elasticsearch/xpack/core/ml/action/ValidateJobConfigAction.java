@@ -48,8 +48,9 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
             if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
-                        String.join(",", invalidJobCreationSettings)));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS, String.join(",", invalidJobCreationSettings))
+                );
             }
 
             return new Request(jobBuilder.build(new Date()));

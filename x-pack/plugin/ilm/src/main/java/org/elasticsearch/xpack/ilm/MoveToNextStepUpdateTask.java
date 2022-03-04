@@ -11,10 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.util.Objects;
@@ -30,9 +28,15 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     private final PolicyStepsRegistry stepRegistry;
     private final Consumer<ClusterState> stateChangeConsumer;
 
-    public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-                                    LongSupplier nowSupplier, PolicyStepsRegistry stepRegistry,
-                                    Consumer<ClusterState> stateChangeConsumer) {
+    public MoveToNextStepUpdateTask(
+        Index index,
+        String policy,
+        Step.StepKey currentStepKey,
+        Step.StepKey nextStepKey,
+        LongSupplier nowSupplier,
+        PolicyStepsRegistry stepRegistry,
+        Consumer<ClusterState> stateChangeConsumer
+    ) {
         super(index, currentStepKey);
         this.policy = policy;
         this.nextStepKey = nextStepKey;
@@ -48,10 +52,8 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        Settings indexSettings = indexMetadata.getSettings();
-        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(currentState.getMetadata().index(index));
-        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+        LifecycleExecutionState indexILMData = currentState.getMetadata().index(index).getLifecycleExecutionState();
+        if (policy.equals(indexMetadata.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(indexILMData))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
             return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, nextStepKey, nowSupplier, stepRegistry, false);
         } else {
@@ -63,7 +65,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(ClusterState oldState, ClusterState newState) {
         stateChangeConsumer.accept(newState);
     }
 
@@ -84,11 +86,14 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public void handleFailure(String source, Exception e) {
+    public void handleFailure(Exception e) {
         logger.warn(
             new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",
-                policy, index, currentStepKey, nextStepKey
+                policy,
+                index,
+                currentStepKey,
+                nextStepKey
             ),
             e
         );

@@ -45,9 +45,12 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         Files.createDirectories(userAgentConfigDir);
 
         // Copy file, leaving out the device parsers at the end
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(UserAgentProcessor.class.getResourceAsStream("/regexes.yml"), StandardCharsets.UTF_8));
-                BufferedWriter writer = Files.newBufferedWriter(userAgentConfigDir.resolve(regexWithoutDevicesFilename));) {
+        try (
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(UserAgentProcessor.class.getResourceAsStream("/regexes.yml"), StandardCharsets.UTF_8)
+            );
+            BufferedWriter writer = Files.newBufferedWriter(userAgentConfigDir.resolve(regexWithoutDevicesFilename));
+        ) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("device_parsers:")) {
@@ -181,8 +184,10 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("properties", Collections.singletonList("invalid"));
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [NAME, OS, DEVICE, " +
-            "ORIGINAL, VERSION]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[properties] illegal property value [invalid]. valid values are [NAME, OS, DEVICE, " + "ORIGINAL, VERSION]")
+        );
     }
 
     public void testInvalidPropertiesType() throws Exception {

@@ -8,7 +8,7 @@ setup:
                 mappings:
                     properties:
                         mydate:
-                            type: date_nanos
+                            type: date
                             format: "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSZZZZZ"
 
     - do:
@@ -18,7 +18,7 @@ setup:
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "mydate": "2021-08-12T01:00:00.000000000+02:00" }
 
     - do:

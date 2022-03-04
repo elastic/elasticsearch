@@ -21,9 +21,9 @@ import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -133,14 +133,12 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         boolean subSchemaFound = false;
 
         for (JsonValidator validator : validatorSet) {
-            if (validator instanceof PropertiesValidator) {
+            if (validator instanceof PropertiesValidator propertiesValidator) {
                 subSchemaFound = true;
-                PropertiesValidator propertiesValidator = (PropertiesValidator) validator;
                 for (Entry<String, JsonSchema> subSchema : propertiesValidator.getSchemas().entrySet()) {
                     assertSchemaStrictness(subSchema.getValue().getValidators().values(), propertiesValidator.getSchemaPath());
                 }
-            } else if (validator instanceof ItemsValidator) {
-                ItemsValidator itemValidator = (ItemsValidator) validator;
+            } else if (validator instanceof ItemsValidator itemValidator) {
                 if (itemValidator.getSchema() != null) {
                     assertSchemaStrictness(itemValidator.getSchema().getValidators().values(), itemValidator.getSchemaPath());
                 }

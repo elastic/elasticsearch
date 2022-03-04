@@ -9,8 +9,8 @@
 package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
@@ -28,7 +28,8 @@ public class TransformProgress {
     public static final ConstructingObjectParser<TransformProgress, Void> PARSER = new ConstructingObjectParser<>(
         "transform_progress",
         true,
-        a -> new TransformProgress((Long) a[0], (Long)a[1], (Double)a[2], (Long)a[3], (Long)a[4]));
+        a -> new TransformProgress((Long) a[0], (Long) a[1], (Double) a[2], (Long) a[3], (Long) a[4])
+    );
 
     static {
         PARSER.declareLong(optionalConstructorArg(), TOTAL_DOCS);
@@ -48,11 +49,7 @@ public class TransformProgress {
     private final long documentsProcessed;
     private final long documentsIndexed;
 
-    public TransformProgress(Long totalDocs,
-                             Long remainingDocs,
-                             Double percentComplete,
-                             Long documentsProcessed,
-                             Long documentsIndexed) {
+    public TransformProgress(Long totalDocs, Long remainingDocs, Double percentComplete, Long documentsProcessed, Long documentsIndexed) {
         this.totalDocs = totalDocs;
         this.remainingDocs = remainingDocs == null ? totalDocs : remainingDocs;
         this.percentComplete = percentComplete;
@@ -102,7 +99,7 @@ public class TransformProgress {
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(remainingDocs, totalDocs, percentComplete, documentsIndexed, documentsProcessed);
     }
 }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,15 +84,14 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         DayTimes time = validDayTime();
         Object day = randomDayOfMonth();
         Object month = randomMonth();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("in", month)
-                .field("on", day)
-                .startObject("at")
-                .array("hour", time.hour())
-                .array("minute", time.minute())
-                .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("in", month)
+            .field("on", day)
+            .startObject("at")
+            .array("hour", time.hour())
+            .array("minute", time.minute())
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -108,15 +106,14 @@ public class YearlyScheduleTests extends ScheduleTestCase {
 
     public void testParserSingleTimeInvalid() throws Exception {
         HourAndMinute time = invalidDayTime();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("in", randomMonth())
-                .field("on", randomBoolean() ? invalidDayOfMonth() : randomDayOfMonth())
-                .startObject("at")
-                .field("hour", time.hour)
-                .field("minute", time.minute)
-                .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("in", randomMonth())
+            .field("on", randomBoolean() ? invalidDayOfMonth() : randomDayOfMonth())
+            .startObject("at")
+            .field("hour", time.hour)
+            .field("minute", time.minute)
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -144,12 +141,11 @@ public class YearlyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleTimesInvalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("in", randomMonth())
-                .field("on", randomDayOfMonth())
-                .array("at", (Object[]) times)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("in", randomMonth())
+            .field("on", randomDayOfMonth())
+            .array("at", (Object[]) times)
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object

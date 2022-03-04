@@ -34,8 +34,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         private String name;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);

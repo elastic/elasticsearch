@@ -36,9 +36,9 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
-import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
@@ -54,19 +54,27 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "15";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "25";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
-        return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
+        return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion(), false);
     }
 
-    public static Installation installArchive(Shell sh, Distribution distribution, Path fullInstallPath, String version) throws Exception {
+    public static Installation installArchive(
+        Shell sh,
+        Distribution distribution,
+        Path fullInstallPath,
+        String version,
+        boolean allowMultiple
+    ) throws Exception {
         final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
 
         assertThat("distribution file must exist: " + distributionFile.toString(), Files.exists(distributionFile), is(true));
-        assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
+        if (allowMultiple == false) {
+            assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
+        }
 
         logger.info("Installing file: " + distributionFile);
         final String installCommand;
@@ -97,9 +105,11 @@ public class Archives {
         mv(extractedPath, fullInstallPath);
 
         assertThat("extracted archive moved to install location", Files.exists(fullInstallPath));
-        final List<Path> installations = lsGlob(baseInstallPath, "elasticsearch*");
-        assertThat("only the intended installation exists", installations, hasSize(1));
-        assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
+        if (allowMultiple == false) {
+            final List<Path> installations = lsGlob(baseInstallPath, "elasticsearch*");
+            assertThat("only the intended installation exists", installations, hasSize(1));
+            assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
+        }
 
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
 
@@ -222,12 +232,17 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return runElasticsearchStartCommand(installation, sh, null, true);
-    }
-
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
-        throws Exception {
+    /**
+     * Starts an elasticsearch node from an attached terminal, optionally waiting for a specific string to be printed in stdout
+     */
+    public static Shell.Result startElasticsearchWithTty(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        List<String> parameters,
+        String outputStringToMatch,
+        boolean daemonize
+    ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -238,31 +253,42 @@ public class Archives {
             command.add("-d");
         }
         command.add("-v"); // verbose auto-configuration
-        String script = String.format(
-            Locale.ROOT,
-            "expect -c \"$(cat<<EXPECT\n"
-                + "spawn -ignore HUP "
-                + String.join(" ", command)
-                + "\n"
-                + "expect \"Elasticsearch keystore password:\"\n"
-                + "send \"%s\\r\"\n"
-                + "expect eof\n"
-                + "EXPECT\n"
-                + ")\"",
-            ARCHIVE_OWNER,
-            bin.elasticsearch,
-            pidFile,
-            keystorePassword
+        if (parameters != null && parameters.isEmpty() == false) {
+            command.addAll(parameters);
+        }
+        String keystoreScript = keystorePassword == null ? "" : """
+            expect "Elasticsearch keystore password:"
+            send "%s\\r"
+            """.formatted(keystorePassword);
+        String checkStartupScript = daemonize ? "expect eof" : """
+            expect {
+              "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
+              timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
+              eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
+              %s
+            }
+            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
+        String expectScript = """
+            expect - <<EXPECT
+            set timeout 60
+            spawn -ignore HUP %s
+            %s
+            %s
+            EXPECT
+            """.formatted(
+            String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile),
+            keystoreScript,
+            checkStartupScript
         );
-
         sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-        return sh.runIgnoreExitCode(script);
+        return sh.runIgnoreExitCode(expectScript);
     }
 
     public static Shell.Result runElasticsearchStartCommand(
         Installation installation,
         Shell sh,
         String keystorePassword,
+        List<String> parameters,
         boolean daemonize
     ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
@@ -292,6 +318,9 @@ public class Archives {
             command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(pidFile.toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             if (keystorePassword != null) {
                 command.add("<<<'" + keystorePassword + "'");
             }
@@ -314,6 +343,7 @@ public class Archives {
                 powerShellProcessUserSetup = "";
             }
             // this starts the server in the background. the -d flag is unsupported on windows
+            final String parameterString = parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : "";
             return sh.run(
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
                     + "$processInfo.FileName = '"
@@ -321,6 +351,7 @@ public class Archives {
                     + "'; "
                     + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
+                    + parameterString
                     + "'; "
                     + powerShellProcessUserSetup
                     + "$processInfo.RedirectStandardOutput = $true; "
@@ -368,6 +399,9 @@ public class Archives {
             command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             return sh.runIgnoreExitCode(String.join(" ", command));
         }
     }

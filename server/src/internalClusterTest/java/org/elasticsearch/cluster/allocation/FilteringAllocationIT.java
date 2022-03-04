@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,7 +33,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope= Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testDecommissionNodeNoReplicas() {
@@ -45,17 +44,23 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertThat(cluster().size(), equalTo(2));
 
         logger.info("--> creating an index with no replicas");
-        createIndex("test", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen("test");
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet()
-            .getHits().getTotalHits().value, equalTo(100L));
+        assertThat(
+            client().prepareSearch()
+                .setSize(0)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute()
+                .actionGet()
+                .getHits()
+                .getTotalHits().value,
+            equalTo(100L)
+        );
 
         final boolean closed = randomBoolean();
         if (closed) {
@@ -64,9 +69,12 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         logger.info("--> decommission the second node");
-        client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
-                .execute().actionGet();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
+            .execute()
+            .actionGet();
         ensureGreen("test");
 
         logger.info("--> verify all are allocated on node1 now");
@@ -84,8 +92,16 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery())
-            .execute().actionGet().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(
+            client().prepareSearch()
+                .setSize(0)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute()
+                .actionGet()
+                .getHits()
+                .getTotalHits().value,
+            equalTo(100L)
+        );
     }
 
     public void testAutoExpandReplicasToFilteredNodes() {
@@ -96,22 +112,26 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertThat(cluster().size(), equalTo(2));
 
         logger.info("--> creating an index with auto-expand replicas");
-        createIndex("test", Settings.builder()
-            .put(AutoExpandReplicas.SETTING.getKey(), "0-all")
-            .build());
+        createIndex("test", Settings.builder().put(AutoExpandReplicas.SETTING.getKey(), "0-all").build());
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(1));
         ensureGreen("test");
 
         logger.info("--> filter out the second node");
         if (randomBoolean()) {
-            client().admin().cluster().prepareUpdateSettings()
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
-                .execute().actionGet();
+                .execute()
+                .actionGet();
         } else {
-            client().admin().indices().prepareUpdateSettings("test")
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1))
-                .execute().actionGet();
+                .execute()
+                .actionGet();
         }
         ensureGreen("test");
 
@@ -135,10 +155,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertThat(cluster().size(), equalTo(2));
 
         logger.info("--> creating an index with no replicas");
-        createIndex("test", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         ensureGreen("test");
 
         logger.info("--> index some data");
@@ -146,8 +166,16 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery())
-            .execute().actionGet().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(
+            client().prepareSearch()
+                .setSize(0)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute()
+                .actionGet()
+                .getHits()
+                .getTotalHits().value,
+            equalTo(100L)
+        );
 
         final boolean closed = randomBoolean();
         if (closed) {
@@ -167,16 +195,22 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
-            client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1))
+                .execute()
+                .actionGet();
             // make sure we can recover all the nodes at once otherwise we might run into a state where
             // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
         }
         logger.info("--> remove index from the first node");
-        client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0))
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0))
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
 
@@ -190,9 +224,12 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         logger.info("--> disable allocation filtering ");
-        client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""))
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""))
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
 
@@ -203,11 +240,20 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testInvalidIPFilterClusterSettings() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<String> filterSetting = randomFrom(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
-            FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
-            .execute().actionGet());
+        var filterSetting = randomFrom(
+            FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
+            FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
+            FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
+                .execute()
+                .actionGet()
+        );
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
 
@@ -215,9 +261,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         List<String> nodes = internalCluster().startNodes(6);
         Set<String> excludeNodes = new HashSet<>(nodes.subList(0, 3));
         Set<String> includeNodes = new HashSet<>(nodes.subList(3, 6));
-        logger.info("--> exclude: [{}], include: [{}]",
+        logger.info(
+            "--> exclude: [{}], include: [{}]",
             Strings.collectionToCommaDelimitedString(excludeNodes),
-            Strings.collectionToCommaDelimitedString(includeNodes));
+            Strings.collectionToCommaDelimitedString(includeNodes)
+        );
         ensureStableCluster(6);
         client().admin().indices().prepareCreate("test").get();
         ensureGreen("test");
@@ -226,8 +274,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareClose("test"));
         }
 
-        Settings exclude = Settings.builder().put("cluster.routing.allocation.exclude._name",
-            Strings.collectionToCommaDelimitedString(excludeNodes)).build();
+        Settings exclude = Settings.builder()
+            .put("cluster.routing.allocation.exclude._name", Strings.collectionToCommaDelimitedString(excludeNodes))
+            .build();
 
         logger.info("--> updating settings");
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(exclude).get();
@@ -240,16 +289,19 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
-            assertTrue("shard on " + node + " but should only be on the include node list: " +
-                    Strings.collectionToCommaDelimitedString(includeNodes),
-                includeNodes.contains(node));
+            assertTrue(
+                "shard on "
+                    + node
+                    + " but should only be on the include node list: "
+                    + Strings.collectionToCommaDelimitedString(includeNodes),
+                includeNodes.contains(node)
+            );
         }
 
         Settings other = Settings.builder().put("cluster.info.update.interval", "45s").build();
 
         logger.info("--> updating settings with random persistent setting");
-        client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(other).setTransientSettings(exclude).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(other).setTransientSettings(exclude).get();
 
         logger.info("--> waiting for relocation");
         waitForRelocation(ClusterHealthStatus.GREEN);
@@ -262,10 +314,13 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
-            assertTrue("shard on " + node + " but should only be on the include node list: " +
-                    Strings.collectionToCommaDelimitedString(includeNodes),
-                includeNodes.contains(node));
+            assertTrue(
+                "shard on "
+                    + node
+                    + " but should only be on the include node list: "
+                    + Strings.collectionToCommaDelimitedString(includeNodes),
+                includeNodes.contains(node)
+            );
         }
     }
 }
-

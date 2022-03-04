@@ -38,8 +38,11 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setSoftDeletesField("_soft_deletes");
-            MergePolicy mp = new SoftDeletesRetentionMergePolicy("_soft_deletes", MatchAllDocsQuery::new,
-                new PrunePostingsMergePolicy(newLogMergePolicy(), "id"));
+            MergePolicy mp = new SoftDeletesRetentionMergePolicy(
+                "_soft_deletes",
+                MatchAllDocsQuery::new,
+                new PrunePostingsMergePolicy(newLogMergePolicy(), "id")
+            );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             boolean sorted = randomBoolean();
             if (sorted) {
@@ -49,7 +52,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             int numDocs = randomIntBetween(numUniqueDocs, numUniqueDocs * 5);
 
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < numDocs ; i++) {
+                for (int i = 0; i < numDocs; i++) {
                     if (rarely()) {
                         writer.flush();
                     }
@@ -124,7 +127,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                 }
 
                 { // drop all ids
-                    // first add a doc such that we can force merge
+                  // first add a doc such that we can force merge
                     Document doc = new Document();
                     doc.add(new StringField("id", "" + 0, Field.Store.NO));
                     doc.add(newTextField("text", "the quick brown fox", Field.Store.YES));
@@ -136,10 +139,9 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                     writer.flush();
                     writer.forceMerge(1);
 
-
                     try (DirectoryReader reader = DirectoryReader.open(writer)) {
                         LeafReader leafReader = reader.leaves().get(0).reader();
-                        assertEquals(numDocs+1, leafReader.maxDoc());
+                        assertEquals(numDocs + 1, leafReader.maxDoc());
                         assertEquals(0, leafReader.numDocs());
                         assertNull(leafReader.terms("id"));
                         TermsEnum iterator = leafReader.terms("text").iterator();

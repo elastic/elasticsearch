@@ -24,6 +24,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.Temporal;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 
 public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
 
@@ -50,8 +51,11 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             return IntervalArithmetics.add((Temporal) r, ((IntervalDayTime) l).interval());
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [+] between [{}] and [{}]", l.getClass().getSimpleName(),
-                r.getClass().getSimpleName());
+        throw new QlIllegalArgumentException(
+            "Cannot compute [+] between [{}] and [{}]",
+            l.getClass().getSimpleName(),
+            r.getClass().getSimpleName()
+        );
     }, "+"),
     SUB((Object l, Object r) -> {
         if (l instanceof Number) {
@@ -69,32 +73,38 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
         if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalDayTime) {
             return IntervalArithmetics.sub((Temporal) l, ((IntervalDayTime) r).interval());
         }
-        if ((r instanceof ZonedDateTime  || r instanceof OffsetTime) && l instanceof Interval<?>) {
+        if ((r instanceof ZonedDateTime || r instanceof OffsetTime) && l instanceof Interval<?>) {
             throw new QlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [-] between [{}] and [{}]", l.getClass().getSimpleName(),
-                r.getClass().getSimpleName());
+        throw new QlIllegalArgumentException(
+            "Cannot compute [-] between [{}] and [{}]",
+            l.getClass().getSimpleName(),
+            r.getClass().getSimpleName()
+        );
     }, "-"),
     MUL((Object l, Object r) -> {
         if (l instanceof Number && r instanceof Number) {
             return Arithmetics.mul((Number) l, (Number) r);
         }
-        if (l instanceof Number && r instanceof IntervalYearMonth) {
-            return ((IntervalYearMonth) r).mul(((Number) l).intValue());
+        if (l instanceof Number number && r instanceof IntervalYearMonth) {
+            return ((IntervalYearMonth) r).mul(safeToLong(number));
         }
-        if (r instanceof Number && l instanceof IntervalYearMonth) {
-            return ((IntervalYearMonth) l).mul(((Number) r).intValue());
+        if (r instanceof Number number && l instanceof IntervalYearMonth) {
+            return ((IntervalYearMonth) l).mul(safeToLong(number));
         }
-        if (l instanceof Number && r instanceof IntervalDayTime) {
-            return ((IntervalDayTime) r).mul(((Number) l).longValue());
+        if (l instanceof Number number && r instanceof IntervalDayTime) {
+            return ((IntervalDayTime) r).mul(safeToLong(number));
         }
-        if (r instanceof Number && l instanceof IntervalDayTime) {
-            return ((IntervalDayTime) l).mul(((Number) r).longValue());
+        if (r instanceof Number number && l instanceof IntervalDayTime) {
+            return ((IntervalDayTime) l).mul(safeToLong(number));
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [*] between [{}] and [{}]", l.getClass().getSimpleName(),
-                r.getClass().getSimpleName());
+        throw new QlIllegalArgumentException(
+            "Cannot compute [*] between [{}] and [{}]",
+            l.getClass().getSimpleName(),
+            r.getClass().getSimpleName()
+        );
     }, "*"),
     DIV(Arithmetics::div, "/"),
     MOD(Arithmetics::mod, "%");

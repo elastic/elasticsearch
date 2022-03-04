@@ -6,13 +6,11 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-
 
 /**
  * Builds an analyzer for normalization that lowercases terms.

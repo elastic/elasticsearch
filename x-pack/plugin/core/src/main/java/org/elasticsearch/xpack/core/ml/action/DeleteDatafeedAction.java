@@ -10,9 +10,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -55,7 +55,7 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
             return force;
         }
 
-         public void setForce(boolean force) {
+        public void setForce(boolean force) {
             this.force = force;
         }
 

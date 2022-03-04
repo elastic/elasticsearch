@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -78,8 +78,10 @@ public class IntervalScheduleTests extends ESTestCase {
         try {
             new IntervalSchedule.Parser().parse(parser);
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(),
-                    containsString("expected either a numeric value (millis) or a string value representing time value"));
+            assertThat(
+                e.getMessage(),
+                containsString("expected either a numeric value (millis) or a string value representing time value")
+            );
             assertThat(e.getMessage(), containsString("found [START_OBJECT]"));
         }
     }

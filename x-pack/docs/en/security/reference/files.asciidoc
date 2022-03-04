@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold"]
 [[security-files]]
 === Security files
 

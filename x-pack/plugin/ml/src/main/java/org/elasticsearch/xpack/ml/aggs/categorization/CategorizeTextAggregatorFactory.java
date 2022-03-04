@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -83,15 +84,28 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         if (fieldType == null) {
             return createUnmapped(parent, metadata);
         }
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        // TODO add support for Keyword && KeywordScriptFieldType
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE
+            || fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS) {
+            throw new IllegalArgumentException(
+                "categorize_text agg ["
+                    + name
+                    + "] only works on analyzable text fields. Cannot aggregate field type ["
+                    + fieldType.name()
+                    + "] via ["
+                    + fieldType.getClass().getSimpleName()
+                    + "]"
+            );
+        }
+        TermsAggregator.BucketCountThresholds thresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
+        if (thresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             // TODO significant text does a 2x here, should we as well?
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+            thresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(thresholds.getRequiredSize()));
         }
-        bucketCountThresholds.ensureValidity();
+        thresholds.ensureValidity();
 
         return new CategorizeTextAggregator(
             name,
@@ -100,7 +114,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             parent,
             indexedFieldName,
             fieldType,
-            bucketCountThresholds,
+            thresholds,
             maxUniqueTokens,
             maxMatchTokens,
             similarityThreshold,

@@ -17,8 +17,7 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
     private final GeoShapeValues geoShapeValues;
     protected final GeoGridTiler tiler;
 
-    protected GeoShapeCellValues(GeoShapeValues geoShapeValues, GeoGridTiler tiler,
-                                 LongConsumer circuitBreakerConsumer) {
+    protected GeoShapeCellValues(GeoShapeValues geoShapeValues, GeoGridTiler tiler, LongConsumer circuitBreakerConsumer) {
         super(circuitBreakerConsumer);
         this.geoShapeValues = geoShapeValues;
         this.tiler = tiler;
@@ -45,9 +44,7 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
         resize(newSize);
     }
 
-
     protected void add(int idx, long value) {
         values[idx] = value;
     }
 }
-

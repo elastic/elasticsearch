@@ -41,8 +41,8 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
     @Override
     public List<QuerySpec<?>> getQueries() {
         return Collections.singletonList(
-            new QuerySpec<>(RankFeatureQueryBuilder.NAME, RankFeatureQueryBuilder::new,
-                p -> RankFeatureQueryBuilder.PARSER.parse(p, null)));
+            new QuerySpec<>(RankFeatureQueryBuilder.NAME, RankFeatureQueryBuilder::new, p -> RankFeatureQueryBuilder.PARSER.parse(p, null))
+        );
     }
 
 }

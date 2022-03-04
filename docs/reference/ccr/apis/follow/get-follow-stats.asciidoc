@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-get-follow-stats]]
 === Get follower stats API
 ++++

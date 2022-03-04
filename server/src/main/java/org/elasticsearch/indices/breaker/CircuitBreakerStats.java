@@ -89,10 +89,21 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "[" + this.name +
-                ",limit=" + this.limit + "/" + new ByteSizeValue(this.limit) +
-                ",estimated=" + this.estimated + "/" + new ByteSizeValue(this.estimated) +
-                ",overhead=" + this.overhead + ",tripped=" + this.trippedCount + "]";
+        return "["
+            + this.name
+            + ",limit="
+            + this.limit
+            + "/"
+            + new ByteSizeValue(this.limit)
+            + ",estimated="
+            + this.estimated
+            + "/"
+            + new ByteSizeValue(this.estimated)
+            + ",overhead="
+            + this.overhead
+            + ",tripped="
+            + this.trippedCount
+            + "]";
     }
 
     static final class Fields {

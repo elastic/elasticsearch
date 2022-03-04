@@ -120,10 +120,10 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteConnectionInfo that = (RemoteConnectionInfo) o;
-        return skipUnavailable == that.skipUnavailable &&
-            Objects.equals(modeInfo, that.modeInfo) &&
-            Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
-            Objects.equals(clusterAlias, that.clusterAlias);
+        return skipUnavailable == that.skipUnavailable
+            && Objects.equals(modeInfo, that.modeInfo)
+            && Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout)
+            && Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override

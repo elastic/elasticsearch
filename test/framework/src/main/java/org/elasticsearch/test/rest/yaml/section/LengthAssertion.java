@@ -29,7 +29,7 @@ import static org.junit.Assert.assertThat;
 public class LengthAssertion extends Assertion {
     public static LengthAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+        Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
         assert stringObjectTuple.v2() != null;
         int value;
         if (stringObjectTuple.v2() instanceof Number) {
@@ -37,7 +37,7 @@ public class LengthAssertion extends Assertion {
         } else {
             try {
                 value = Integer.valueOf(stringObjectTuple.v2().toString());
-            } catch(NumberFormatException e) {
+            } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("length is not a valid number", e);
             }
         }
@@ -53,8 +53,11 @@ public class LengthAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] has length [{}] (field: [{}])", actualValue, expectedValue, getField());
-        assertThat("expected value of [" + getField() + "] is not numeric (got [" + expectedValue.getClass() + "]",
-                expectedValue, instanceOf(Number.class));
+        assertThat(
+            "expected value of [" + getField() + "] is not numeric (got [" + expectedValue.getClass() + "]",
+            expectedValue,
+            instanceOf(Number.class)
+        );
         int length = ((Number) expectedValue).intValue();
         if (actualValue instanceof String) {
             assertThat(errorMessage(), ((String) actualValue).length(), equalTo(length));

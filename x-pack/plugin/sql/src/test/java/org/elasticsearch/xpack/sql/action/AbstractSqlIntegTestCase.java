@@ -36,4 +36,3 @@ public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
         return Collections.singletonList(LocalStateSQLXPackPlugin.class);
     }
 }
-

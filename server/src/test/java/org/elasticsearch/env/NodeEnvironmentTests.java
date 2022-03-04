@@ -7,10 +7,20 @@
  */
 package org.elasticsearch.env;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
@@ -18,6 +28,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +50,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.env.NodeEnvironment.checkForIndexCompatibility;
+import static org.elasticsearch.env.NodeMetadata.NODE_VERSION_KEY;
+import static org.elasticsearch.env.NodeMetadata.OLDEST_INDEX_VERSION_KEY;
+import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -58,8 +73,10 @@ public class NodeEnvironmentTests extends ESTestCase {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
         // Reuse the same location and attempt to lock again
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))
+        );
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
@@ -82,12 +99,14 @@ public class NodeEnvironmentTests extends ESTestCase {
         try {
             // False means don't hook up std out
             NodeEnvironment.applySegmentInfosTrace(
-                Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), false).build());
+                Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), false).build()
+            );
             assertNull(SegmentInfos.getInfoStream());
 
             // But true means hook std out up statically
             NodeEnvironment.applySegmentInfosTrace(
-                Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), true).build());
+                Settings.builder().put(NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.getKey(), true).build()
+            );
             assertEquals(System.out, SegmentInfos.getInfoStream());
         } finally {
             // Clean up after ourselves
@@ -211,10 +230,14 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("1"));
         }
 
-        expectThrows(ShardLockObtainFailedException.class,
-            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
-                assert false : "should not be called " + shardPaths;
-            }));
+        expectThrows(
+            ShardLockObtainFailedException.class,
+            () -> env.deleteShardDirectorySafe(
+                new ShardId(index, 0),
+                idxSettings,
+                shardPaths -> { assert false : "should not be called " + shardPaths; }
+            )
+        );
 
         for (Path path : env.indexPaths(index)) {
             assertTrue(Files.exists(path.resolve("0")));
@@ -235,10 +258,15 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertFalse(Files.exists(path.resolve("1")));
         }
 
-        expectThrows(ShardLockObtainFailedException.class,
-            () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, indexPaths -> {
-                assert false : "should not be called " + indexPaths;
-            }));
+        expectThrows(
+            ShardLockObtainFailedException.class,
+            () -> env.deleteIndexDirectorySafe(
+                index,
+                randomIntBetween(0, 10),
+                idxSettings,
+                indexPaths -> { assert false : "should not be called " + indexPaths; }
+            )
+        );
 
         fooLock.close();
 
@@ -322,8 +350,13 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1",
-                                scaledRandomIntBetween(0, 10))) {
+                            try (
+                                ShardLock autoCloses = env.shardLock(
+                                    new ShardId("foo", "fooUUID", shard),
+                                    "1",
+                                    scaledRandomIntBetween(0, 10)
+                                )
+                            ) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);
@@ -359,26 +392,40 @@ public class NodeEnvironmentTests extends ESTestCase {
         ShardId sid = new ShardId(index, 0);
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
-            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
+        assertThat(
+            env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath())
+        );
 
-        assertThat("shard paths with a custom data_path should contain only regular paths",
+        assertThat(
+            "shard paths with a custom data_path should contain only regular paths",
             env.availableShardPaths(sid),
-            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
+            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0"))
+        );
 
-        assertThat("index paths uses the regular template",
-            env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
+        assertThat(
+            "index paths uses the regular template",
+            env.indexPaths(index),
+            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID()))
+        );
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
-            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
+        assertThat(
+            env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath())
+        );
 
-        assertThat("shard paths with a custom data_path should contain only regular paths",
+        assertThat(
+            "shard paths with a custom data_path should contain only regular paths",
             env.availableShardPaths(sid),
-            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
+            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0"))
+        );
 
-        assertThat("index paths uses the regular template",
-            env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
+        assertThat(
+            "index paths uses the regular template",
+            env.indexPaths(index),
+            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID()))
+        );
 
         env.close();
     }
@@ -482,30 +529,93 @@ public class NodeEnvironmentTests extends ESTestCase {
                         allOf(
                             containsString("written by Elasticsearch"),
                             containsString("prevent a downgrade"),
-                            containsString("data loss")));
+                            containsString("data loss")
+                        )
+                    );
                     Files.delete(nodesPath);
                 }
             }
         }
     }
 
-    private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-            "Must fail creating NodeEnvironment on a data path that has shard data if node does not have data role",
-            () -> newNodeEnvironment(settings).close());
+    public void testIndexCompatibilityChecks() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
 
-        assertThat(ex.getMessage(),
-            containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            try (
+                PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                    env.nodeDataPaths(),
+                    env.nodeId(),
+                    xContentRegistry(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).createWriter()
+            ) {
+                writer.writeFullStateAndCommit(
+                    1L,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .metadata(
+                            Metadata.builder()
+                                .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+                                .build()
+                        )
+                        .build()
+                );
+            }
+
+            Version oldIndexVersion = Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+            overrideOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+
+            IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                "Must fail the check on index that's too old",
+                () -> checkForIndexCompatibility(logger, env.nodePaths())
+            );
+
+            assertThat(ex.getMessage(), containsString("[" + oldIndexVersion + "] exist"));
+            assertThat(ex.getMessage(), startsWith("cannot upgrade node because incompatible indices created with version"));
+
+            // This should work
+            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), env.nodeDataPaths());
+            checkForIndexCompatibility(logger, env.nodePaths());
+
+            // Trying to boot with newer version should pass this check
+            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), env.nodeDataPaths());
+            checkForIndexCompatibility(logger, env.nodePaths());
+
+            // Simulate empty old index version, attempting to upgrade before 7.17
+            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+
+            ex = expectThrows(
+                IllegalStateException.class,
+                "Must fail the check on index that's too old",
+                () -> checkForIndexCompatibility(logger, env.nodePaths())
+            );
+
+            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
+            assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
+        }
+    }
+
+    private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has shard data if node does not have data role",
+            () -> newNodeEnvironment(settings).close()
+        );
+
+        assertThat(ex.getMessage(), containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
         assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
     private void verifyFailsOnMetadata(Settings settings, Path indexPath) {
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
             "Must fail creating NodeEnvironment on a data path that has index metadata if node does not have data and master roles",
-            () -> newNodeEnvironment(settings).close());
+            () -> newNodeEnvironment(settings).close()
+        );
 
-        assertThat(ex.getMessage(),
-            containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(), containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
         assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
     }
 
@@ -545,14 +655,16 @@ public class NodeEnvironmentTests extends ESTestCase {
         return Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
-            .put(settings).build();
+            .put(settings)
+            .build();
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
         Settings build = Settings.builder()
             .put(settings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths)
+            .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
@@ -561,7 +673,58 @@ public class NodeEnvironmentTests extends ESTestCase {
             .put(settings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths)
+            .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+    }
+
+    private static void overrideOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+
+                    try (
+                        IndexWriter indexWriter = new IndexWriter(
+                            new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)),
+                            indexWriterConfig
+                        )
+                    ) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id));
+                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldVersion.id));
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                }
+            }
+        }
+    }
+
+    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+
+                    try (
+                        IndexWriter indexWriter = new IndexWriter(
+                            new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)),
+                            indexWriterConfig
+                        )
+                    ) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
+                        commitData.remove(OLDEST_INDEX_VERSION_KEY);
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                }
+            }
+        }
     }
 }

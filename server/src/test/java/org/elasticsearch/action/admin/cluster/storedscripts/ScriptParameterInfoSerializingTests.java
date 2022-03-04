@@ -9,9 +9,9 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,10 +77,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
         for (int i = 0; i < size; i++) {
             String suffix = randomValueOtherThanMany(suffixes::contains, () -> randomAlphaOfLengthBetween(minLength, maxLength));
             suffixes.add(suffix);
-            instances.add(new ParameterInfo(
-                baseType + randomAlphaOfLengthBetween(minLength, maxLength),
-                baseName + suffix
-            ));
+            instances.add(new ParameterInfo(baseType + randomAlphaOfLengthBetween(minLength, maxLength), baseName + suffix));
         }
         return Collections.unmodifiableList(instances);
     }

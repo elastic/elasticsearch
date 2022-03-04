@@ -30,14 +30,18 @@ public interface Transform extends ToXContentObject {
         private static final ParseField REASON = new ParseField("reason");
 
         public enum Status {
-            SUCCESS, FAILURE
+            SUCCESS,
+            FAILURE
         }
 
         protected final String type;
         protected final Status status;
-        @Nullable protected final Payload payload;
-        @Nullable protected final String reason;
-        @Nullable protected final Exception exception;
+        @Nullable
+        protected final Payload payload;
+        @Nullable
+        protected final String reason;
+        @Nullable
+        protected final Exception exception;
 
         public Result(String type, Payload payload) {
             this.type = type;

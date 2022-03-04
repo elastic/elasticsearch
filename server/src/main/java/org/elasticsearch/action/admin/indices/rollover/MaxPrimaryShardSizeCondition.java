@@ -36,11 +36,13 @@ public class MaxPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public Result evaluate(Stats stats) {
-        return new Result(this, stats.maxPrimaryShardSize.getBytes() >= value.getBytes());
+        return new Result(this, stats.maxPrimaryShardSize().getBytes() >= value.getBytes());
     }
 
     @Override
-    public String getWriteableName() { return NAME; }
+    public String getWriteableName() {
+        return NAME;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

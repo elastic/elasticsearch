@@ -40,8 +40,13 @@ public class AnalyticsBuilder {
     private final List<Path> filesToDelete;
     private boolean performMemoryUsageEstimationOnly;
 
-    public AnalyticsBuilder(Supplier<Path> tempDirPathSupplier, NativeController nativeController,
-                            ProcessPipes processPipes, AnalyticsProcessConfig config, List<Path> filesToDelete) {
+    public AnalyticsBuilder(
+        Supplier<Path> tempDirPathSupplier,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        AnalyticsProcessConfig config,
+        List<Path> filesToDelete
+    ) {
         this.tempDirPathSupplier = Objects.requireNonNull(tempDirPathSupplier);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
@@ -77,8 +82,10 @@ public class AnalyticsBuilder {
         Path tempDir = tempDirPathSupplier.get();
         Path configFile = Files.createTempFile(tempDir, "analysis", ".conf");
         filesToDelete.add(configFile);
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
-             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+        try (
+            OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile), StandardCharsets.UTF_8);
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
+        ) {
 
             config.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             osw.write(Strings.toString(jsonBuilder));

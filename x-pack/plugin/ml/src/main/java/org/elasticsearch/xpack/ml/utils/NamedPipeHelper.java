@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.utils;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.FileInputStream;
@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Duration;
-
 
 /**
  * Opens named pipes that are created elsewhere.
@@ -73,10 +72,10 @@ public class NamedPipeHelper {
         if (Constants.WINDOWS) {
             return WIN_PIPE_PREFIX;
         }
-        // Use the Java temporary directory.  The Elasticsearch bootstrap sets up the security
-        // manager to allow this to be read from and written to.  Also, the code that spawns our
+        // Use the Java temporary directory. The Elasticsearch bootstrap sets up the security
+        // manager to allow this to be read from and written to. Also, the code that spawns our
         // daemon passes on this location to the C++ code using the $TMPDIR environment variable.
-        // All these factors need to align for everything to work in production.  If any changes
+        // All these factors need to align for everything to work in production. If any changes
         // are made here then CNamedPipeFactory::defaultPath() in the C++ code will probably
         // also need to be changed.
         return env.tmpFile().toString() + PathUtils.getDefaultFileSystem().getSeparator();
@@ -251,7 +250,7 @@ public class NamedPipeHelper {
         }
 
         // There's a race condition here in that somebody could delete the named pipe at this point
-        // causing the line below to create a regular file.  Not sure what can be done about this
+        // causing the line below to create a regular file. Not sure what can be done about this
         // without using low level OS calls...
 
         return Files.newOutputStream(file);
@@ -267,7 +266,7 @@ public class NamedPipeHelper {
     private void propagatePrivilegedException(RuntimeException e) throws IOException {
         Throwable ioe = ExceptionsHelper.unwrap(e, IOException.class);
         if (ioe != null) {
-            throw (IOException)ioe;
+            throw (IOException) ioe;
         }
         throw e;
     }

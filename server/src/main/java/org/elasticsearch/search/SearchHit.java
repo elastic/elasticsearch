@@ -11,10 +11,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -23,23 +20,28 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,10 +58,10 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A single search hit.
@@ -97,9 +99,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Nullable
     private SearchShardTarget shard;
 
-    //These two fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
-    //serialized over the wire. When parsing hits back from xcontent though, in most of the cases (whenever explanation is disabled)
-    //we can't rebuild the shard target object so we need to set these manually for users retrieval.
+    // These two fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
+    // serialized over the wire. When parsing hits back from xcontent though, in most of the cases (whenever explanation is disabled)
+    // we can't rebuild the shard target object so we need to set these manually for users retrieval.
     private transient String index;
     private transient String clusterAlias;
 
@@ -107,7 +109,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private Map<String, SearchHits> innerHits;
 
-    //used only in tests
+    // used only in tests
     public SearchHit(int docId) {
         this(docId, null, null, null);
     }
@@ -116,8 +118,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this(docId, id, null, documentFields, metaFields);
     }
 
-    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity,
-                     Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
+    public SearchHit(
+        int nestedTopDocId,
+        String id,
+        NestedIdentity nestedIdentity,
+        Map<String, DocumentField> documentFields,
+        Map<String, DocumentField> metaFields
+    ) {
         this.docId = nestedTopDocId;
         if (id != null) {
             this.id = new Text(id);
@@ -154,8 +161,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             Map<String, DocumentField> fields = readFields(in);
             documentFields = new HashMap<>();
             metaFields = new HashMap<>();
-            fields.forEach((fieldName, docField) ->
-                (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(fieldName, docField));
+            fields.forEach(
+                (fieldName, docField) -> (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(
+                    fieldName,
+                    docField
+                )
+            );
         }
 
         int size = in.readVInt();
@@ -186,7 +197,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         shard(in.readOptionalWriteable(SearchShardTarget::new));
         size = in.readVInt();
         if (size > 0) {
-            innerHits = new HashMap<>(size);
+            innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
                 SearchHits value = new SearchHits(in);
@@ -199,7 +210,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
-
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
         Map<String, DocumentField> fields;
         int size = in.readVInt();
@@ -208,8 +218,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else if (size == 1) {
             DocumentField hitField = new DocumentField(in);
             fields = singletonMap(hitField.getName(), hitField);
-        }  else {
-            fields = new HashMap<>(size);
+        } else {
+            fields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 DocumentField field = new DocumentField(in);
                 fields.put(field.getName(), field);
@@ -219,7 +229,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return fields;
     }
 
-    private void writeFields(StreamOutput out,  Map<String, DocumentField> fields) throws IOException {
+    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
         if (fields == null) {
             out.writeVInt(0);
         } else {
@@ -229,8 +239,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
         }
     }
-
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -311,7 +319,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public long getVersion() {
         return this.version;
     }
-
 
     public void setSeqNo(long seqNo) {
         this.seqNo = seqNo;
@@ -404,7 +411,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-
     /**
      * The source of the document as a map (can be {@code null}).
      */
@@ -475,6 +481,43 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             return emptyMap();
         }
+    }
+
+    /**
+     * Whether this search hit has any lookup fields
+     */
+    public boolean hasLookupFields() {
+        return getDocumentFields().values().stream().anyMatch(doc -> doc.getLookupFields().isEmpty() == false);
+    }
+
+    /**
+     * Resolve the lookup fields with the given results and merge them as regular fetch fields.
+     */
+    public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
+        if (lookupResults.isEmpty()) {
+            return;
+        }
+        final List<String> fields = new ArrayList<>(documentFields.keySet());
+        for (String field : fields) {
+            documentFields.computeIfPresent(field, (k, docField) -> {
+                if (docField.getLookupFields().isEmpty()) {
+                    return docField;
+                }
+                final List<Object> newValues = new ArrayList<>(docField.getValues());
+                for (LookupField lookupField : docField.getLookupFields()) {
+                    final List<Object> resolvedValues = lookupResults.get(lookupField);
+                    if (resolvedValues != null) {
+                        newValues.addAll(resolvedValues);
+                    }
+                }
+                if (newValues.isEmpty() && docField.getIgnoredValues().isEmpty()) {
+                    return null;
+                } else {
+                    return new DocumentField(docField.getName(), newValues, docField.getIgnoredValues());
+                }
+            });
+        }
+        assert hasLookupFields() == false : "Some lookup fields are not resolved";
     }
 
     /**
@@ -619,7 +662,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+        if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
             builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         if (id != null) {
@@ -660,9 +703,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
         if (documentFields.isEmpty() == false &&
-                // ignore fields all together if they are all empty
-                documentFields.values().stream()
-                    .anyMatch(df -> df.getValues().size() > 0)) {
+        // ignore fields all together if they are all empty
+            documentFields.values().stream().anyMatch(df -> df.getValues().size() > 0)) {
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
                 if (field.getValues().size() > 0) {
@@ -671,9 +713,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
             builder.endObject();
         }
-        //ignored field values
+        // ignored field values
         if (documentFields.isEmpty() == false &&
-            // omit ignored_field_values all together if there are none
+        // omit ignored_field_values all together if there are none
             documentFields.values().stream().anyMatch(df -> df.getIgnoredValues().size() > 0)) {
             builder.startObject(Fields.IGNORED_FIELD_VALUES);
             for (DocumentField field : documentFields.values()) {
@@ -719,7 +761,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @SuppressWarnings("unchecked")
     public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
         Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
-            METADATA_FIELDS, v -> new HashMap<String, DocumentField>());
+            METADATA_FIELDS,
+            v -> new HashMap<String, DocumentField>()
+        );
         if (fieldName.equals(IgnoredFieldMapper.NAME)) {
             fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
         } else {
@@ -737,8 +781,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */
-    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser",
-        unknownMetaFieldConsumer, HashMap::new);
+    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>(
+        "innerHitParser",
+        unknownMetaFieldConsumer,
+        HashMap::new
+    );
 
     static {
         declareInnerHitsParseFields(MAP_PARSER);
@@ -752,31 +799,58 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
         parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
         parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
-        parser.declareField((map, value) -> map.put(Fields._SCORE, value), SearchHit::parseScore, new ParseField(Fields._SCORE),
-                ValueType.FLOAT_OR_NULL);
+        parser.declareField(
+            (map, value) -> map.put(Fields._SCORE, value),
+            SearchHit::parseScore,
+            new ParseField(Fields._SCORE),
+            ValueType.FLOAT_OR_NULL
+        );
         parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
         parser.declareLong((map, value) -> map.put(Fields._SEQ_NO, value), new ParseField(Fields._SEQ_NO));
         parser.declareLong((map, value) -> map.put(Fields._PRIMARY_TERM, value), new ParseField(Fields._PRIMARY_TERM));
-        parser.declareField((map, value) -> map.put(Fields._SHARD, value), (p, c) -> ShardId.fromString(p.text()),
-                new ParseField(Fields._SHARD), ValueType.STRING);
-        parser.declareObject((map, value) -> map.put(SourceFieldMapper.NAME, value), (p, c) -> parseSourceBytes(p),
-                new ParseField(SourceFieldMapper.NAME));
-        parser.declareObject((map, value) -> map.put(Fields.HIGHLIGHT, value), (p, c) -> parseHighlightFields(p),
-                new ParseField(Fields.HIGHLIGHT));
+        parser.declareField(
+            (map, value) -> map.put(Fields._SHARD, value),
+            (p, c) -> ShardId.fromString(p.text()),
+            new ParseField(Fields._SHARD),
+            ValueType.STRING
+        );
+        parser.declareObject(
+            (map, value) -> map.put(SourceFieldMapper.NAME, value),
+            (p, c) -> parseSourceBytes(p),
+            new ParseField(SourceFieldMapper.NAME)
+        );
+        parser.declareObject(
+            (map, value) -> map.put(Fields.HIGHLIGHT, value),
+            (p, c) -> parseHighlightFields(p),
+            new ParseField(Fields.HIGHLIGHT)
+        );
         parser.declareObject((map, value) -> {
             Map<String, DocumentField> fieldMap = get(Fields.FIELDS, map, new HashMap<String, DocumentField>());
             fieldMap.putAll(value);
             map.put(DOCUMENT_FIELDS, fieldMap);
         }, (p, c) -> parseFields(p), new ParseField(Fields.FIELDS));
-        parser.declareObject((map, value) -> map.put(Fields._EXPLANATION, value), (p, c) -> parseExplanation(p),
-                new ParseField(Fields._EXPLANATION));
-        parser.declareObject((map, value) -> map.put(NestedIdentity._NESTED, value), NestedIdentity::fromXContent,
-                new ParseField(NestedIdentity._NESTED));
-        parser.declareObject((map, value) -> map.put(Fields.INNER_HITS, value), (p,c) -> parseInnerHits(p),
-                new ParseField(Fields.INNER_HITS));
+        parser.declareObject(
+            (map, value) -> map.put(Fields._EXPLANATION, value),
+            (p, c) -> parseExplanation(p),
+            new ParseField(Fields._EXPLANATION)
+        );
+        parser.declareObject(
+            (map, value) -> map.put(NestedIdentity._NESTED, value),
+            NestedIdentity::fromXContent,
+            new ParseField(NestedIdentity._NESTED)
+        );
+        parser.declareObject(
+            (map, value) -> map.put(Fields.INNER_HITS, value),
+            (p, c) -> parseInnerHits(p),
+            new ParseField(Fields.INNER_HITS)
+        );
         parser.declareStringArray((map, list) -> map.put(Fields.MATCHED_QUERIES, list), new ParseField(Fields.MATCHED_QUERIES));
-        parser.declareField((map, list) -> map.put(Fields.SORT, list), SearchSortValues::fromXContent, new ParseField(Fields.SORT),
-                ValueType.OBJECT_ARRAY);
+        parser.declareField(
+            (map, list) -> map.put(Fields.SORT, list),
+            SearchSortValues::fromXContent,
+            new ParseField(Fields.SORT),
+            ValueType.OBJECT_ARRAY
+        );
     }
 
     public static SearchHit createFromMap(Map<String, Object> values) {
@@ -801,8 +875,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             assert shardId.getIndexName().equals(index);
             searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias));
         } else {
-            //these fields get set anyways when setting the shard target,
-            //but we set them explicitly when we don't have enough info to rebuild the shard target
+            // these fields get set anyways when setting the shard target,
+            // but we set them explicitly when we don't have enough info to rebuild the shard target
             searchHit.index = index;
             searchHit.clusterAlias = clusterAlias;
         }
@@ -869,7 +943,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private static Map<String, HighlightField> parseHighlightFields(XContentParser parser) throws IOException {
         Map<String, HighlightField> highlightFields = new HashMap<>();
-        while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             HighlightField highlightField = HighlightField.fromXContent(parser);
             highlightFields.put(highlightField.getName(), highlightField);
         }
@@ -930,26 +1004,41 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         SearchHit other = (SearchHit) obj;
         return Objects.equals(id, other.id)
-                && Objects.equals(nestedIdentity, other.nestedIdentity)
-                && Objects.equals(version, other.version)
-                && Objects.equals(seqNo, other.seqNo)
-                && Objects.equals(primaryTerm, other.primaryTerm)
-                && Objects.equals(source, other.source)
-                && Objects.equals(documentFields, other.documentFields)
-                && Objects.equals(metaFields, other.metaFields)
-                && Objects.equals(getHighlightFields(), other.getHighlightFields())
-                && Arrays.equals(matchedQueries, other.matchedQueries)
-                && Objects.equals(explanation, other.explanation)
-                && Objects.equals(shard, other.shard)
-                && Objects.equals(innerHits, other.innerHits)
-                && Objects.equals(index, other.index)
-                && Objects.equals(clusterAlias, other.clusterAlias);
+            && Objects.equals(nestedIdentity, other.nestedIdentity)
+            && Objects.equals(version, other.version)
+            && Objects.equals(seqNo, other.seqNo)
+            && Objects.equals(primaryTerm, other.primaryTerm)
+            && Objects.equals(source, other.source)
+            && Objects.equals(documentFields, other.documentFields)
+            && Objects.equals(metaFields, other.metaFields)
+            && Objects.equals(getHighlightFields(), other.getHighlightFields())
+            && Arrays.equals(matchedQueries, other.matchedQueries)
+            && Objects.equals(explanation, other.explanation)
+            && Objects.equals(shard, other.shard)
+            && Objects.equals(innerHits, other.innerHits)
+            && Objects.equals(index, other.index)
+            && Objects.equals(clusterAlias, other.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, nestedIdentity, version, seqNo, primaryTerm, source, documentFields, metaFields, getHighlightFields(),
-            Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias);
+        return Objects.hash(
+            id,
+            nestedIdentity,
+            version,
+            seqNo,
+            primaryTerm,
+            source,
+            documentFields,
+            metaFields,
+            getHighlightFields(),
+            Arrays.hashCode(matchedQueries),
+            explanation,
+            shard,
+            innerHits,
+            index,
+            clusterAlias
+        );
     }
 
     /**
@@ -1037,8 +1126,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return builder;
         }
 
-        private static final ConstructingObjectParser<NestedIdentity, Void> PARSER = new ConstructingObjectParser<>("nested_identity", true,
-                ctorArgs -> new NestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (NestedIdentity) ctorArgs[2]));
+        private static final ConstructingObjectParser<NestedIdentity, Void> PARSER = new ConstructingObjectParser<>(
+            "nested_identity",
+            true,
+            ctorArgs -> new NestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (NestedIdentity) ctorArgs[2])
+        );
         static {
             PARSER.declareString(constructorArg(), new ParseField(FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(OFFSET));
@@ -1062,9 +1154,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 return false;
             }
             NestedIdentity other = (NestedIdentity) obj;
-            return Objects.equals(field, other.field) &&
-                    Objects.equals(offset, other.offset) &&
-                    Objects.equals(child, other.child);
+            return Objects.equals(field, other.field) && Objects.equals(offset, other.offset) && Objects.equals(child, other.child);
         }
 
         @Override

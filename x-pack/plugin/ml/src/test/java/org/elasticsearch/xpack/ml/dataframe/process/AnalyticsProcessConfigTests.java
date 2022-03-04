@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
@@ -61,11 +61,14 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testToXContent_GivenOutlierDetection() throws IOException {
-        ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
-            new DocValueField("field_1", Collections.singleton("double")),
-            new DocValueField("field_2", Collections.singleton("float"))),
+        ExtractedFields extractedFields = new ExtractedFields(
+            Arrays.asList(
+                new DocValueField("field_1", Collections.singleton("double")),
+                new DocValueField("field_2", Collections.singleton("float"))
+            ),
             Collections.emptyList(),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         DataFrameAnalysis analysis = new OutlierDetection.Builder().build();
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -81,12 +84,15 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testToXContent_GivenRegression() throws IOException {
-        ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
-            new DocValueField("field_1", Collections.singleton("double")),
-            new DocValueField("field_2", Collections.singleton("float")),
-            new DocValueField("test_dep_var", Collections.singleton("keyword"))),
+        ExtractedFields extractedFields = new ExtractedFields(
+            Arrays.asList(
+                new DocValueField("field_1", Collections.singleton("double")),
+                new DocValueField("field_2", Collections.singleton("float")),
+                new DocValueField("test_dep_var", Collections.singleton("keyword"))
+            ),
             Collections.emptyList(),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         DataFrameAnalysis analysis = new Regression("test_dep_var");
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -104,12 +110,15 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testToXContent_GivenClassificationAndDepVarIsKeyword() throws IOException {
-        ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
-            new DocValueField("field_1", Collections.singleton("double")),
-            new DocValueField("field_2", Collections.singleton("float")),
-            new DocValueField("test_dep_var", Collections.singleton("keyword"))),
+        ExtractedFields extractedFields = new ExtractedFields(
+            Arrays.asList(
+                new DocValueField("field_1", Collections.singleton("double")),
+                new DocValueField("field_2", Collections.singleton("float")),
+                new DocValueField("test_dep_var", Collections.singleton("keyword"))
+            ),
             Collections.emptyList(),
-            Collections.singletonMap("test_dep_var", 5L));
+            Collections.singletonMap("test_dep_var", 5L)
+        );
         DataFrameAnalysis analysis = new Classification("test_dep_var");
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -129,12 +138,15 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testToXContent_GivenClassificationAndDepVarIsInteger() throws IOException {
-        ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
-            new DocValueField("field_1", Collections.singleton("double")),
-            new DocValueField("field_2", Collections.singleton("float")),
-            new DocValueField("test_dep_var", Collections.singleton("integer"))),
+        ExtractedFields extractedFields = new ExtractedFields(
+            Arrays.asList(
+                new DocValueField("field_1", Collections.singleton("double")),
+                new DocValueField("field_2", Collections.singleton("float")),
+                new DocValueField("test_dep_var", Collections.singleton("integer"))
+            ),
             Collections.emptyList(),
-            Collections.singletonMap("test_dep_var", 8L));
+            Collections.singletonMap("test_dep_var", 8L)
+        );
         DataFrameAnalysis analysis = new Classification("test_dep_var");
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -153,8 +165,17 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
     }
 
     private AnalyticsProcessConfig createProcessConfig(DataFrameAnalysis analysis, ExtractedFields extractedFields) {
-        return new AnalyticsProcessConfig(jobId, rows, cols, memoryLimit, threads, resultsField, categoricalFields, analysis,
-            extractedFields);
+        return new AnalyticsProcessConfig(
+            jobId,
+            rows,
+            cols,
+            memoryLimit,
+            threads,
+            resultsField,
+            categoricalFields,
+            analysis,
+            extractedFields
+        );
     }
 
     private static Map<String, Object> toMap(AnalyticsProcessConfig config) throws IOException {

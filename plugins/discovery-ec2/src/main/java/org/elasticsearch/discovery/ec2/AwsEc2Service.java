@@ -35,8 +35,12 @@ interface AwsEc2Service extends Closeable {
      * XXXX refers to a name of a tag configured for all EC2 instances. Instances which don't
      * have this tag set will be ignored by the discovery process. Defaults to private_ip.
      */
-    Setting<String> HOST_TYPE_SETTING =
-        new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP, Function.identity(), Property.NodeScope);
+    Setting<String> HOST_TYPE_SETTING = new Setting<>(
+        "discovery.ec2.host_type",
+        HostType.PRIVATE_IP,
+        Function.identity(),
+        Property.NodeScope
+    );
     /**
      * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
      * discovery. Defaults to true.
@@ -46,19 +50,30 @@ interface AwsEc2Service extends Closeable {
      * discovery.ec2.groups: Either a comma separated list or array based list of (security) groups. Only instances with the provided
      * security groups will be used in the cluster discovery. (NOTE: You could provide either group NAME or group ID.)
      */
-    Setting<List<String>> GROUPS_SETTING = Setting.listSetting("discovery.ec2.groups", new ArrayList<>(), s -> s.toString(),
-            Property.NodeScope);
+    Setting<List<String>> GROUPS_SETTING = Setting.listSetting(
+        "discovery.ec2.groups",
+        new ArrayList<>(),
+        s -> s.toString(),
+        Property.NodeScope
+    );
     /**
      * discovery.ec2.availability_zones: Either a comma separated list or array based list of availability zones. Only instances within
      * the provided availability zones will be used in the cluster discovery.
      */
-    Setting<List<String>> AVAILABILITY_ZONES_SETTING = Setting.listSetting("discovery.ec2.availability_zones", Collections.emptyList(),
-            s -> s.toString(), Property.NodeScope);
+    Setting<List<String>> AVAILABILITY_ZONES_SETTING = Setting.listSetting(
+        "discovery.ec2.availability_zones",
+        Collections.emptyList(),
+        s -> s.toString(),
+        Property.NodeScope
+    );
     /**
      * discovery.ec2.node_cache_time: How long the list of hosts is cached to prevent further requests to the AWS API. Defaults to 10s.
      */
-    Setting<TimeValue> NODE_CACHE_TIME_SETTING = Setting.timeSetting("discovery.ec2.node_cache_time", TimeValue.timeValueSeconds(10),
-            Property.NodeScope);
+    Setting<TimeValue> NODE_CACHE_TIME_SETTING = Setting.timeSetting(
+        "discovery.ec2.node_cache_time",
+        TimeValue.timeValueSeconds(10),
+        Property.NodeScope
+    );
 
     /**
      * discovery.ec2.tag.*: The ec2 discovery can filter machines to include in the cluster based on tags (and not just groups).
@@ -66,8 +81,10 @@ interface AwsEc2Service extends Closeable {
      * instances with a tag key set to stage, and a value of dev. Several tags set will require all of those tags to be set for the
      * instance to be included.
      */
-    Setting.AffixSetting<List<String>> TAG_SETTING = Setting.prefixKeySetting("discovery.ec2.tag.",
-            key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+    Setting.AffixSetting<List<String>> TAG_SETTING = Setting.prefixKeySetting(
+        "discovery.ec2.tag.",
+        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope)
+    );
 
     /**
      * Builds then caches an {@code AmazonEC2} client using the current client

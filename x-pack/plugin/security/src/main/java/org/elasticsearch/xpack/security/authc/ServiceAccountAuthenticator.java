@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
@@ -42,16 +44,16 @@ class ServiceAccountAuthenticator implements Authenticator {
     }
 
     @Override
-    public void authenticate(Context context, ActionListener<Authenticator.Result> listener) {
+    public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         if (false == authenticationToken instanceof ServiceAccountToken) {
-            listener.onResponse(Authenticator.Result.notHandled());
+            listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
         final ServiceAccountToken serviceAccountToken = (ServiceAccountToken) authenticationToken;
         serviceAccountService.authenticateToken(serviceAccountToken, nodeName, ActionListener.wrap(authentication -> {
             assert authentication != null : "service account authenticate should return either authentication or call onFailure";
-            listener.onResponse(Authenticator.Result.success(authentication));
+            listener.onResponse(AuthenticationResult.success(authentication));
         }, e -> {
             logger.debug(new ParameterizedMessage("Failed to validate service account token for request [{}]", context.getRequest()), e);
             listener.onFailure(context.getRequest().exceptionProcessingRequest(e, serviceAccountToken));

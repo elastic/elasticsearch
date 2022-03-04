@@ -8,7 +8,6 @@
 
 package org.elasticsearch.painless.toxcontent;
 
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
@@ -61,6 +60,7 @@ import org.elasticsearch.painless.phase.UserTreeBaseVisitor;
 import org.elasticsearch.painless.symbol.Decorator.Condition;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Comparator;
 import java.util.List;
@@ -670,9 +670,10 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<ScriptScope> {
         if (decorations.isEmpty() == false) {
             builder.startArray(Fields.DECORATIONS);
 
-            List<Class<? extends Decoration>> dkeys = decorations.keySet().stream()
-                    .sorted(Comparator.comparing(Class::getName))
-                    .collect(Collectors.toList());
+            List<Class<? extends Decoration>> dkeys = decorations.keySet()
+                .stream()
+                .sorted(Comparator.comparing(Class::getName))
+                .collect(Collectors.toList());
 
             for (Class<? extends Decoration> dkey : dkeys) {
                 DecorationToXContent.ToXContent(decorations.get(dkey), builder);

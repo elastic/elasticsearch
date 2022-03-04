@@ -31,8 +31,7 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
      */
     private Float requestsPerSecond;
 
-    public RethrottleRequest() {
-    }
+    public RethrottleRequest() {}
 
     public RethrottleRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,7 +59,8 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
     public RethrottleRequest setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {
             throw new IllegalArgumentException(
-                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+                "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling."
+            );
         }
         this.requestsPerSecond = requestsPerSecond;
         return this;
@@ -74,13 +74,15 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
         }
         for (String action : getActions()) {
             switch (action) {
-            case ReindexAction.NAME:
-            case UpdateByQueryAction.NAME:
-            case DeleteByQueryAction.NAME:
-                continue;
-            default:
-                validationException = addValidationError(
-                        "Can only change the throttling on reindex or update-by-query. Not on [" + action + "]", validationException);
+                case ReindexAction.NAME:
+                case UpdateByQueryAction.NAME:
+                case DeleteByQueryAction.NAME:
+                    continue;
+                default:
+                    validationException = addValidationError(
+                        "Can only change the throttling on reindex or update-by-query. Not on [" + action + "]",
+                        validationException
+                    );
             }
         }
         return validationException;

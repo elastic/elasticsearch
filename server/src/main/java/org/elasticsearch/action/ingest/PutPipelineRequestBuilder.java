@@ -10,7 +10,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -20,8 +20,13 @@ public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineR
         super(client, action, new PutPipelineRequest());
     }
 
-    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action, String id, BytesReference source,
-                                     XContentType xContentType) {
+    public PutPipelineRequestBuilder(
+        ElasticsearchClient client,
+        PutPipelineAction action,
+        String id,
+        BytesReference source,
+        XContentType xContentType
+    ) {
         super(client, action, new PutPipelineRequest(id, source, xContentType));
     }
 }

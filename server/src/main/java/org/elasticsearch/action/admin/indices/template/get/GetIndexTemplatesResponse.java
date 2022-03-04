@@ -9,9 +9,9 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -67,8 +67,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
-            if(builder.getRestApiVersion() == RestApiVersion.V_7 &&
-                params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false)) {
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false)) {
                 IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
             } else {
                 IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);

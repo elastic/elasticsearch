@@ -99,9 +99,9 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      *
      * Note that the definition should *not* be nested under a type name.
      */
-    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
+    public PutMappingRequest source(String mappingSource, XContentType type) {
         this.source = new BytesArray(mappingSource);
-        this.xContentType = xContentType;
+        this.xContentType = type;
         return this;
     }
 
@@ -121,9 +121,9 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      *
      * Note that the definition should *not* be nested under a type name.
      */
-    public PutMappingRequest source(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+    public PutMappingRequest source(BytesReference bytesReference, XContentType type) {
+        this.source = bytesReference;
+        this.xContentType = type;
         return this;
     }
 

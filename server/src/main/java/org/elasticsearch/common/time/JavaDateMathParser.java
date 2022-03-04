@@ -69,13 +69,13 @@ public class JavaDateMathParser implements DateMathParser {
         return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
-    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,
-                           ZoneId timeZone) throws ElasticsearchParseException {
+    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty, ZoneId timeZone)
+        throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
         ZonedDateTime dateTime = ZonedDateTime.ofInstant(time, timeZone);
-        for (int i = 0; i < mathString.length(); ) {
+        for (int i = 0; i < mathString.length();) {
             char c = mathString.charAt(i++);
             final boolean round;
             final int sign;
@@ -220,8 +220,13 @@ public class JavaDateMathParser implements DateMathParser {
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
         } catch (IllegalArgumentException | DateTimeParseException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
-                e, value, format, e.getMessage());
+            throw new ElasticsearchParseException(
+                "failed to parse date field [{}] with format [{}]: [{}]",
+                e,
+                value,
+                format,
+                e.getMessage()
+            );
         }
     }
 }

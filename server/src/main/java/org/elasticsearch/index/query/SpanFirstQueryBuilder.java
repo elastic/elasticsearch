@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanFirstQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -150,12 +151,16 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     @Override
     protected boolean doEquals(SpanFirstQueryBuilder other) {
-        return Objects.equals(matchBuilder, other.matchBuilder) &&
-               Objects.equals(end, other.end);
+        return Objects.equals(matchBuilder, other.matchBuilder) && Objects.equals(end, other.end);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

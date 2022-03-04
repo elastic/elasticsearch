@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.aggs.inference;
 
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -27,7 +27,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults.PREDICTION_PROBABILITY;
 import static org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults.PREDICTION_SCORE;
 import static org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults.FEATURE_IMPORTANCE;
-
 
 /**
  * There isn't enough information in toXContent representation of the
@@ -44,10 +43,18 @@ import static org.elasticsearch.xpack.core.ml.inference.results.SingleValueInfer
 public class ParsedInference extends ParsedAggregation {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ParsedInference, Void> PARSER =
-        new ConstructingObjectParser<>(ParsedInference.class.getSimpleName(), true,
-            args -> new ParsedInference(args[0], (List<Map<String, Object>>) args[1],
-                (List<TopClassEntry>) args[2], (String) args[3], (Double) args[4], (Double) args[5]));
+    private static final ConstructingObjectParser<ParsedInference, Void> PARSER = new ConstructingObjectParser<>(
+        ParsedInference.class.getSimpleName(),
+        true,
+        args -> new ParsedInference(
+            args[0],
+            (List<Map<String, Object>>) args[1],
+            (List<TopClassEntry>) args[2],
+            (String) args[3],
+            (Double) args[4],
+            (Double) args[5]
+        )
+    );
 
     static {
         PARSER.declareField(optionalConstructorArg(), (p, n) -> {
@@ -60,16 +67,30 @@ public class ParsedInference extends ParsedAggregation {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 o = p.doubleValue();
             } else {
-                throw new XContentParseException(p.getTokenLocation(),
-                    "[" + ParsedInference.class.getSimpleName() + "] failed to parse field [" + CommonFields.VALUE + "] "
-                        + "value [" + token + "] is not a string, boolean or number");
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "["
+                        + ParsedInference.class.getSimpleName()
+                        + "] failed to parse field ["
+                        + CommonFields.VALUE
+                        + "] "
+                        + "value ["
+                        + token
+                        + "] is not a string, boolean or number"
+                );
             }
             return o;
         }, CommonFields.VALUE, ObjectParser.ValueType.VALUE);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.map(),
-            new ParseField(SingleValueInferenceResults.FEATURE_IMPORTANCE));
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TopClassEntry.fromXContent(p),
-            new ParseField(ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD));
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> p.map(),
+            new ParseField(SingleValueInferenceResults.FEATURE_IMPORTANCE)
+        );
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> TopClassEntry.fromXContent(p),
+            new ParseField(ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD)
+        );
         PARSER.declareString(optionalConstructorArg(), new ParseField(WarningInferenceResults.NAME));
         PARSER.declareDouble(optionalConstructorArg(), new ParseField(PREDICTION_PROBABILITY));
         PARSER.declareDouble(optionalConstructorArg(), new ParseField(PREDICTION_SCORE));
@@ -89,12 +110,14 @@ public class ParsedInference extends ParsedAggregation {
     private final Double predictionProbability;
     private final Double predictionScore;
 
-    ParsedInference(Object value,
-                    List<Map<String, Object>> featureImportance,
-                    List<TopClassEntry> topClasses,
-                    String warning,
-                    Double predictionProbability,
-                    Double predictionScore) {
+    ParsedInference(
+        Object value,
+        List<Map<String, Object>> featureImportance,
+        List<TopClassEntry> topClasses,
+        String warning,
+        Double predictionProbability,
+        Double predictionScore
+    ) {
         this.value = value;
         this.warning = warning;
         this.featureImportance = featureImportance;

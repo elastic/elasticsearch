@@ -108,19 +108,38 @@ public class SlackMessageDefaults {
 
             AttachmentDefaults that = (AttachmentDefaults) o;
 
-            return Objects.equals(fallback, that.fallback) && Objects.equals(color, that.color) &&
-                    Objects.equals(pretext, that.pretext) && Objects.equals(authorName, that.authorName) &&
-                    Objects.equals(authorLink, that.authorLink) && Objects.equals(authorIcon, that.authorIcon) &&
-                    Objects.equals(title, that.title) && Objects.equals(titleLink, that.titleLink) &&
-                    Objects.equals(text, that.text) && Objects.equals(imageUrl, that.imageUrl) &&
-                    Objects.equals(thumbUrl, that.thumbUrl) && Objects.equals(field, that.field) &&
-                    Objects.equals(markdownSupportedFields, that.markdownSupportedFields);
+            return Objects.equals(fallback, that.fallback)
+                && Objects.equals(color, that.color)
+                && Objects.equals(pretext, that.pretext)
+                && Objects.equals(authorName, that.authorName)
+                && Objects.equals(authorLink, that.authorLink)
+                && Objects.equals(authorIcon, that.authorIcon)
+                && Objects.equals(title, that.title)
+                && Objects.equals(titleLink, that.titleLink)
+                && Objects.equals(text, that.text)
+                && Objects.equals(imageUrl, that.imageUrl)
+                && Objects.equals(thumbUrl, that.thumbUrl)
+                && Objects.equals(field, that.field)
+                && Objects.equals(markdownSupportedFields, that.markdownSupportedFields);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, imageUrl,
-                    thumbUrl, field, markdownSupportedFields);
+            return Objects.hash(
+                fallback,
+                color,
+                pretext,
+                authorName,
+                authorLink,
+                authorIcon,
+                title,
+                titleLink,
+                text,
+                imageUrl,
+                thumbUrl,
+                field,
+                markdownSupportedFields
+            );
         }
 
         static class FieldDefaults {

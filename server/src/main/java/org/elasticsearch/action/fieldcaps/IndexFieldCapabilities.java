@@ -35,6 +35,19 @@ public class IndexFieldCapabilities implements Writeable {
     private final TimeSeriesParams.MetricType metricType;
     private final Map<String, String> meta;
 
+    public static IndexFieldCapabilities withMetadata(IndexFieldCapabilities input, boolean isMetadata) {
+        return new IndexFieldCapabilities(
+            input.getName(),
+            input.getType(),
+            isMetadata,
+            input.isSearchable,
+            input.isAggregatable,
+            input.isDimension,
+            input.metricType,
+            input.meta
+        );
+    }
+
     /**
      * @param name The name of the field.
      * @param type The type associated with the field.
@@ -42,12 +55,16 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
      */
-    IndexFieldCapabilities(String name, String type,
-                           boolean isMetadatafield,
-                           boolean isSearchable, boolean isAggregatable,
-                           boolean isDimension,
-                           TimeSeriesParams.MetricType metricType,
-                           Map<String, String> meta) {
+    IndexFieldCapabilities(
+        String name,
+        String type,
+        boolean isMetadatafield,
+        boolean isSearchable,
+        boolean isAggregatable,
+        boolean isDimension,
+        TimeSeriesParams.MetricType metricType,
+        Map<String, String> meta
+    ) {
 
         this.name = name;
         this.type = type;
@@ -82,7 +99,7 @@ public class IndexFieldCapabilities implements Writeable {
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if  (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }
@@ -126,14 +143,14 @@ public class IndexFieldCapabilities implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexFieldCapabilities that = (IndexFieldCapabilities) o;
-        return isMetadatafield == that.isMetadatafield &&
-            isSearchable == that.isSearchable &&
-            isAggregatable == that.isAggregatable &&
-            isDimension == that.isDimension &&
-            Objects.equals(metricType, that.metricType) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(meta, that.meta);
+        return isMetadatafield == that.isMetadatafield
+            && isSearchable == that.isSearchable
+            && isAggregatable == that.isAggregatable
+            && isDimension == that.isDimension
+            && Objects.equals(metricType, that.metricType)
+            && Objects.equals(name, that.name)
+            && Objects.equals(type, that.type)
+            && Objects.equals(meta, that.meta);
     }
 
     @Override

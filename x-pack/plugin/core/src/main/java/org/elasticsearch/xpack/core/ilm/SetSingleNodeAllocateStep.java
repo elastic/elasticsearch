@@ -14,13 +14,12 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -68,25 +67,33 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState,
-                              ClusterStateObserver observer, ActionListener<Void> listener) {
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
         // These allocation deciders were chosen because these are the conditions that can prevent
         // allocation long-term, and that we can inspect in advance. Most other allocation deciders
         // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
         // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
-        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(
-            new FilterAllocationDecider(clusterState.getMetadata().settings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            new DataTierAllocationDecider(),
-            new NodeVersionAllocationDecider(),
-            new NodeShutdownAllocationDecider(),
-            new NodeReplacementAllocationDecider()
-        ));
-        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(clusterState.getMetadata().settings(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,
-            null, System.nanoTime());
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            List.of(
+                new FilterAllocationDecider(
+                    clusterState.getMetadata().settings(),
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                DataTierAllocationDecider.INSTANCE,
+                new NodeVersionAllocationDecider(),
+                new NodeShutdownAllocationDecider(),
+                new NodeReplacementAllocationDecider()
+            )
+        );
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(
+            clusterState.getMetadata().settings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
         Set<String> validNodeIds = new HashSet<>();
         String indexName = indexMetadata.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
@@ -94,14 +101,16 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             .stream()
             .collect(Collectors.groupingBy(ShardRouting::shardId));
 
-
         if (routingsByShardId.isEmpty() == false) {
             List<String> dataNodeIds = new ArrayList<>();
-            for (RoutingNode node : routingNodes) {
-                boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream()
-                    .allMatch(shardRoutings -> shardRoutings.stream()
-                        .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())
-                        .anyMatch(Decision.Type.YES::equals));
+            for (RoutingNode node : allocation.routingNodes()) {
+                boolean canAllocateOneCopyOfEachShard = routingsByShardId.values()
+                    .stream()
+                    .allMatch(
+                        shardRoutings -> shardRoutings.stream()
+                            .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())
+                            .anyMatch(Decision.Type.YES::equals)
+                    );
                 if (canAllocateOneCopyOfEachShard) {
                     dataNodeIds.add(node.node().getId());
                 }
@@ -109,25 +118,35 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
             if (dataNodeIds.size() == 0) {
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
-                listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" +
-                    indexName + "] onto prior to shrink"));
+                listener.onFailure(
+                    new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto prior to shrink")
+                );
                 return;
             }
 
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(dataNodeIds.toArray(new String[0])).clear()
-                .addMetric(NodesStatsRequest.Metric.FS.metricName()).indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+                .addMetric(NodesStatsRequest.Metric.FS.metricName())
+                .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
             getClient().admin().cluster().nodesStats(nodesStatsRequest, ActionListener.wrap((nodesStatsResponse) -> {
                 final Map<String, Long> nodeShardsStorageBytes = new HashMap<>();
 
                 Map<String, NodeStats> nodeStatsMap = nodesStatsResponse.getNodesMap();
                 for (String nodeId : dataNodeIds) {
                     if (nodeStatsMap.get(nodeId) != null) {
-                        List<IndexShardStats> indexShardStatsList = nodeStatsMap.get(nodeId).getIndices().
-                            getShardStats(indexMetadata.getIndex());
-                        long shardsOnCurrentNodeStorageBytes = indexShardStatsList.stream().mapToLong(indexShardStats ->
-                            Arrays.stream(indexShardStats.getShards()).mapToLong(shardStats ->
-                                shardStats.getStats().getStore() == null ? 0 :
-                                    shardStats.getStats().getStore().getSizeInBytes()).sum()).sum();
+                        List<IndexShardStats> indexShardStatsList = nodeStatsMap.get(nodeId)
+                            .getIndices()
+                            .getShardStats(indexMetadata.getIndex());
+                        long shardsOnCurrentNodeStorageBytes = indexShardStatsList.stream()
+                            .mapToLong(
+                                indexShardStats -> Arrays.stream(indexShardStats.getShards())
+                                    .mapToLong(
+                                        shardStats -> shardStats.getStats().getStore() == null
+                                            ? 0
+                                            : shardStats.getStats().getStore().getSizeInBytes()
+                                    )
+                                    .sum()
+                            )
+                            .sum();
                         if (shardsOnCurrentNodeStorageBytes != 0) {
                             nodeShardsStorageBytes.put(nodeId, shardsOnCurrentNodeStorageBytes);
                         }
@@ -144,8 +163,9 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                         long nodeAvailableBytes = totalFsInfo.getAvailable().getBytes();
                         long freeBytesThresholdLow;
                         if (diskThresholdSettings.getFreeDiskThresholdLow() != 0) {
-                            freeBytesThresholdLow = (long) Math.ceil(nodeTotalBytes *
-                                diskThresholdSettings.getFreeDiskThresholdLow() * 0.01);
+                            freeBytesThresholdLow = (long) Math.ceil(
+                                nodeTotalBytes * diskThresholdSettings.getFreeDiskThresholdLow() * 0.01
+                            );
                         } else {
                             freeBytesThresholdLow = diskThresholdSettings.getFreeBytesThresholdLow().getBytes();
                         }
@@ -155,8 +175,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                         if (nodeShardsStorageBytes.containsKey(nodeId)) {
                             shardsOnCurrentNodeStorageBytes = nodeShardsStorageBytes.get(nodeId);
                         }
-                        if (nodeAvailableBytes > freeBytesThresholdLow + indexPrimaryShardsStorageBytes -
-                            shardsOnCurrentNodeStorageBytes) {
+                        if (nodeAvailableBytes > freeBytesThresholdLow + indexPrimaryShardsStorageBytes - shardsOnCurrentNodeStorageBytes) {
                             validNodeIds.add(nodeId);
                         }
                     }
@@ -164,8 +183,11 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
                 if (validNodeIds.size() == 0) {
                     logger.debug("no nodes have enough disk space to hold one copy of the index [{}] onto prior to shrink ", indexName);
-                    listener.onFailure(new NoNodeAvailableException("no nodes have enough disk space to hold one copy of the index [" +
-                        indexName + "] onto prior to shrink"));
+                    listener.onFailure(
+                        new NoNodeAvailableException(
+                            "no nodes have enough disk space to hold one copy of the index [" + indexName + "] onto prior to shrink"
+                        )
+                    );
                     return;
                 }
 
@@ -174,22 +196,32 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 if (nodeId.isPresent()) {
                     Settings settings = Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get())
-                        .putNull(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()).build();
-                    UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
-                        .masterNodeTimeout(TimeValue.MAX_VALUE)
-                        .settings(settings);
-                    getClient().admin().indices().updateSettings(updateSettingsRequest,
-                        ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
+                        .putNull(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey())
+                        .build();
+                    UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName).masterNodeTimeout(
+                        TimeValue.MAX_VALUE
+                    ).settings(settings);
+                    getClient().admin()
+                        .indices()
+                        .updateSettings(
+                            updateSettingsRequest,
+                            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+                        );
                 } else {
                     // No nodes currently match the allocation rules or have no enough disk bytes,
                     // so report this as an error and we'll retry
                     logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
-                    listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName +
-                        "] onto prior to shrink"));
+                    listener.onFailure(
+                        new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto prior to shrink")
+                    );
                 }
-            }, (Exception e) -> listener.onFailure(new NoNodeAvailableException("failed to retrieve disk information" +
-                " to select a single node for shard copy allocation"))));
-
+            },
+                (Exception e) -> listener.onFailure(
+                    new NoNodeAvailableException(
+                        "failed to retrieve disk information" + " to select a single node for shard copy allocation"
+                    )
+                )
+            ));
         } else {
             // There are no shards for the index, the index might be gone. Even though this is a retryable step ILM will not retry in
             // this case as we're using the periodic loop to trigger the retries and that is run over *existing* indices.

@@ -8,23 +8,22 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -84,8 +83,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
         private final ImmutableOpenMap.Builder<String, Entry> entries = ImmutableOpenMap.builder();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
             entries.putAll(restoreInProgress.entries);
@@ -104,24 +102,29 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     /**
      * Restore metadata
      */
-    public static class Entry {
-        private final String uuid;
-        private final State state;
-        private final Snapshot snapshot;
-        private final ImmutableOpenMap<ShardId, ShardRestoreStatus> shards;
-        private final List<String> indices;
-
+    public record Entry(
+        String uuid,
+        Snapshot snapshot,
+        State state,
+        List<String> indices,
+        ImmutableOpenMap<ShardId, ShardRestoreStatus> shards
+    ) {
         /**
          * Creates new restore metadata
          *
-         * @param uuid       uuid of the restore
-         * @param snapshot   snapshot
-         * @param state      current state of the restore process
-         * @param indices    list of indices being restored
-         * @param shards     map of shards being restored to their current restore status
+         * @param uuid     uuid of the restore
+         * @param snapshot snapshot
+         * @param state    current state of the restore process
+         * @param indices  list of indices being restored
+         * @param shards   map of shards being restored to their current restore status
          */
-        public Entry(String uuid, Snapshot snapshot, State state, List<String> indices,
-            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
+        public Entry(
+            String uuid,
+            Snapshot snapshot,
+            State state,
+            List<String> indices,
+            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards
+        ) {
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.indices = Objects.requireNonNull(indices);
@@ -131,71 +134,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 this.shards = shards;
             }
             this.uuid = Objects.requireNonNull(uuid);
-        }
-
-        /**
-         * Returns restore uuid
-         * @return restore uuid
-         */
-        public String uuid() {
-            return uuid;
-        }
-
-        /**
-         * Returns snapshot
-         *
-         * @return snapshot
-         */
-        public Snapshot snapshot() {
-            return this.snapshot;
-        }
-
-        /**
-         * Returns list of shards that being restore and their status
-         *
-         * @return list of shards
-         */
-        public ImmutableOpenMap<ShardId, ShardRestoreStatus> shards() {
-            return this.shards;
-        }
-
-        /**
-         * Returns current restore state
-         *
-         * @return restore state
-         */
-        public State state() {
-            return state;
-        }
-
-        /**
-         * Returns list of indices
-         *
-         * @return list of indices
-         */
-        public List<String> indices() {
-            return indices;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Entry entry = (Entry) o;
-            return uuid.equals(entry.uuid) &&
-                       snapshot.equals(entry.snapshot) &&
-                       state == entry.state &&
-                       indices.equals(entry.indices) &&
-                       shards.equals(entry.shards);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(uuid, snapshot, state, indices, shards);
         }
     }
 
@@ -207,8 +145,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         private String nodeId;
         private String reason;
 
-        private ShardRestoreStatus() {
-        }
+        private ShardRestoreStatus() {}
 
         /**
          * Constructs a new shard restore status in initializing state on the given node
@@ -314,9 +251,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
 
             ShardRestoreStatus status = (ShardRestoreStatus) o;
-            return state == status.state &&
-                       Objects.equals(nodeId, status.nodeId) &&
-                       Objects.equals(reason, status.reason);
+            return state == status.state && Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason);
         }
 
         @Override
@@ -382,18 +317,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @return state
          */
         public static State fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return INIT;
-                case 1:
-                    return STARTED;
-                case 2:
-                    return SUCCESS;
-                case 3:
-                    return FAILURE;
-                default:
-                    throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> INIT;
+                case 1 -> STARTED;
+                case 2 -> SUCCESS;
+                case 3 -> FAILURE;
+                default -> throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
+            };
         }
     }
 
@@ -423,8 +353,16 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             List<String> indexBuilder = in.readStringList();
-            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)));
+            entriesBuilder.put(
+                uuid,
+                new Entry(
+                    uuid,
+                    snapshot,
+                    state,
+                    Collections.unmodifiableList(indexBuilder),
+                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                )
+            );
         }
         this.entries = entriesBuilder.build();
     }
@@ -437,7 +375,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeStringCollection(entry.indices);
-            out.writeMap(entry.shards);
+            out.writeImmutableMap(entry.shards);
         }
     }
 
@@ -471,9 +409,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         builder.endArray();
         builder.startArray("shards");
         {
-            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards) {
-                ShardId shardId = shardEntry.key;
-                ShardRestoreStatus status = shardEntry.value;
+            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
+                ShardId shardId = shardEntry.getKey();
+                ShardRestoreStatus status = shardEntry.getValue();
                 builder.startObject();
                 {
                     builder.field("index", shardId.getIndex());

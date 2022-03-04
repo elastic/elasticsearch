@@ -812,7 +812,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes;
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
@@ -822,6 +822,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
+            boolean success = false;
+            try {
+                subsetSizes = bigArrays().newLongArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override

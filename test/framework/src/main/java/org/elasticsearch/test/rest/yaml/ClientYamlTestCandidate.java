@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
 import org.elasticsearch.test.rest.yaml.section.TeardownSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 
 /**
  * Wraps {@link ClientYamlTestSection}s ready to be run. Each test section is associated to its {@link ClientYamlTestSuite}.

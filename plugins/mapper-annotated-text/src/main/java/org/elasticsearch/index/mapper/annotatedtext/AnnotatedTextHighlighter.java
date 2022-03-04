@@ -10,12 +10,12 @@ package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
-import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
@@ -43,7 +43,7 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
         AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];
         for (int i = 0; i < fieldValues.size(); i++) {
             annotations[i] = AnnotatedText.parse(fieldValues.get(i).toString());
-            strings.add(annotations[i].textMinusMarkup);
+            strings.add(annotations[i].textMinusMarkup());
         }
         // Store the annotations in the formatter and analyzer
         ((AnnotatedPassageFormatter) highlighter.getFormatter()).setAnnotations(annotations);

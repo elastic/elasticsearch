@@ -8,13 +8,13 @@
 
 package org.elasticsearch.script.field;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
- * Script field with no mapping, always returns {@code defaultValue}.
+ * A script {@code Field} with no mapping, always returns {@code defaultValue}.
  */
-public class EmptyField<T> implements Field<T> {
+public class EmptyField implements Field<Object> {
 
     private final String name;
 
@@ -37,18 +37,26 @@ public class EmptyField<T> implements Field<T> {
         return 0;
     }
 
-    @Override
-    public List<T> getValues() {
-        return Collections.emptyList();
+    public Object get(Object defaultValue) {
+        return get(0, defaultValue);
     }
 
-    @Override
-    public T getValue(T defaultValue) {
+    public Object get(int index, Object defaultValue) {
         return defaultValue;
     }
 
     @Override
-    public T getValue(int index, T defaultValue) {
-        return defaultValue;
+    public Iterator<Object> iterator() {
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Object next() {
+                throw new NoSuchElementException();
+            }
+        };
     }
 }

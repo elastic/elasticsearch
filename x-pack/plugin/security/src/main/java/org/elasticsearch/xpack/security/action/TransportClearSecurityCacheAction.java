@@ -29,8 +29,11 @@ import java.util.List;
  * Clears a security cache by name (with optional keys).
  * @see CacheInvalidatorRegistry
  */
-public class TransportClearSecurityCacheAction extends TransportNodesAction<ClearSecurityCacheRequest, ClearSecurityCacheResponse,
-    ClearSecurityCacheRequest.Node, ClearSecurityCacheResponse.Node> {
+public class TransportClearSecurityCacheAction extends TransportNodesAction<
+    ClearSecurityCacheRequest,
+    ClearSecurityCacheResponse,
+    ClearSecurityCacheRequest.Node,
+    ClearSecurityCacheResponse.Node> {
 
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
 
@@ -40,7 +43,8 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+        CacheInvalidatorRegistry cacheInvalidatorRegistry
+    ) {
         super(
             ClearSecurityCacheAction.NAME,
             threadPool,
@@ -50,13 +54,17 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
             ClearSecurityCacheRequest::new,
             ClearSecurityCacheRequest.Node::new,
             ThreadPool.Names.MANAGEMENT,
-            ClearSecurityCacheResponse.Node.class);
+            ClearSecurityCacheResponse.Node.class
+        );
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }
 
     @Override
     protected ClearSecurityCacheResponse newResponse(
-        ClearSecurityCacheRequest request, List<ClearSecurityCacheResponse.Node> nodes, List<FailedNodeException> failures) {
+        ClearSecurityCacheRequest request,
+        List<ClearSecurityCacheResponse.Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new ClearSecurityCacheResponse(clusterService.getClusterName(), nodes, failures);
     }
 

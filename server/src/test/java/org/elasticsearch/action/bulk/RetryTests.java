@@ -75,9 +75,7 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(backoff, bulkClient.threadPool())
-            .withBackoff(bulkClient::bulk, bulkRequest)
-            .actionGet();
+        BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -96,7 +94,7 @@ public class RetryTests extends ESTestCase {
             assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
         } catch (EsRejectedExecutionException e) {
             /*
-             * If the last failure was a rejection we'll end up here. 
+             * If the last failure was a rejection we'll end up here.
              */
             assertThat(e.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
         }
@@ -213,7 +211,8 @@ public class RetryTests extends ESTestCase {
         public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
             if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
                 listener.onFailure(
-                        new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));
+                    new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders())
+                );
                 return;
             }
 

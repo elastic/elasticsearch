@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,8 +42,13 @@ public class RecoveryResponse extends BroadcastResponse {
      * @param shardRecoveryStates    Map of indices to shard recovery information
      * @param shardFailures     List of failures processing shards
      */
-    public RecoveryResponse(int totalShards, int successfulShards, int failedShards, Map<String, List<RecoveryState>> shardRecoveryStates,
-                            List<DefaultShardOperationFailedException> shardFailures) {
+    public RecoveryResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        Map<String, List<RecoveryState>> shardRecoveryStates,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shardRecoveryStates = shardRecoveryStates;
     }

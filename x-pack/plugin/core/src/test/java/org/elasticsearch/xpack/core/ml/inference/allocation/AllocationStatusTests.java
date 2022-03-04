@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.ml.inference.allocation;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -44,10 +44,7 @@ public class AllocationStatusTests extends AbstractSerializingTestCase<Allocatio
             equalTo(AllocationStatus.State.STARTED)
         );
 
-        assertThat(
-            new AllocationStatus(0, targetAllocation).calculateState(),
-            equalTo(AllocationStatus.State.STARTING)
-        );
+        assertThat(new AllocationStatus(0, targetAllocation).calculateState(), equalTo(AllocationStatus.State.STARTING));
 
         assertThat(
             new AllocationStatus(targetAllocation, targetAllocation).calculateState(),

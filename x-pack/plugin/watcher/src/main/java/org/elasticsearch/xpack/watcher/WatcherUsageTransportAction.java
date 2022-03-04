@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,22 +45,42 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
     private final Client client;
 
     @Inject
-    public WatcherUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Settings settings, XPackLicenseState licenseState, Client client) {
-        super(XPackUsageFeatureAction.WATCHER.name(), transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver);
+    public WatcherUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
+        super(
+            XPackUsageFeatureAction.WATCHER.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         if (enabled) {
-            try (ThreadContext.StoredContext ignore =
-                     client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+            ActionListener<XPackUsageFeatureResponse> preservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                listener,
+                client.threadPool().getThreadContext()
+            );
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherStatsRequest statsRequest = new WatcherStatsRequest();
                 statsRequest.includeStats(true);
                 statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -71,13 +92,19 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
                         .collect(Collectors.toList());
                     Counters mergedCounters = Counters.merge(countersPerNode);
                     WatcherFeatureSetUsage usage = new WatcherFeatureSetUsage(
-                        WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState), true, mergedCounters.toNestedMap());
-                    listener.onResponse(new XPackUsageFeatureResponse(usage));
-                }, listener::onFailure));
+                        WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState),
+                        true,
+                        mergedCounters.toNestedMap()
+                    );
+                    preservingListener.onResponse(new XPackUsageFeatureResponse(usage));
+                }, preservingListener::onFailure));
             }
         } else {
             WatcherFeatureSetUsage usage = new WatcherFeatureSetUsage(
-                WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState), false, Collections.emptyMap());
+                WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState),
+                false,
+                Collections.emptyMap()
+            );
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

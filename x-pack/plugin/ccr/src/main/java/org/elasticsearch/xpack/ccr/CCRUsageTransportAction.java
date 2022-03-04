@@ -35,18 +35,27 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public CCRUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   Settings settings, XPackLicenseState licenseState) {
-        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public CCRUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
+        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
         this.settings = settings;
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         Metadata metadata = state.metadata();
 
         int numberOfFollowerIndices = 0;
@@ -70,8 +79,13 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
             lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
         }
 
-        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState),
-            XPackSettings.CCR_ENABLED_SETTING.get(settings), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
+        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(
+            CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState),
+            XPackSettings.CCR_ENABLED_SETTING.get(settings),
+            numberOfFollowerIndices,
+            numberOfAutoFollowPatterns,
+            lastFollowTimeInMillis
+        );
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

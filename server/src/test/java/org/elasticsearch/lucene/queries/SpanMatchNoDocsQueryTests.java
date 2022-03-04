@@ -9,23 +9,22 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.search.QueryUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,8 +41,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
     public void testQuery() throws Exception {
         Directory dir = newDirectory();
         Analyzer analyzer = new MockAnalyzer(random());
-        IndexWriter iw = new IndexWriter(dir,
-            newIndexWriterConfig(analyzer).setMaxBufferedDocs(2).setMergePolicy(newLogMergePolicy()));
+        IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(analyzer).setMaxBufferedDocs(2).setMergePolicy(newLogMergePolicy()));
         addDoc("one", iw);
         addDoc("two", iw);
         addDoc("three", iw);
@@ -66,10 +64,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         hits = searcher.search(orQuery, 1000).scoreDocs;
         assertEquals(0, hits.length);
 
-        orQuery = new SpanOrQuery(
-            new SpanMatchNoDocsQuery("key", "a good reason"),
-            new SpanTermQuery(new Term("key", "one"))
-        );
+        orQuery = new SpanOrQuery(new SpanMatchNoDocsQuery("key", "a good reason"), new SpanTermQuery(new Term("key", "one")));
         assertEquals(searcher.count(orQuery), 1);
         hits = searcher.search(orQuery, 1000).scoreDocs;
         assertEquals(1, hits.length);
@@ -77,8 +72,10 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         assertEquals(rewrite, orQuery);
 
         SpanNearQuery nearQuery = new SpanNearQuery(
-            new SpanQuery[] {new SpanMatchNoDocsQuery("same", ""), new SpanMatchNoDocsQuery("same", "")},
-            0, true);
+            new SpanQuery[] { new SpanMatchNoDocsQuery("same", ""), new SpanMatchNoDocsQuery("same", "") },
+            0,
+            true
+        );
         assertEquals(searcher.count(nearQuery), 0);
         hits = searcher.search(nearQuery, 1000).scoreDocs;
         assertEquals(0, hits.length);

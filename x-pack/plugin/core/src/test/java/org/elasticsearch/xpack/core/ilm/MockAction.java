@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -95,7 +95,6 @@ public class MockAction implements LifecycleAction {
             return false;
         }
         MockAction other = (MockAction) obj;
-        return Objects.equals(steps, other.steps) &&
-                Objects.equals(safe, other.safe);
+        return Objects.equals(steps, other.steps) && Objects.equals(safe, other.safe);
     }
 }

@@ -9,13 +9,12 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.reindex.RestDeleteByQueryAction;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -36,20 +35,17 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() throws IOException {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.POST)
-            .withPath("/some_index/some_type/_delete_by_query")
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/_delete_by_query").build();
 
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
         dispatchRequest(request);
 
-
         // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
 }

@@ -30,8 +30,12 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     private final ReservedRolesStore reservedRolesStore;
 
     @Inject
-    public TransportGetRolesAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService,
-                                   ReservedRolesStore reservedRolesStore) {
+    public TransportGetRolesAction(
+        ActionFilters actionFilters,
+        NativeRolesStore nativeRolesStore,
+        TransportService transportService,
+        ReservedRolesStore reservedRolesStore
+    ) {
         super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;

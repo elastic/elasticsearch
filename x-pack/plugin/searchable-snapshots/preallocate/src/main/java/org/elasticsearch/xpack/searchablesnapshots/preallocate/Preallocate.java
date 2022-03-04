@@ -11,10 +11,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,35 +33,53 @@ public class Preallocate {
         } else if (Constants.MAC_OS_X) {
             preallocate(cacheFile, fileSize, new MacOsPreallocator());
         } else {
-            preallocate(cacheFile, fileSize, new UnsupportedPreallocator());
+            preallocate(cacheFile, fileSize, new NoNativePreallocator());
         }
     }
 
     @SuppressForbidden(reason = "need access to fd on FileOutputStream")
     private static void preallocate(final Path cacheFile, final long fileSize, final Preallocator prealloactor) throws IOException {
-        if (prealloactor.available() == false) {
-            logger.warn("failed to pre-allocate cache file [{}] as native methods are not available", cacheFile);
-        }
         boolean success = false;
-        try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
-            long currentSize = fileChannel.getChannel().size();
-            if (currentSize < fileSize) {
-                final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
-                final int errno = prealloactor.preallocate((int) field.get(fileChannel.getFD()), currentSize, fileSize - currentSize);
-                if (errno == 0) {
-                    success = true;
-                    logger.debug("pre-allocated cache file [{}] using native methods", cacheFile);
-                } else {
-                    logger.warn(
-                        "failed to pre-allocate cache file [{}] using native methods, errno: [{}], error: [{}]",
-                        cacheFile,
-                        errno,
-                        prealloactor.error(errno)
-                    );
+        try {
+            if (prealloactor.useNative()) {
+                try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
+                    long currentSize = fileChannel.getChannel().size();
+                    if (currentSize < fileSize) {
+                        logger.info("pre-allocating cache file [{}] ({}) using native methods", cacheFile, new ByteSizeValue(fileSize));
+                        final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
+                        final int errno = prealloactor.preallocate(
+                            (int) field.get(fileChannel.getFD()),
+                            currentSize,
+                            fileSize - currentSize
+                        );
+                        if (errno == 0) {
+                            success = true;
+                            logger.debug("pre-allocated cache file [{}] using native methods", cacheFile);
+                        } else {
+                            logger.warn(
+                                "failed to pre-allocate cache file [{}] using native methods, errno: [{}], error: [{}]",
+                                cacheFile,
+                                errno,
+                                prealloactor.error(errno)
+                            );
+                        }
+                    }
+                } catch (final Exception e) {
+                    logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using native methods", cacheFile), e);
                 }
             }
-        } catch (final Exception e) {
-            logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using native methods", cacheFile), e);
+            // even if allocation was successful above, verify again here
+            try (RandomAccessFile raf = new RandomAccessFile(cacheFile.toFile(), "rw")) {
+                if (raf.length() != fileSize) {
+                    logger.info("pre-allocating cache file [{}] ({}) using setLength method", cacheFile, new ByteSizeValue(fileSize));
+                    raf.setLength(fileSize);
+                    success = true;
+                    logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
+                }
+            } catch (final Exception e) {
+                logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using setLength method", cacheFile), e);
+                throw e;
+            }
         } finally {
             if (success == false) {
                 // if anything goes wrong, delete the potentially created file to not waste disk space

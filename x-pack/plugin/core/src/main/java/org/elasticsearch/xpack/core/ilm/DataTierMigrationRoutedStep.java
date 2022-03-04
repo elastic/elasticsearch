@@ -32,6 +32,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     private static final Logger logger = LogManager.getLogger(DataTierMigrationRoutedStep.class);
 
+    private static final AllocationDeciders DECIDERS = new AllocationDeciders(List.of(DataTierAllocationDecider.INSTANCE));
+
     DataTierMigrationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
@@ -43,11 +45,6 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            List.of(
-                new DataTierAllocationDecider()
-            )
-        );
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -55,48 +52,83 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(false, null);
         }
         List<String> preferredTierConfiguration = idxMeta.getTierPreference();
-        Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(preferredTierConfiguration,
-            clusterState.getNodes());
+        Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
+            preferredTierConfiguration,
+            clusterState.getNodes()
+        );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             if (preferredTierConfiguration.isEmpty()) {
-                logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                    getKey().getAction(), index.getName());
+                logger.debug(
+                    "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
+                    getKey().getAction(),
+                    index.getName()
+                );
             } else {
                 if (availableDestinationTier.isPresent()) {
-                    logger.debug("[{}] migration of index [{}] to the {} tier preference cannot progress, as not all shards are active",
-                        getKey().getAction(), index.getName(), preferredTierConfiguration);
+                    logger.debug(
+                        "[{}] migration of index [{}] to the {} tier preference cannot progress, as not all shards are active",
+                        getKey().getAction(),
+                        index.getName(),
+                        preferredTierConfiguration
+                    );
                 } else {
-                    logger.debug("[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the " +
-                            "configured preferred tiers {} and not all shards are active", getKey().getAction(), index.getName(),
-                        preferredTierConfiguration);
+                    logger.debug(
+                        "[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the "
+                            + "configured preferred tiers {} and not all shards are active",
+                        getKey().getAction(),
+                        index.getName(),
+                        preferredTierConfiguration
+                    );
                 }
             }
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
         }
 
         if (preferredTierConfiguration.isEmpty()) {
-            logger.debug("index [{}] has no data tier routing preference setting configured and all its shards are active. considering " +
-                "the [{}] step condition met and continuing to the next step", index.getName(), getKey().getName());
+            logger.debug(
+                "index [{}] has no data tier routing preference setting configured and all its shards are active. considering "
+                    + "the [{}] step condition met and continuing to the next step",
+                index.getName(),
+                getKey().getName()
+            );
             // the user removed the tier routing setting and all the shards are active so we'll cary on
             return new Result(true, null);
         }
 
-        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, clusterState);
+        int allocationPendingAllShards = getPendingAllocations(index, DECIDERS, clusterState);
 
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(
-                s -> String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier " +
-                        "migration preference configuration is %s)", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
-                    preferredTierConfiguration)
-            ).orElseGet(
-                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " +
-                    "available in the cluster", index.getName(), preferredTierConfiguration));
+                s -> String.format(
+                    Locale.ROOT,
+                    "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier "
+                        + "migration preference configuration is %s)",
+                    index.getName(),
+                    getKey().getAction(),
+                    allocationPendingAllShards,
+                    s,
+                    preferredTierConfiguration
+                )
+            )
+                .orElseGet(
+                    () -> String.format(
+                        Locale.ROOT,
+                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " + "available in the cluster",
+                        index.getName(),
+                        preferredTierConfiguration
+                    )
+                );
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));
         } else {
-            logger.debug("[{}] migration of index [{}] to tier [{}] (preference [{}]) complete",
-                getKey().getAction(), index, availableDestinationTier.orElse(""), preferredTierConfiguration);
+            logger.debug(
+                "[{}] migration of index [{}] to tier [{}] (preference [{}]) complete",
+                getKey().getAction(),
+                index,
+                availableDestinationTier.orElse(""),
+                preferredTierConfiguration
+            );
             return new Result(true, null);
         }
     }

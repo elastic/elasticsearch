@@ -14,13 +14,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 
 public interface RecoveryPlannerService {
-    void computeRecoveryPlan(ShardId shardId,
-                             String shardStateIdentifier,
-                             Store.MetadataSnapshot sourceMetadata,
-                             Store.MetadataSnapshot targetMetadata,
-                             long startingSeqNo,
-                             int translogOps,
-                             Version targetVersion,
-                             boolean useSnapshots,
-                             ActionListener<ShardRecoveryPlan> listener);
+    void computeRecoveryPlan(
+        ShardId shardId,
+        String shardStateIdentifier,
+        Store.MetadataSnapshot sourceMetadata,
+        Store.MetadataSnapshot targetMetadata,
+        long startingSeqNo,
+        int translogOps,
+        Version targetVersion,
+        boolean useSnapshots,
+        ActionListener<ShardRecoveryPlan> listener
+    );
 }

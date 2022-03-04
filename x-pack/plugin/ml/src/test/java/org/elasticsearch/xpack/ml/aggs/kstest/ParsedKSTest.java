@@ -7,31 +7,30 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-
 
 public class ParsedKSTest extends ParsedAggregation {
 
     @SuppressWarnings("unchecked")
     public static ParsedKSTest fromXContent(XContentParser parser, final String name) throws IOException {
         Map<String, Object> values = parser.map();
-        Map<String, Double> doubleValues = new HashMap<>(values.size(), 1.0f);
+        Map<String, Double> doubleValues = Maps.newMapWithExpectedSize(values.size());
         for (Alternative alternative : Alternative.values()) {
-            Double value = (Double)values.get(alternative.toString());
+            Double value = (Double) values.get(alternative.toString());
             if (value != null) {
                 doubleValues.put(alternative.toString(), value);
             }
         }
         ParsedKSTest parsed = new ParsedKSTest(
             doubleValues,
-            (Map<String, Object>)values.get(InternalAggregation.CommonFields.META.getPreferredName())
+            (Map<String, Object>) values.get(InternalAggregation.CommonFields.META.getPreferredName())
         );
         parsed.setName(name);
         return parsed;

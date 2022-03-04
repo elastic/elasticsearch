@@ -39,12 +39,12 @@ public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> 
 
     public static DateDiffPipe randomDateDiffPipe() {
         return (DateDiffPipe) new DateDiff(
-                randomSource(),
-                randomStringLiteral(),
-                randomDatetimeLiteral(),
-                randomDatetimeLiteral(),
-                randomZone())
-                .makePipe();
+            randomSource(),
+            randomStringLiteral(),
+            randomDatetimeLiteral(),
+            randomDatetimeLiteral(),
+            randomZone()
+        ).makePipe();
     }
 
     @Override
@@ -54,26 +54,13 @@ public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> 
         DateDiffPipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateDiffPipeExpression);
-        DateDiffPipe newB = new DateDiffPipe(
-                b1.source(),
-                newExpression,
-                b1.first(),
-                b1.second(),
-                b1.third(),
-                b1.zoneId());
+        DateDiffPipe newB = new DateDiffPipe(b1.source(), newExpression, b1.first(), b1.second(), b1.third(), b1.zoneId());
         assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         DateDiffPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
-        newB = new DateDiffPipe(
-            newLoc,
-            b2.expression(),
-            b2.first(),
-            b2.second(),
-            b2.third(),
-            b2.zoneId());
-        assertEquals(newB,
-            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
+        newB = new DateDiffPipe(newLoc, b2.expression(), b2.first(), b2.second(), b2.third(), b2.zoneId());
+        assertEquals(newB, b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -117,26 +104,46 @@ public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> 
     @Override
     protected DateDiffPipe mutate(DateDiffPipe instance) {
         List<Function<DateDiffPipe, DateDiffPipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new DateDiffPipe(f.source(), f.expression(),
+        randoms.add(
+            f -> new DateDiffPipe(
+                f.source(),
+                f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.first(), FunctionTestUtils::randomStringLiteral))),
                 f.second(),
                 f.third(),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
-        randoms.add(f -> new DateDiffPipe(f.source(), f.expression(),
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
+        randoms.add(
+            f -> new DateDiffPipe(
+                f.source(),
+                f.expression(),
                 f.first(),
                 pipe(((Expression) randomValueOtherThan(f.second(), FunctionTestUtils::randomDatetimeLiteral))),
                 f.third(),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
-        randoms.add(f -> new DateDiffPipe(f.source(), f.expression(),
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
+        randoms.add(
+            f -> new DateDiffPipe(
+                f.source(),
+                f.expression(),
                 f.first(),
                 f.second(),
                 pipe(((Expression) randomValueOtherThan(f.third(), FunctionTestUtils::randomDatetimeLiteral))),
-            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
-        randoms.add(f -> new DateDiffPipe(f.source(), f.expression(),
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
+        randoms.add(
+            f -> new DateDiffPipe(
+                f.source(),
+                f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.first(), FunctionTestUtils::randomStringLiteral))),
                 pipe(((Expression) randomValueOtherThan(f.second(), FunctionTestUtils::randomDatetimeLiteral))),
                 pipe(((Expression) randomValueOtherThan(f.third(), FunctionTestUtils::randomDatetimeLiteral))),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
 
         return randomFrom(randoms).apply(instance);
     }
@@ -149,6 +156,7 @@ public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> 
             instance.first(),
             instance.second(),
             instance.third(),
-            instance.zoneId());
+            instance.zoneId()
+        );
     }
 }

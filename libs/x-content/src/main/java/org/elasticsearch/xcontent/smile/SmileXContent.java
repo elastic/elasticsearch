@@ -11,20 +11,17 @@ package org.elasticsearch.xcontent.smile;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
-import org.elasticsearch.core.RestApiVersion;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -54,8 +51,7 @@ public class SmileXContent implements XContent {
         smileXContent = new SmileXContent();
     }
 
-    private SmileXContent() {
-    }
+    private SmileXContent() {}
 
     @Override
     public XContentType type() {
@@ -68,74 +64,43 @@ public class SmileXContent implements XContent {
     }
 
     @Override
+    public boolean detectContent(byte[] bytes, int offset, int length) {
+        return length > 2
+            && bytes[offset] == SmileConstants.HEADER_BYTE_1
+            && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
+            && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3;
+    }
+
+    @Override
+    public boolean detectContent(CharSequence chars) {
+        return chars.length() > 2
+            && chars.charAt(0) == SmileConstants.HEADER_BYTE_1
+            && chars.charAt(1) == SmileConstants.HEADER_BYTE_2
+            && chars.charAt(2) == SmileConstants.HEADER_BYTE_3;
+    }
+
+    @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(content));
+    public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is));
+    public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        InputStream is,
-        FilterPath[] include,
-        FilterPath[] exclude
-    ) throws IOException {
-        return new SmileXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            smileFactory.createParser(is),
-            RestApiVersion.current(),
-            include,
-            exclude
-        );
+    public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
-        return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
-        return createParserForCompatibility(xContentRegistry, deprecationHandler, data, offset, length, RestApiVersion.current());
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, Reader reader) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(reader));
-    }
-
-    @Override
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is,
-                                                       RestApiVersion restApiVersion) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), restApiVersion);
-    }
-
-    @Override
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                       byte[] data, int offset, int length, RestApiVersion restApiVersion)
-        throws IOException {
-        return new SmileXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            smileFactory.createParser(new ByteArrayInputStream(data, offset, length)),
-            restApiVersion
-        );
+    public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(reader));
     }
 }

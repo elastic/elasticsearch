@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -36,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -181,13 +178,12 @@ public class MlInitializationService implements ClusterStateListener {
         // Step 4: Extract ML internal aliases that are not hidden and make them hidden.
         ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(getAliasesResponse -> {
             IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
-                String index = entry.key;
-                for (AliasMetadata existingAliasMetadata : entry.value) {
+            for (var entry : getAliasesResponse.getAliases().entrySet()) {
+                for (AliasMetadata existingAliasMetadata : entry.getValue()) {
                     if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
                         continue;
                     }
-                    indicesAliasesRequest.addAliasAction(aliasReplacementAction(index, existingAliasMetadata));
+                    indicesAliasesRequest.addAliasAction(aliasReplacementAction(entry.getKey(), existingAliasMetadata));
                 }
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {

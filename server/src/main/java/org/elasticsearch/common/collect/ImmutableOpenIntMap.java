@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)}
  * (which is an optimized option to copy over existing content and modify it).
  */
-public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, Iterable<IntObjectCursor<VType>> {
+public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
 
     private final IntObjectHashMap<VType> map;
 
@@ -135,29 +135,6 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
             keySet = new KeySet();
         }
         return keySet;
-    }
-
-    /**
-     * Returns a cursor over the entries (key-value pairs) in this map. The iterator is
-     * implemented as a cursor and it returns <b>the same cursor instance</b> on every
-     * call to {@link java.util.Iterator#next()}. To read the current key and value use the cursor's
-     * public fields. An example is shown below.
-     * <pre>
-     * for (IntShortCursor c : intShortMap)
-     * {
-     *     System.out.println(&quot;index=&quot; + c.index
-     *       + &quot; key=&quot; + c.key
-     *       + &quot; value=&quot; + c.value);
-     * }
-     * </pre>
-     * <p>
-     * The <code>index</code> field inside the cursor gives the internal index inside
-     * the container's implementation. The interpretation of this index depends on
-     * to the container.
-     */
-    @Override
-    public Iterator<IntObjectCursor<VType>> iterator() {
-        return map.iterator();
     }
 
     /**

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
@@ -85,9 +83,9 @@ public class ImmutableOpenMapTests extends ESTestCase {
             .collect(Collectors.groupingBy(e -> e.getKey() % 2, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         Map<Long, String> sortedMap = new TreeMap<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key > 0) {
-                sortedMap.put(cursor.key, cursor.value);
+        for (var entry : map.entrySet()) {
+            if (entry.getKey() > 0) {
+                sortedMap.put(entry.getKey(), entry.getValue());
             }
         }
         int i = 0;
@@ -136,9 +134,9 @@ public class ImmutableOpenMapTests extends ESTestCase {
         List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).collect(Collectors.toList());
 
         SortedSet<Long> positiveNumbers = new TreeSet<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key > 0) {
-                positiveNumbers.add(cursor.key);
+        for (var key : map.keySet()) {
+            if (key > 0) {
+                positiveNumbers.add(key);
             }
         }
         int i = 0;
@@ -214,9 +212,9 @@ public class ImmutableOpenMapTests extends ESTestCase {
             .collect(Collectors.toList());
 
         SortedSet<String> filteredSortedStrings = new TreeSet<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if ((cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) == false) {
-                filteredSortedStrings.add(cursor.value);
+        for (var value : map.values()) {
+            if ((value.contains("ab") || value.contains("cd") || value.contains("ef")) == false) {
+                filteredSortedStrings.add(value);
             }
         }
         int i = 0;

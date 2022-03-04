@@ -8,15 +8,22 @@
 
 package org.elasticsearch.script.field;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BooleanField implements Field<Boolean> {
+public class KeywordField implements Field<String> {
 
-    private final String name;
-    private final ScriptFieldSupplier.BooleanSupplier supplier;
+    protected final String name;
+    protected final ScriptFieldSupplier.Supplier<String> supplier;
 
-    public BooleanField(String name, ScriptFieldSupplier.BooleanSupplier supplier) {
+    public KeywordField(String name, ScriptFieldSupplier.Supplier<String> supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -36,11 +43,11 @@ public class BooleanField implements Field<Boolean> {
         return supplier.size();
     }
 
-    public boolean get(boolean defaultValue) {
+    public String get(String defaultValue) {
         return get(0, defaultValue);
     }
 
-    public boolean get(int index, boolean defaultValue) {
+    public String get(int index, String defaultValue) {
         if (isEmpty() || index < 0 || index >= size()) {
             return defaultValue;
         }
@@ -49,8 +56,8 @@ public class BooleanField implements Field<Boolean> {
     }
 
     @Override
-    public Iterator<Boolean> iterator() {
-        return new Iterator<Boolean>() {
+    public Iterator<String> iterator() {
+        return new Iterator<String>() {
             private int index = 0;
 
             @Override
@@ -59,7 +66,7 @@ public class BooleanField implements Field<Boolean> {
             }
 
             @Override
-            public Boolean next() {
+            public String next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.wildcard;
 
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.AbstractKeywordDocValuesField;
+import org.elasticsearch.script.field.KeywordField;
 
-public class WildcardDocValuesField extends AbstractKeywordDocValuesField {
+public class WildcardDocValuesField extends KeywordField {
 
     public WildcardDocValuesField(SortedBinaryDocValues input, String name) {
         super(input, name);

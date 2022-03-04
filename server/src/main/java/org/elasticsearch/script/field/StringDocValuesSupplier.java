@@ -8,21 +8,22 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class BooleanDocValues implements ScriptFieldDocValues, ScriptFieldValues.BooleanValues {
+public class StringDocValuesSupplier
+    implements ScriptFieldDocValuesSupplier, ScriptDocValuesSupplier<String>, ScriptFieldSupplier.Supplier<String> {
 
-    private final SortedNumericDocValues input;
+    private final SortedBinaryDocValues input;
 
-    private boolean[] values = new boolean[0];
+    private String[] values = new String[0];
     private int count;
 
-    public BooleanDocValues(SortedNumericDocValues input) {
+    public StringDocValuesSupplier(SortedBinaryDocValues input) {
         this.input = input;
     }
 
@@ -31,7 +32,7 @@ public class BooleanDocValues implements ScriptFieldDocValues, ScriptFieldValues
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = input.nextValue() == 1;
+                values[i] = parseValue(input.nextValue());
             }
         } else {
             resize(0);
@@ -47,13 +48,22 @@ public class BooleanDocValues implements ScriptFieldDocValues, ScriptFieldValues
         }
     }
 
+    public String parseValue(BytesRef value) {
+        return value.utf8ToString();
+    }
+
+    @Override
+    public String getCompatible(int index) {
+        return values[index];
+    }
+
     @Override
     public int size() {
         return count;
     }
 
     @Override
-    public boolean get(int index) {
+    public String get(int index) {
         return values[index];
     }
 }

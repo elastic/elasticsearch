@@ -8,21 +8,21 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 
-public class BooleanDocValuesSource implements ScriptFieldDocValuesSource {
+public class StringDocValuesSource implements ScriptFieldDocValuesSource {
 
-    protected final BooleanFieldDocValuesSupplier supplier;
+    protected final StringDocValuesSupplier supplier;
 
     // used for backwards compatibility for old-style "doc" access
     // as a delegate to this field class
-    protected ScriptDocValues.Booleans sdv = null;
+    protected ScriptDocValues.Strings sdv = null;
 
-    public BooleanDocValuesSource(SortedNumericDocValues docValues) {
-        this.supplier = new BooleanFieldDocValuesSupplier(docValues);
+    public StringDocValuesSource(SortedBinaryDocValues docValues) {
+        this.supplier = new StringDocValuesSupplier(docValues);
     }
 
     @Override
@@ -36,9 +36,9 @@ public class BooleanDocValuesSource implements ScriptFieldDocValuesSource {
     }
 
     @Override
-    public ScriptDocValues.Booleans toScriptDocValues() {
+    public ScriptDocValues.Strings toScriptDocValues() {
         if (sdv == null) {
-            sdv = new ScriptDocValues.Booleans(supplier);
+            sdv = new ScriptDocValues.Strings(supplier);
         }
 
         return sdv;

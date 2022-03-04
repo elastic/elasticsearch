@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.versionfield;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.ScriptFieldDocValues;
+import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
 
 public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
-    public VersionScriptDocValues(ScriptFieldDocValues<String> supplier) {
+    public VersionScriptDocValues(ScriptFieldDocValuesSupplier<String> supplier) {
         super(supplier);
     }
 

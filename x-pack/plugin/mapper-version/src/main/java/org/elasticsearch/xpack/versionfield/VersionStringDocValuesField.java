@@ -11,7 +11,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ScriptFieldDocValues;
+import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class VersionStringDocValuesField implements DocValuesField<Version>, ScriptFieldDocValues<String> {
+public class VersionStringDocValuesField implements DocValuesField<Version>, ScriptFieldDocValuesSupplier<String> {
 
     protected final SortedSetDocValues input;
     protected final String name;

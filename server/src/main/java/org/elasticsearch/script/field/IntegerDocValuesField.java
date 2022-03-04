@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class IntegerDocValuesField implements DocValuesField<Integer>, ScriptFieldDocValues<Long> {
+public class IntegerDocValuesField implements DocValuesField<Integer>, ScriptFieldDocValuesSupplier<Long> {
 
     protected final SortedNumericDocValues input;
     protected final String name;

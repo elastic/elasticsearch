@@ -10,7 +10,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.script.field.ScriptFieldDocValues;
 import org.elasticsearch.script.field.ScriptFieldDocValuesSource;
 import org.elasticsearch.search.DocValueFormat;
 

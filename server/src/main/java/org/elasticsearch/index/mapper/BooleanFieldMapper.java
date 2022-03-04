@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.field.BooleanDocValues;
 import org.elasticsearch.script.field.BooleanDocValuesSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;

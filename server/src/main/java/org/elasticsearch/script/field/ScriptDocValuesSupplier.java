@@ -8,9 +8,8 @@
 
 package org.elasticsearch.script.field;
 
-import java.io.IOException;
+public interface ScriptDocValuesSupplier<T> {
 
-public interface ScriptFieldDocValues {
-
-    void setNextDocId(int docId) throws IOException;
+    int size();
+    T getCompatible(int index);
 }

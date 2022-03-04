@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ScriptFieldDocValues;
 import org.elasticsearch.script.field.ScriptFieldDocValuesSource;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;

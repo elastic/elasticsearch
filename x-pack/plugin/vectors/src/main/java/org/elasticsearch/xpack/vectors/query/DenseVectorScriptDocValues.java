@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.ScriptFieldDocValues;
+import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
 
 public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
@@ -74,7 +74,7 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
         return dvSupplier.getInternal() == null ? 0 : 1;
     }
 
-    public interface DenseVectorSupplier extends ScriptFieldDocValues<BytesRef> {
+    public interface DenseVectorSupplier extends ScriptFieldDocValuesSupplier<BytesRef> {
         @Override
         default BytesRef getInternal(int index) {
             throw new UnsupportedOperationException();

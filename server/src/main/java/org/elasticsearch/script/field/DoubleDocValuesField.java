@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DoubleDocValuesField implements DocValuesField<Double>, ScriptFieldDocValues<Double> {
+public class DoubleDocValuesField implements DocValuesField<Double>, ScriptFieldDocValuesSupplier<Double> {
 
     protected final SortedNumericDoubleValues input;
     protected final String name;

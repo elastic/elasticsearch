@@ -8,10 +8,9 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import java.io.IOException;
 
-public class KeywordDocValuesField extends AbstractKeywordDocValuesField {
-    public KeywordDocValuesField(SortedBinaryDocValues input, String name) {
-        super(input, name);
-    }
+public interface ScriptFieldDocValuesSupplier {
+
+    void setNextDocId(int docId) throws IOException;
 }

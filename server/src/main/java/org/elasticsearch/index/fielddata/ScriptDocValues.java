@@ -10,13 +10,13 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.ScriptFieldDocValues;
-import org.elasticsearch.script.field.ScriptFieldValues;
+import org.elasticsearch.script.field.ScriptDocValuesSupplier;
+import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
+import org.elasticsearch.script.field.ScriptFieldSupplier;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -70,8 +70,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Longs extends ScriptDocValues<Long> {
 
-        public Longs(ScriptFieldDocValues<Long> supplier) {
-            super(supplier);
+        protected final ScriptDocValuesSupplier<Long> supplier;
+
+        public Longs(ScriptDocValuesSupplier<Long> supplier) {
+            this.supplier = supplier;
         }
 
         public long getValue() {
@@ -81,7 +83,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Long get(int index) {
             throwIfEmpty();
-            return supplier.getInternal(index);
+            return supplier.getCompatible(index);
         }
 
         @Override
@@ -92,14 +94,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Dates extends ScriptDocValues<ZonedDateTime> {
 
-        public Dates(ScriptFieldDocValues<ZonedDateTime> supplier) {
-            super(supplier);
+        protected final ScriptDocValuesSupplier<ZonedDateTime> supplier;
+
+        public Dates(ScriptDocValuesSupplier<ZonedDateTime> supplier) {
+            this.supplier = supplier;
         }
 
-        /**
-         * Fetch the first field value or 0 millis after epoch if there are no
-         * in.
-         */
         public ZonedDateTime getValue() {
             return get(0);
         }
@@ -117,7 +117,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "attempted to fetch the [" + index + "] date when there are only [" + supplier.size() + "] dates."
                 );
             }
-            return supplier.getInternal(index);
+            return supplier.getCompatible(index);
         }
 
         @Override
@@ -126,7 +126,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class DoublesSupplier implements ScriptFieldDocValues<Double> {
+    public static class DoublesSupplier implements ScriptFieldDocValuesSupplier<Double> {
 
         private final SortedNumericDoubleValues in;
         private double[] values = new double[0];
@@ -166,11 +166,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return count;
         }
-    }
+    }*/
 
     public static class Doubles extends ScriptDocValues<Double> {
 
-        public Doubles(ScriptFieldDocValues<Double> supplier) {
+        public Doubles(ScriptFieldDocValuesSupplier<Double> supplier) {
             super(supplier);
         }
 
@@ -197,7 +197,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
 
-        public Geometry(ScriptFieldDocValues<T> supplier) {
+        public Geometry(ScriptFieldDocValuesSupplier<T> supplier) {
             super(supplier);
         }
 
@@ -217,7 +217,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T> extends ScriptFieldDocValues<T> {
+    public interface GeometrySupplier<T> extends ScriptFieldDocValuesSupplier<T> {
 
         GeoPoint getInternalCentroid();
 
@@ -342,9 +342,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Booleans extends ScriptDocValues<Boolean> {
 
-        private final ScriptFieldValues.BooleanValues supplier;
+        private final ScriptDocValuesSupplier<Boolean> supplier;
 
-        public Booleans(ScriptFieldValues.BooleanValues supplier) {
+        public Booleans(ScriptDocValuesSupplier<Boolean> supplier) {
             this.supplier = supplier;
         }
 
@@ -356,7 +356,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Boolean get(int index) {
             throwIfEmpty();
-            return supplier.get(index);
+            return supplier.getCompatible(index);
         }
 
         @Override
@@ -365,65 +365,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class StringsSupplier implements ScriptFieldDocValues<String> {
-
-        private final SortedBinaryDocValues in;
-        private BytesRefBuilder[] values = new BytesRefBuilder[0];
-        private int count;
-
-        public StringsSupplier(SortedBinaryDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
-                    // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
-                    // instance for all slots in the values array.
-                    values[i].copyBytes(in.nextValue());
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        private void resize(int newSize) {
-            count = newSize;
-            if (newSize > values.length) {
-                final int oldLength = values.length;
-                values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new BytesRefBuilder();
-                }
-            }
-        }
-
-        protected String bytesToString(BytesRef bytesRef) {
-            return bytesRef.utf8ToString();
-        }
-
-        @Override
-        public String getInternal(int index) {
-            return bytesToString(values[index].toBytesRef());
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
-    }
-
     public static class Strings extends ScriptDocValues<String> {
 
-        public Strings(ScriptFieldDocValues<String> supplier) {
-            super(supplier);
+        protected final ScriptDocValuesSupplier<String> supplier;
+
+        public Strings(ScriptDocValuesSupplier<String> supplier) {
+            this.supplier = supplier;
         }
 
         public String getValue() {
@@ -438,7 +385,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                         + "Use doc[<field>].size()==0 to check if a document is missing a field!"
                 );
             }
-            return supplier.getInternal(index);
+            return supplier.getCompatible(index);
         }
 
         @Override
@@ -449,7 +396,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        public BytesRefs(ScriptFieldDocValues<BytesRef> supplier) {
+        public BytesRefs(ScriptFieldDocValuesSupplier<BytesRef> supplier) {
             super(supplier);
         }
 

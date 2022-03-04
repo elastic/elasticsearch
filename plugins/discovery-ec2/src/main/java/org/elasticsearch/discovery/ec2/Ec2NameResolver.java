@@ -89,7 +89,8 @@ class Ec2NameResolver implements CustomNameResolver {
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
             URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
-            AwsEc2Utils.getToken(metadataTokenUrl).ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
+            AwsEc2Utils.getMetadataToken(metadataTokenUrl)
+                .ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
 
             in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));

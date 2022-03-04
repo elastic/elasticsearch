@@ -29,7 +29,7 @@ class AwsEc2Utils {
     static final String X_AWS_EC_2_METADATA_TOKEN = "X-aws-ec2-metadata-token";
 
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    static Optional<String> getToken(String metadataTokenUrl) {
+    static Optional<String> getMetadataToken(String metadataTokenUrl) {
         if (Strings.isNullOrEmpty(metadataTokenUrl)) {
             return Optional.empty();
         }

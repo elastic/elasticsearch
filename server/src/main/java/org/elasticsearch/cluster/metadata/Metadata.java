@@ -896,7 +896,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     @Override
     public Iterator<IndexMetadata> iterator() {
-        return indices.valuesIt();
+        return indices.values().iterator();
     }
 
     @Override

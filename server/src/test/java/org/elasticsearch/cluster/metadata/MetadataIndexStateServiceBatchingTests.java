@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -51,11 +52,12 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var clusterService = getInstanceFromNode(ClusterService.class);
         final var masterService = clusterService.getMasterService();
 
-        // create some indices, and close them
+        // create some indices, and randomly close some of them
         createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
         createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
         createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
-        assertAcked(client().admin().indices().prepareClose("test-1", "test-2", "test-3"));
+        String[] closedIndices = randomSubsetOf(between(1, 3), "test-1", "test-2", "test-3").toArray(Strings.EMPTY_ARRAY);
+        assertAcked(client().admin().indices().prepareClose(closedIndices));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var block1 = blockMasterService(masterService);

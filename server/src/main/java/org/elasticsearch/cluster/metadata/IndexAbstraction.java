@@ -381,26 +381,21 @@ public interface IndexAbstraction {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
                 switch (parser.nextToken()) {
-                    case VALUE_STRING:
-                        // TODO: deal with nanos too here.
-                        // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
-                        // so we can use it here)
-                        timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
-                        break;
-                    case VALUE_NUMBER:
-                        timestamp = Instant.ofEpochMilli(parser.longValue());
-                        break;
-                    default:
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            String.format(
-                                Locale.ROOT,
-                                "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                                XContentParser.Token.VALUE_STRING,
-                                XContentParser.Token.VALUE_NUMBER,
-                                parser.currentToken()
-                            )
-                        );
+                    // TODO: deal with nanos too here.
+                    // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
+                    // so we can use it here)
+                    case VALUE_STRING -> timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
+                    case VALUE_NUMBER -> timestamp = Instant.ofEpochMilli(parser.longValue());
+                    default -> throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                            XContentParser.Token.VALUE_STRING,
+                            XContentParser.Token.VALUE_NUMBER,
+                            parser.currentToken()
+                        )
+                    );
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);

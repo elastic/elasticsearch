@@ -125,6 +125,10 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco-it.exec"), "read,write");
                 }
+
+                // TODO CH: find a better location for this, or move up initialization
+                perms.add(new RuntimePermission("getStackWalkerWithClassReference"));
+
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
                 if (System.getProperty("tests.gradle") == null) {

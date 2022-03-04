@@ -311,22 +311,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         };
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return iterator(map.values());
-    }
-
-    /**
-     * Returns a {@link Collection} view of the values contained in the map.
-     */
     @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
             public Iterator<VType> iterator() {
-                return valuesIt();
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override

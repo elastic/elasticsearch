@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
@@ -46,6 +47,7 @@ public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable 
     final String url; // JWT realm needs this for HTTP GET requests
     final String certPath; // JWT realm needs this for HTTPS handshake
 
+    @SuppressForbidden(reason = "MockHttpServer.createHttps requires InetSocketAddress, PORT=0 resolves to an available ephemeral port.")
     public JwtIssuerHttpsServer(final byte[] encodedJwkSetPkcPublicBytes) throws Exception {
         this.certPath = super.getDataPath(CERT).toAbsolutePath().toString();
         this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);

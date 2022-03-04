@@ -24,16 +24,12 @@ public class ByteDocValuesSupplier implements DocValuesSupplier<Long>, FieldSupp
         this.input = input;
     }
 
-    protected byte formatValue(long raw) {
-        return (byte)raw;
-    }
-
     @Override
     public void setNextDocId(int docId) throws IOException {
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = formatValue(input.nextValue());
+                values[i] = (byte)input.nextValue();
             }
         } else {
             resize(0);

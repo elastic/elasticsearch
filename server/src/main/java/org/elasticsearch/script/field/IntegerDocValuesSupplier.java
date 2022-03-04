@@ -8,20 +8,19 @@
 
 package org.elasticsearch.script.field;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 
-public class StringDocValuesSupplier implements DocValuesSupplier<String>, FieldSupplier.Supplier<String> {
+public class IntegerDocValuesSupplier implements DocValuesSupplier<Long>, FieldSupplier.IntSupplier {
 
-    protected final SortedBinaryDocValues input;
+    protected final SortedNumericDocValues input;
 
-    protected String[] values = new String[0];
+    protected int[] values = new int[0];
     protected int count;
 
-    public StringDocValuesSupplier(SortedBinaryDocValues input) {
+    public IntegerDocValuesSupplier(SortedNumericDocValues input) {
         this.input = input;
     }
 
@@ -30,7 +29,7 @@ public class StringDocValuesSupplier implements DocValuesSupplier<String>, Field
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = input.nextValue().utf8ToString();
+                values[i] = (int)input.nextValue();
             }
         } else {
             resize(0);
@@ -43,8 +42,8 @@ public class StringDocValuesSupplier implements DocValuesSupplier<String>, Field
     }
 
     @Override
-    public String getCompatible(int index) {
-        return get(index);
+    public Long getCompatible(int index) {
+        return (long)get(index);
     }
 
     @Override
@@ -52,8 +51,7 @@ public class StringDocValuesSupplier implements DocValuesSupplier<String>, Field
         return count;
     }
 
-    @Override
-    public String get(int index) {
+    public int get(int index) {
         return values[index];
     }
 }

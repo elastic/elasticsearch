@@ -9,7 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.script.field.ByteField;
-import org.elasticsearch.script.field.IntegerDocValuesField;
+import org.elasticsearch.script.field.IntegerField;
 import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
@@ -61,7 +61,7 @@ public class IntegralDocValuesFieldTests extends ESTestCase {
 
     public void testIntegerField() throws IOException {
         long[][] values = generate(ESTestCase::randomInt);
-        IntegerDocValuesField intField = new IntegerDocValuesField(wrap(values), "test");
+        IntegerField intField = new IntegerField(wrap(values), "test");
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             intField.setNextDocId(d);

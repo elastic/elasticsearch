@@ -30,7 +30,7 @@ public class BooleanDocValuesSupplier implements DocValuesSupplier<Boolean>, Fie
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = formatValue(input.nextValue());
+                values[i] = input.nextValue() == 1;
             }
         } else {
             resize(0);
@@ -43,10 +43,6 @@ public class BooleanDocValuesSupplier implements DocValuesSupplier<Boolean>, Fie
         if (values.length < count) {
             values = Arrays.copyOf(values, ArrayUtil.oversize(count, 1));
         }
-    }
-
-    public boolean formatValue(long raw) {
-        return raw == 1;
     }
 
     @Override

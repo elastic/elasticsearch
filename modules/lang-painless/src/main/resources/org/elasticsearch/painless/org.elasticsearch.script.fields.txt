@@ -36,7 +36,7 @@ class org.elasticsearch.script.field.BooleanField @dynamic_type {
   boolean get(int, boolean)
 }
 
-class org.elasticsearch.script.field.IntegerDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.IntegerField @dynamic_type {
   int get(int)
   int get(int, int)
 }

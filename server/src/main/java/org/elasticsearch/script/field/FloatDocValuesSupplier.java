@@ -25,16 +25,12 @@ public class FloatDocValuesSupplier implements DocValuesSupplier<Double>, FieldS
         this.input = input;
     }
 
-    protected float formatValue(double raw) {
-        return (float)raw;
-    }
-
     @Override
     public void setNextDocId(int docId) throws IOException {
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = formatValue(input.nextValue());
+                values[i] = (float)input.nextValue();
             }
         } else {
             resize(0);

@@ -64,11 +64,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                createExpectedResult(
-                    GREEN,
-                    "This cluster has all shards available.",
-                    Map.of("started_primaries", 2, "started_replicas", 1)
-                )
+                createExpectedResult(GREEN, "This cluster has all shards available.", Map.of("started_primaries", 2, "started_replicas", 1))
             )
         );
     }

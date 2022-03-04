@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.script.field.IPAddressField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.IpScriptFieldExistsQuery;
@@ -92,7 +92,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public IpScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), IpDocValuesField::new);
+        return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), IPAddressField::new);
     }
 
     @Override

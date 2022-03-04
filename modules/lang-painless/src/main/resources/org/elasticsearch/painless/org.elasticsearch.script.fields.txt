@@ -110,7 +110,7 @@ class org.elasticsearch.script.field.GeoPointField @dynamic_type {
   GeoPoint get(int, GeoPoint)
 }
 
-class org.elasticsearch.script.field.IpDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.IPAddressField @dynamic_type {
   IPAddress get(IPAddress)
   IPAddress get(int, IPAddress)
   List asStrings()

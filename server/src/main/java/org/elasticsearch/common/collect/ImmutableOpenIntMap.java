@@ -192,14 +192,12 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
         };
     }
 
-    /**
-     * @return Returns a container with all values stored in this map.
-     */
+    @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
             public Iterator<VType> iterator() {
-                return valuesIt();
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override
@@ -209,13 +207,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
         };
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return ImmutableOpenMap.iterator(map.values());
-    }
-
+    @Override
     public Set<Map.Entry<Integer, VType>> entrySet() {
         Set<Map.Entry<Integer, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;

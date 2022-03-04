@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -517,23 +516,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 });
 
                 return threadPool.scheduleWithFixedDelay(() -> {
-                    final ThreadContext threadContext = threadPool.getThreadContext();
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        // we have to execute under the system context so that if security is enabled the management is authorized
-                        threadContext.markAsSystemContext();
-                        logger.trace(
-                            "{} background renewing retention lease [{}] while following",
-                            params.getFollowShardId(),
-                            retentionLeaseId
-                        );
-                        CcrRetentionLeases.asyncRenewRetentionLease(
-                            params.getLeaderShardId(),
-                            retentionLeaseId,
-                            followerGlobalCheckpoint.getAsLong() + 1,
-                            remoteClient(params),
-                            listener
-                        );
-                    }
+                    logger.trace(
+                        "{} background renewing retention lease [{}] while following",
+                        params.getFollowShardId(),
+                        retentionLeaseId
+                    );
+                    CcrRetentionLeases.asyncRenewRetentionLease(
+                        params.getLeaderShardId(),
+                        retentionLeaseId,
+                        followerGlobalCheckpoint.getAsLong() + 1,
+                        remoteClient(params),
+                        listener
+                    );
                 }, retentionLeaseRenewInterval, Ccr.CCR_THREAD_POOL_NAME);
             }
 

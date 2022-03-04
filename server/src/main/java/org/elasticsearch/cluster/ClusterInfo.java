@@ -101,17 +101,17 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         }
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
-        this.leastAvailableSpaceUsage = leastBuilder.putAll(leastMap).build();
+        this.leastAvailableSpaceUsage = leastBuilder.putAllFromMap(leastMap).build();
         ImmutableOpenMap.Builder<String, DiskUsage> mostBuilder = ImmutableOpenMap.builder();
-        this.mostAvailableSpaceUsage = mostBuilder.putAll(mostMap).build();
+        this.mostAvailableSpaceUsage = mostBuilder.putAllFromMap(mostMap).build();
         ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
-        this.shardSizes = sizeBuilder.putAll(sizeMap).build();
+        this.shardSizes = sizeBuilder.putAllFromMap(sizeMap).build();
         ImmutableOpenMap.Builder<ShardId, Long> dataSetSizeBuilder = ImmutableOpenMap.builder();
-        this.shardDataSetSizes = dataSetSizeBuilder.putAll(dataSetSizeMap).build();
+        this.shardDataSetSizes = dataSetSizeBuilder.putAllFromMap(dataSetSizeMap).build();
         ImmutableOpenMap.Builder<ShardRouting, String> routingBuilder = ImmutableOpenMap.builder();
-        this.routingToDataPath = routingBuilder.putAll(routingMap).build();
+        this.routingToDataPath = routingBuilder.putAllFromMap(routingMap).build();
         ImmutableOpenMap.Builder<NodeAndPath, ReservedSpace> reservedSpaceBuilder = ImmutableOpenMap.builder();
-        this.reservedSpace = reservedSpaceBuilder.putAll(reservedSpaceMap).build();
+        this.reservedSpace = reservedSpaceBuilder.putAllFromMap(reservedSpaceMap).build();
     }
 
     @Override
@@ -121,14 +121,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             out.writeString(c.getKey());
             c.getValue().writeTo(out);
         }
-        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
+        out.writeImmutableMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeImmutableMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), (o, v) -> out.writeLong(v));
+            out.writeImmutableMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), (o, v) -> out.writeLong(v));
         }
-        out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+        out.writeImmutableMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            out.writeMap(this.reservedSpace);
+            out.writeImmutableMap(this.reservedSpace);
         }
     }
 

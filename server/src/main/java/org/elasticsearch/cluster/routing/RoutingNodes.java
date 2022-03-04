@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;

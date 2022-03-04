@@ -26,6 +26,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
 
+    private static Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_2_0;
+
     @Before
     public void setupData() throws IOException {
         index("test_data", b -> b.field("foo", 1));
@@ -37,8 +39,6 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
             assertNull(rs.getWarnings());
         }
     }
-
-    private static Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_2_0;
 
     public void testSingleDeprecationWarning() throws SQLException {
         assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(WARNING_HANDLING_ADDED_VERSION));

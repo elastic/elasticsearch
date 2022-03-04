@@ -135,7 +135,7 @@ public class HttpClient {
         ).getResponseOrThrowException();
         List<String> warnings = response.v1().apply("Warning");
         return new Tuple<>(
-            fromContent(response.v1(), response.v2(), responseParser),
+            fromContent(contentType(response.v1()), response.v2(), responseParser),
             warnings == null ? Collections.emptyList() : warnings
         );
     }
@@ -176,7 +176,7 @@ public class HttpClient {
                 con -> con.request(null, this::readFrom, "GET")
             )
         ).getResponseOrThrowException();
-        return fromContent(response.v1(), response.v2(), responseParser);
+        return fromContent(contentType(response.v1()), response.v2(), responseParser);
     }
 
     private <Request extends AbstractSqlRequest> byte[] toContent(Request request) {
@@ -201,19 +201,23 @@ public class HttpClient {
 
     }
 
-    private <Response> Response fromContent(
-        Function<String, List<String>> headers,
-        byte[] bytesReference,
-        CheckedFunction<JsonParser, Response, IOException> responseParser
-    ) {
+    private ContentType contentType(Function<String, List<String>> headers) {
         List<String> contentTypeHeaders = headers.apply("Content-Type");
 
         String contentType = contentTypeHeaders == null || contentTypeHeaders.isEmpty() ? null : contentTypeHeaders.get(0);
         ContentType type = ContentFactory.parseMediaType(contentType);
         if (type == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + contentType);
+        } else {
+            return type;
         }
+    }
 
+    private <Response> Response fromContent(
+        ContentType type,
+        byte[] bytesReference,
+        CheckedFunction<JsonParser, Response, IOException> responseParser
+    ) {
         try (InputStream stream = new ByteArrayInputStream(bytesReference); JsonParser parser = ContentFactory.parser(type, stream)) {
             return responseParser.apply(parser);
         } catch (Exception ex) {

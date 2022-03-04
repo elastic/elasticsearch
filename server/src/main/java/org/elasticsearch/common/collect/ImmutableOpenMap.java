@@ -179,6 +179,15 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         public VType setValue(VType value) {
             throw new UnsupportedOperationException("collection is immutable");
         }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Map.Entry) == false) return false;
+            Map.Entry that = (Map.Entry) o;
+            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
+        }
     }
 
     private final class ConversionIterator implements Iterator<Map.Entry<KType, VType>> {

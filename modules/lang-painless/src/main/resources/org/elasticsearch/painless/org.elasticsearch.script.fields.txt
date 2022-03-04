@@ -46,7 +46,7 @@ class org.elasticsearch.script.field.LongDocValuesField @dynamic_type {
   long get(int, long)
 }
 
-class org.elasticsearch.script.field.DoubleDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.DoubleField @dynamic_type {
   double get(double)
   double get(int, double)
 }

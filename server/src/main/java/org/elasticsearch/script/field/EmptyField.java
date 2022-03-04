@@ -16,7 +16,7 @@ import java.util.NoSuchElementException;
  */
 public class EmptyField implements Field<Object> {
 
-    private final String name;
+    protected final String name;
 
     public EmptyField(String name) {
         this.name = name;

@@ -44,7 +44,7 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.ByteField;
-import org.elasticsearch.script.field.DoubleDocValuesField;
+import org.elasticsearch.script.field.DoubleField;
 import org.elasticsearch.script.field.FloatDocValuesField;
 import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IntegerDocValuesField;
@@ -598,7 +598,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleDocValuesField::new);
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleField::new);
             }
 
             private void validateParsed(double value) {

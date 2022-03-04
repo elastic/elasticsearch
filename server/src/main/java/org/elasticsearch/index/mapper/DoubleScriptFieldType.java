@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.field.DoubleDocValuesField;
+import org.elasticsearch.script.field.DoubleField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.DoubleScriptFieldExistsQuery;
@@ -99,7 +99,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public DoubleScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), DoubleDocValuesField::new);
+        return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), DoubleField::new);
     }
 
     @Override

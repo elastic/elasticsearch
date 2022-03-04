@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesSupplier;
+import org.elasticsearch.script.field.DoubleDocValuesSupplier;
 import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
 
 import java.io.IOException;
@@ -125,52 +126,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class DoublesSupplier implements ScriptFieldDocValuesSupplier<Double> {
-
-        private final SortedNumericDoubleValues in;
-        private double[] values = new double[0];
-        private int count;
-
-        public DoublesSupplier(SortedNumericDoubleValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue();
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        private void resize(int newSize) {
-            count = newSize;
-            values = ArrayUtil.grow(values, count);
-        }
-
-        @Override
-        public Double getInternal(int index) {
-            return values[index];
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
-    }*/
-
     public static class Doubles extends ScriptDocValues<Double> {
 
-        public Doubles(ScriptFieldDocValuesSupplier<Double> supplier) {
-            super(supplier);
+        protected final DocValuesSupplier<Double> supplier;
+
+        public Doubles(DocValuesSupplier<Double> supplier) {
+            this.supplier = supplier;
         }
 
         public double getValue() {
@@ -179,13 +140,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Double get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
-            return supplier.getInternal(index);
+            throwIfEmpty();
+            return supplier.getCompatible(index);
         }
 
         @Override

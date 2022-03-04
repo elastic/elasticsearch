@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerConfigUpdate> {
 
     public void testFromMap() {
-        NerConfigUpdate expected = new NerConfigUpdate("ml-results", new BertTokenizationUpdate(Tokenization.Truncate.FIRST));
+        NerConfigUpdate expected = new NerConfigUpdate("ml-results", new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null));
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
@@ -76,9 +76,9 @@ public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerCo
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new NerConfigUpdate.Builder().setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate))
-                    .build()
-                    .apply(originalConfig)
+                new NerConfigUpdate.Builder().setTokenizationUpdate(
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                ).build().apply(originalConfig)
             )
         );
     }
@@ -100,7 +100,7 @@ public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerCo
             builder.setResultsField(randomAlphaOfLength(8));
         }
         if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
         }
         return builder.build();
     }

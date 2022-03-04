@@ -96,8 +96,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -125,6 +125,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -428,7 +430,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
 
         AggregationBuilder builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude("val00.+", null))
+            .includeExclude(new IncludeExclude("val00.+", null, null, null))
             .field("mv_field")
             .size(12)
             .order(BucketOrder.key(true));
@@ -458,7 +460,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, ft1, ft2);
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude("val00.+", null))
+            .includeExclude(new IncludeExclude("val00.+", null, null, null))
             .field("sv_field")
             .order(BucketOrder.key(true));
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (StringTerms result) -> {
@@ -477,7 +479,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, ft1, ft2);
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude("val00.+", null))
+            .includeExclude(new IncludeExclude("val00.+", null, null, null))
             .field("sv_field")
             .order(BucketOrder.key(true));
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (StringTerms result) -> {
@@ -496,7 +498,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, ft1, ft2);
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude("val00.+", "(val000|val001)"))
+            .includeExclude(new IncludeExclude("val00.+", "(val000|val001)", null, null))
             .field("mv_field")
             .order(BucketOrder.key(true));
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (StringTerms result) -> {
@@ -521,7 +523,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, ft1, ft2);
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude(null, "val00.+"))
+            .includeExclude(new IncludeExclude(null, "val00.+", null, null))
             .field("mv_field")
             .order(BucketOrder.key(true));
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (StringTerms result) -> {
@@ -534,7 +536,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, ft1, ft2);
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude(new String[] { "val000", "val010" }, null))
+            .includeExclude(new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("val000"), new BytesRef("val010"))), null))
             .field("mv_field")
             .order(BucketOrder.key(true));
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (StringTerms result) -> {
@@ -550,7 +552,22 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .includeExclude(
                 new IncludeExclude(
                     null,
-                    new String[] { "val001", "val002", "val003", "val004", "val005", "val006", "val007", "val008", "val009", "val011" }
+                    null,
+                    null,
+                    new TreeSet<>(
+                        Set.of(
+                            new BytesRef("val001"),
+                            new BytesRef("val002"),
+                            new BytesRef("val003"),
+                            new BytesRef("val004"),
+                            new BytesRef("val005"),
+                            new BytesRef("val006"),
+                            new BytesRef("val007"),
+                            new BytesRef("val008"),
+                            new BytesRef("val009"),
+                            new BytesRef("val011")
+                        )
+                    )
                 )
             )
             .field("mv_field")
@@ -570,7 +587,18 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     "val00.+",
                     null,
                     null,
-                    new String[] { "val001", "val002", "val003", "val004", "val005", "val006", "val007", "val008" }
+                    new TreeSet<>(
+                        Set.of(
+                            new BytesRef("val001"),
+                            new BytesRef("val002"),
+                            new BytesRef("val003"),
+                            new BytesRef("val004"),
+                            new BytesRef("val005"),
+                            new BytesRef("val006"),
+                            new BytesRef("val007"),
+                            new BytesRef("val008")
+                        )
+                    )
                 )
             )
             .field("mv_field")
@@ -585,7 +613,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, ft1, ft2);
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
-            .includeExclude(new IncludeExclude(null, "val01.+", new String[] { "val001", "val002", "val010" }, null))
+            .includeExclude(
+                new IncludeExclude(
+                    null,
+                    "val01.+",
+                    new TreeSet<>(Set.of(new BytesRef("val001"), new BytesRef("val002"), new BytesRef("val010"))),
+                    null
+                )
+            )
             .field("mv_field")
             .order(BucketOrder.key(true));
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (StringTerms result) -> {
@@ -648,7 +683,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.LONG)
                         .executionHint(executionHint)
-                        .includeExclude(new IncludeExclude(new long[] { 0, 5 }, null))
+                        .includeExclude(new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("0"), new BytesRef("5"))), null))
                         .field("long_field")
                         .order(BucketOrder.key(true));
                     AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
@@ -666,7 +701,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.LONG)
                         .executionHint(executionHint)
-                        .includeExclude(new IncludeExclude(null, new long[] { 0, 5 }))
+                        .includeExclude(new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef("0"), new BytesRef("5")))))
                         .field("long_field")
                         .order(BucketOrder.key(true));
                     context = createAggregationContext(indexSearcher, null, fieldType);
@@ -689,7 +724,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     fieldType = new NumberFieldMapper.NumberFieldType("double_field", NumberFieldMapper.NumberType.DOUBLE);
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.DOUBLE)
                         .executionHint(executionHint)
-                        .includeExclude(new IncludeExclude(new double[] { 0.0, 5.0 }, null))
+                        .includeExclude(
+                            new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("0.0"), new BytesRef("5.0"))), null)
+                        )
                         .field("double_field")
                         .order(BucketOrder.key(true));
                     context = createAggregationContext(indexSearcher, null, fieldType);
@@ -707,7 +744,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.DOUBLE)
                         .executionHint(executionHint)
-                        .includeExclude(new IncludeExclude(null, new double[] { 0.0, 5.0 }))
+                        .includeExclude(
+                            new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef("0.0"), new BytesRef("5.0"))))
+                        )
                         .field("double_field")
                         .order(BucketOrder.key(true));
                     context = createAggregationContext(indexSearcher, null, fieldType);
@@ -1439,8 +1478,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
                     assertThat(result.getBuckets().get(0).docCount, equalTo(1L));
                     assertThat(
-                        ((InternalMax) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
-                            .get("max_number"))).getValue(),
+                        ((Max) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
+                            .get("max_number"))).value(),
                         closeTo(100.0, 0.00001)
                     );
                 }
@@ -1480,8 +1519,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     );
                     assertThat(result.getBuckets().get(0).term, equalTo(3L));
                     assertThat(
-                        ((InternalMax) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
-                            .get("max_val"))).getValue(),
+                        ((Max) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
+                            .get("max_val"))).value(),
                         closeTo(10.0, 0.00001)
                     );
                 }
@@ -1584,7 +1623,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         topLevelProfileTestCase(
             between(3000, 4000),
             0,
-            new IncludeExclude(null, "missing"),
+            new IncludeExclude(null, "missing", null, null),
             GlobalOrdinalsStringTermsAggregator.class,
             m -> m.entry("has_filter", true).entry("collection_strategy", "remap using single bucket ords")
         );

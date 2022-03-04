@@ -37,7 +37,7 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * <p>
  * Indicator will report:
  * * RED when one or more primary shards are not available
- * * YELLOW when one or more replica shards are not replicated
+ * * YELLOW when one or more replica shards are not available
  * * GREEN otherwise
  * <p>
  * Each shard needs to be available and replicated in order to guarantee high availability and prevent data loses.
@@ -169,7 +169,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     ).flatMap(Function.identity()).collect(joining(" , "))
                 ).append(".");
             } else {
-                builder.append("no unavailable shards.");
+                builder.append("all shards available.");
             }
             return builder.toString();
         }

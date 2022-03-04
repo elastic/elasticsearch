@@ -66,7 +66,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has no unavailable shards.",
+                    "This cluster has all shards available.",
                     Map.of("started_primaries", 2, "started_replicas", 1)
                 )
             )

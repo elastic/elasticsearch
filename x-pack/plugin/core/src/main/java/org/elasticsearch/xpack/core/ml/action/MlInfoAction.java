@@ -68,7 +68,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeGenericValue(info);
+            out.writeGenericMap(info);
         }
 
         @Override

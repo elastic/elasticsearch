@@ -87,7 +87,7 @@ public class QueryProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(query);
+        out.writeGenericMap(query);
         out.writeOptionalNamedWriteable(parsedQuery);
         out.writeException(parsingException);
     }

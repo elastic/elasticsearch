@@ -94,8 +94,8 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(ingestDocument.getSourceAndMetadata());
-        out.writeGenericValue(ingestDocument.getIngestMetadata());
+        out.writeGenericMap(ingestDocument.getSourceAndMetadata());
+        out.writeGenericMap(ingestDocument.getIngestMetadata());
     }
 
     IngestDocument getIngestDocument() {

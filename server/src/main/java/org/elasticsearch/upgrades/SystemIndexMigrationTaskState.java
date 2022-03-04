@@ -113,7 +113,7 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(currentIndex);
         out.writeString(currentFeature);
-        out.writeGenericValue(featureCallbackMetadata);
+        out.writeGenericMap(featureCallbackMetadata);
     }
 
     @Override

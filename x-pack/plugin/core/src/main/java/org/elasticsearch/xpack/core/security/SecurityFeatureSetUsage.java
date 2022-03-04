@@ -100,22 +100,22 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeGenericValue(realmsUsage);
-        out.writeGenericValue(rolesStoreUsage);
-        out.writeGenericValue(sslUsage);
+        out.writeGenericMap(realmsUsage);
+        out.writeGenericMap(rolesStoreUsage);
+        out.writeGenericMap(sslUsage);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeGenericValue(tokenServiceUsage);
-            out.writeGenericValue(apiKeyServiceUsage);
+            out.writeGenericMap(tokenServiceUsage);
+            out.writeGenericMap(apiKeyServiceUsage);
         }
-        out.writeGenericValue(auditUsage);
-        out.writeGenericValue(ipFilterUsage);
-        out.writeGenericValue(anonymousUsage);
-        out.writeGenericValue(roleMappingStoreUsage);
+        out.writeGenericMap(auditUsage);
+        out.writeGenericMap(ipFilterUsage);
+        out.writeGenericMap(anonymousUsage);
+        out.writeGenericMap(roleMappingStoreUsage);
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeGenericValue(fips140Usage);
+            out.writeGenericMap(fips140Usage);
         }
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeGenericValue(operatorPrivilegesUsage);
+            out.writeGenericMap(operatorPrivilegesUsage);
         }
     }
 

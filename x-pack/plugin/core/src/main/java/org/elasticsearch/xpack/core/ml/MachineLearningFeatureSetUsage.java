@@ -71,10 +71,10 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeGenericValue(jobsUsage);
-        out.writeGenericValue(datafeedsUsage);
-        out.writeGenericValue(analyticsUsage);
-        out.writeGenericValue(inferenceUsage);
+        out.writeGenericMap(jobsUsage);
+        out.writeGenericMap(datafeedsUsage);
+        out.writeGenericMap(analyticsUsage);
+        out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
     }
 

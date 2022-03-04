@@ -139,8 +139,8 @@ public record Profile(
         out.writeBoolean(enabled);
         out.writeLong(lastSynchronized);
         user.writeTo(out);
-        out.writeGenericValue(access);
-        out.writeGenericValue(applicationData);
+        out.writeGenericMap(access);
+        out.writeGenericMap(applicationData);
         versionControl.writeTo(out);
     }
 }

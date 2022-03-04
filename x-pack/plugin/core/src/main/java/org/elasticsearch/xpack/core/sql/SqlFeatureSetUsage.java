@@ -53,6 +53,6 @@ public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeGenericValue(stats);
+        out.writeGenericMap(stats);
     }
 }

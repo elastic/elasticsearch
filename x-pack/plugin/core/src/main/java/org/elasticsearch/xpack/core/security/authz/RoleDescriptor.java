@@ -277,8 +277,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             group.writeTo(out);
         }
         out.writeStringArray(runAs);
-        out.writeGenericValue(metadata);
-        out.writeGenericValue(transientMetadata);
+        out.writeGenericMap(metadata);
+        out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
     }

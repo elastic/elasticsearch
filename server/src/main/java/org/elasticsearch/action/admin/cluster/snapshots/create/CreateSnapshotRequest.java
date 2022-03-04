@@ -121,7 +121,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
-        out.writeGenericValue(userMetadata);
+        out.writeGenericMap(userMetadata);
     }
 
     @Override

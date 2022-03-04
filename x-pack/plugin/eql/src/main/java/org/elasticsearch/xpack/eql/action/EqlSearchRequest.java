@@ -449,7 +449,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
-            out.writeGenericValue(runtimeMappings);
+            out.writeGenericMap(runtimeMappings);
         }
     }
 

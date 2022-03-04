@@ -294,7 +294,7 @@ public class Authentication implements ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeVInt(type.ordinal());
-        out.writeGenericValue(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**

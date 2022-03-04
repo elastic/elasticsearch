@@ -228,7 +228,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         boolean hasParams = scriptParams != null;
         out.writeBoolean(hasParams);
         if (hasParams) {
-            out.writeGenericValue(scriptParams);
+            out.writeGenericMap(scriptParams);
         }
     }
 }

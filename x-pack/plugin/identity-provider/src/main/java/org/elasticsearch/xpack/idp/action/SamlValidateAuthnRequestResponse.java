@@ -57,7 +57,7 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
         out.writeString(spEntityId);
         out.writeString(assertionConsumerService);
         out.writeBoolean(forceAuthn);
-        out.writeGenericValue(authnState);
+        out.writeGenericMap(authnState);
     }
 
     @Override

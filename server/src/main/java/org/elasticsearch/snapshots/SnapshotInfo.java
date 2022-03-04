@@ -1017,7 +1017,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        out.writeMap(userMetadata);
+        out.writeGenericMap(userMetadata);
         out.writeStringCollection(dataStreams);
         out.writeList(featureStates);
 

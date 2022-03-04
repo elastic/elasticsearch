@@ -48,7 +48,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
     private static final int CONNECT_TIMEOUT = 2000;
-    private static final int METADATA_TOKEN_TTL_SECONDS = 60;
+    private static final int METADATA_TOKEN_TTL_SECONDS = 10;
 
     static {
         SpecialPermission.check();

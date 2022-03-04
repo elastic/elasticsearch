@@ -100,7 +100,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             exchange.close();
         }, "/latest/api/token", exchange -> {
             assertEquals("PUT", exchange.getRequestMethod());
-            assertEquals("60", exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token-ttl-seconds"));
+            assertEquals("10", exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token-ttl-seconds"));
             exchange.sendResponseHeaders(200, 0);
             exchange.getResponseBody().write("imdsv2-token".getBytes(StandardCharsets.UTF_8));
             exchange.close();

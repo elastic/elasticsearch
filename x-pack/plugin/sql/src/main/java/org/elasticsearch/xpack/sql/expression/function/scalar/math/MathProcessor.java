@@ -98,20 +98,7 @@ public class MathProcessor implements Processor {
         private final Function<Object, Number> apply;
 
         MathOperation(Function<Object, Number> apply) {
-            this(apply, false);
-        }
-
-        /**
-         * Wrapper for nulls around the given function.
-         * If true, nulls are passed through, otherwise the function is short-circuited
-         * and null returned.
-         */
-        MathOperation(Function<Object, Number> apply, boolean nullAware) {
-            if (nullAware) {
-                this.apply = apply;
-            } else {
-                this.apply = l -> l == null ? null : apply.apply(l);
-            }
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         MathOperation(DoubleFunction<Double> apply) {

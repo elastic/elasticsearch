@@ -8,63 +8,9 @@
 
 package org.elasticsearch.script.field;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-
-public class KeywordField implements Field<String> {
-
-    protected final String name;
-    protected final FieldSupplier.Supplier<String> supplier;
+public class KeywordField extends StringField {
 
     public KeywordField(String name, FieldSupplier.Supplier<String> supplier) {
-        this.name = name;
-        this.supplier = supplier;
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return supplier.size() == 0;
-    }
-
-    @Override
-    public int size() {
-        return supplier.size();
-    }
-
-    public String get(String defaultValue) {
-        return get(0, defaultValue);
-    }
-
-    public String get(int index, String defaultValue) {
-        if (isEmpty() || index < 0 || index >= supplier.size()) {
-            return defaultValue;
-        }
-
-        return supplier.get(index);
-    }
-
-    @Override
-    public Iterator<String> iterator() {
-        return new Iterator<String>() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < supplier.size();
-            }
-
-            @Override
-            public String next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                return supplier.get(index++);
-            }
-        };
+        super(name, supplier);
     }
 }

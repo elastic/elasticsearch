@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.constantkeyword;
 
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.KeywordField;
+import org.elasticsearch.script.field.StringField;
 
-public class ConstantKeywordDocValuesField extends KeywordField {
+public class ConstantKeywordDocValuesField extends StringField {
     public ConstantKeywordDocValuesField(SortedBinaryDocValues input, String name) {
         super(input, name);
     }

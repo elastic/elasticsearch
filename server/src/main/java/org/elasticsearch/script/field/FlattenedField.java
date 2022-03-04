@@ -8,10 +8,9 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+public class FlattenedField extends StringField {
 
-public class FlattenedDocValuesField extends KeywordField {
-    public FlattenedDocValuesField(SortedBinaryDocValues input, String name) {
-        super(input, name);
+    public FlattenedField(String name, FieldSupplier.Supplier<String> supplier) {
+        super(name, supplier);
     }
 }

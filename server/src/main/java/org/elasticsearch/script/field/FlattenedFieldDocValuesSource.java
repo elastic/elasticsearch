@@ -10,18 +10,18 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
-public class KeywordFieldDocValuesSource extends StringDocValuesSource {
+public class FlattenedFieldDocValuesSource extends StringDocValuesSource {
 
-    protected KeywordField field = null;
+    protected FlattenedField field = null;
 
-    public KeywordFieldDocValuesSource(SortedBinaryDocValues docValues) {
+    public FlattenedFieldDocValuesSource(SortedBinaryDocValues docValues) {
         super(docValues);
     }
 
     @Override
-    public StringField toScriptField(String name) {
+    public FlattenedField toScriptField(String name) {
         if (field == null) {
-            field = new KeywordField(name, supplier);
+            field = new FlattenedField(name, supplier);
         }
 
         return field;

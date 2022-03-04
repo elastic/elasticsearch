@@ -57,7 +57,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.FlattenedDocValuesField;
+import org.elasticsearch.script.field.FlattenedField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -362,7 +362,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
+            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedField(FieldData.toString(dv), n));
         }
 
         @Override
@@ -642,7 +642,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
+                (dv, n) -> new FlattenedField(FieldData.toString(dv), n)
             );
         }
 

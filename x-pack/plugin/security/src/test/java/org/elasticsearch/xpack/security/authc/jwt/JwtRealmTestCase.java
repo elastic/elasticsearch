@@ -261,7 +261,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                     ),
                     jwtIssuer.httpsServer.certPath
                 );
-                jwkSetPath = jwtIssuer.httpsServer.jwkSetUrl;
+                jwkSetPath = jwtIssuer.httpsServer.url;
             }
             authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH), jwkSetPath);
         }

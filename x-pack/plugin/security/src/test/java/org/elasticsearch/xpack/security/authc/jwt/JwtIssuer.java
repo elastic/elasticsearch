@@ -87,7 +87,7 @@ public class JwtIssuer implements Closeable {
             this.httpsServer = null; // no PKC JWKSet, or skip HTTPS server because caller will use local file instead
         } else {
             final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
-            this.httpsServer = new JwtIssuerHttpsServer("localhost", 0, 0, 0, encodedJwkSetPkcPublicBytes);
+            this.httpsServer = new JwtIssuerHttpsServer(encodedJwkSetPkcPublicBytes);
         }
     }
 

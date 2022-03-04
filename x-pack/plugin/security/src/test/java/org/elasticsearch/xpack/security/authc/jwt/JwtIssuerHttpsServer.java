@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -34,45 +32,37 @@ import javax.net.ssl.SSLContext;
 public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(JwtIssuerHttpsServer.class);
 
+    private static final String ADDRESS = "localhost"; // localhost, 127.0.0.1, ::1, hostname, FQDN, etc
+    private static final int PORT = 0; // 443, 0 (ephemeral port)
+    private static final int BACKLOG = 0; // max queued incoming connections
+    private static final int STOP_DELAY_SECONDS = 0; // 0 no limit, >0 limited
+    private static final String PATH = "/valid/"; // Tests can call other paths like "/invalid/" to verify graceful HTTP 404 error handling
+
     private static final String CERT = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
     private static final String KEY = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem";
     private static final char[] PASSWORD = "testnode".toCharArray();
 
     final HttpsServer httpsServer;
-    final String address;
-    final int port;
-    final int stopDelaySeconds;
-    final String baseUrl; // JWT tests need this for verifying HTTP 404 (Not Found) error handling
-    final String jwkSetUrl; // JWT realm needs this for HTTP GET requests
+    final String url; // JWT realm needs this for HTTP GET requests
     final String certPath; // JWT realm needs this for HTTPS handshake
 
-    public JwtIssuerHttpsServer(
-        final String address, // EX: localhost, 127.0.0.1, ::1, hostname, FQDN, etc
-        final int port, // EX: 443, 0 (ephemeral port)
-        final int backlog, // EX: 0 no limit, >0 limited
-        final int stopDelaySeconds, // EX: 0 hard stop, >0 graceful stop
-        final byte[] encodedJwkSetPkcPublicBytes
-    ) throws Exception {
-        this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(address, port), backlog);
-        this.address = address; // use parameter value, not resolved value
-        this.port = this.httpsServer.getAddress().getPort(); // if parameter was 0, use resolved port
-        this.baseUrl = "https://" + address + ":" + this.port + "/";
-        this.jwkSetUrl = "https://" + address + ":" + this.port + "/" + (randomBoolean() ? "" : "pkc_jwk_set.json");
-        this.httpsServer.setHttpsConfigurator(new HttpsConfigurator(this.createSslContext()));
-        this.httpsServer.createContext("/", new JwtIssuerHttpHandler(this.jwkSetUrl, encodedJwkSetPkcPublicBytes));
-        this.stopDelaySeconds = stopDelaySeconds;
+    public JwtIssuerHttpsServer(final byte[] encodedJwkSetPkcPublicBytes) throws Exception {
         this.certPath = super.getDataPath(CERT).toFile().getAbsolutePath();
-        LOGGER.trace("Starting HTTPS server for URL [" + this.jwkSetUrl + "].");
+        this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);
+        this.url = "https://" + ADDRESS + ":" + this.httpsServer.getAddress().getPort() + PATH; // get ephemeral port
+        this.httpsServer.setHttpsConfigurator(new HttpsConfigurator(this.createSslContext()));
+        this.httpsServer.createContext("/", new JwtIssuerHttpHandler(encodedJwkSetPkcPublicBytes));
+        LOGGER.trace("Starting [{}]", this.url);
         this.httpsServer.start();
-        LOGGER.debug("Started HTTPS server for URL [" + this.jwkSetUrl + "].");
+        LOGGER.debug("Started [{}]", this.url);
     }
 
     @Override
     public void close() throws IOException {
         if (this.httpsServer != null) {
-            LOGGER.trace("Stopping HTTPS server");
-            this.httpsServer.stop(this.stopDelaySeconds);
-            LOGGER.debug("Stopped HTTPS server");
+            LOGGER.trace("Stopping [{}]", this.url);
+            this.httpsServer.stop(STOP_DELAY_SECONDS);
+            LOGGER.debug("Stopped [{}]", this.url);
         }
     }
 
@@ -83,30 +73,19 @@ public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable 
         return sslContext;
     }
 
-    private record JwtIssuerHttpHandler(String jwkSetPkcUrl, byte[] encodedJwkSetPkcPublicBytes) implements HttpHandler {
+    private record JwtIssuerHttpHandler(byte[] encodedJwkSetPkcPublicBytes) implements HttpHandler {
         @Override
         public void handle(final HttpExchange httpExchange) throws IOException {
-            LOGGER.trace("Received request.");
             try {
-                final String configuredPath = new URL(this.jwkSetPkcUrl).getPath();
-                final String requestedPath = httpExchange.getRequestURI().getPath();
-                LOGGER.trace("Checking if Requested [" + requestedPath + "] matches Configured [" + configuredPath + "].");
+                final String path = httpExchange.getRequestURI().getPath(); // EX: "/", "/valid/", "/valid/pkc_jwkset.json"
+                LOGGER.trace("Request: [{}]", path);
                 try (OutputStream os = httpExchange.getResponseBody()) {
-                    if (configuredPath.equals(requestedPath)) {
-                        LOGGER.trace("Requested [" + requestedPath + "] matched.");
-                        httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, this.encodedJwkSetPkcPublicBytes.length);
-                        os.write(this.encodedJwkSetPkcPublicBytes);
-                    } else {
-                        LOGGER.trace("Requested [" + requestedPath + "] did not match.");
-                        final byte[] msg = ("URL [" + requestedPath + "] != [" + configuredPath + "].").getBytes(StandardCharsets.UTF_8);
-                        httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, msg.length);
-                        os.write(msg);
-                    }
-                    LOGGER.trace("Response [" + requestedPath + "] written.");
+                    httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, this.encodedJwkSetPkcPublicBytes.length);
+                    os.write(this.encodedJwkSetPkcPublicBytes);
                 }
-                LOGGER.trace("Response [" + requestedPath + "] closed."); // Useful in case client disconnects during close/flush
+                LOGGER.trace("Response: [{}]", path); // Confirm client didn't disconnect before flush
             } catch (Throwable t) {
-                LOGGER.warn("Unexpected exception: ", t);
+                LOGGER.warn("Exception: ", t); // Log something, else -Djavax.net.debug=all is too verbose
                 throw t;
             }
         }

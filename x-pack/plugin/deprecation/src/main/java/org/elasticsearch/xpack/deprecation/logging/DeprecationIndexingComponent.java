@@ -62,6 +62,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         boolean enableDeprecationLogIndexingDefault,
         ClusterService clusterService
     ) {
+        logger.info("Deprecation component created");
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
         this.clusterService = clusterService;
 
@@ -122,6 +123,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         if (event.state().getMetadata().templatesV2().containsKey(".deprecation-indexing-template")
             && indexLifecycleMetadata != null
             && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
+            try {
+                Thread.sleep(30000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             flushEnabled.set(true);
             logger.debug("Deprecation log indexing started, because both template and ilm policy are loaded");
             clusterService.removeListener(this);

@@ -334,7 +334,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (ElasticsearchNode node : nodes) {
             if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
                 if (node.getVersion().onOrAfter("7.16.0")) {
-                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
+                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "true");
+                    node.defaultConfig.put("xpack.security.enabled","true");
+                    node.defaultConfig.put("xpack.security.http.ssl.client_authentication","none");
+//                    node.defaultConfig.put("xpack.security.http.ssl.enabled","true");
                 }
             }
             // Can only configure master nodes if we have node names defined

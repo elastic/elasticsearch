@@ -729,9 +729,18 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 threadPool
             );
+            startDeprecationIndexingPlugin(threadPool,
+                resourceWatcherService,
+                scriptService,
+                clusterService,
+                repositoriesServiceReference,
+                namedWriteableRegistry,
+                xContentRegistry,
+                clusterModule);
+
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
-                .stream()
+                .stream().filter(p -> p.getClass().getSimpleName().equals("Deprecation") == false)
                 .flatMap(
                     p -> p.createComponents(
                         client,
@@ -747,7 +756,7 @@ public class Node implements Closeable {
                         repositoriesServiceReference::get
                     ).stream()
                 )
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());//deprecation emitted
 
             ActionModule actionModule = new ActionModule(
                 false,
@@ -1096,6 +1105,30 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private void startDeprecationIndexingPlugin(ThreadPool threadPool, ResourceWatcherService resourceWatcherService, ScriptService scriptService, ClusterService clusterService, SetOnce<RepositoriesService> repositoriesServiceReference, NamedWriteableRegistry namedWriteableRegistry, NamedXContentRegistry xContentRegistry, ClusterModule clusterModule) {
+        List<Object> deprecation = pluginsService.filterPlugins(Plugin.class)
+            .stream().filter(p -> p.getClass().getSimpleName().equals("Deprecation"))
+            .flatMap(
+                p -> p.createComponents(
+                    client,
+                    clusterService,
+                    threadPool,
+                    resourceWatcherService,
+                    scriptService,
+                    xContentRegistry,
+                    environment,
+                    nodeEnvironment,
+                    namedWriteableRegistry,
+                    clusterModule.getIndexNameExpressionResolver(),
+                    repositoriesServiceReference::get
+                ).stream()
+            )
+            .collect(toList());
+        deprecation.stream().filter(p -> p instanceof LifecycleComponent)
+            .map(p -> (LifecycleComponent) p)
+            .forEach(LifecycleComponent::start);
     }
 
     protected TransportService newTransportService(

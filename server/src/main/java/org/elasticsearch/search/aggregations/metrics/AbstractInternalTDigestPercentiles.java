@@ -37,11 +37,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = formatter;
     }
 
     /**
@@ -49,7 +48,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      */
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
         state = TDigestState.read(in);
         keyed = in.readBoolean();

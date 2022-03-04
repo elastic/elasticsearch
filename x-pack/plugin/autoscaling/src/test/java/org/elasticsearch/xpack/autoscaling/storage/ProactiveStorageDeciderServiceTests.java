@@ -370,7 +370,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
-        for (ObjectCursor<String> cursor : state.nodes().getDataNodes().keys()) {
+        for (ObjectCursor<String> cursor : state.nodes().getDataNodes().keySet()) {
             String id = cursor.value;
             builder.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
         }

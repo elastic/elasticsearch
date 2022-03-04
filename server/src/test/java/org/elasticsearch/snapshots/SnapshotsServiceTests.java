@@ -538,7 +538,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         SnapshotId source,
         ImmutableOpenMap<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clones
     ) {
-        final Map<String, IndexId> indexIds = StreamSupport.stream(clones.keys().spliterator(), false)
+        final Map<String, IndexId> indexIds = StreamSupport.stream(clones.keySet().spliterator(), false)
             .map(k -> k.value.index())
             .distinct()
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));

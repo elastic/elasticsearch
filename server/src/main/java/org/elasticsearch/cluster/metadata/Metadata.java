@@ -473,7 +473,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
+        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keySet());
         for (String index : intersection) {
             onNextIndex.run();
             IndexMetadata indexMetadata = indices.get(index);

@@ -169,9 +169,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
-        nodes.removeAll(masterNodes.keys());
-        nodes.removeAll(dataNodes.keys());
-        nodes.removeAll(ingestNodes.keys());
+        nodes.removeAll(masterNodes.keySet());
+        nodes.removeAll(dataNodes.keySet());
+        nodes.removeAll(ingestNodes.keySet());
         return nodes.build();
     }
 

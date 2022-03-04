@@ -1294,17 +1294,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeByte(state.value());
             out.writeCollection(indices.values());
             out.writeLong(startTime);
-            out.writeImmutableMap(shards);
+            out.writeMap(shards);
             out.writeLong(repositoryStateId);
             out.writeOptionalString(failure);
-            out.writeMap(userMetadata);
+            out.writeGenericMap(userMetadata);
             Version.writeVersion(version, out);
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             if (source == null) {
-                out.writeImmutableMap(ImmutableOpenMap.of());
+                out.writeMap(ImmutableOpenMap.of());
             } else {
-                out.writeImmutableMap(shardStatusByRepoShardId);
+                out.writeMap(shardStatusByRepoShardId);
             }
             out.writeList(featureStates);
         }

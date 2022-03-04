@@ -12,7 +12,6 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -42,7 +41,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -1138,10 +1136,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext(
-            "test",
-            context -> assertThat(context.query(), equalTo(new ConstantScoreQuery(Queries.newNonNestedFilter())))
-        );
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
     }
 
     /**

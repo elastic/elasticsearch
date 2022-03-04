@@ -89,7 +89,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
 
     @Override
     public Iterator<DiscoveryNode> iterator() {
-        return nodes.valuesIt();
+        return nodes.values().iterator();
     }
 
     @Override
@@ -169,9 +169,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
-        nodes.removeAll(masterNodes.keys());
-        nodes.removeAll(dataNodes.keys());
-        nodes.removeAll(ingestNodes.keys());
+        nodes.removeAllFromCollection(masterNodes.keySet());
+        nodes.removeAllFromCollection(dataNodes.keySet());
+        nodes.removeAllFromCollection(ingestNodes.keySet());
         return nodes.build();
     }
 
@@ -628,7 +628,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
-            this.nodes = new HashMap<>(nodes.getNodes().toMap());
+            this.nodes = new HashMap<>(nodes.getNodes());
         }
 
         /**

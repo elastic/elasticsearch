@@ -10,7 +10,6 @@ package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
@@ -31,7 +30,6 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -234,37 +232,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
     }
 
     /**
-     * Returns a specialized view of the keys of this associated container.
-     * The view additionally implements {@link ObjectLookupContainer}.
-     */
-    public ObjectLookupContainer<KType> keys() {
-        return map.keys();
-    }
-
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<KType> keysIt() {
-        final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
-        return new Iterator<KType>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public KType next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
      * Returns a {@link Set} view of the keys contained in this map.
      */
     @Override
@@ -272,7 +239,23 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return new AbstractSet<>() {
             @Override
             public Iterator<KType> iterator() {
-                return keysIt();
+                final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
+                return new Iterator<KType>() {
+                    @Override
+                    public boolean hasNext() {
+                        return iterator.hasNext();
+                    }
+
+                    @Override
+                    public KType next() {
+                        return iterator.next().value;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
 
             @Override
@@ -288,22 +271,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         };
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return iterator(map.values());
-    }
-
-    /**
-     * Returns a {@link Collection} view of the values contained in the map.
-     */
     @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
             public Iterator<VType> iterator() {
-                return valuesIt();
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override
@@ -356,13 +329,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
     @Override
     public String toString() {
         return map.toString();
-    }
-
-    /**
-     * Convert this ImmutableOpenMap to an immutable Java collection Map
-     */
-    public Map<KType, VType> toMap() {
-        return entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override
@@ -512,6 +478,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         @Override
         public int removeAll(ObjectPredicate<? super KType> predicate) {
             return map.removeAll(predicate);
+        }
+
+        public void removeAllFromCollection(Collection<KType> collection) {
+            for (var k : collection) {
+                map.remove(k);
+            }
         }
 
         @Override

@@ -77,7 +77,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public Iterator<Entry> iterator() {
-        return entries.valuesIt();
+        return entries.values().iterator();
     }
 
     public static final class Builder {
@@ -376,7 +376,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeStringCollection(entry.indices);
-            out.writeImmutableMap(entry.shards);
+            out.writeMap(entry.shards);
         }
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.IntCollection;
 import com.carrotsearch.hppc.IntContainer;
-import com.carrotsearch.hppc.IntLookupContainer;
 import com.carrotsearch.hppc.IntObjectAssociativeContainer;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
@@ -139,14 +138,6 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
     }
 
     /**
-     * Returns a specialized view of the keys of this associated container.
-     * The view additionally implements {@link com.carrotsearch.hppc.ObjectLookupContainer}.
-     */
-    public IntLookupContainer keys() {
-        return map.keys();
-    }
-
-    /**
      * Returns a direct iterator over the keys.
      */
     public Iterator<Integer> keysIt() {
@@ -169,14 +160,12 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
         };
     }
 
-    /**
-     * @return Returns a container with all values stored in this map.
-     */
+    @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
             public Iterator<VType> iterator() {
-                return valuesIt();
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override
@@ -186,13 +175,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
         };
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return ImmutableOpenMap.iterator(map.values());
-    }
-
+    @Override
     public Set<Map.Entry<Integer, VType>> entrySet() {
         Set<Map.Entry<Integer, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;

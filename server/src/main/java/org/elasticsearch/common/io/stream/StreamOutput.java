@@ -20,7 +20,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
@@ -602,28 +601,6 @@ public abstract class StreamOutput extends OutputStream {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
         }
-    }
-
-    /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     *
-     * @param keyWriter The key writer
-     * @param valueWriter The value writer
-     */
-    public final <K, V> void writeImmutableMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
-        }
-    }
-
-    /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     */
-    public final <K extends Writeable, V extends Writeable> void writeImmutableMap(final ImmutableOpenMap<K, V> map) throws IOException {
-        writeImmutableMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
     }
 
     /**

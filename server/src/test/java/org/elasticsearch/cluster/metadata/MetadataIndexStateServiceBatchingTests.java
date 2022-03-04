@@ -13,15 +13,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_WRITE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,7 +48,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
      */
 
     public void testBatchOpenIndices() throws Exception {
-        final var masterService = getInstanceFromNode(ClusterService.class).getMasterService();
+        final var clusterService = getInstanceFromNode(ClusterService.class);
+        final var masterService = clusterService.getMasterService();
 
         // create some indices
         createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
@@ -72,10 +76,17 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         // assert that the requests were acknowledged
         assertAcked(future1.get());
         assertAcked(future2.get());
+
+        // and assert that all the indices are open
+        for (String index : List.of("test-1", "test-2", "test-3")) {
+            final var indexMetadata = clusterService.state().metadata().indices().get(index);
+            assertThat(indexMetadata.getState(), is(State.OPEN));
+        }
     }
 
     public void testBatchCloseIndices() throws Exception {
-        final var masterService = getInstanceFromNode(ClusterService.class).getMasterService();
+        final var clusterService = getInstanceFromNode(ClusterService.class);
+        final var masterService = clusterService.getMasterService();
 
         // create some indices
         createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
@@ -114,10 +125,17 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         assertAcked(resp2);
         assertThat(resp2.getIndices(), hasSize(2));
         assertThat(resp2.getIndices().stream().map(r -> r.getIndex().getName()).toList(), containsInAnyOrder("test-2", "test-3"));
+
+        // and assert that all the indices are closed
+        for (String index : List.of("test-1", "test-2", "test-3")) {
+            final var indexMetadata = clusterService.state().metadata().indices().get(index);
+            assertThat(indexMetadata.getState(), is(State.CLOSE));
+        }
     }
 
     public void testBatchBlockIndices() throws Exception {
-        final var masterService = getInstanceFromNode(ClusterService.class).getMasterService();
+        final var clusterService = getInstanceFromNode(ClusterService.class);
+        final var masterService = clusterService.getMasterService();
 
         // create some indices
         createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
@@ -156,6 +174,12 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         assertAcked(resp2);
         assertThat(resp2.getIndices(), hasSize(2));
         assertThat(resp2.getIndices().stream().map(r -> r.getIndex().getName()).toList(), containsInAnyOrder("test-2", "test-3"));
+
+        // and assert that all the indices are blocked
+        for (String index : List.of("test-1", "test-2", "test-3")) {
+            final var indexMetadata = clusterService.state().metadata().indices().get(index);
+            assertThat(INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()), is(true));
+        }
     }
 
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {

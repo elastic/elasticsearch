@@ -110,7 +110,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82787")
     public void testMigrateInternalManagedSystemIndex() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);

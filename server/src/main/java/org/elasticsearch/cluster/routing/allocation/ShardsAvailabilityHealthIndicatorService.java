@@ -88,11 +88,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int unassigned_restarting = 0;
         private int initializing = 0;
         private int started = 0;
-        private int reallocating = 0;
+        private int relocating = 0;
 
-        public void increment(ShardRouting routing, NodesShutdownMetadata metadata) {
+        public void increment(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
-            boolean isRestarting = isUnassignedDueToTimelyRestart(routing, metadata);
+            boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
 
             switch (routing.state()) {
@@ -107,17 +107,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
                 case INITIALIZING -> initializing++;
                 case STARTED -> started++;
-                case RELOCATING -> reallocating++;
+                case RELOCATING -> relocating++;
             }
         }
     }
 
-    private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata metadata) {
+    private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
         var info = routing.unassignedInfo();
         if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
             return false;
         }
-        var shutdown = metadata.getAllNodeMetadataMap().get(info.getLastAllocatedNodeId());
+        var shutdown = shutdowns.getAllNodeMetadataMap().get(info.getLastAllocatedNodeId());
         if (shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
             return false;
         }
@@ -134,12 +134,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
 
-        public void addPrimary(ShardRouting routing, NodesShutdownMetadata metadata) {
-            primaries.increment(routing, metadata);
+        public void addPrimary(ShardRouting routing, NodesShutdownMetadata shutdowns) {
+            primaries.increment(routing, shutdowns);
         }
 
-        public void addReplica(ShardRouting routing, NodesShutdownMetadata metadata) {
-            replicas.increment(routing, metadata);
+        public void addReplica(ShardRouting routing, NodesShutdownMetadata shutdowns) {
+            replicas.increment(routing, shutdowns);
         }
 
         public HealthStatus getStatus() {
@@ -194,7 +194,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "restarting_primaries",
                     primaries.unassigned_restarting,
                     "started_primaries",
-                    primaries.started + primaries.reallocating,
+                    primaries.started + primaries.relocating,
                     "unassigned_replicas",
                     replicas.unassigned,
                     "initializing_replicas",
@@ -202,7 +202,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "restarting_replicas",
                     replicas.unassigned_restarting,
                     "started_replicas",
-                    replicas.started + replicas.reallocating
+                    replicas.started + replicas.relocating
                 )
             );
         }

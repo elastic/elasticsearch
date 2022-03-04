@@ -112,12 +112,15 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
-            stateWithTemplate = removeExistingAbstractions(indexTemplateService.addIndexTemplateV2(
-                state,
-                request.getIndexTemplateRequest().create(),
-                simulateTemplateToAdd,
-                request.getIndexTemplateRequest().indexTemplate()
-            ), request.getIndexName());
+            stateWithTemplate = removeExistingAbstractions(
+                indexTemplateService.addIndexTemplateV2(
+                    state,
+                    request.getIndexTemplateRequest().create(),
+                    simulateTemplateToAdd,
+                    request.getIndexTemplateRequest().indexTemplate()
+                ),
+                request.getIndexName()
+            );
         } else {
             stateWithTemplate = removeExistingAbstractions(state, request.getIndexName());
         }
@@ -155,10 +158,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private static ClusterState removeExistingAbstractions(ClusterState state, String indexName) {
         Metadata metadata = state.metadata();
         return ClusterState.builder(state)
-            .metadata(Metadata.builder(metadata)
-                .removeDataStream(indexName)
-                .removeAllIndices()
-                .build())
+            .metadata(Metadata.builder(metadata).removeDataStream(indexName).removeAllIndices().build())
             .build();
     }
 

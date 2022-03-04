@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -35,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -415,7 +418,18 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {
-        return DiscoveryNodes.builder().localNodeId(localNodeId).build();
+        return DiscoveryNodes.builder()
+            .add(
+                new DiscoveryNode(
+                    localNodeId,
+                    ESTestCase.buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(DiscoveryNodeRole.roles()),
+                    Version.CURRENT
+                )
+            )
+            .localNodeId(localNodeId)
+            .build();
     }
 
     private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsMap(

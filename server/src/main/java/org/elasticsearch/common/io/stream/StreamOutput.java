@@ -516,7 +516,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeMap(@Nullable Map<String, Object> map) throws IOException {
+    public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
 
@@ -581,6 +581,13 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+     */
+    public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
+        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
      * <pre><code>
      * Map&lt;String, String&gt; map = ...;
      * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
@@ -603,7 +610,7 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+    public final <K, V> void writeImmutableMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
         throws IOException {
         writeVInt(map.size());
         for (final Map.Entry<K, V> entry : map.entrySet()) {
@@ -615,8 +622,8 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
      */
-    public final <K extends Writeable, V extends Writeable> void writeMap(final ImmutableOpenMap<K, V> map) throws IOException {
-        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+    public final <K extends Writeable, V extends Writeable> void writeImmutableMap(final ImmutableOpenMap<K, V> map) throws IOException {
+        writeImmutableMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
     }
 
     /**

@@ -602,7 +602,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);

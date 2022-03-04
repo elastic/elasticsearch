@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByConstant;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
@@ -424,7 +425,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         throw new SqlIllegalArgumentException("Cannot GROUP BY function {}", exp);
                     }
                 } else if (exp instanceof Literal) {
-                    key = new GroupByValue(aggId, QueryTranslator.nameOf(exp));
+                    key = new GroupByConstant(aggId, QueryTranslator.nameOf(exp));
                 }
                 // catch corner-case
                 else {

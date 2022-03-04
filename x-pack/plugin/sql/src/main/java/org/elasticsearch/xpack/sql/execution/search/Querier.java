@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -137,6 +138,8 @@ public class Querier {
             ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
+            } else if (query.aggs().groupByConstant()) {
+                l = new ConstantAggregationActionListener(listener, client, cfg, output, query, search);
             } else {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
@@ -426,6 +429,89 @@ public class Querier {
                     "Too many groups returned by the implicit group; expected 1, received {}",
                     buckets.size()
                 );
+            }
+        }
+    }
+
+    /**
+     * Dedicated listener for GROUP BY CONSTANT queries that may return zero or one result, based on the number of hits.
+     */
+    static class ConstantAggregationActionListener extends BaseAggActionListener {
+
+        private static class TotalHitsBucket implements Bucket {
+
+            private final long totalHits;
+
+            TotalHitsBucket(long totalHits) {
+                this.totalHits = totalHits;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                throw new SqlIllegalArgumentException("cannot create builder for TotalHitsBucket");
+            }
+
+            @Override
+            public Object getKey() {
+                throw new SqlIllegalArgumentException("No key defined for TotalHitsBucket");
+            }
+
+            @Override
+            public String getKeyAsString() {
+                throw new SqlIllegalArgumentException("No key defined for TotalHitsBucket");
+            }
+
+            @Override
+            public long getDocCount() {
+                return totalHits;
+            }
+
+            @Override
+            public Aggregations getAggregations() {
+                throw new SqlIllegalArgumentException("No aggregations defined for TotalHitsBucket");
+            }
+        }
+
+        ConstantAggregationActionListener(
+            ActionListener<Page> listener,
+            Client client,
+            SqlConfiguration cfg,
+            List<Attribute> output,
+            QueryContainer query,
+            SearchRequest request
+        ) {
+            super(listener, client, cfg, output, query, request);
+        }
+
+        @Override
+        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+
+            SearchHits hits = response.getHits();
+            if (hits != null) {
+                handleResponse(response.getHits().getTotalHits().value, response);
+            } else {
+                throw new SqlIllegalArgumentException("No total hits found for aggregation");
+            }
+        }
+
+        private void handleResponse(long hits, SearchResponse response) {
+            if (hits > 0) {
+                Bucket globalBucket = new TotalHitsBucket(hits);
+                List<BucketExtractor> extractors = initBucketExtractors(response);
+
+                Object[] values = new Object[mask.cardinality()];
+
+                int index = 0;
+                for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
+                    values[index++] = extractors.get(i).extract(globalBucket);
+                }
+                delegate.onResponse(Page.last(Rows.singleton(schema, values)));
+
+            } else {
+                delegate.onResponse(Page.last(Rows.empty(schema)));
             }
         }
     }

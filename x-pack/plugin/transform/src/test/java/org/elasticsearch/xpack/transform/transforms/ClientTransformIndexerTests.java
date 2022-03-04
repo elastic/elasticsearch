@@ -37,7 +37,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -132,7 +131,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(SchedulerEngine.class)
+                    mock(TransformScheduler.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -232,7 +231,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(SchedulerEngine.class)
+                    mock(TransformScheduler.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -307,7 +306,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(SchedulerEngine.class)
+                    mock(TransformScheduler.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -538,7 +537,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
-                mock(SchedulerEngine.class)
+                mock(TransformScheduler.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -100,7 +99,7 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            mock(SchedulerEngine.class)
+            mock(TransformScheduler.class)
         );
 
         TransformState transformState = new TransformState(
@@ -122,7 +121,7 @@ public class TransformTaskTests extends ESTestCase {
             client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(SchedulerEngine.class),
+            mock(TransformScheduler.class),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -200,7 +199,7 @@ public class TransformTaskTests extends ESTestCase {
             client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(SchedulerEngine.class),
+            mock(TransformScheduler.class),
             auditor,
             threadPool,
             Collections.emptyMap()

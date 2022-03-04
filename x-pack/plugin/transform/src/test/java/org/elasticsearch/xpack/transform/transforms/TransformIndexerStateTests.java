@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -191,7 +190,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
         }
 
         @Override
@@ -199,8 +198,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             if (doProcessLatch != null) {
                 doProcessLatch.countDown();
             }
-            threadPool.executor(ThreadPool.Names.GENERIC)
-                .execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+            threadPool.generic().execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
         }
 
         @Override
@@ -581,7 +579,7 @@ public class TransformIndexerStateTests extends ESTestCase {
     ) {
         // we need to simulate that this is called from the task, which offloads it to the generic threadpool
         CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
             latch.countDown();
         });
@@ -625,7 +623,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            mock(SchedulerEngine.class)
+            mock(TransformScheduler.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

@@ -38,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -127,7 +126,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     transformsConfigManager,
                     mock(TransformCheckpointService.class),
                     auditor,
-                    mock(SchedulerEngine.class)
+                    mock(TransformScheduler.class)
                 ),
                 checkpointProvider,
                 initialState,

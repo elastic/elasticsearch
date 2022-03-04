@@ -143,8 +143,7 @@ public class DiskThresholdMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
         // Clean up nodes that have been removed from the cluster
-        final Set<String> nodes = new HashSet<>(usages.size());
-        nodes.addAll(usages.keySet());
+        final Set<String> nodes = new HashSet<>(usages.keySet());
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);

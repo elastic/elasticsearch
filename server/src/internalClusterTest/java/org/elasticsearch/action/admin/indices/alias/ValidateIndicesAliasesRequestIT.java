@@ -85,7 +85,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet();
         assertThat(response.getAliases().keySet().size(), equalTo(1));
-        assertThat(response.getAliases().keySet().iterator().next().value, equalTo("index"));
+        assertThat(response.getAliases().keySet().iterator().next(), equalTo("index"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("index");
         assertThat(aliasMetadata, hasSize(1));
         assertThat(aliasMetadata.get(0).alias(), equalTo("alias"));

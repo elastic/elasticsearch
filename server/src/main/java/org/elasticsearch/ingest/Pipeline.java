@@ -114,7 +114,7 @@ public final class Pipeline {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metrics.preIngest();
-        compoundProcessor.execute(ingestDocument, (result, e) -> {
+        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
             metrics.postIngest(ingestTimeInNanos);
             if (e != null) {

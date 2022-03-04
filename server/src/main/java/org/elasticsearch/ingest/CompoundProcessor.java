@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -106,7 +107,12 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public String getTag() {
-        return "CompoundProcessor-" + flattenProcessors().stream().map(Processor::getTag).collect(Collectors.joining("-"));
+        return "CompoundProcessor-" +
+            flattenProcessors().stream().map(CompoundProcessor::processorDescription).collect(Collectors.joining("-"));
+    }
+
+    private static String processorDescription(Processor p) {
+        return p.getTag() != null ? p.getTag() : p.getType();
     }
 
     @Override
@@ -116,13 +122,76 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public boolean isAsync() {
-        // the compound processor always presents itself as async even though it synchronously executes any of its processors
-        // that are themselves synchronous
-        return true;
+        return isAsync;
+    }
+
+    // delegates to appropriate sync or async method
+    void executeCompound(IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+        if (isAsync()) {
+            execute(doc, handler);
+        } else {
+            try {
+                IngestDocument result = execute(doc);
+                handler.accept(result, null);
+            } catch (Exception e) {
+                handler.accept(null, e);
+            }
+        }
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        assert isAsync == false;
+
+        for (Tuple<Processor, IngestMetric> processorWithMetric : processorsWithMetrics) {
+            Processor processor = processorWithMetric.v1();
+            IngestMetric metric = processorWithMetric.v2();
+            long startTimeInNanos = relativeTimeProvider.getAsLong();
+            try {
+                metric.preIngest();
+                if (processor.execute(document) == null) {
+                    return null;
+                }
+            } catch (Exception e) {
+                metric.ingestFailed();
+                if (ignoreFailure) {
+                    continue;
+                }
+
+                ElasticsearchException compoundProcessorException = newCompoundProcessorException(e, processor, document);
+                if (onFailureProcessors.isEmpty()) {
+                    throw compoundProcessorException;
+                } else {
+                    document = executeOnFailure(document, compoundProcessorException);
+                    break;
+                }
+            } finally {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
+            }
+        }
+        return document;
+    }
+
+    IngestDocument executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
+        try {
+            putFailureMetadata(ingestDocument, exception);
+            for (Processor processor : onFailureProcessors) {
+                try {
+                    return processor.execute(ingestDocument);
+                } catch (Exception e) {
+                    throw newCompoundProcessorException(e, processor, ingestDocument);
+                }
+            }
+        } finally {
+            removeFailureMetadata(ingestDocument);
+        }
+        return null;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        assert isAsync;
         innerExecute(0, ingestDocument, handler);
     }
 

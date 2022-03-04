@@ -8,63 +8,20 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFieldDocValuesSupplier<Double> {
+public class HalfFloatField implements Field<Float> {
 
-    protected final SortedNumericDoubleValues input;
     protected final String name;
+    protected final FieldSupplier.FloatSupplier supplier;
 
-    protected double[] values = new double[0];
-    protected int count;
-
-    private ScriptDocValues.Doubles doubles = null;
-
-    public HalfFloatDocValuesField(SortedNumericDoubleValues input, String name) {
-        this.input = input;
+    public HalfFloatField(String name, FieldSupplier.FloatSupplier supplier) {
         this.name = name;
-    }
-
-    @Override
-    public void setNextDocId(int docId) throws IOException {
-        if (input.advanceExact(docId)) {
-            resize(input.docValueCount());
-            for (int i = 0; i < count; i++) {
-                values[i] = input.nextValue();
-            }
-        } else {
-            resize(0);
-        }
-    }
-
-    protected void resize(int newSize) {
-        count = newSize;
-
-        assert count >= 0 : "size must be positive (got " + count + "): likely integer overflow?";
-        values = ArrayUtil.grow(values, count);
-    }
-
-    @Override
-    public ScriptDocValues<Double> getScriptDocValues() {
-        if (doubles == null) {
-            doubles = new ScriptDocValues.Doubles(this);
-        }
-
-        return doubles;
-    }
-
-    @Override
-    public Double getInternal(int index) {
-        return values[index];
+        this.supplier = supplier;
     }
 
     @Override
@@ -74,12 +31,12 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFie
 
     @Override
     public boolean isEmpty() {
-        return count == 0;
+        return supplier.size() == 0;
     }
 
     @Override
     public int size() {
-        return count;
+        return supplier.size();
     }
 
     /**
@@ -95,11 +52,11 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFie
      * to allow users to avoid explicit casting.
      */
     public float get(int index, double defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
+        if (isEmpty() || index < 0 || index >= supplier.size()) {
             return (float) defaultValue;
         }
 
-        return (float) values[index];
+        return supplier.get(index);
     }
 
     @Override
@@ -109,7 +66,7 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFie
 
             @Override
             public boolean hasNext() {
-                return index < count;
+                return index < supplier.size();
             }
 
             @Override
@@ -117,7 +74,7 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFie
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                return (float) values[index++];
+                return supplier.get(index++);
             }
         };
     }
@@ -128,10 +85,10 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFie
             return Collections.emptyList();
         }
 
-        List<Double> doubleValues = new ArrayList<>(count);
+        List<Double> doubleValues = new ArrayList<>(supplier.size());
 
-        for (int index = 0; index < count; ++index) {
-            doubleValues.add(values[index]);
+        for (int index = 0; index < supplier.size(); ++index) {
+            doubleValues.add((double)supplier.get(index));
         }
 
         return doubleValues;
@@ -144,10 +101,10 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptFie
 
     /** Returns the value at {@code index} as a {@code double} if it exists, otherwise {@code defaultValue}. */
     public double asDouble(int index, double defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
+        if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
 
-        return values[index];
+        return supplier.get(index);
     }
 }

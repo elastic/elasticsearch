@@ -10,7 +10,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.script.field.DoubleField;
 import org.elasticsearch.script.field.FloatDocValuesField;
-import org.elasticsearch.script.field.HalfFloatDocValuesField;
+import org.elasticsearch.script.field.HalfFloatField;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,7 +83,7 @@ public class FloatDocValuesFieldTests extends ESTestCase {
 
     public void testHalfFloatField() throws IOException {
         double[][] values = generate(ESTestCase::randomDouble);
-        HalfFloatDocValuesField halfFloatField = new HalfFloatDocValuesField(wrap(values), "test");
+        HalfFloatField halfFloatField = new HalfFloatField(wrap(values), "test");
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             halfFloatField.setNextDocId(d);

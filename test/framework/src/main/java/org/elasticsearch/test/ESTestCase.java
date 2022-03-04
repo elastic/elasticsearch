@@ -544,14 +544,14 @@ public abstract class ESTestCase extends LuceneTestCase {
                 assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
                 final Set<DeprecationWarning> actualDeprecationWarnings = actualWarningStrings.stream().map(warningString -> {
                     String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
-                    final Level level = null;
-//                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
-//                        level = DeprecationLogger.CRITICAL;
-//                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
-//                        level = Level.WARN;
-//                    } else {
-//                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
-//                    }
+                    final Level level;
+                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.getSeverity()))) {
+                        level = DeprecationLogger.CRITICAL;
+                    } else if (warningString.startsWith(Integer.toString(Level.WARN.getSeverity()))) {
+                        level = Level.WARN;
+                    } else {
+                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
+                    }
                     return new DeprecationWarning(level, warningText);
                 }).collect(Collectors.toSet());
                 for (DeprecationWarning expectedWarning : expectedWarnings) {

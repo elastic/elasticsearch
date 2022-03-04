@@ -47,7 +47,7 @@ public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable 
     final String certPath; // JWT realm needs this for HTTPS handshake
 
     public JwtIssuerHttpsServer(final byte[] encodedJwkSetPkcPublicBytes) throws Exception {
-        this.certPath = super.getDataPath(CERT).toFile().getAbsolutePath();
+        this.certPath = super.getDataPath(CERT).toAbsolutePath().toString();
         this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);
         this.url = "https://" + ADDRESS + ":" + this.httpsServer.getAddress().getPort() + PATH; // get ephemeral port
         this.httpsServer.setHttpsConfigurator(new HttpsConfigurator(this.createSslContext()));

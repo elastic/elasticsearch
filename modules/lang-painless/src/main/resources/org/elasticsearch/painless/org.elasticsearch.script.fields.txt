@@ -71,7 +71,7 @@ class org.elasticsearch.script.field.HalfFloatDocValuesField @dynamic_type {
 }
 
 # defaults are cast to byte, taking an int facilitates resolution with constants without casting
-class org.elasticsearch.script.field.ByteDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.ByteField @dynamic_type {
   byte get(int)
   byte get(int, int)
 }

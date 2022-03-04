@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.script.field.ByteDocValuesField;
+import org.elasticsearch.script.field.ByteField;
 import org.elasticsearch.script.field.IntegerDocValuesField;
 import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +19,7 @@ import java.util.function.LongSupplier;
 public class IntegralDocValuesFieldTests extends ESTestCase {
     public void testByteField() throws IOException {
         long[][] values = generate(ESTestCase::randomByte);
-        ByteDocValuesField byteField = new ByteDocValuesField(wrap(values), "test");
+        ByteField byteField = new ByteField(wrap(values), "test");
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             byteField.setNextDocId(d);

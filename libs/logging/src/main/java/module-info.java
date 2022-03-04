@@ -15,9 +15,9 @@ module org.elasticsearch.logging {
     requires org.apache.logging.log4j.core;
 
     exports org.elasticsearch.logging;
-    exports org.elasticsearch.logging.internal to org.elasticsearch.server, ecs.logging.core, org.apache.logging.log4j.core;
     exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
     opens org.elasticsearch.logging.internal to  org.apache.logging.log4j.core;
+    exports org.elasticsearch.logging.internal;
 
     uses org.elasticsearch.logging.internal.spi.ServerSupport;
 }

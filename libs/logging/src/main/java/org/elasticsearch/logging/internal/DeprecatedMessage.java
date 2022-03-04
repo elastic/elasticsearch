@@ -6,9 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging;
+package org.elasticsearch.logging.internal;
 
 //import org.elasticsearch.common.SuppressLoggerChecks;
+
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 
 import java.util.Locale;
 

@@ -24,6 +24,26 @@ public class NoOpLogger implements Logger {
     }
 
     @Override
+    public void log(Level level, Object message, Object... params) {
+
+    }
+
+    @Override
+    public void log(Level level, Object message) {
+
+    }
+
+    @Override
+    public void log(Level level, Message message, Throwable thrown) {
+
+    }
+
+    @Override
+    public void log(Level level, Supplier<?> msgSupplier, Throwable thrown) {
+
+    }
+
+    @Override
     public Level getLevel() {
         return null;
     }
@@ -56,6 +76,11 @@ public class NoOpLogger implements Logger {
     @Override
     public boolean isWarnEnabled() {
         return false;
+    }
+
+    @Override
+    public void log(Level level, Message message) {
+
     }
 
     @Override
@@ -366,5 +391,10 @@ public class NoOpLogger implements Logger {
     @Override
     public void fatal(String message, Throwable thrown) {
 
+    }
+
+    @Override
+    public boolean isLoggable(Level level) {
+        return false;
     }
 }

@@ -26,6 +26,8 @@ import java.util.stream.Stream;
  * A set of utilities around Logging.
  */
 public class Loggers {
+    public Loggers() {
+    }
 
     private static final String SPACE = " ";
 

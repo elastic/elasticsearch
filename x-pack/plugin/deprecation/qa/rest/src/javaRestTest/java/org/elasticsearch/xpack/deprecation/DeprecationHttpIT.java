@@ -41,8 +41,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.logging.DeprecatedMessage.KEY_FIELD_NAME;
-import static org.elasticsearch.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
+import static org.elasticsearch.logging.internal.DeprecatedMessage.KEY_FIELD_NAME;
+import static org.elasticsearch.logging.internal.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;

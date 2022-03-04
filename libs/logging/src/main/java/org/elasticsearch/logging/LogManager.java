@@ -24,11 +24,6 @@ public class LogManager {
 
     private LogManager() {}
 
-    public static Logger getLogger() {
-        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger();
-        return new LoggerImpl(logger);
-    }
-
     public static Logger getRootLogger() {
         return getLogger("");
     }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.plugin;
 
-import groovy.lang.Closure;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
@@ -31,6 +29,7 @@ import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -50,6 +49,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 /**
@@ -72,37 +72,36 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         final var bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
-            final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
-            configurePublishing(project1, extension1);
-            var name = extension1.getName();
+            configurePublishing(project1, extension);
+            String name = extension.getName();
             project1.setProperty("archivesBaseName", name);
-            project1.setDescription(extension1.getDescription());
+            project1.setDescription(extension.getDescription());
 
-            if (extension1.getName() == null) {
+            if (extension.getName() == null) {
                 throw new InvalidUserDataException("name is a required setting for esplugin");
             }
 
-            if (extension1.getDescription() == null) {
+            if (extension.getDescription() == null) {
                 throw new InvalidUserDataException("description is a required setting for esplugin");
             }
 
-            if (extension1.getType().equals(PluginType.BOOTSTRAP) == false && extension1.getClassname() == null) {
+            if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
                 throw new InvalidUserDataException("classname is a required setting for esplugin");
             }
 
             Map<String, Object> map = new LinkedHashMap<>(12);
-            map.put("name", extension1.getName());
-            map.put("description", extension1.getDescription());
-            map.put("version", extension1.getVersion());
+            map.put("name", extension.getName());
+            map.put("description", extension.getDescription());
+            map.put("version", extension.getVersion());
             map.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
             map.put("javaVersion", project1.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility().toString());
-            map.put("classname", extension1.getType().equals(PluginType.BOOTSTRAP) ? "" : extension1.getClassname());
-            map.put("extendedPlugins", extension1.getExtendedPlugins().stream().collect(Collectors.joining(",")));
-            map.put("hasNativeController", extension1.isHasNativeController());
-            map.put("requiresKeystore", extension1.isRequiresKeystore());
-            map.put("type", extension1.getType().toString());
-            map.put("javaOpts", extension1.getJavaOpts());
-            map.put("licensed", extension1.isLicensed());
+            map.put("classname", extension.getType().equals(PluginType.BOOTSTRAP) ? "" : extension.getClassname());
+            map.put("extendedPlugins", extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
+            map.put("hasNativeController", extension.isHasNativeController());
+            map.put("requiresKeystore", extension.isRequiresKeystore());
+            map.put("type", extension.getType().toString());
+            map.put("javaOpts", extension.getJavaOpts());
+            map.put("licensed", extension.isLicensed());
             project1.getTasks().withType(Copy.class).named("pluginProperties").configure(copy -> {
                 copy.expand(map);
                 copy.getInputs().properties(map);
@@ -113,6 +112,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
         var runCluster = testClusters.register("runTask", c -> {
+            // TODO: use explodedPlugin here for modules
             if (GradleUtils.isModuleProject(project.getPath())) {
                 c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {
@@ -194,43 +194,10 @@ public class PluginBuildPlugin implements Plugin<Project> {
         testSourceSet.getOutput().dir(map, new File(project.getBuildDir(), "generated-resources"));
         testSourceSet.getResources().srcDir(pluginMetadata);
 
+        Provider<CopySpec> bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
+        extension.setBundleSpec(bundleSpec);
         // create the actual bundle task, which zips up all the files for the plugin
-        final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> {
-            zip.from(buildProperties);
-            zip.from(pluginMetadata, copySpec -> {
-                // metadata (eg custom security policy)
-                // the codebases properties file is only for tests and not needed in production
-                copySpec.exclude("plugin-security.codebases");
-            });
-
-            /*
-             * If the plugin is using the shadow plugin then we need to bundle
-             * that shadow jar.
-             */
-            zip.from(new Closure<Object>(null, null) {
-                public Object doCall(Object it) {
-                    return project.getPluginManager().hasPlugin("com.github.johnrengelman.shadow")
-                        ? project.getTasks().named("shadowJar")
-                        : project.getTasks().named("jar");
-                }
-
-                public Object doCall() {
-                    return doCall(null);
-                }
-
-            });
-            zip.from(
-                project.getConfigurations()
-                    .getByName("runtimeClasspath")
-                    .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
-            );
-            // extra files for the plugin to go into the zip
-            zip.from("src/main/packaging");// TODO: move all config/bin/_size/etc into packaging
-            zip.from("src/main", copySpec -> {
-                copySpec.include("config/**");
-                copySpec.include("bin/**");
-            });
-        });
+        final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> zip.with(bundleSpec.get()));
         project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(bundle));
 
         // also make the zip available as a configuration (used when depending on this project)
@@ -238,7 +205,48 @@ public class PluginBuildPlugin implements Plugin<Project> {
         configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
+        TaskProvider<Copy> explodedBundle = project.getTasks().register("explodedBundlePlugin", Copy.class, copy -> {
+            copy.with(bundleSpec.get());
+            copy.into(new File(project.getBuildDir(), "explodedBundle"));
+        });
+
+        // also make the exploded bundle available as a configuration (used when depending on this project)
+        Configuration explodedZip = project.getConfigurations().create("explodedZip");
+        explodedZip.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        project.getArtifacts().add("explodedZip", explodedBundle);
         return bundle;
+    }
+
+    private static Provider<CopySpec> createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
+
+        return project.provider(() -> {
+            CopySpec bundleSpec = project.copySpec();
+            bundleSpec.from(buildProperties);
+            bundleSpec.from(pluginMetadata, copySpec -> {
+                // metadata (eg custom security policy)
+                // the codebases properties file is only for tests and not needed in production
+                copySpec.exclude("plugin-security.codebases");
+            });
+            bundleSpec.from(
+                (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.github.johnrengelman.shadow")
+                    ? project.getTasks().named("shadowJar")
+                    : project.getTasks().named("jar")
+            );
+            bundleSpec.from(
+                project.getConfigurations()
+                    .getByName("runtimeClasspath")
+                    .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
+            );
+
+            // extra files for the plugin to go into the zip
+            bundleSpec.from("src/main/packaging");// TODO: move all config/bin/_size/etc into packaging
+            bundleSpec.from("src/main", copySpec -> {
+                copySpec.include("config/**");
+                copySpec.include("bin/**");
+            });
+            return bundleSpec;
+        });
+
     }
 
     public static final String PLUGIN_EXTENSION_NAME = "esplugin";

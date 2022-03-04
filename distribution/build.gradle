@@ -130,7 +130,7 @@ def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModu
 }
 
 Configuration moduleZip(Project module) {
-  Dependency dep = project.dependencies.project(path: module.path, configuration: 'zip')
+  Dependency dep = project.dependencies.project(path: module.path, configuration: 'explodedZip')
   Configuration config = project.configurations.detachedConfiguration(dep)
   return config
 }
@@ -140,7 +140,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
     Configuration moduleConfig = moduleZip(module)
 
     dependsOn moduleConfig
-    from({ zipTree(moduleConfig.singleFile) }) {
+    from({ moduleConfig.singleFile }) {
       includeEmptyDirs false
 
       // these are handled separately in the log4j config tasks below

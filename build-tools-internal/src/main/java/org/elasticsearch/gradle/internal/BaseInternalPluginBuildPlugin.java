@@ -20,6 +20,8 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.CopySpec;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.bundling.Zip;
 
 import java.util.Optional;
@@ -106,10 +108,11 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
     protected static void addNoticeGeneration(final Project project, PluginPropertiesExtension extension) {
         final var licenseFile = extension.getLicenseFile();
         var tasks = project.getTasks();
+        Provider<CopySpec> bundleSpec = extension.getBundleSpec();
         if (licenseFile != null) {
-            tasks.withType(Zip.class).named("bundlePlugin").configure(zip -> zip.from(licenseFile.getParentFile(), copySpec -> {
-                copySpec.include(licenseFile.getName());
-                copySpec.rename(s -> "LICENSE.txt");
+            bundleSpec = bundleSpec.map(spec -> spec.from(licenseFile.getParentFile(), s -> {
+                s.include(licenseFile.getName());
+                s.rename(f -> "LICENSE.txt");
             }));
         }
 
@@ -119,7 +122,8 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                 noticeTask.setInputFile(noticeFile);
                 noticeTask.source(Util.getJavaMainSourceSet(project).get().getAllJava());
             });
-            tasks.withType(Zip.class).named("bundlePlugin").configure(task -> task.from(generateNotice));
+            bundleSpec = bundleSpec.map(spec -> spec.from(generateNotice));
         }
+        extension.setBundleSpec(bundleSpec);
     }
 }

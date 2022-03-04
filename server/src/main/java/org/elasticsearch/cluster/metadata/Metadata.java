@@ -1752,7 +1752,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             var aliasedIndices = this.aliasedIndices.build();
             for (var entry : aliasedIndices.entrySet()) {
-                List<IndexMetadata> aliasIndices = entry.getValue().stream()
+                List<IndexMetadata> aliasIndices = entry.getValue()
+                    .stream()
                     .map(idx -> indicesMap.get(idx.getName()))
                     .collect(Collectors.toList());
                 validateAlias(entry.getKey(), aliasIndices);

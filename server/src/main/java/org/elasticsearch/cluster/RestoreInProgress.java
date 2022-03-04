@@ -61,7 +61,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("RestoreInProgress[");
-        entries.entrySet().forEach(entry -> builder.append("{").append(entry.getKey()).append("}{").append(entry.getValue().snapshot).append("},"));
+        entries.entrySet()
+            .forEach(entry -> builder.append("{").append(entry.getKey()).append("}{").append(entry.getValue().snapshot).append("},"));
         builder.setCharAt(builder.length() - 1, ']');
         return builder.toString();
     }

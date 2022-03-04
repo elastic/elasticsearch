@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;

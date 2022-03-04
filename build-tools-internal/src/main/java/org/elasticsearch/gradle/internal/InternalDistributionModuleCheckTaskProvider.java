@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.internal;
 
+import com.google.common.collect.Streams;
+
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -29,10 +31,11 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 /**
  * Distribution level checks for Elasticsearch Java modules, i.e. modular jar files.
- * Currently, ES modular jar files are only in the lib directory.
+ * Currently, ES modular jar files are in the lib and lib/launchers directory.
  */
 public class InternalDistributionModuleCheckTaskProvider {
 
@@ -73,9 +76,10 @@ public class InternalDistributionModuleCheckTaskProvider {
         .isEmpty();
 
     /** Checks that all expected ES jar files are modular, i.e. contain a module-info.class in their root. */
-    private static void assertAllESJarsAreModular(Path libsPath) {
+    private static void assertAllESJarsAreModular(Path libPath) {
         try {
-            Files.walk(libsPath, 1).filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
+            var s = Streams.concat(Files.walk(libPath, 1), Files.walk(libPath.resolve("launchers")));
+            s.filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
                 try (JarFile jf = new JarFile(path.toFile())) {
                     JarEntry entry = jf.getJarEntry(MODULE_INFO);
                     if (entry == null) {
@@ -86,7 +90,7 @@ public class InternalDistributionModuleCheckTaskProvider {
                 }
             });
         } catch (IOException e) {
-            throw new GradleException("Failed when walking path " + libsPath, e);
+            throw new GradleException("Failed when walking path " + libPath, e);
         }
     }
 
@@ -109,9 +113,12 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** Checks that all expected Elasticsearch modules are present. */
     private static void assertAllModulesPresent(Path libPath) {
-        List<String> actualESModules = ModuleFinder.of(libPath).findAll().stream().filter(isESModule).map(toName).sorted().toList();
+        var finder = ModuleFinder.compose(ModuleFinder.of(libPath), ModuleFinder.of(libPath.resolve("launchers")));
+        List<String> actualESModules = finder.findAll().stream().filter(isESModule).map(toName).sorted().toList();
         if (actualESModules.equals(EXPECTED_ES_MODUlES) == false) {
-            throw new GradleException("expected modules " + EXPECTED_ES_MODUlES + ", actual modules " + actualESModules);
+            throw new GradleException(
+                "expected modules " + listToString(EXPECTED_ES_MODUlES) + ", \nactual modules " + listToString(actualESModules)
+            );
         }
     }
 
@@ -135,4 +142,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     // ####: eventually assert hashes, services, etc
 
+    static String listToString(List<String> list) {
+        return list.stream().sorted().collect(Collectors.joining("\n  ", "[\n  ", "]"));
+    }
 }

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.script.field;
 
-public class KeywordField extends AbstractStringField {
+public class ScaledFloatField extends AbstractDoubleField {
 
-    public KeywordField(String name, FieldSupplier.Supplier<String> supplier) {
+    public ScaledFloatField(String name, FieldSupplier.DoubleSupplier supplier) {
         super(name, supplier);
     }
 }

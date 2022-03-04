@@ -20,7 +20,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.script.field.SeqNoDocValuesField;
+import org.elasticsearch.script.field.SeqNoField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -189,7 +189,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoField::new);
         }
     }
 

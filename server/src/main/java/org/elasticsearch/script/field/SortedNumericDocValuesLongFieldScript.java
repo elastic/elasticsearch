@@ -18,12 +18,12 @@ import java.util.Map;
 
 public class SortedNumericDocValuesLongFieldScript extends AbstractLongFieldScript {
 
-    final LongDocValuesField longDocValuesField;
+    final LongDocValuesSupplier longDocValuesSupplier;
 
     public SortedNumericDocValuesLongFieldScript(String fieldName, SearchLookup lookup, LeafReaderContext ctx) {
         super(fieldName, Map.of(), lookup, ctx);
         try {
-            longDocValuesField = new LongDocValuesField(DocValues.getSortedNumeric(ctx.reader(), fieldName), fieldName);
+            longDocValuesSupplier = new LongDocValuesSupplier(DocValues.getSortedNumeric(ctx.reader(), fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
@@ -38,7 +38,7 @@ public class SortedNumericDocValuesLongFieldScript extends AbstractLongFieldScri
     @Override
     public void setDocument(int docID) {
         try {
-            longDocValuesField.setNextDocId(docID);
+            longDocValuesSupplier.setNextDocId(docID);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
@@ -46,8 +46,8 @@ public class SortedNumericDocValuesLongFieldScript extends AbstractLongFieldScri
 
     @Override
     public void execute() {
-        for (long value : longDocValuesField) {
-            emit(value);
+        for (int i = 0; i < longDocValuesSupplier.size(); ++i) {
+            emit(longDocValuesSupplier.get(i));
         }
     }
 }

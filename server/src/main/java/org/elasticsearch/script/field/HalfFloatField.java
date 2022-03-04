@@ -14,69 +14,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class HalfFloatField implements Field<Float> {
-
-    protected final String name;
-    protected final FieldSupplier.FloatSupplier supplier;
+public class HalfFloatField extends AbstractFloatField {
 
     public HalfFloatField(String name, FieldSupplier.FloatSupplier supplier) {
-        this.name = name;
-        this.supplier = supplier;
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return supplier.size() == 0;
-    }
-
-    @Override
-    public int size() {
-        return supplier.size();
-    }
-
-    /**
-     * Does a downcast for defaultValue from a double to a float
-     * to allow users to avoid explicit casting.
-     */
-    public float get(double defaultValue) {
-        return get(0, defaultValue);
-    }
-
-    /**
-     * Does a downcast for defaultValue from a double to a float
-     * to allow users to avoid explicit casting.
-     */
-    public float get(int index, double defaultValue) {
-        if (isEmpty() || index < 0 || index >= supplier.size()) {
-            return (float) defaultValue;
-        }
-
-        return supplier.get(index);
-    }
-
-    @Override
-    public Iterator<Float> iterator() {
-        return new Iterator<Float>() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < supplier.size();
-            }
-
-            @Override
-            public Float next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                return supplier.get(index++);
-            }
-        };
+        super(name, supplier);
     }
 
     /** Converts all the values to {@code Double} and returns them as a {@code List}. */

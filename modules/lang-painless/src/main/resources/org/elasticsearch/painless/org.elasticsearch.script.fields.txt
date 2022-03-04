@@ -56,7 +56,7 @@ class org.elasticsearch.script.field.FloatDocValuesField @dynamic_type {
   float get(int, float)
 }
 
-class org.elasticsearch.script.field.ScaledFloatDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.ScaledFloatField @dynamic_type {
   double get(double)
   double get(int, double)
 }
@@ -92,7 +92,7 @@ class org.elasticsearch.script.field.DateNanosField @dynamic_type {
   ZonedDateTime get(int, ZonedDateTime)
 }
 
-class org.elasticsearch.script.field.StringField @dynamic_type {
+class org.elasticsearch.script.field.AbstractStringField @dynamic_type {
   String get(String)
   String get(int, String)
 }
@@ -124,7 +124,7 @@ class org.elasticsearch.script.field.LongField @dynamic_type {
 }
 
 # subclass of AbstractLongDocValuesField
-class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.SeqNoField @dynamic_type {
 }
 
 # subclass of AbstractLongDocValuesField

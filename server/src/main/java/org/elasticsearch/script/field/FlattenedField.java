@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.field;
 
-public class FlattenedField extends StringField {
+public class FlattenedField extends AbstractStringField {
 
     public FlattenedField(String name, FieldSupplier.Supplier<String> supplier) {
         super(name, supplier);

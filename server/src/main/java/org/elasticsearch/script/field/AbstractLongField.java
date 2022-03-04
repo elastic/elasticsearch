@@ -8,15 +8,15 @@
 
 package org.elasticsearch.script.field;
 
-import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
 
-public abstract class StringField implements Field<String> {
+public abstract class AbstractLongField implements Field<Long> {
 
     protected final String name;
-    protected final FieldSupplier.Supplier<String> supplier;
+    protected final FieldSupplier.LongSupplier supplier;
 
-    public StringField(String name, FieldSupplier.Supplier<String> supplier) {
+    public AbstractLongField(String name, FieldSupplier.LongSupplier supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -36,11 +36,13 @@ public abstract class StringField implements Field<String> {
         return supplier.size();
     }
 
-    public String get(String defaultValue) {
+    /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    public long get(long defaultValue) {
         return get(0, defaultValue);
     }
 
-    public String get(int index, String defaultValue) {
+    /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    public long get(int index, long defaultValue) {
         if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
@@ -49,8 +51,8 @@ public abstract class StringField implements Field<String> {
     }
 
     @Override
-    public Iterator<String> iterator() {
-        return new Iterator<String>() {
+    public PrimitiveIterator.OfLong iterator() {
+        return new PrimitiveIterator.OfLong() {
             private int index = 0;
 
             @Override
@@ -59,10 +61,16 @@ public abstract class StringField implements Field<String> {
             }
 
             @Override
-            public String next() {
+            public Long next() {
+                return nextLong();
+            }
+
+            @Override
+            public long nextLong() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
+
                 return supplier.get(index++);
             }
         };

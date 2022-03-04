@@ -10,18 +10,18 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
-public class FloatFieldDocValuesSource extends FloatDocValuesSource {
+public class ScaledFloatFieldDocValuesSource extends DoubleDocValuesSource {
 
-    protected AbstractFloatField field = null;
+    protected ScaledFloatField field = null;
 
-    public FloatFieldDocValuesSource(SortedNumericDoubleValues docValues) {
+    public ScaledFloatFieldDocValuesSource(SortedNumericDoubleValues docValues) {
         super(docValues);
     }
 
     @Override
-    public AbstractFloatField toScriptField(String name) {
+    public ScaledFloatField toScriptField(String name) {
         if (field == null) {
-            field = new AbstractFloatField(name, supplier);
+            field = new ScaledFloatField(name, supplier);
         }
 
         return field;

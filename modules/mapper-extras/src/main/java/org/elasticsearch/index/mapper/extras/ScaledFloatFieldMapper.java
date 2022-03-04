@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ScaledFloatDocValuesField;
+import org.elasticsearch.script.field.ScaledFloatField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -284,7 +284,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     IndexNumericFieldData.NumericType.LONG,
                     (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
-                return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
+                return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatField::new);
             };
         }
 

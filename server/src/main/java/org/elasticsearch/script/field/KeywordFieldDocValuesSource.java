@@ -19,7 +19,7 @@ public class KeywordFieldDocValuesSource extends StringDocValuesSource {
     }
 
     @Override
-    public StringField toScriptField(String name) {
+    public AbstractStringField toScriptField(String name) {
         if (field == null) {
             field = new KeywordField(name, supplier);
         }

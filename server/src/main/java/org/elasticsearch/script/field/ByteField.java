@@ -28,7 +28,7 @@ public class ByteField implements Field<Byte> {
 
     @Override
     public boolean isEmpty() {
-        return size() == 0;
+        return supplier.size() == 0;
     }
 
     @Override

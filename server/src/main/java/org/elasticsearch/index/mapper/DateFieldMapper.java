@@ -40,8 +40,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.field.DateMillisDocValuesField;
-import org.elasticsearch.script.field.DateNanosDocValuesField;
+import org.elasticsearch.script.field.DateMillisField;
+import org.elasticsearch.script.field.DateNanosField;
 import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
@@ -82,7 +82,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {
-        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisField::new) {
             @Override
             public long convert(Instant instant) {
                 return instant.toEpochMilli();
@@ -113,7 +113,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return value;
             }
         },
-        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS, DateNanosDocValuesField::new) {
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS, DateNanosField::new) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);

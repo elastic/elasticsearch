@@ -28,7 +28,7 @@ public class BooleanField implements Field<Boolean> {
 
     @Override
     public boolean isEmpty() {
-        return size() == 0;
+        return supplier.size() == 0;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class BooleanField implements Field<Boolean> {
     }
 
     public boolean get(int index, boolean defaultValue) {
-        if (isEmpty() || index < 0 || index >= size()) {
+        if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
 

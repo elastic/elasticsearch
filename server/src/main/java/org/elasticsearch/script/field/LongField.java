@@ -28,7 +28,7 @@ public class LongField implements Field<Long> {
 
     @Override
     public boolean isEmpty() {
-        return size() == 0;
+        return supplier.size() == 0;
     }
 
     @Override
@@ -43,7 +43,7 @@ public class LongField implements Field<Long> {
 
     /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
     public long get(int index, long defaultValue) {
-        if (isEmpty() || index < 0 || index >= size()) {
+        if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
 

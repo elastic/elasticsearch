@@ -28,7 +28,7 @@ public class KeywordField implements Field<String> {
 
     @Override
     public boolean isEmpty() {
-        return size() == 0;
+        return supplier.size() == 0;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class KeywordField implements Field<String> {
     }
 
     public String get(int index, String defaultValue) {
-        if (isEmpty() || index < 0 || index >= size()) {
+        if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
 

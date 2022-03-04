@@ -8,24 +8,16 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BinaryField implements Field<ByteBuffer> {
+public class DateMillisField implements Field<ZonedDateTime> {
 
     protected final String name;
-    protected final FieldSupplier.Supplier<ByteBuffer> supplier;
+    protected final FieldSupplier.Supplier<ZonedDateTime> supplier;
 
-    public BinaryField(String name, FieldSupplier.Supplier<ByteBuffer> supplier) {
+    public DateMillisField(String name, FieldSupplier.Supplier<ZonedDateTime> supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -45,11 +37,11 @@ public class BinaryField implements Field<ByteBuffer> {
         return supplier.size();
     }
 
-    public ByteBuffer get(ByteBuffer defaultValue) {
+    public ZonedDateTime get(ZonedDateTime defaultValue) {
         return get(0, defaultValue);
     }
 
-    public ByteBuffer get(int index, ByteBuffer defaultValue) {
+    public ZonedDateTime get(int index, ZonedDateTime defaultValue) {
         if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
@@ -58,8 +50,8 @@ public class BinaryField implements Field<ByteBuffer> {
     }
 
     @Override
-    public Iterator<ByteBuffer> iterator() {
-        return new Iterator<ByteBuffer>() {
+    public Iterator<ZonedDateTime> iterator() {
+        return new Iterator<ZonedDateTime>() {
             private int index = 0;
 
             @Override
@@ -68,11 +60,10 @@ public class BinaryField implements Field<ByteBuffer> {
             }
 
             @Override
-            public ByteBuffer next() {
+            public ZonedDateTime next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-
                 return supplier.get(index++);
             }
         };

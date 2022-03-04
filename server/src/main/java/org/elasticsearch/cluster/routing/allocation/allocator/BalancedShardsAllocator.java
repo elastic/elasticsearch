@@ -619,7 +619,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to the nodes we relocated them from.
          */
         private String[] buildWeightOrderedIndices() {
-            final String[] indices = allocation.routingTable().indicesRouting().keys().toArray(String.class);
+            final String[] indices = allocation.routingTable().indicesRouting().keySet().toArray(new String[0]);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {
                 sorter.reset(indices[i]);

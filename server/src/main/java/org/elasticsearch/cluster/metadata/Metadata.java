@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -27,7 +25,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,6 +73,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -473,13 +471,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
+        Set<String> indicesKeys = indices.keySet();
+        Stream.of(concreteIndices).filter(indicesKeys::contains).forEach(index -> {
             onNextIndex.run();
             IndexMetadata indexMetadata = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
-        }
+        });
         return indexMapBuilder.build();
     }
 

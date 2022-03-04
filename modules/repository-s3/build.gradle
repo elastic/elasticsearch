@@ -319,6 +319,8 @@ if (useFixture) {
     // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the S3HttpFixtureWithSTS fixture
     environment 'AWS_ROLE_ARN', 'arn:aws:iam::123456789012:role/FederatedWebIdentityRole'
     environment 'AWS_ROLE_SESSION_NAME', 'sts-fixture-test'
+    // To verify that a custom AWS region gets picked up from the environment variable
+    environment 'AWS_REGION', 'us-west-2'
   }
 }
 

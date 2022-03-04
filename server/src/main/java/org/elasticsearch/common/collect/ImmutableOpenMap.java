@@ -187,6 +187,11 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
             Map.Entry that = (Map.Entry) o;
             return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
     }
 
     private final class ConversionIterator implements Iterator<Map.Entry<KType, VType>> {

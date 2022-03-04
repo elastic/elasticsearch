@@ -516,7 +516,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeMap(@Nullable Map<String, Object> map) throws IOException {
+    public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
 
@@ -577,6 +577,13 @@ public abstract class StreamOutput extends OutputStream {
                 valueWriter.write(this, value);
             }
         });
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+     */
+    public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
+        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
     }
 
     /**

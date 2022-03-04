@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -332,7 +333,7 @@ public interface IndexAbstraction {
     class DataStream implements IndexAbstraction {
 
         public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
-            Set.of("@timestamp"),
+            Set.of(TimestampField.FIXED_TIMESTAMP_FIELD),
             null,
             false
         );

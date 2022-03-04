@@ -12,17 +12,23 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 
 public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
@@ -67,6 +73,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     );
                 }
             }
+            // Register plugin bundle with test cluster
+            project.getPlugins().withType(PluginBuildPlugin.class, p -> {
+                TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+                if (GradleUtils.isModuleProject(project.getPath())) {
+                    cluster.module(bundle.flatMap(Zip::getArchiveFile));
+                } else {
+                    cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
+                }
+            });
         });
 
         project.getTasks()

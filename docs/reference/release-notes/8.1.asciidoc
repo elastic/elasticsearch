@@ -49,7 +49,7 @@ Geo::
 * `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
 
 ILM+SLM::
-* Fix `PolicyStepsRegistry's` `cachedSteps` null handling {es-pull}84588[#84588]
+* Fix `PolicyStepsRegistry`'s `cachedSteps` null handling {es-pull}84588[#84588]
 
 Indices APIs::
 * Allow removing unreferenced composable data stream templates {es-pull}84376[#84376] (issues: {es-issue}84171[#84171], {es-issue}84188[#84188])

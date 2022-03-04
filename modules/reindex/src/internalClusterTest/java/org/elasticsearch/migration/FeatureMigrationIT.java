@@ -185,6 +185,9 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
 
+        // Waiting for shards to stabilize if indices were moved around
+        ensureGreen();
+
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 

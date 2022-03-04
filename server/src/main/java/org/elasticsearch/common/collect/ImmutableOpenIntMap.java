@@ -14,7 +14,6 @@ import com.carrotsearch.hppc.IntObjectAssociativeContainer;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
@@ -52,36 +51,12 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
         this.map = map;
     }
 
-    /**
-     * @return Returns the value associated with the given key or the default value
-     * for the key type, if the key is not associated with any value.
-     * <p>
-     * <b>Important note:</b> For primitive type values, the value returned for a non-existing
-     * key may not be the default value of the primitive type (it may be any value previously
-     * assigned to that slot).
-     */
-    public VType get(int key) {
-        return map.get(key);
-    }
-
-    /**
-     * Returns <code>true</code> if this container has an association to a value for
-     * the given key.
-     */
-    public boolean containsKey(int key) {
-        return map.containsKey(key);
-    }
-
-    /**
-     * @return Returns the current size (number of assigned keys) in the container.
-     */
+    @Override
     public int size() {
         return map.size();
     }
 
-    /**
-     * @return Return <code>true</code> if this hash map contains no assigned keys.
-     */
+    @Override
     public boolean isEmpty() {
         return map.isEmpty();
     }
@@ -135,29 +110,6 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
             keySet = new KeySet();
         }
         return keySet;
-    }
-
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<Integer> keysIt() {
-        final Iterator<IntCursor> iterator = map.keys().iterator();
-        return new Iterator<Integer>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public Integer next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
     }
 
     @Override

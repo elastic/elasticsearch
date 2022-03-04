@@ -113,20 +113,17 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         throw new UnsupportedOperationException("modification is not supported");
     }
 
-    /**
-     * @return Returns the current size (number of assigned keys) in the container.
-     */
+    @Override
     public int size() {
         return map.size();
     }
 
-    /**
-     * @return Return <code>true</code> if this hash map contains no assigned keys.
-     */
+    @Override
     public boolean isEmpty() {
         return map.isEmpty();
     }
 
+    @Override
     public Set<Map.Entry<KType, VType>> entrySet() {
         Set<Map.Entry<KType, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
@@ -242,9 +239,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
     }
 
-    /**
-     * Returns a {@link Set} view of the keys contained in this map.
-     */
     @Override
     public Set<KType> keySet() {
         return new AbstractSet<>() {

@@ -400,6 +400,24 @@ public class IndexRequestTests extends ESTestCase {
                 )
             );
         }
+
+        {
+            // no @timestamp field
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Error extracting data stream timestamp field: "
+                        + "Failed to parse object: expecting token of type [START_OBJECT] but found [null]"
+                )
+            );
+        }
     }
 
     static String renderSource(String sourceTemplate, Instant instant) {

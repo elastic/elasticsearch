@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -106,7 +107,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
             Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
-        final String clientAuthenticationType = randomFrom(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES);
+        final ClientAuthenticationType clientAuthenticationType = randomFrom(ClientAuthenticationType.values());
 
         final List<String> allowedSignatureAlgorithmsList = new ArrayList<>();
         if (includeRsa) {
@@ -197,7 +198,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 );
             }
         }
-        if (JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType)) {
+        if (ClientAuthenticationType.SHARED_SECRET.equals(clientAuthenticationType)) {
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
                 randomAlphaOfLengthBetween(8, 12)
@@ -581,7 +582,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (sharedSecret != null) {
             requestThreadContext.putHeader(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET + " " + sharedSecret
+                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret
             );
         }
         return requestThreadContext;

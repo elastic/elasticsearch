@@ -15,10 +15,10 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
@@ -85,27 +85,23 @@ public class Subject {
         return metadata;
     }
 
-    /**
-     * Return a List of RoleReferences that represents role definitions associated to the subject.
-     * The final role of this subject should be the intersection of all role references in the list.
-     */
-    public List<RoleReference> getRoleReferences(@Nullable AnonymousUser anonymousUser) {
+    public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         switch (type) {
             case USER:
                 return buildRoleReferencesForUser(anonymousUser);
             case API_KEY:
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
-                return List.of(new RoleReference.ServiceAccountRoleReference(user.principal()));
+                return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
         }
     }
 
-    private List<RoleReference> buildRoleReferencesForUser(AnonymousUser anonymousUser) {
+    private RoleReferenceIntersection buildRoleReferencesForUser(AnonymousUser anonymousUser) {
         if (user.equals(anonymousUser)) {
-            return List.of(new RoleReference.NamedRoleReference(user.roles()));
+            return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles()));
         }
         final String[] allRoleNames;
         if (anonymousUser == null || false == anonymousUser.enabled()) {
@@ -117,10 +113,10 @@ public class Subject {
             }
             allRoleNames = ArrayUtils.concat(user.roles(), anonymousUser.roles());
         }
-        return List.of(new RoleReference.NamedRoleReference(allRoleNames));
+        return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(allRoleNames));
     }
 
-    private List<RoleReference> buildRoleReferencesForApiKey() {
+    private RoleReferenceIntersection buildRoleReferencesForApiKey() {
         if (version.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
             return buildRolesReferenceForApiKeyBwc();
         }
@@ -133,19 +129,22 @@ public class Subject {
         final RoleReference.ApiKeyRoleReference limitedByRoleReference = new RoleReference.ApiKeyRoleReference(
             apiKeyId,
             limitedByRoleDescriptorsBytes,
-            "apikey_limited_role"
+            RoleReference.ApiKeyRoleType.LIMITED_BY
         );
         if (isEmptyRoleDescriptorsBytes(roleDescriptorsBytes)) {
-            return List.of(limitedByRoleReference);
+            return new RoleReferenceIntersection(limitedByRoleReference);
         }
-        return List.of(new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, "apikey_role"), limitedByRoleReference);
+        return new RoleReferenceIntersection(
+            new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+            limitedByRoleReference
+        );
     }
 
     private boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
         return roleDescriptorsBytes == null || (roleDescriptorsBytes.length() == 2 && "{}".equals(roleDescriptorsBytes.utf8ToString()));
     }
 
-    private List<RoleReference> buildRolesReferenceForApiKeyBwc() {
+    private RoleReferenceIntersection buildRolesReferenceForApiKeyBwc() {
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         final Map<String, Object> roleDescriptorsMap = getRoleDescriptorMap(API_KEY_ROLE_DESCRIPTORS_KEY);
         final Map<String, Object> limitedByRoleDescriptorsMap = getRoleDescriptorMap(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
@@ -155,13 +154,13 @@ public class Subject {
             final RoleReference.BwcApiKeyRoleReference limitedByRoleReference = new RoleReference.BwcApiKeyRoleReference(
                 apiKeyId,
                 limitedByRoleDescriptorsMap,
-                "_limited_role_desc"
+                RoleReference.ApiKeyRoleType.LIMITED_BY
             );
             if (roleDescriptorsMap == null || roleDescriptorsMap.isEmpty()) {
-                return List.of(limitedByRoleReference);
+                return new RoleReferenceIntersection(limitedByRoleReference);
             } else {
-                return List.of(
-                    new RoleReference.BwcApiKeyRoleReference(apiKeyId, roleDescriptorsMap, "_role_desc"),
+                return new RoleReferenceIntersection(
+                    new RoleReference.BwcApiKeyRoleReference(apiKeyId, roleDescriptorsMap, RoleReference.ApiKeyRoleType.ASSIGNED),
                     limitedByRoleReference
                 );
             }

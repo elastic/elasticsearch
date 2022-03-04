@@ -221,8 +221,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Translate custom queries in queries that are supported by the unified highlighter.
      */
     private Collection<Query> rewriteCustomQuery(Query query) {
-        if (query instanceof MultiPhrasePrefixQuery) {
-            MultiPhrasePrefixQuery mpq = (MultiPhrasePrefixQuery) query;
+        if (query instanceof MultiPhrasePrefixQuery mpq) {
             Term[][] terms = mpq.getTerms();
             int[] positions = mpq.getPositions();
             SpanQuery[] positionSpanQueries = new SpanQuery[positions.length];

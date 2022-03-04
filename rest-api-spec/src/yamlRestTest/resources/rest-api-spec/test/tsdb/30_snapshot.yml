@@ -17,7 +17,7 @@ teardown:
 ---
 "Create a snapshot and then restore it":
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
       features: ["allowed_warnings"]
 
@@ -101,6 +101,8 @@ teardown:
         repository: test_repo
         snapshot: test_restore_tsdb
         wait_for_completion: true
+        body:
+          indices: test_index
 
   - match: { snapshot.snapshot: test_restore_tsdb }
   - match: { snapshot.state : SUCCESS }

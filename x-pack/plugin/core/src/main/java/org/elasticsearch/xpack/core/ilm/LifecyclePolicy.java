@@ -7,8 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +39,7 @@ import java.util.stream.Collectors;
  * {@link Phase}s and {@link LifecycleAction}s are allowed to be defined and in which order
  * they are executed.
  */
-public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, Diffable<LifecyclePolicy> {
+public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXContentObject {
     private static final int MAX_INDEX_NAME_BYTES = 255;
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
@@ -140,7 +139,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         out.writeNamedWriteable(type);
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
-        out.writeMap(this.metadata);
+        out.writeGenericMap(this.metadata);
     }
 
     /**
@@ -291,6 +290,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
      * @throws IllegalArgumentException if the name is invalid
      */
     public static void validatePolicyName(String policy) {
+        if (Strings.isNullOrEmpty(policy)) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be null or empty");
+        }
         if (policy.contains(",")) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }

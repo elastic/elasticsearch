@@ -42,17 +42,10 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
         TimeValue timeout = instance.timeout();
 
         switch (between(0, 2)) {
-            case 0:
-                config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();
-                break;
-            case 1:
-                deferValidation ^= true;
-                break;
-            case 2:
-                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
-                break;
-            default:
-                throw new AssertionError("Illegal randomization branch");
+            case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();
+            case 1 -> deferValidation ^= true;
+            case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            default -> throw new AssertionError("Illegal randomization branch");
         }
 
         return new Request(config, deferValidation, timeout);

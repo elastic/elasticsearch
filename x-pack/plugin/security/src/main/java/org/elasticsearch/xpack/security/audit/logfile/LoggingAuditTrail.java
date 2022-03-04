@@ -43,12 +43,13 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -179,6 +180,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
+    public static final String TRACE_ID_FIELD_NAME = "trace.id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
     // the fields below are used exclusively for "security_config_change" type of events, and show the configuration
     // object taking effect; it could be creating a new, or updating an existing configuration
@@ -456,8 +458,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withAuthentication(authentication)
                 .withRestOrigin(request)
                 .withRequestBody(request)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -485,8 +486,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -505,8 +505,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -522,8 +521,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestOrigin(request)
                 .withRequestBody(request)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -542,8 +540,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext);
+                    .withThreadContext(threadContext);
                 if (token instanceof ServiceAccountToken) {
                     logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
                 }
@@ -561,8 +558,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestOrigin(request)
                 .withRequestBody(request)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -580,8 +576,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -599,8 +594,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestOrigin(request)
                 .withRequestBody(request)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext);
+                .withThreadContext(threadContext);
             if (token instanceof ServiceAccountToken) {
                 logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
             }
@@ -629,8 +623,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -649,8 +642,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestOrigin(request)
                 .withRequestBody(request)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -686,8 +678,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(msg, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap())
                     .build();
             }
@@ -794,8 +785,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .with(INDICES_FIELD_NAME, indices)
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap());
                 final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
                 if (restAddress != null) {
@@ -840,8 +830,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
                     .with(authorizationInfo.asMap())
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -856,8 +845,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestOrigin(request)
                 .withRequestBody(request)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -875,8 +863,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -905,8 +892,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withAuthentication(authentication)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -924,8 +910,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -942,8 +927,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -978,8 +962,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
                     .with(authorizationInfo.asMap())
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1015,8 +998,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .with(INDICES_FIELD_NAME, indices.orElse(null))
                     .with(authorizationInfo.asMap())
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
+                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1044,8 +1026,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestOrigin(request)
                 .withRequestBody(request)
                 .withRequestId(requestId)
-                .withOpaqueId(threadContext)
-                .withXForwardedFor(threadContext)
+                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -1214,7 +1195,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject();
             withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
-            GrantApiKeyRequest.Grant grant = grantApiKeyRequest.getGrant();
+            Grant grant = grantApiKeyRequest.getGrant();
             builder.startObject("grant").field("type", grant.getType());
             if (grant.getUsername() != null) {
                 builder.startObject("user")
@@ -1472,32 +1453,30 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withOpaqueId(ThreadContext threadContext) {
-            final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-            if (opaqueId != null) {
-                logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
-            }
+        LogEntryBuilder withThreadContext(ThreadContext threadContext) {
+            setThreadContextField(threadContext, AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
+            setThreadContextField(threadContext, Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
+            setThreadContextField(threadContext, Task.TRACE_ID, TRACE_ID_FIELD_NAME);
             return this;
         }
 
-        LogEntryBuilder withXForwardedFor(ThreadContext threadContext) {
-            final String xForwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
-            if (xForwardedFor != null) {
-                logEntry.with(X_FORWARDED_FOR_FIELD_NAME, xForwardedFor);
+        private void setThreadContextField(ThreadContext threadContext, String threadContextFieldName, String auditLogFieldName) {
+            final String fieldValue = threadContext.getHeader(threadContextFieldName);
+            if (fieldValue != null) {
+                logEntry.with(auditLogFieldName, fieldValue);
             }
-            return this;
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+            if (authentication.isApiKey()) {
                 logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
                 String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
-                String creatorRealmName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+                final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
@@ -1506,11 +1485,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 if (authentication.getUser().isRunAs()) {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
                         .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
+                        // API key can run-as, when that happens, the following field will be _es_api_key,
+                        // not the API key owner user's realm.
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                    // TODO: API key can run-as which means we could use extra fields (#84394)
                 } else {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
+            // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
                 logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                     .with(

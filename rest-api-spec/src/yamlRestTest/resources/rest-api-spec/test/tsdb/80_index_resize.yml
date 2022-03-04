@@ -1,6 +1,6 @@
 setup:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: introduced in 8.1.0
       features: "arbitrary_key"
 
@@ -85,7 +85,7 @@ setup:
 ---
 split:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: index-split check introduced in 8.1.0
 
   - do:
@@ -101,7 +101,7 @@ split:
 ---
 shrink:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -128,7 +128,7 @@ shrink:
 ---
 clone:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -152,7 +152,7 @@ clone:
 ---
 clone no source index:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: introduced in 8.1.0
 
   - do:

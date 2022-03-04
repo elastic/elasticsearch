@@ -183,13 +183,11 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
                     final Source argSource = argSources.get(argIndex);
                     final String valueAsLiteral = asLiteralInQuery(argValue);
                     switch (argSource) {
-                        case LITERAL:
-                            functionCallArgs.add(valueAsLiteral);
-                            break;
-                        case FIELD:
+                        case LITERAL -> functionCallArgs.add(valueAsLiteral);
+                        case FIELD -> {
                             final String argFieldName = (argValue == null ? nullArgPrefix : argPrefix) + (argIndex + 1);
                             functionCallArgs.add(argFieldName);
-                            break;
+                        }
                     }
                     functionCallArgsForAssert.add(valueAsLiteral + "{" + argSource.name().charAt(0) + "}");
                 }

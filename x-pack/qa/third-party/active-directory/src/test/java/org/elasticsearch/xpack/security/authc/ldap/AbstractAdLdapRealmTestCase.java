@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -34,7 +35,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -172,11 +172,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public void setupRoleMappings() throws Exception {
         assertSecurityIndexActive();
 
-        List<String> content = getRoleMappingContent(RoleMappingEntry::getNativeContent);
+        List<String> content = getRoleMappingContent(RoleMappingEntry::nativeContent);
         if (content.isEmpty()) {
             return;
         }
-        Map<String, ActionFuture<PutRoleMappingResponse>> futures = new LinkedHashMap<>(content.size());
+        Map<String, ActionFuture<PutRoleMappingResponse>> futures = Maps.newLinkedHashMapWithExpectedSize(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;
             final PutRoleMappingRequestBuilder builder = new PutRoleMappingRequestBuilder(client()).source(
@@ -206,7 +206,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     protected final void configureFileRoleMappings(Settings.Builder builder, String realmType, List<RoleMappingEntry> mappings) {
-        String content = getRoleMappingContent(RoleMappingEntry::getFileContent, mappings).stream().collect(Collectors.joining("\n"));
+        String content = getRoleMappingContent(RoleMappingEntry::fileContent, mappings).stream().collect(Collectors.joining("\n"));
         Path nodeFiles = createTempDir();
         String file = writeFile(nodeFiles, "role_mapping.yml", content);
         builder.put("xpack.security.authc.realms." + realmType + ".external.files.role_mapping", file);
@@ -304,24 +304,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         );
     }
 
-    static class RoleMappingEntry {
-        @Nullable
-        public final String fileContent;
-        @Nullable
-        public final String nativeContent;
-
-        RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
-            this.fileContent = fileContent;
-            this.nativeContent = nativeContent;
-        }
-
-        String getFileContent() {
-            return fileContent;
-        }
-
-        String getNativeContent() {
-            return nativeContent;
-        }
+    record RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
 
         RoleMappingEntry pickEntry(Supplier<Boolean> shouldPickFileContent) {
             if (nativeContent == null) {
@@ -335,26 +318,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             } else {
                 return new RoleMappingEntry(null, nativeContent);
             }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            final RoleMappingEntry that = (RoleMappingEntry) o;
-            return Objects.equals(this.fileContent, that.fileContent) && Objects.equals(this.nativeContent, that.nativeContent);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hashCode(fileContent);
-            result = 31 * result + Objects.hashCode(nativeContent);
-            return result;
         }
     }
 

@@ -21,6 +21,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -133,6 +135,27 @@ public final class CompressedXContent {
 
     public CompressedXContent(byte[] data) throws IOException {
         this(new BytesArray(data));
+    }
+
+    /**
+     * Parses the given JSON string and then serializes it back in compressed form without any whitespaces. This is used to normalize
+     * mapping json strings for deduplication.
+     *
+     * @param json string containing valid JSON
+     * @return compressed x-content normalized to not contain any whitespaces
+     */
+    public static CompressedXContent fromJSON(String json) throws IOException {
+        return new CompressedXContent(new ToXContent() {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.copyCurrentStructure(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json));
+            }
+
+            @Override
+            public boolean isFragment() {
+                return false;
+            }
+        });
     }
 
     public CompressedXContent(String str) throws IOException {

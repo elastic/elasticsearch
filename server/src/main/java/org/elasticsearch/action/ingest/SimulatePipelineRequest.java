@@ -115,27 +115,11 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         static final String SOURCE = "_source";
     }
 
-    static class Parsed {
-        private final List<IngestDocument> documents;
-        private final Pipeline pipeline;
-        private final boolean verbose;
-
+    record Parsed(Pipeline pipeline, List<IngestDocument> documents, boolean verbose) {
         Parsed(Pipeline pipeline, List<IngestDocument> documents, boolean verbose) {
             this.pipeline = pipeline;
             this.documents = Collections.unmodifiableList(documents);
             this.verbose = verbose;
-        }
-
-        public Pipeline getPipeline() {
-            return pipeline;
-        }
-
-        public List<IngestDocument> getDocuments() {
-            return documents;
-        }
-
-        public boolean isVerbose() {
-            return verbose;
         }
     }
 

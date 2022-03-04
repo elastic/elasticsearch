@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -36,8 +35,6 @@ import static java.util.Map.entry;
  * The deprecated ones can be mapped to Deprecated.class.
  */
 public abstract class AnalysisFactoryTestCase extends ESTestCase {
-
-    private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
 
     private static final Map<String, Class<?>> KNOWN_TOKENIZERS = Map.ofEntries(
         // exposed in ES
@@ -193,7 +190,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("dropifflagged", Void.class),
         entry("japanesecompletion", Void.class),
         // LUCENE-9575
-        entry("patterntyping", Void.class)
+        entry("patterntyping", Void.class),
+        // LUCENE-10248
+        entry("spanishpluralstem", Void.class),
+        // LUCENE-10352
+        entry("daitchmokotoffsoundex", Void.class)
     );
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
@@ -297,7 +298,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     public void testTokenFilters() {
-        Set<String> missing = new TreeSet<String>();
+        Set<String> missing = new TreeSet<>();
         missing.addAll(
             org.apache.lucene.analysis.TokenFilterFactory.availableTokenFilters()
                 .stream()
@@ -305,7 +306,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 .collect(Collectors.toSet())
         );
         missing.removeAll(getTokenFilters().keySet());
-        assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing.toString(), missing.isEmpty());
+        assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing, missing.isEmpty());
     }
 
     /**

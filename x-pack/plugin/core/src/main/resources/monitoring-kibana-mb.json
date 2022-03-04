@@ -492,6 +492,10 @@
                 "uuid": {
                   "type": "alias",
                   "path": "service.id"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "service.version"
                 }
               }
             },
@@ -644,7 +648,8 @@
       }
     },
     "settings": {
-      "index.mapping.total_fields.limit": 2000
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
   "data_stream": {}

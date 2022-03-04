@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -38,75 +37,43 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
-public final class TaskInfo implements Writeable, ToXContentFragment {
+public record TaskInfo(
+    TaskId taskId,
+    String type,
+    String action,
+    String description,
+    Task.Status status,
+    long startTime,
+    long runningTimeNanos,
+    boolean cancellable,
+    boolean cancelled,
+    TaskId parentTaskId,
+    Map<String, String> headers
+) implements Writeable, ToXContentFragment {
 
     static final String INCLUDE_CANCELLED_PARAM = "include_cancelled";
 
-    private final TaskId taskId;
-
-    private final String type;
-
-    private final String action;
-
-    private final String description;
-
-    private final long startTime;
-
-    private final long runningTimeNanos;
-
-    private final Task.Status status;
-
-    private final boolean cancellable;
-
-    private final boolean cancelled;
-
-    private final TaskId parentTaskId;
-
-    private final Map<String, String> headers;
-
-    public TaskInfo(
-        TaskId taskId,
-        String type,
-        String action,
-        String description,
-        Task.Status status,
-        long startTime,
-        long runningTimeNanos,
-        boolean cancellable,
-        boolean cancelled,
-        TaskId parentTaskId,
-        Map<String, String> headers
-    ) {
+    public TaskInfo {
         assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
-        this.taskId = taskId;
-        this.type = type;
-        this.action = action;
-        this.description = description;
-        this.status = status;
-        this.startTime = startTime;
-        this.runningTimeNanos = runningTimeNanos;
-        this.cancellable = cancellable;
-        this.cancelled = cancelled;
-        this.parentTaskId = parentTaskId;
-        this.headers = headers;
     }
 
     /**
      * Read from a stream.
      */
-    public TaskInfo(StreamInput in) throws IOException {
-        taskId = TaskId.readFromStream(in);
-        type = in.readString();
-        action = in.readString();
-        description = in.readOptionalString();
-        status = in.readOptionalNamedWriteable(Task.Status.class);
-        startTime = in.readLong();
-        runningTimeNanos = in.readLong();
-        cancellable = in.readBoolean();
-        cancelled = in.readBoolean();
-        assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
-        parentTaskId = TaskId.readFromStream(in);
-        headers = in.readMap(StreamInput::readString, StreamInput::readString);
+    public static TaskInfo from(StreamInput in) throws IOException {
+        return new TaskInfo(
+            TaskId.readFromStream(in),
+            in.readString(),
+            in.readString(),
+            in.readOptionalString(),
+            in.readOptionalNamedWriteable(Task.Status.class),
+            in.readLong(),
+            in.readLong(),
+            in.readBoolean(),
+            in.readBoolean(),
+            TaskId.readFromStream(in),
+            in.readMap(StreamInput::readString, StreamInput::readString)
+        );
     }
 
     @Override
@@ -124,74 +91,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
-    public TaskId getTaskId() {
-        return taskId;
-    }
-
-    public long getId() {
+    public long id() {
         return taskId.getId();
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getAction() {
-        return action;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    /**
-     * The status of the running task. Only available if TaskInfos were build
-     * with the detailed flag.
-     */
-    public Task.Status getStatus() {
-        return status;
-    }
-
-    /**
-     * Returns the task start time
-     */
-    public long getStartTime() {
-        return startTime;
-    }
-
-    /**
-     * Returns the task running time
-     */
-    public long getRunningTimeNanos() {
-        return runningTimeNanos;
-    }
-
-    /**
-     * Returns true if the task supports cancellation
-     */
-    public boolean isCancellable() {
-        return cancellable;
-    }
-
-    /**
-     * Returns true if the task supports cancellation and has been cancelled
-     */
-    public boolean isCancelled() {
-        return cancelled;
-    }
-
-    /**
-     * Returns the parent task id
-     */
-    public TaskId getParentTaskId() {
-        return parentTaskId;
-    }
-
-    /**
-     * Returns the task headers
-     */
-    public Map<String, String> getHeaders() {
-        return headers;
     }
 
     @Override
@@ -267,6 +168,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             headers
         );
     });
+
     static {
         // Note for the future: this has to be backwards and forwards compatible with all changes to the task storage format
         PARSER.declareString(constructorArg(), new ParseField("node"));
@@ -287,42 +189,5 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    // Implements equals and hashCode for testing
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != TaskInfo.class) {
-            return false;
-        }
-        TaskInfo other = (TaskInfo) obj;
-        return Objects.equals(taskId, other.taskId)
-            && Objects.equals(type, other.type)
-            && Objects.equals(action, other.action)
-            && Objects.equals(description, other.description)
-            && Objects.equals(startTime, other.startTime)
-            && Objects.equals(runningTimeNanos, other.runningTimeNanos)
-            && Objects.equals(parentTaskId, other.parentTaskId)
-            && Objects.equals(cancellable, other.cancellable)
-            && Objects.equals(cancelled, other.cancelled)
-            && Objects.equals(status, other.status)
-            && Objects.equals(headers, other.headers);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            taskId,
-            type,
-            action,
-            description,
-            startTime,
-            runningTimeNanos,
-            parentTaskId,
-            cancellable,
-            cancelled,
-            status,
-            headers
-        );
     }
 }

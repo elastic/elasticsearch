@@ -4,7 +4,8 @@
 <titleabbrev>Cluster state</titleabbrev>
 ++++
 
-Returns metadata about the state of the cluster.
+Returns an internal representation of the cluster state for debugging or
+diagnostic purposes.
 
 [[cluster-state-api-request]]
 ==== {api-request-title}
@@ -20,44 +21,46 @@ Returns metadata about the state of the cluster.
 [[cluster-state-api-desc]]
 ==== {api-description-title}
 
-The cluster state API allows access to metadata representing the state of the
-whole cluster. This includes information such as
+The _cluster state_ is an internal data structure which keeps track of a
+variety of information needed by every node, including:
 
-* the set of nodes in the cluster
+* The identity and attributes of the other nodes in the cluster
 
-* all cluster-level settings
+* Cluster-wide settings
 
-* information about the indices in the cluster, including their mappings and
-  settings
+* Index metadata, including the mapping and settings for each index
 
-* the locations of all the shards in the cluster.
+* The location and status of every shard copy in the cluster
 
-NOTE: The response is an internal representation of the cluster state and its
-format may change from version to version. If possible, you should obtain any
-information from the cluster state using the other, more stable,
-<<cluster,cluster APIs>>.
+The elected master node ensures that every node in the cluster has a copy of
+the same cluster state. The cluster state API lets you retrieve a
+representation of this internal state for debugging or diagnostic purposes. You
+may need to consult the {es} source code to determine the precise meaning of
+the response.
 
-The response provides the cluster state itself, which can be filtered to only
-retrieve the parts of interest as described below.
+By default the cluster state API will route requests to the elected master node
+since this node is the authoritative source of cluster states. You can also
+retrieve the cluster state held on the node handling the API request by adding
+the query parameter `?local=true`.
 
-The cluster's `cluster_uuid` is also returned as part of the top-level response,
-in addition to the `metadata` section.
+{es} may need to expend significant effort to compute a response to this API in
+larger clusters, and the response may comprise a very large quantity of data.
+If you use this API repeatedly, your cluster may become unstable.
 
-NOTE: While the cluster is still forming, it is possible for the `cluster_uuid`
-      to be `_na_` as well as the cluster state's version to be `-1`.
-
-By default, the cluster state request is routed to the master node, to ensure
-that the latest cluster state is returned. For debugging purposes, you can
-retrieve the cluster state local to a particular node by adding `local=true` to
-the query string.
+[[cluster-state-api-unstable-warning]]
+WARNING: The response is a representation of an internal data structure. Its
+format is not subject to the same compatibility guarantees as other more stable
+APIs and may change from version to version. **Do not query this API using
+external monitoring tools.** Instead, obtain the information you require using
+other more stable <<cluster,cluster APIs>>.
 
 [[cluster-state-api-path-params]]
 ==== {api-path-parms-title}
 
-The cluster state contains information about all the indices in the cluster,
-including their mappings, as well as templates and other metadata. This means it
-can sometimes be quite large. To avoid the need to process all this information
-you can request only the part of the cluster state that you need:
+The cluster state can sometimes be very large, and {es} may consume significant
+resources while computing a response to this API. To reduce the size of the
+response, you can request only the part of the cluster state in which you are
+interested:
 
 `<metrics>`::
     (Optional, string) A comma-separated list of the following options:
@@ -70,7 +73,7 @@ you can request only the part of the cluster state that you need:
       Shows the `blocks` part of the response.
 
   `master_node`::
-      Shows the elected `master_node` part of the response.
+      Shows the `master_node` part of the response.
     
   `metadata`::
       Shows the `metadata` part of the response. If you supply a comma separated

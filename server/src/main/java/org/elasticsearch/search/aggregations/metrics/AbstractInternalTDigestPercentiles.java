@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,11 +37,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = formatter;
     }
 
     /**
@@ -48,7 +48,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      */
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
         state = TDigestState.read(in);
         keyed = in.readBoolean();
@@ -114,6 +113,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             merged.add(percentiles.state);
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(

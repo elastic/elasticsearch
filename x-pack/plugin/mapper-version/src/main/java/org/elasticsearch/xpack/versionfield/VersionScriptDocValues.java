@@ -7,51 +7,11 @@
 
 package org.elasticsearch.xpack.versionfield;
 
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-
-import java.io.IOException;
 
 public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
-    public static final class VersionScriptSupplier implements ScriptDocValues.Supplier<String> {
-
-        private final SortedSetDocValues in;
-        private long[] ords = new long[0];
-        private int count;
-
-        public VersionScriptSupplier(SortedSetDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            count = 0;
-            if (in.advanceExact(docId)) {
-                for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                    ords = ArrayUtil.grow(ords, count + 1);
-                    ords[count++] = ord;
-                }
-            }
-        }
-
-        @Override
-        public String getInternal(int index) {
-            try {
-                return VersionEncoder.decodeVersion(in.lookupOrd(ords[index]));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
-    }
-
-    public VersionScriptDocValues(VersionScriptSupplier supplier) {
+    public VersionScriptDocValues(Supplier<String> supplier) {
         super(supplier);
     }
 

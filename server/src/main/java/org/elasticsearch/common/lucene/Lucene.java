@@ -101,7 +101,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene90";
+    public static final String LATEST_CODEC = "Lucene91";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -419,9 +419,8 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
-        if (topDocs.topDocs instanceof TopFieldGroups) {
+        if (topDocs.topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
-            TopFieldGroups topFieldGroups = (TopFieldGroups) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
@@ -435,9 +434,8 @@ public class Lucene {
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, topFieldGroups.groupValues[i]);
             }
-        } else if (topDocs.topDocs instanceof TopFieldDocs) {
+        } else if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             out.writeByte((byte) 1);
-            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
@@ -473,16 +471,12 @@ public class Lucene {
 
     private static Object readMissingValue(StreamInput in) throws IOException {
         final byte id = in.readByte();
-        switch (id) {
-            case 0:
-                return in.readGenericValue();
-            case 1:
-                return SortField.STRING_FIRST;
-            case 2:
-                return SortField.STRING_LAST;
-            default:
-                throw new IOException("Unknown missing value id: " + id);
-        }
+        return switch (id) {
+            case 0 -> in.readGenericValue();
+            case 1 -> SortField.STRING_FIRST;
+            case 2 -> SortField.STRING_LAST;
+            default -> throw new IOException("Unknown missing value id: " + id);
+        };
     }
 
     public static void writeSortValue(StreamOutput out, Object field) throws IOException {
@@ -622,16 +616,12 @@ public class Lucene {
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
         final int numberType = in.readByte();
-        switch (numberType) {
-            case 0:
-                return in.readFloat();
-            case 1:
-                return in.readDouble();
-            case 2:
-                return in.readZLong();
-            default:
-                throw new IOException("Unexpected number type: " + numberType);
-        }
+        return switch (numberType) {
+            case 0 -> in.readFloat();
+            case 1 -> in.readDouble();
+            case 2 -> in.readZLong();
+            default -> throw new IOException("Unexpected number type: " + numberType);
+        };
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
@@ -729,11 +719,9 @@ public class Lucene {
     public static SegmentReader segmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
             return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
+        } else if (reader instanceof final FilterLeafReader fReader) {
             return segmentReader(FilterLeafReader.unwrap(fReader));
-        } else if (reader instanceof FilterCodecReader) {
-            final FilterCodecReader fReader = (FilterCodecReader) reader;
+        } else if (reader instanceof final FilterCodecReader fReader) {
             return segmentReader(FilterCodecReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader
@@ -1046,12 +1034,12 @@ public class Lucene {
             }
 
             @Override
-            public VectorValues getVectorValues(String field) throws IOException {
+            public VectorValues getVectorValues(String field) {
                 return null;
             }
 
             @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
                 return null;
             }
 

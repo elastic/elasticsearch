@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -81,7 +82,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -164,8 +164,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ESIntegTestCase.TestSeedPlugin.class,
             MockHttpTransport.TestPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockNioTransportPlugin.class,
-            InternalSettingsPlugin.class
+            InternalSettingsPlugin.class,
+            getTestTransportPlugin()
         );
 
         InternalTestCluster leaderCluster = new InternalTestCluster(
@@ -187,7 +187,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
-        });
+        }, 60, TimeUnit.SECONDS);
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         InternalTestCluster followerCluster = new InternalTestCluster(
@@ -211,7 +211,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
-        });
+        }, 60, TimeUnit.SECONDS);
         setupMasterNodeRequestsValidatorOnFollowerCluster();
     }
 
@@ -536,7 +536,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
             int numNodeTasks = 0;
             for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                if (taskInfo.action().startsWith(ListTasksAction.NAME) == false) {
                     numNodeTasks++;
                 }
             }
@@ -694,7 +694,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     shardRouting.shardId().id(),
                     docsOnShard.stream()
                         // normalize primary term as the follower use its own term
-                        .map(d -> new DocIdSeqNoAndSource(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
+                        .map(d -> new DocIdSeqNoAndSource(d.id(), d.source(), d.seqNo(), 1L, d.version()))
                         .collect(Collectors.toList())
                 );
             } catch (AlreadyClosedException e) {
@@ -903,15 +903,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         latch.await();
     }
 

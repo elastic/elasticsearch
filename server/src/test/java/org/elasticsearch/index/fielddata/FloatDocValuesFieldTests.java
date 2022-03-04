@@ -10,6 +10,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.script.field.DoubleDocValuesField;
 import org.elasticsearch.script.field.FloatDocValuesField;
+import org.elasticsearch.script.field.HalfFloatDocValuesField;
+import org.elasticsearch.script.field.ScaledFloatDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -53,6 +55,55 @@ public class FloatDocValuesFieldTests extends ESTestCase {
             }
             int i = 0;
             for (double dbl : doubleField) {
+                assertEquals(values[d][i++], dbl, 0.0);
+            }
+        }
+    }
+
+    public void testScaledFloatField() throws IOException {
+        double[][] values = generate(ESTestCase::randomDouble);
+        ScaledFloatDocValuesField scaledFloatField = new ScaledFloatDocValuesField(wrap(values), "test");
+        for (int round = 0; round < 10; round++) {
+            int d = between(0, values.length - 1);
+            scaledFloatField.setNextDocId(d);
+            if (values[d].length > 0) {
+                assertEquals(values[d][0], scaledFloatField.get(Double.MIN_VALUE), 0.0);
+                assertEquals(values[d][0], scaledFloatField.get(0, Double.MIN_VALUE), 0.0);
+            }
+            assertEquals(values[d].length, scaledFloatField.size());
+            for (int i = 0; i < values[d].length; i++) {
+                assertEquals(values[d][i], scaledFloatField.get(i, Double.MIN_VALUE), 0.0);
+            }
+            int i = 0;
+            for (double dbl : scaledFloatField) {
+                assertEquals(values[d][i++], dbl, 0.0);
+            }
+        }
+    }
+
+    public void testHalfFloatField() throws IOException {
+        double[][] values = generate(ESTestCase::randomDouble);
+        HalfFloatDocValuesField halfFloatField = new HalfFloatDocValuesField(wrap(values), "test");
+        for (int round = 0; round < 10; round++) {
+            int d = between(0, values.length - 1);
+            halfFloatField.setNextDocId(d);
+            if (values[d].length > 0) {
+                assertEquals((float) values[d][0], halfFloatField.get(Float.MIN_VALUE), 0.0f);
+                assertEquals((float) values[d][0], halfFloatField.get(0, Float.MIN_VALUE), 0.0f);
+                assertEquals(values[d][0], halfFloatField.asDouble(Double.MIN_VALUE), 0.0);
+                assertEquals(values[d][0], halfFloatField.asDouble(0, Double.MIN_VALUE), 0.0);
+            }
+            assertEquals(values[d].length, halfFloatField.size());
+            for (int i = 0; i < values[d].length; i++) {
+                assertEquals((float) values[d][i], halfFloatField.get(i, Float.MIN_VALUE), 0.0f);
+                assertEquals(values[d][i], halfFloatField.asDouble(i, Double.MIN_VALUE), 0.0);
+            }
+            int i = 0;
+            for (float flt : halfFloatField) {
+                assertEquals((float) values[d][i++], flt, 0.0f);
+            }
+            i = 0;
+            for (double dbl : halfFloatField.asDoubles()) {
                 assertEquals(values[d][i++], dbl, 0.0);
             }
         }

@@ -99,13 +99,5 @@ public class BootstrapJvmOptions {
     }
 
     // package-private for testing
-    static class PluginInfo {
-        public final List<String> jarFiles;
-        public final Properties properties;
-
-        PluginInfo(List<String> jarFiles, Properties properties) {
-            this.jarFiles = jarFiles;
-            this.properties = properties;
-        }
-    }
+    record PluginInfo(List<String> jarFiles, Properties properties) {}
 }

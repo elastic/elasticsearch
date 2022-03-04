@@ -156,34 +156,34 @@ public final class DefBootstrap {
          * Does a slow lookup against the whitelist.
          */
         private MethodHandle lookup(int flavorValue, String nameValue, Class<?> receiver) throws Throwable {
-            switch (flavorValue) {
-                case METHOD_CALL:
-                    return Def.lookupMethod(painlessLookup, functions, constants, methodHandlesLookup, type(), receiver, nameValue, args);
-                case LOAD:
-                    return Def.lookupGetter(painlessLookup, receiver, nameValue);
-                case STORE:
-                    return Def.lookupSetter(painlessLookup, receiver, nameValue);
-                case ARRAY_LOAD:
-                    return Def.lookupArrayLoad(receiver);
-                case ARRAY_STORE:
-                    return Def.lookupArrayStore(receiver);
-                case ITERATOR:
-                    return Def.lookupIterator(receiver);
-                case REFERENCE:
-                    return Def.lookupReference(
-                        painlessLookup,
-                        functions,
-                        constants,
-                        methodHandlesLookup,
-                        (String) args[0],
-                        receiver,
-                        nameValue
-                    );
-                case INDEX_NORMALIZE:
-                    return Def.lookupIndexNormalize(receiver);
-                default:
-                    throw new AssertionError();
-            }
+            return switch (flavorValue) {
+                case METHOD_CALL -> Def.lookupMethod(
+                    painlessLookup,
+                    functions,
+                    constants,
+                    methodHandlesLookup,
+                    type(),
+                    receiver,
+                    nameValue,
+                    args
+                );
+                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue);
+                case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
+                case ARRAY_LOAD -> Def.lookupArrayLoad(receiver);
+                case ARRAY_STORE -> Def.lookupArrayStore(receiver);
+                case ITERATOR -> Def.lookupIterator(receiver);
+                case REFERENCE -> Def.lookupReference(
+                    painlessLookup,
+                    functions,
+                    constants,
+                    methodHandlesLookup,
+                    (String) args[0],
+                    receiver,
+                    nameValue
+                );
+                case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
+                default -> throw new AssertionError();
+            };
         }
 
         /**
@@ -493,7 +493,7 @@ public final class DefBootstrap {
         // validate arguments
         switch (flavor) {
             // "function-call" like things get a polymorphic cache
-            case METHOD_CALL:
+            case METHOD_CALL -> {
                 if (args.length == 0) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
@@ -509,17 +509,14 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
-            case LOAD:
-            case STORE:
-            case ARRAY_LOAD:
-            case ARRAY_STORE:
-            case ITERATOR:
-            case INDEX_NORMALIZE:
+            }
+            case LOAD, STORE, ARRAY_LOAD, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
-            case REFERENCE:
+            }
+            case REFERENCE -> {
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
@@ -527,11 +524,10 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
 
             // operators get monomorphic cache, with a generic impl for a fallback
-            case UNARY_OPERATOR:
-            case SHIFT_OPERATOR:
-            case BINARY_OPERATOR:
+            case UNARY_OPERATOR, SHIFT_OPERATOR, BINARY_OPERATOR -> {
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for operator call");
                 }
@@ -548,8 +544,8 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("This parameter is only supported for BINARY/SHIFT_OPERATORs");
                 }
                 return new MIC(name, type, initialDepth, flavor, flags);
-            default:
-                throw new BootstrapMethodError("Illegal static bootstrap parameter for flavor: " + flavor);
+            }
+            default -> throw new BootstrapMethodError("Illegal static bootstrap parameter for flavor: " + flavor);
         }
     }
 }

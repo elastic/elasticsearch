@@ -739,7 +739,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         boolean assertMaxSeqNoOfUpdatesOrDeletes
     ) throws Exception {
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
-            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+            .map(d -> Tuple.tuple(d.id(), d.seqNo()))
             .collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
         try (
@@ -759,7 +759,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
             }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
-                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+                .map(d -> Tuple.tuple(d.id(), d.seqNo()))
                 .collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
             try (

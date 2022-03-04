@@ -86,16 +86,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         if (depth > 2) {
             return createRandomMatch(depth + 1, useScripts);
         }
-        switch (randomInt(20)) {
-            case 0:
-            case 1:
-                return createRandomDisjunction(depth, useScripts);
-            case 2:
-            case 3:
-                return createRandomCombine(depth, useScripts);
-            default:
-                return createRandomMatch(depth + 1, useScripts);
-        }
+        return switch (randomInt(20)) {
+            case 0, 1 -> createRandomDisjunction(depth, useScripts);
+            case 2, 3 -> createRandomCombine(depth, useScripts);
+            default -> createRandomMatch(depth + 1, useScripts);
+        };
     }
 
     static IntervalsSourceProvider.Disjunction createRandomDisjunction(int depth, boolean useScripts) {

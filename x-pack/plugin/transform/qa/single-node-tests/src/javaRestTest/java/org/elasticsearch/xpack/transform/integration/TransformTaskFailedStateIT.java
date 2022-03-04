@@ -57,7 +57,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
-        createReviewsIndex(REVIEWS_INDEX_NAME, 10, "date", false, -1, null);
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
@@ -94,7 +94,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
-        createReviewsIndex(REVIEWS_INDEX_NAME, 10, "date", false, -1, null);
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);

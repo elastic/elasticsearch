@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -51,7 +50,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private final AliasValidator aliasValidator;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
 
@@ -82,7 +80,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
-        this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
@@ -162,7 +159,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator,
             systemIndices,
             indexSettingProviders
         );

@@ -25,6 +25,8 @@ import java.util.function.Consumer;
 
 public class PyTorchResultProcessor {
 
+    public record ResultStats(LongSummaryStatistics timingStats, int errorCount, int numberOfPendingResults, Instant lastUsed) {}
+
     private static final Logger logger = LogManager.getLogger(PyTorchResultProcessor.class);
 
     private final ConcurrentMap<String, PendingResult> pendingResults = new ConcurrentHashMap<>();
@@ -33,6 +35,7 @@ public class PyTorchResultProcessor {
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
     private final Consumer<ThreadSettings> threadSettingsConsumer;
+    private int errorCount;
     private Instant lastUsed;
 
     public PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer) {
@@ -100,12 +103,7 @@ public class PyTorchResultProcessor {
 
     private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
         logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
-        if (inferenceResult.isError() == false) {
-            synchronized (this) {
-                timingStats.accept(inferenceResult.getTimeMs());
-                lastUsed = Instant.now();
-            }
-        }
+        processResult(inferenceResult);
         PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
         if (pendingResult == null) {
             logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
@@ -114,16 +112,22 @@ public class PyTorchResultProcessor {
         }
     }
 
-    public synchronized LongSummaryStatistics getTimingStats() {
-        return new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum());
+    public synchronized ResultStats getResultStats() {
+        return new ResultStats(
+            new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
+            errorCount,
+            pendingResults.size(),
+            lastUsed
+        );
     }
 
-    public synchronized Instant getLastUsed() {
-        return lastUsed;
-    }
-
-    public int numberOfPendingResults() {
-        return pendingResults.size();
+    private synchronized void processResult(PyTorchInferenceResult result) {
+        if (result.isError() == false) {
+            timingStats.accept(result.getTimeMs());
+            lastUsed = Instant.now();
+        } else {
+            errorCount++;
+        }
     }
 
     public void stop() {

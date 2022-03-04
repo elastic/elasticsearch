@@ -210,22 +210,12 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             if (alwaysSayYes) {
                 return Decision.YES;
             }
-            switch (random.nextInt(10)) {
-                case 9:
-                case 8:
-                case 7:
-                case 6:
-                case 5:
-                    return Decision.NO;
-                case 4:
-                    return Decision.THROTTLE;
-                case 3:
-                case 2:
-                case 1:
-                    return Decision.YES;
-                default:
-                    return Decision.ALWAYS;
-            }
+            return switch (random.nextInt(10)) {
+                case 9, 8, 7, 6, 5 -> Decision.NO;
+                case 4 -> Decision.THROTTLE;
+                case 3, 2, 1 -> Decision.YES;
+                default -> Decision.ALWAYS;
+            };
         }
 
         @Override

@@ -135,6 +135,6 @@ The index slow log file is configured in the `log4j2.properties` file.
 
 You can mimic the search or indexing slow log level by setting appropriate
 threshold making "more verbose" loggers to be switched off.
-If for instance we want to simulate index.indexing.slowlog.level = INFO
+If for instance we want to simulate `index.indexing.slowlog.level: INFO`
 then all we need to do is to set
-index.indexing.slowlog.threshold.index.debug and index.indexing.slowlog.threshold.index.trace to -1
+`index.indexing.slowlog.threshold.index.debug` and `index.indexing.slowlog.threshold.index.trace` to `-1`.

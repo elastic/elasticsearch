@@ -88,30 +88,19 @@ public class License implements ToXContentObject {
          * Backward compatible license type parsing for older license models
          */
         static LicenseType resolve(String name) {
-            switch (name.toLowerCase(Locale.ROOT)) {
-                case "missing":
-                    return null;
-                case "trial":
-                case "none": // bwc for 1.x subscription_type field
-                case "dev": // bwc for 1.x subscription_type field
-                case "development": // bwc for 1.x subscription_type field
-                    return TRIAL;
-                case "basic":
-                    return BASIC;
-                case "standard":
-                    return STANDARD;
-                case "silver":
-                case "gold":
-                    return GOLD;
-                case "platinum":
-                case "cloud_internal":
-                case "internal": // bwc for 1.x subscription_type field
-                    return PLATINUM;
-                case "enterprise":
-                    return ENTERPRISE;
-                default:
-                    throw new IllegalArgumentException("unknown license type [" + name + "]");
-            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "missing" -> null; // bwc for 1.x subscription_type field
+                // bwc for 1.x subscription_type field
+                case "trial", "none", "dev", "development" -> // bwc for 1.x subscription_type field
+                    TRIAL;
+                case "basic" -> BASIC;
+                case "standard" -> STANDARD;
+                case "silver", "gold" -> GOLD;
+                case "platinum", "cloud_internal", "internal" -> // bwc for 1.x subscription_type field
+                    PLATINUM;
+                case "enterprise" -> ENTERPRISE;
+                default -> throw new IllegalArgumentException("unknown license type [" + name + "]");
+            };
         }
 
         static boolean isBasic(String typeName) {
@@ -215,22 +204,14 @@ public class License implements ToXContentObject {
             if (type == null) {
                 return MISSING;
             }
-            switch (type) {
-                case BASIC:
-                    return BASIC;
-                case STANDARD:
-                    return STANDARD;
-                case GOLD:
-                    return GOLD;
-                case PLATINUM:
-                    return PLATINUM;
-                case ENTERPRISE:
-                    return ENTERPRISE;
-                case TRIAL:
-                    return TRIAL;
-                default:
-                    throw new IllegalArgumentException("unsupported license type [" + type.getTypeName() + "]");
-            }
+            return switch (type) {
+                case BASIC -> BASIC;
+                case STANDARD -> STANDARD;
+                case GOLD -> GOLD;
+                case PLATINUM -> PLATINUM;
+                case ENTERPRISE -> ENTERPRISE;
+                case TRIAL -> TRIAL;
+            };
         }
 
         /**

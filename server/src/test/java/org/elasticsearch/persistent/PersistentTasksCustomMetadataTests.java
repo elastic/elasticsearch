@@ -32,7 +32,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializationTestCase<Custom> {
+public class PersistentTasksCustomMetadataTests extends SimpleDiffableSerializationTestCase<Custom> {
 
     @Override
     protected PersistentTasksCustomMetadata createTestInstance() {

@@ -318,24 +318,15 @@ public class TimeValue implements Comparable<TimeValue> {
         if (duration < 0) {
             return Long.toString(duration);
         }
-        switch (timeUnit) {
-            case NANOSECONDS:
-                return duration + "nanos";
-            case MICROSECONDS:
-                return duration + "micros";
-            case MILLISECONDS:
-                return duration + "ms";
-            case SECONDS:
-                return duration + "s";
-            case MINUTES:
-                return duration + "m";
-            case HOURS:
-                return duration + "h";
-            case DAYS:
-                return duration + "d";
-            default:
-                throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
-        }
+        return switch (timeUnit) {
+            case NANOSECONDS -> duration + "nanos";
+            case MICROSECONDS -> duration + "micros";
+            case MILLISECONDS -> duration + "ms";
+            case SECONDS -> duration + "s";
+            case MINUTES -> duration + "m";
+            case HOURS -> duration + "h";
+            case DAYS -> duration + "d";
+        };
     }
 
     public static TimeValue parseTimeValue(String sValue, String settingName) {

@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
@@ -61,7 +63,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                             updateTaskPending = true;
                             clusterService.submitStateUpdateTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
-                                new SystemIndexMetadataUpdateTask()
+                                new SystemIndexMetadataUpdateTask(),
+                                newExecutor()
                             );
                             break;
                         }
@@ -69,6 +72,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     // visible for testing
@@ -128,13 +136,13 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             updateTaskPending = false;
             logger.error("failed to update system index metadata", e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             lastIndexMetadataMap = newState.metadata().indices();
             updateTaskPending = false;
         }

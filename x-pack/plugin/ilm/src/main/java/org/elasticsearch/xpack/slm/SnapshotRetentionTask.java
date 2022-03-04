@@ -16,8 +16,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -447,6 +450,15 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     }
 
     void updateStateWithStats(SnapshotLifecycleStats newStats) {
-        clusterService.submitStateUpdateTask("update_slm_stats", new UpdateSnapshotLifecycleStatsTask(newStats));
+        clusterService.submitStateUpdateTask(
+            UpdateSnapshotLifecycleStatsTask.TASK_SOURCE,
+            new UpdateSnapshotLifecycleStatsTask(newStats),
+            newExecutor()
+        );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

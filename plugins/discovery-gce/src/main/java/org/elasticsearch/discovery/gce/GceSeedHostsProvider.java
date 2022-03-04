@@ -231,8 +231,8 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                         if (instance.getMetadata() != null && instance.getMetadata().containsKey("es_port")) {
                             Object es_port = instance.getMetadata().get("es_port");
                             logger.trace("es_port is defined with {}", es_port);
-                            if (es_port instanceof String) {
-                                address = address.concat(":").concat((String) es_port);
+                            if (es_port instanceof String string) {
+                                address = address.concat(":").concat(string);
                             } else {
                                 // Ignoring other values
                                 logger.trace("es_port is instance of {}. Ignoring...", es_port.getClass().getName());

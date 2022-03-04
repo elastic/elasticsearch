@@ -137,18 +137,10 @@ public interface XContentGenerator extends Closeable, Flushable {
                 break;
             case VALUE_NUMBER:
                 switch (parser.numberType()) {
-                    case INT:
-                        writeNumber(parser.intValue());
-                        break;
-                    case LONG:
-                        writeNumber(parser.longValue());
-                        break;
-                    case FLOAT:
-                        writeNumber(parser.floatValue());
-                        break;
-                    case DOUBLE:
-                        writeNumber(parser.doubleValue());
-                        break;
+                    case INT -> writeNumber(parser.intValue());
+                    case LONG -> writeNumber(parser.longValue());
+                    case FLOAT -> writeNumber(parser.floatValue());
+                    case DOUBLE -> writeNumber(parser.doubleValue());
                 }
                 break;
             case VALUE_BOOLEAN:

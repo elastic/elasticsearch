@@ -247,18 +247,12 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Rectangle rectangle) throws RuntimeException {
-            // TODO: handle degenerated rectangles?
             final double xMin = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMinX());
             final double yMin = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMinY());
             final double xMax = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMaxX());
             final double yMax = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMaxY());
-            final Coordinate[] coordinates = new Coordinate[5];
-            coordinates[0] = new Coordinate(xMin, yMin);
-            coordinates[1] = new Coordinate(xMax, yMin);
-            coordinates[2] = new Coordinate(xMax, yMax);
-            coordinates[3] = new Coordinate(xMin, yMax);
-            coordinates[4] = new Coordinate(xMin, yMin);
-            return geomFactory.createPolygon(coordinates);
+            final Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
+            return geomFactory.toGeometry(envelope);
         }
     }
 

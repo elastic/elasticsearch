@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -195,7 +197,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         shard(in.readOptionalWriteable(SearchShardTarget::new));
         size = in.readVInt();
         if (size > 0) {
-            innerHits = new HashMap<>(size);
+            innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
                 SearchHits value = new SearchHits(in);
@@ -217,7 +219,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             DocumentField hitField = new DocumentField(in);
             fields = singletonMap(hitField.getName(), hitField);
         } else {
-            fields = new HashMap<>(size);
+            fields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 DocumentField field = new DocumentField(in);
                 fields.put(field.getName(), field);
@@ -482,6 +484,43 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     /**
+     * Whether this search hit has any lookup fields
+     */
+    public boolean hasLookupFields() {
+        return getDocumentFields().values().stream().anyMatch(doc -> doc.getLookupFields().isEmpty() == false);
+    }
+
+    /**
+     * Resolve the lookup fields with the given results and merge them as regular fetch fields.
+     */
+    public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
+        if (lookupResults.isEmpty()) {
+            return;
+        }
+        final List<String> fields = new ArrayList<>(documentFields.keySet());
+        for (String field : fields) {
+            documentFields.computeIfPresent(field, (k, docField) -> {
+                if (docField.getLookupFields().isEmpty()) {
+                    return docField;
+                }
+                final List<Object> newValues = new ArrayList<>(docField.getValues());
+                for (LookupField lookupField : docField.getLookupFields()) {
+                    final List<Object> resolvedValues = lookupResults.get(lookupField);
+                    if (resolvedValues != null) {
+                        newValues.addAll(resolvedValues);
+                    }
+                }
+                if (newValues.isEmpty() && docField.getIgnoredValues().isEmpty()) {
+                    return null;
+                } else {
+                    return new DocumentField(docField.getName(), newValues, docField.getIgnoredValues());
+                }
+            });
+        }
+        assert hasLookupFields() == false : "Some lookup fields are not resolved";
+    }
+
+    /**
      * A map of highlighted fields.
      */
     public Map<String, HighlightField> getHighlightFields() {
@@ -623,7 +662,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+        if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
             builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         if (id != null) {

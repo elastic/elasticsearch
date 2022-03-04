@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -29,7 +31,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTest
     public void testFromMap() {
         TextEmbeddingConfigUpdate expected = new TextEmbeddingConfigUpdate(
             "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST)
+            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
         );
         Map<String, Object> config = new HashMap<>() {
             {
@@ -63,18 +65,13 @@ public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTest
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
-        Tokenization tokenization = new BertTokenization(
-            originalConfig.getTokenization().doLowerCase(),
-            originalConfig.getTokenization().withSpecialTokens(),
-            originalConfig.getTokenization().maxSequenceLength(),
-            truncate
-        );
+        Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
             new TextEmbeddingConfig(originalConfig.getVocabularyConfig(), tokenization, originalConfig.getResultsField()),
             equalTo(
-                new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(truncate))
-                    .build()
-                    .apply(originalConfig)
+                new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                ).build().apply(originalConfig)
             )
         );
     }
@@ -96,7 +93,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTest
             builder.setResultsField(randomAlphaOfLength(8));
         }
         if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
         }
         return builder.build();
     }

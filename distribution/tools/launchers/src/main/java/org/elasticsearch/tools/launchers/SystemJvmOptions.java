@@ -50,7 +50,6 @@ final class SystemJvmOptions {
             "-Dio.netty.noUnsafe=true",
             "-Dio.netty.noKeySetOptimization=true",
             "-Dio.netty.recycler.maxCapacityPerThread=0",
-            "-Dio.netty.allocator.numDirectArenas=0",
             // log4j 2
             "-Dlog4j.shutdownHookEnabled=false",
             "-Dlog4j2.disable.jmx=true",

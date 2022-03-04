@@ -225,7 +225,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
 
             ExecutingPolicy(StreamInput in) throws IOException {
-                this(in.readString(), new TaskInfo(in));
+                this(in.readString(), TaskInfo.from(in));
             }
 
             public String getName() {

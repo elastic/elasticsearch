@@ -514,12 +514,10 @@ public abstract class InternalOrder extends BucketOrder {
          */
         public static void writeOrder(BucketOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
-            if (order instanceof Aggregation) {
-                Aggregation aggregationOrder = (Aggregation) order;
+            if (order instanceof Aggregation aggregationOrder) {
                 out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
-            } else if (order instanceof CompoundOrder) {
-                CompoundOrder compoundOrder = (CompoundOrder) order;
+            } else if (order instanceof CompoundOrder compoundOrder) {
                 out.writeVInt(compoundOrder.orderElements.size());
                 for (BucketOrder innerOrder : compoundOrder.orderElements) {
                     innerOrder.writeTo(out);
@@ -584,14 +582,12 @@ public abstract class InternalOrder extends BucketOrder {
                 );
                 return orderAsc ? KEY_ASC : KEY_DESC;
             }
-            switch (orderKey) {
-                case "_key":
-                    return orderAsc ? KEY_ASC : KEY_DESC;
-                case "_count":
-                    return orderAsc ? COUNT_ASC : COUNT_DESC;
-                default: // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
-                    return aggregation(orderKey, orderAsc);
-            }
+            return switch (orderKey) {
+                case "_key" -> orderAsc ? KEY_ASC : KEY_DESC;
+                case "_count" -> orderAsc ? COUNT_ASC : COUNT_DESC;
+                default -> // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
+                    aggregation(orderKey, orderAsc);
+            };
         }
     }
 }

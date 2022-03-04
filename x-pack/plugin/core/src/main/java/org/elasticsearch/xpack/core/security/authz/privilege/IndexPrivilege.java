@@ -23,18 +23,19 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction;
-import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -99,7 +100,8 @@ public final class IndexPrivilege extends Privilege {
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
-        GetRollupIndexCapsAction.NAME + "*"
+        GetRollupIndexCapsAction.NAME + "*",
+        GetCheckpointAction.NAME + "*" // transform internal action
     );
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
         PutFollowAction.NAME,

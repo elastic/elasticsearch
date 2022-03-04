@@ -42,16 +42,19 @@ public class FilterPathBasedFilter extends TokenFilter {
 
     private final boolean inclusive;
 
-    public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive) {
+    private final boolean matchFieldNamesWithDots;
+
+    public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive, boolean matchFieldNamesWithDots) {
         if (filters == null || filters.length == 0) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
         this.inclusive = inclusive;
         this.filters = filters;
+        this.matchFieldNamesWithDots = matchFieldNamesWithDots;
     }
 
     public FilterPathBasedFilter(Set<String> filters, boolean inclusive) {
-        this(FilterPath.compile(filters), inclusive);
+        this(FilterPath.compile(filters), inclusive, false);
     }
 
     /**
@@ -61,14 +64,18 @@ public class FilterPathBasedFilter extends TokenFilter {
         if (filterPaths != null) {
             List<FilterPath> nextFilters = new ArrayList<>();
             for (FilterPath filter : filterPaths) {
-                boolean matches = filter.matches(name, nextFilters);
+                boolean matches = filter.matches(name, nextFilters, matchFieldNamesWithDots);
                 if (matches) {
                     return MATCHING;
                 }
             }
 
             if (nextFilters.isEmpty() == false) {
-                return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
+                return new FilterPathBasedFilter(
+                    nextFilters.toArray(new FilterPath[nextFilters.size()]),
+                    inclusive,
+                    matchFieldNamesWithDots
+                );
             }
         }
         return NO_MATCHING;

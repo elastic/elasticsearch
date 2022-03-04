@@ -207,7 +207,7 @@ public final class DatabaseNodeService implements Closeable {
             String name = e.getKey();
             GeoIpTaskState.Metadata metadata = e.getValue();
             DatabaseReaderLazyLoader reference = databases.get(name);
-            String remoteMd5 = metadata.getMd5();
+            String remoteMd5 = metadata.md5();
             String localMd5 = reference != null ? reference.getMd5() : null;
             if (Objects.equals(localMd5, remoteMd5)) {
                 LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
@@ -234,7 +234,7 @@ public final class DatabaseNodeService implements Closeable {
     }
 
     void retrieveAndUpdateDatabase(String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
-        final String recordedMd5 = metadata.getMd5();
+        final String recordedMd5 = metadata.md5();
 
         // This acts as a lock, if this method for a specific db is executed later and downloaded for this db is still ongoing then
         // FileAlreadyExistsException is thrown and this method silently returns.
@@ -281,11 +281,11 @@ public final class DatabaseNodeService implements Closeable {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
                         // there might be ./ entry in tar, we should skip it
-                        if (entry.isNotFile()) {
+                        if (entry.notFile()) {
                             continue;
                         }
                         // flatten structure, remove any directories present from the path (should be ./ only)
-                        String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                        String name = entry.name().substring(entry.name().lastIndexOf('/') + 1);
                         if (name.startsWith(databaseName)) {
                             Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
                         } else {
@@ -378,15 +378,15 @@ public final class DatabaseNodeService implements Closeable {
         // Need to run the search from a different thread, since this is executed from cluster state applier thread:
         genericExecutor.accept(() -> {
             MessageDigest md = MessageDigests.md5();
-            int firstChunk = metadata.getFirstChunk();
-            int lastChunk = metadata.getLastChunk();
+            int firstChunk = metadata.firstChunk();
+            int lastChunk = metadata.lastChunk();
             try {
                 // TODO: invoke open point in time api when this api is moved from xpack core to server module.
                 // (so that we have a consistent view of the chunk documents while doing the lookups)
                 // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
                 for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
                     SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.getLastUpdate());
+                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.lastUpdate());
                     searchRequest.source().query(new TermQueryBuilder("_id", id));
 
                     // At most once a day a few searches may be executed to fetch the new files,

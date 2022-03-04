@@ -1,7 +1,7 @@
 ---
 add dimensions with put_mapping:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -54,7 +54,7 @@ add dimensions with put_mapping:
 ---
 add dimensions to no dims with dynamic_template over index:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -102,7 +102,7 @@ add dimensions to no dims with dynamic_template over index:
 ---
 add dimensions to no dims with dynamic_template over bulk:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -150,7 +150,7 @@ add dimensions to no dims with dynamic_template over bulk:
 ---
 add dimensions to some dims with dynamic_template over index:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -202,7 +202,7 @@ add dimensions to some dims with dynamic_template over index:
 ---
 add dimensions to some dims with dynamic_template over bulk:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:

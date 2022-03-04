@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.suggest.term;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -96,14 +95,10 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     @Override
     protected Comparator<Option> sortComparator() {
-        switch (sort) {
-            case SCORE:
-                return SCORE;
-            case FREQUENCY:
-                return FREQUENCY;
-            default:
-                throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
-        }
+        return switch (sort) {
+            case SCORE -> SCORE;
+            case FREQUENCY -> FREQUENCY;
+        };
     }
 
     @Override

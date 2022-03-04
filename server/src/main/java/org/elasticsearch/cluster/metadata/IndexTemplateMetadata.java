@@ -8,8 +8,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -39,7 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.core.RestApiVersion.V_8;
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
-public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
+public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata> {
 
     private final String name;
 
@@ -199,7 +199,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     }
 
     public static Diff<IndexTemplateMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexTemplateMetadata::readFrom, in);
+        return SimpleDiffable.readDiffFrom(IndexTemplateMetadata::readFrom, in);
     }
 
     @Override

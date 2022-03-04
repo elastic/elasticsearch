@@ -911,12 +911,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard indexShard;
         final boolean engineClosed;
         switch (randomInt(2)) {
-            case 0:
+            case 0 -> {
                 // started replica
                 indexShard = newStartedShard(false);
                 engineClosed = false;
-                break;
-            case 1: {
+            }
+            case 1 -> {
                 // initializing replica / primary
                 final boolean relocating = randomBoolean();
                 ShardRouting routing = newShardRouting(
@@ -929,9 +929,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 );
                 indexShard = newShard(routing);
                 engineClosed = true;
-                break;
             }
-            case 2: {
+            case 2 -> {
                 // relocation source
                 indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
@@ -946,11 +945,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 IndexShardTestCase.updateRoutingEntry(indexShard, newRouting);
                 blockingCallRelocated(indexShard, newRouting, (primaryContext, listener) -> listener.onResponse(null));
                 engineClosed = false;
-                break;
             }
-            default:
-                throw new UnsupportedOperationException("get your numbers straight");
-
+            default -> throw new UnsupportedOperationException("get your numbers straight");
         }
         final ShardRouting shardRouting = indexShard.routingEntry();
         logger.info("shard routing to {}", shardRouting);
@@ -1283,7 +1279,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
-        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        final int operations = randomBoolean() ? scaledRandomIntBetween(0, 1024) : 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
@@ -1291,6 +1287,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
         final long maxSeqNoOfUpdatesOrDeletesBeforeRollback = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -1298,8 +1295,8 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard,
             indexShard.getPendingPrimaryTerm() + 1,
             globalCheckpoint,
-            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo),
-            new ActionListener<Releasable>() {
+            maxSeqNoOfUpdatesOrDeletes,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     releasable.close();
@@ -1316,11 +1313,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
         latch.await();
         long globalCheckpointOnPromotedReplica = Math.max(globalCheckpointOnReplica, globalCheckpoint);
-        if (globalCheckpointOnPromotedReplica < maxSeqNo) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
-        } else {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
-        }
+        long expectedMaxSeqNoOfUpdatesOrDeletes = globalCheckpointOnPromotedReplica < maxSeqNo
+            ? maxSeqNo
+            : Math.max(maxSeqNoOfUpdatesOrDeletesBeforeRollback, maxSeqNoOfUpdatesOrDeletes);
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(expectedMaxSeqNoOfUpdatesOrDeletes));
         final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
         final CountDownLatch resyncLatch = new CountDownLatch(1);
         indexShard.updateShardState(
@@ -1335,11 +1331,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        if (globalCheckpointOnPromotedReplica < maxSeqNo) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
-        } else {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
-        }
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(expectedMaxSeqNoOfUpdatesOrDeletes));
         closeShard(indexShard, false);
     }
 
@@ -1773,14 +1765,9 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
                 switch (result.getResultType()) {
-                    case SUCCESS:
-                        postDelete.incrementAndGet();
-                        break;
-                    case FAILURE:
-                        postDelete(shardId, delete, result.getFailure());
-                        break;
-                    default:
-                        fail("unexpected result type:" + result.getResultType());
+                    case SUCCESS -> postDelete.incrementAndGet();
+                    case FAILURE -> postDelete(shardId, delete, result.getFailure());
+                    default -> fail("unexpected result type:" + result.getResultType());
                 }
             }
 
@@ -3593,7 +3580,7 @@ public class IndexShardTests extends IndexShardTestCase {
             while (stop.get() == false) {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
-                    assertThat(readMeta.getNumDocs(), equalTo(numDocs));
+                    assertThat(readMeta.numDocs(), equalTo(numDocs));
                     assertThat(storeFileMetadatas.recoveryDiff(readMeta).different.size(), equalTo(0));
                     assertThat(storeFileMetadatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
                     assertThat(storeFileMetadatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetadatas.size()));
@@ -3991,7 +3978,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 try {
                     List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
                         .stream()
-                        .map(DocIdSeqNoAndSource::getId)
+                        .map(DocIdSeqNoAndSource::id)
                         .collect(Collectors.toList());
                     assertThat(
                         "every operations before the global checkpoint must be reserved",

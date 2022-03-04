@@ -94,8 +94,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(indexToSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
-        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
+        out.writeImmutableMap(indexToSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
+        out.writeImmutableMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
     }
 
     private static void parseSettingsField(
@@ -107,14 +107,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             switch (parser.currentName()) {
-                case "settings":
-                    indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                    break;
-                case "defaults":
-                    indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                    break;
-                default:
-                    parser.skipChildren();
+                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                default -> parser.skipChildren();
             }
         } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             parser.skipChildren();
@@ -155,9 +150,11 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
+        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAllFromMap(indexToSettings)
+            .build();
         ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
-            .putAll(indexToDefaultSettings)
+            .putAllFromMap(indexToDefaultSettings)
             .build();
 
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);

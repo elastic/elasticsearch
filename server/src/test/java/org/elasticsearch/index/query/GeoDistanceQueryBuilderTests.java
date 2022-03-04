@@ -42,15 +42,9 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         }
         int selector = randomIntBetween(0, 2);
         switch (selector) {
-            case 0:
-                qb.distance(randomDouble(), randomFrom(DistanceUnit.values()));
-                break;
-            case 1:
-                qb.distance(distance, randomFrom(DistanceUnit.values()));
-                break;
-            case 2:
-                qb.distance(distance);
-                break;
+            case 0 -> qb.distance(randomDouble(), randomFrom(DistanceUnit.values()));
+            case 1 -> qb.distance(distance, randomFrom(DistanceUnit.values()));
+            case 2 -> qb.distance(distance);
         }
 
         qb.point(new GeoPoint(GeometryTestUtils.randomLat(), GeometryTestUtils.randomLon()));

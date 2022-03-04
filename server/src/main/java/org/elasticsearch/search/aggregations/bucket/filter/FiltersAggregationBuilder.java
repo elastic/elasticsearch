@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,6 +97,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     /**
@@ -360,5 +366,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

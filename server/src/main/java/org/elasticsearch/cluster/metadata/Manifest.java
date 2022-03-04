@@ -22,17 +22,18 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
  * This class represents the manifest file, which is the entry point for reading meta data from disk.
  * Metadata consists of global metadata and index metadata.
  * When new version of metadata is written it's assigned some generation long value.
- * Global metadata generation could be obtained by calling {@link #getGlobalGeneration()}.
- * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
+ * Global metadata generation could be obtained by calling {@link #globalGeneration()}.
+ * Index metadata generation could be obtained by calling {@link #indexGenerations()}.
  */
-public class Manifest implements ToXContentFragment {
+public record Manifest(long currentTerm, long clusterStateVersion, long globalGeneration, Map<Index, Long> indexGenerations)
+    implements
+        ToXContentFragment {
 
     private static final long MISSING_GLOBAL_GENERATION = -1L;
     private static final long MISSING_CURRENT_TERM = 0L;
@@ -40,72 +41,8 @@ public class Manifest implements ToXContentFragment {
     private static final long MISSING_CLUSTER_STATE_VERSION = 0L;
     private static final long UNKNOWN_CLUSTER_STATE_VERSION = MISSING_CLUSTER_STATE_VERSION;
 
-    private final long globalGeneration;
-    private final Map<Index, Long> indexGenerations;
-    private final long currentTerm;
-    private final long clusterStateVersion;
-
-    public Manifest(long currentTerm, long clusterStateVersion, long globalGeneration, Map<Index, Long> indexGenerations) {
-        this.currentTerm = currentTerm;
-        this.clusterStateVersion = clusterStateVersion;
-        this.globalGeneration = globalGeneration;
-        this.indexGenerations = indexGenerations;
-    }
-
     public static Manifest unknownCurrentTermAndVersion(long globalGeneration, Map<Index, Long> indexGenerations) {
         return new Manifest(UNKNOWN_CURRENT_TERM, UNKNOWN_CLUSTER_STATE_VERSION, globalGeneration, indexGenerations);
-    }
-
-    /**
-     * Returns global metadata generation.
-     */
-    public long getGlobalGeneration() {
-        return globalGeneration;
-    }
-
-    /**
-     * Returns map from {@link Index} to index metadata generation.
-     */
-    public Map<Index, Long> getIndexGenerations() {
-        return indexGenerations;
-    }
-
-    public long getCurrentTerm() {
-        return currentTerm;
-    }
-
-    public long getClusterStateVersion() {
-        return clusterStateVersion;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Manifest manifest = (Manifest) o;
-        return currentTerm == manifest.currentTerm
-            && clusterStateVersion == manifest.clusterStateVersion
-            && globalGeneration == manifest.globalGeneration
-            && Objects.equals(indexGenerations, manifest.indexGenerations);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(currentTerm, clusterStateVersion, globalGeneration, indexGenerations);
-    }
-
-    @Override
-    public String toString() {
-        return "Manifest{"
-            + "currentTerm="
-            + currentTerm
-            + ", clusterStateVersion="
-            + clusterStateVersion
-            + ", globalGeneration="
-            + globalGeneration
-            + ", indexGenerations="
-            + indexGenerations
-            + '}';
     }
 
     private static final String MANIFEST_FILE_PREFIX = "manifest-";
@@ -168,7 +105,7 @@ public class Manifest implements ToXContentFragment {
     @SuppressWarnings("unchecked")
     private static Map<Index, Long> indices(Object[] manifestFields) {
         List<IndexEntry> listOfIndices = (List<IndexEntry>) manifestFields[3];
-        return listOfIndices.stream().collect(Collectors.toMap(IndexEntry::getIndex, IndexEntry::getGeneration));
+        return listOfIndices.stream().collect(Collectors.toMap(IndexEntry::index, IndexEntry::generation));
     }
 
     private static final ConstructingObjectParser<Manifest, Void> PARSER = new ConstructingObjectParser<>(
@@ -207,7 +144,7 @@ public class Manifest implements ToXContentFragment {
         return globalGeneration == MISSING_GLOBAL_GENERATION;
     }
 
-    private static final class IndexEntry implements ToXContentFragment {
+    private record IndexEntry(Index index, long generation) implements ToXContentFragment {
         private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");
 
@@ -224,22 +161,6 @@ public class Manifest implements ToXContentFragment {
                 ObjectParser.ValueType.OBJECT
             );
             INDEX_ENTRY_PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_GENERATION_PARSE_FIELD);
-        }
-
-        private final long generation;
-        private final Index index;
-
-        IndexEntry(Index index, long generation) {
-            this.index = index;
-            this.generation = generation;
-        }
-
-        public long getGeneration() {
-            return generation;
-        }
-
-        public Index getIndex() {
-            return index;
         }
 
         @Override

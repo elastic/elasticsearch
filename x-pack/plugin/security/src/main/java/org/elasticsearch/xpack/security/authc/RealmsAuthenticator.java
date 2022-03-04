@@ -41,13 +41,11 @@ class RealmsAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
-    private final String nodeName;
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private boolean authenticationTokenExtracted = false;
 
-    RealmsAuthenticator(String nodeName, AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
-        this.nodeName = nodeName;
+    RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
     }
@@ -134,7 +132,7 @@ class RealmsAuthenticator implements Authenticator {
         final long startInvalidation = numInvalidation.get();
         final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
 
-        final AtomicReference<Authentication.RealmRef> authenticatedByRef = new AtomicReference<>();
+        final AtomicReference<Realm> authenticatedByRef = new AtomicReference<>();
         final AtomicReference<AuthenticationResult<User>> authenticationResultRef = new AtomicReference<>();
 
         final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
@@ -156,7 +154,7 @@ class RealmsAuthenticator implements Authenticator {
                     );
                     if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                         // user was authenticated, populate the authenticated by information
-                        authenticatedByRef.set(new Authentication.RealmRef(realm.name(), realm.type(), nodeName));
+                        authenticatedByRef.set(realm);
                         authenticationResultRef.set(result);
                         if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
                             lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
@@ -216,7 +214,9 @@ class RealmsAuthenticator implements Authenticator {
                     final AuthenticationResult<User> result = authenticationResultRef.get();
                     assert result != null : "authentication result must not be null when user is not null";
                     context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
-                    listener.onResponse(AuthenticationResult.success(new Authentication(user, authenticatedByRef.get(), null)));
+                    listener.onResponse(
+                        AuthenticationResult.success(Authentication.newRealmAuthentication(user, authenticatedByRef.get().realmRef()))
+                    );
                 }
             }, e -> {
                 if (e != null) {
@@ -274,11 +274,7 @@ class RealmsAuthenticator implements Authenticator {
      * if the user is found or not, with a non-null user. We do not fail requests if the run as user is not found as that can leak the
      * names of users that exist using a timing attack
      */
-    public void lookupRunAsUser(
-        Context context,
-        Authentication authentication,
-        ActionListener<Tuple<User, Authentication.RealmRef>> listener
-    ) {
+    public void lookupRunAsUser(Context context, Authentication authentication, ActionListener<Tuple<User, Realm>> listener) {
         assert authentication.getLookedUpBy() == null : "authentication already has a lookup realm";
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
         if (runAsUsername != null && runAsUsername.isEmpty() == false) {
@@ -302,9 +298,7 @@ class RealmsAuthenticator implements Authenticator {
                         lastSuccessfulAuthCache.computeIfAbsent(runAsUsername, s -> realm);
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
-                    listener.onResponse(
-                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName))
-                    );
+                    listener.onResponse(tuple);
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
         } else if (runAsUsername == null) {
@@ -313,14 +307,7 @@ class RealmsAuthenticator implements Authenticator {
             logger.debug("user [{}] attempted to runAs with an empty username", authentication.getUser().principal());
             listener.onFailure(
                 context.getRequest()
-                    .runAsDenied(
-                        new Authentication(
-                            new User(runAsUsername, null, authentication.getUser()),
-                            authentication.getAuthenticatedBy(),
-                            null
-                        ),
-                        context.getMostRecentAuthenticationToken()
-                    )
+                    .runAsDenied(authentication.runAs(new User(runAsUsername), null), context.getMostRecentAuthenticationToken())
             );
         }
     }

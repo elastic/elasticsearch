@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -75,6 +76,10 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         if (enabled) {
+            ActionListener<XPackUsageFeatureResponse> preservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                listener,
+                client.threadPool().getThreadContext()
+            );
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherStatsRequest statsRequest = new WatcherStatsRequest();
                 statsRequest.includeStats(true);
@@ -91,8 +96,8 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
                         true,
                         mergedCounters.toNestedMap()
                     );
-                    listener.onResponse(new XPackUsageFeatureResponse(usage));
-                }, listener::onFailure));
+                    preservingListener.onResponse(new XPackUsageFeatureResponse(usage));
+                }, preservingListener::onFailure));
             }
         } else {
             WatcherFeatureSetUsage usage = new WatcherFeatureSetUsage(

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.sql.proto.core.Tuple;
 
 import java.sql.SQLException;
 import java.util.List;

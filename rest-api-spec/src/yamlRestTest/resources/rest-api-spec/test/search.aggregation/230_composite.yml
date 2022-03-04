@@ -65,25 +65,25 @@ setup:
   - do:
       index:
         index: nonesting
-        id:    1
+        id:    "1"
         body: { "kw": "one", "num": 1 }
 
   - do:
       index:
         index: nonesting
-        id:    2
+        id:    "2"
         body: { "kw": "two", "num": 2 }
 
   - do:
       index:
         index: nonesting
-        id:    3
+        id:    "3"
         body: { "kw": "three", "num": 3 }
 
   - do:
       index:
         index: verynested
-        id:    1
+        id:    "1"
         body: {
               "department": "compsci",
               "staff": 12,
@@ -122,7 +122,7 @@ setup:
   - do:
       index:
         index: verynested
-        id:    2
+        id:    "2"
         body: {
               "department": "math",
               "staff": 20,
@@ -161,43 +161,43 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "keyword": "foo", "long": [10, 20], "geo_point": "37.2343,-115.8067"}
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:  { "keyword": ["foo", "bar"], "geo_point": "41.12,-71.34" }
 
   - do:
       index:
         index: test
-        id:    3
+        id:    "3"
         body:  { "keyword": "bar", "long": [100, 0], "geo_point": "90.0,0.0"}
 
   - do:
       index:
         index: test
-        id:    4
+        id:    "4"
         body:  { "keyword": "bar", "long": [1000, 0], "geo_point": "41.12,-71.34"}
 
   - do:
       index:
         index: test
-        id:    5
+        id:    "5"
         body:  { "date": "2017-10-20T03:08:45" }
 
   - do:
       index:
         index: test
-        id:    6
+        id:    "6"
         body:  { "date": "2017-10-21T07:00:00" }
 
   - do:
       index:
         index: other
-        id:    0
+        id:    "0"
         body:  { "date": "2017-10-20T03:08:45" }
 
   - do:
@@ -808,7 +808,7 @@ setup:
   - do:
       index:
         index:   test_2
-        id:      1
+        id:      "1"
         body:    { "f": "192.168.0.1" }
         refresh: true
 
@@ -841,7 +841,7 @@ setup:
   - do:
       index:
         index:   test
-        id:      7
+        id:      "7"
         body:    { "date": "2017-10-22T01:00:00" }
         refresh: true
   - do:
@@ -911,7 +911,7 @@ setup:
   - do:
       index:
         index:   test
-        id:      7
+        id:      "7"
         body:    { "date": "2017-10-22T01:00:00" }
         refresh: true
   - do:
@@ -979,19 +979,19 @@ setup:
   - do:
       index:
         index:   test
-        id:      7
+        id:      "7"
         body:    { "date_nanos": "2017-11-21T01:00:00" }
         refresh: true
   - do:
       index:
         index:   test
-        id:      8
+        id:      "8"
         body:    { "date_nanos": "2017-11-22T01:00:00" }
         refresh: true
   - do:
       index:
         index:   test
-        id:      9
+        id:      "9"
         body:    { "date_nanos": "2017-11-22T02:00:00" }
         refresh: true
   - do:
@@ -1041,7 +1041,7 @@ setup:
   - do:
       index:
         index:   sorted_test
-        id:      2
+        id:      "2"
         refresh: true
         body:  { "keyword": "foo", "long": 1 }
 
@@ -1085,7 +1085,7 @@ setup:
   - do:
       index:
         index:   sorted_test
-        id:      2
+        id:      "2"
         refresh: true
         body:  { "keyword": "foo", "long": 1 }
 

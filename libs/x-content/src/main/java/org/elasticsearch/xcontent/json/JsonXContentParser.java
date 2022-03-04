@@ -189,21 +189,14 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     private NumberType convertNumberType(JsonParser.NumberType numberType) {
-        switch (numberType) {
-            case INT:
-                return NumberType.INT;
-            case BIG_INTEGER:
-                return NumberType.BIG_INTEGER;
-            case LONG:
-                return NumberType.LONG;
-            case FLOAT:
-                return NumberType.FLOAT;
-            case DOUBLE:
-                return NumberType.DOUBLE;
-            case BIG_DECIMAL:
-                return NumberType.BIG_DECIMAL;
-        }
-        throw new IllegalStateException("No matching token for number_type [" + numberType + "]");
+        return switch (numberType) {
+            case INT -> NumberType.INT;
+            case BIG_INTEGER -> NumberType.BIG_INTEGER;
+            case LONG -> NumberType.LONG;
+            case FLOAT -> NumberType.FLOAT;
+            case DOUBLE -> NumberType.DOUBLE;
+            case BIG_DECIMAL -> NumberType.BIG_DECIMAL;
+        };
     }
 
     private Token convertToken(JsonToken token) {

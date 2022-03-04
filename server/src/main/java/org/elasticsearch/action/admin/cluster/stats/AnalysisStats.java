@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,29 +52,13 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInTokenFilters = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
         for (IndexMetadata indexMetadata : metadata) {
             ensureNotCancelled.run();
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about analysis,
                 // we care about the user's indices.
                 continue;
-            }
-            Set<String> indexAnalyzers = new HashSet<>();
-            MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata != null) {
-                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
-                    for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
-                        Object analyzerO = fieldMapping.get(key);
-                        if (analyzerO != null) {
-                            final String analyzer = analyzerO.toString();
-                            IndexFeatureStats stats = usedBuiltInAnalyzers.computeIfAbsent(analyzer, IndexFeatureStats::new);
-                            stats.count++;
-                            if (indexAnalyzers.add(analyzer)) {
-                                stats.indexCount++;
-                            }
-                        }
-                    }
-                });
             }
 
             Set<String> indexCharFilters = new HashSet<>();
@@ -133,7 +118,27 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
+            countMapping(mappingCounts, indexMetadata);
         }
+        for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
+            ensureNotCancelled.run();
+            Set<String> indexAnalyzers = new HashSet<>();
+            final int count = mappingAndCount.getValue();
+            MappingVisitor.visitMapping(mappingAndCount.getKey().getSourceAsMap(), (field, fieldMapping) -> {
+                for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
+                    Object analyzerO = fieldMapping.get(key);
+                    if (analyzerO != null) {
+                        final String analyzer = analyzerO.toString();
+                        IndexFeatureStats stats = usedBuiltInAnalyzers.computeIfAbsent(analyzer, IndexFeatureStats::new);
+                        stats.count += count;
+                        if (indexAnalyzers.add(analyzer)) {
+                            stats.indexCount += count;
+                        }
+                    }
+                }
+            });
+        }
+
         return new AnalysisStats(
             usedCharFilterTypes.values(),
             usedTokenizerTypes.values(),
@@ -144,6 +149,14 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenFilters.values(),
             usedBuiltInAnalyzers.values()
         );
+    }
+
+    public static void countMapping(Map<MappingMetadata, Integer> mappingCounts, IndexMetadata indexMetadata) {
+        final MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata == null) {
+            return;
+        }
+        mappingCounts.compute(mappingMetadata, (k, count) -> count == null ? 1 : count + 1);
     }
 
     private static void aggregateAnalysisTypes(

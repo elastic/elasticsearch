@@ -12,11 +12,14 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -152,6 +155,18 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     int route(IndexRouting indexRouting);
 
     /**
+     * Resolves the write index that should receive this request
+     * based on the provided index abstraction.
+     *
+     * @param ia        The provided index abstraction
+     * @param metadata  The metadata instance used to resolve the write index.
+     * @return the write index that should receive this request
+     */
+    default Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+        return ia.getWriteIndex();
+    }
+
+    /**
      * Requested operation type to perform on the document
      */
     enum OpType {
@@ -187,18 +202,13 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         }
 
         public static OpType fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return INDEX;
-                case 1:
-                    return CREATE;
-                case 2:
-                    return UPDATE;
-                case 3:
-                    return DELETE;
-                default:
-                    throw new IllegalArgumentException("Unknown opType: [" + id + "]");
-            }
+            return switch (id) {
+                case 0 -> INDEX;
+                case 1 -> CREATE;
+                case 2 -> UPDATE;
+                case 3 -> DELETE;
+                default -> throw new IllegalArgumentException("Unknown opType: [" + id + "]");
+            };
         }
 
         public static OpType fromString(String sOpType) {

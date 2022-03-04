@@ -124,18 +124,20 @@ public class DocumentFieldTests extends ESTestCase {
             }
             return Tuple.tuple(documentField, documentField);
         } else {
-            switch (randomIntBetween(0, 2)) {
-                case 0:
+            return switch (randomIntBetween(0, 2)) {
+                case 0 -> {
                     String fieldName = randomAlphaOfLengthBetween(3, 10);
                     Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
                     DocumentField input = new DocumentField(fieldName, tuple.v1());
                     DocumentField expected = new DocumentField(fieldName, tuple.v2());
-                    return Tuple.tuple(input, expected);
-                case 1:
+                    yield Tuple.tuple(input, expected);
+                }
+                case 1 -> {
                     List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
                     DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
-                    return Tuple.tuple(listField, listField);
-                case 2:
+                    yield Tuple.tuple(listField, listField);
+                }
+                case 2 -> {
                     List<Object> objectValues = randomList(1, 5, () -> {
                         Map<String, Object> values = new HashMap<>();
                         values.put(randomAlphaOfLength(5), randomInt());
@@ -144,10 +146,10 @@ public class DocumentFieldTests extends ESTestCase {
                         return values;
                     });
                     DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
-                    return Tuple.tuple(objectField, objectField);
-                default:
-                    throw new IllegalStateException();
-            }
+                    yield Tuple.tuple(objectField, objectField);
+                }
+                default -> throw new IllegalStateException();
+            };
         }
     }
 }

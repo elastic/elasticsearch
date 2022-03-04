@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_STATS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.toMap;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 

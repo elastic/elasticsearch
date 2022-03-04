@@ -123,9 +123,9 @@ public class PluginSecurity {
      * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
      */
     public static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
-        Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy, tmpDir));
-        for (URL jar : pluginPolicyInfo.jars) {
-            Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy, tmpDir);
+        Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy(), tmpDir));
+        for (URL jar : pluginPolicyInfo.jars()) {
+            Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy(), tmpDir);
             allPermissions.addAll(jarPermissions);
         }
 

@@ -10,10 +10,12 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
     implements
@@ -104,6 +107,15 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         public int hashCode() {
             return Objects.hash(getClass(), key, docCount, aggregations);
         }
+
+        InternalBucket finalizeSampling(SamplingContext samplingContext) {
+            return new InternalBucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
+
     }
 
     private final List<InternalBucket> buckets;
@@ -159,7 +171,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     @Override
     public InternalBucket getBucketByKey(String key) {
         if (bucketMap == null) {
-            bucketMap = new HashMap<>(buckets.size());
+            bucketMap = Maps.newMapWithExpectedSize(buckets.size());
             for (InternalBucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }
@@ -195,6 +207,15 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
 
         return reduced;
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalAdjacencyMatrix(
+            name,
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            getMetadata()
+        );
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -50,7 +51,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        XRejectedExecutionHandler handler,
+        RejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
@@ -109,9 +110,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue() instanceof SizeBlockingQueue) {
-            @SuppressWarnings("rawtypes")
-            SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
+        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);

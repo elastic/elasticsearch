@@ -11,6 +11,8 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 
+import java.time.Instant;
+
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
@@ -22,9 +24,17 @@ public interface IndexSettingProvider {
      *
      * @param indexName         The name of the new index being created
      * @param dataStreamName    The name of the data stream if the index being created is part of a data stream otherwise <code>null</code>
+     * @param templateIndexMode The index mode from the data stream template of the matching template.
      * @param metadata          The current metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt        The time the request to create this new index was accepted.
      * @param allSettings       All the setting resolved from the template that matches and any setting defined on the create index request
      */
-    Settings getAdditionalIndexSettings(String indexName, String dataStreamName, Metadata metadata, long resolvedAt, Settings allSettings);
+    Settings getAdditionalIndexSettings(
+        String indexName,
+        String dataStreamName,
+        IndexMode templateIndexMode,
+        Metadata metadata,
+        Instant resolvedAt,
+        Settings allSettings
+    );
 }

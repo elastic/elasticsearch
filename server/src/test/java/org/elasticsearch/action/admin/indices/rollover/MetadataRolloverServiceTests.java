@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doThrow;
@@ -68,7 +67,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
 
@@ -282,29 +280,17 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataRolloverService.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver)
-        );
+        expectThrows(IllegalArgumentException.class, () -> MetadataRolloverService.generateRolloverIndexName(invalidIndexName));
         int num = randomIntBetween(0, 100);
         final String indexPrefix = randomAlphaOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(
-            MetadataRolloverService.generateRolloverIndexName(indexEndingInNumbers, indexNameExpressionResolver),
+            MetadataRolloverService.generateRolloverIndexName(indexEndingInNumbers),
             equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1))
         );
-        assertThat(
-            MetadataRolloverService.generateRolloverIndexName("index-name-1", indexNameExpressionResolver),
-            equalTo("index-name-000002")
-        );
-        assertThat(
-            MetadataRolloverService.generateRolloverIndexName("index-name-2", indexNameExpressionResolver),
-            equalTo("index-name-000003")
-        );
-        assertEquals(
-            "<index-name-{now/d}-000002>",
-            MetadataRolloverService.generateRolloverIndexName("<index-name-{now/d}-1>", indexNameExpressionResolver)
-        );
+        assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
+        assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));
+        assertEquals("<index-name-{now/d}-000002>", MetadataRolloverService.generateRolloverIndexName("<index-name-{now/d}-1>"));
     }
 
     public void testCreateIndexRequest() {
@@ -576,9 +562,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             long after = testThreadPool.absoluteTimeInMillis();
 
             newIndexName = newIndexName == null ? indexPrefix + "2" : newIndexName;
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-            Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(2, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
             assertThat(rolloverIndexMetadata.getNumberOfShards(), equalTo(numberOfShards));
@@ -643,9 +629,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-            Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
@@ -703,13 +689,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         MetadataCreateIndexService createIndexService = mock(MetadataCreateIndexService.class);
         MetadataIndexAliasesService metadataIndexAliasesService = mock(MetadataIndexAliasesService.class);
-        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
         MetadataRolloverService rolloverService = new MetadataRolloverService(
             null,
             createIndexService,
             metadataIndexAliasesService,
-            mockIndexNameExpressionResolver,
             EmptySystemIndices.INSTANCE
         );
 
@@ -727,9 +710,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
-        assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-        assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-        assertSame(rolloverResult.clusterState, clusterState);
+        assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+        assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+        assertSame(rolloverResult.clusterState(), clusterState);
 
         verify(createIndexService).validateIndexName(any(), same(clusterState));
         verifyNoMoreInteractions(createIndexService);

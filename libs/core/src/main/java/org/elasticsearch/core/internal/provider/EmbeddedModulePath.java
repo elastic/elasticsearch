@@ -214,7 +214,7 @@ final class EmbeddedModulePath {
         int off = 0;
         while ((next = name.indexOf('.', off)) != -1) {
             String id = name.substring(off, next);
-            if (!isJavaIdentifier(id))
+            if (isJavaIdentifier(id) == false)
                 return false;
             off = next+1;
         }
@@ -227,13 +227,13 @@ final class EmbeddedModulePath {
             return false;
 
         int first = Character.codePointAt(str, 0);
-        if (!Character.isJavaIdentifierStart(first))
+        if (Character.isJavaIdentifierStart(first) == false)
             return false;
 
         int i = Character.charCount(first);
         while (i < str.length()) {
             int cp = Character.codePointAt(str, i);
-            if (!Character.isJavaIdentifierPart(cp))
+            if (Character.isJavaIdentifierPart(cp) == false)
                 return false;
             i += Character.charCount(cp);
         }

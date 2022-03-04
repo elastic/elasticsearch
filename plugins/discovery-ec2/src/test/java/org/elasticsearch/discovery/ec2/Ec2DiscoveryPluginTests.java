@@ -15,6 +15,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.services.ec2.AbstractAmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
@@ -108,7 +109,18 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         }
     }
 
-    public void testTokenMetadataIsNotAvailable() throws Exception {
+    public void testTokenMetadataApiIsMisbehaving() throws Exception {
+        try (var metadataServer = new MetadataServer("/metadata", exchange -> {
+            assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        }, "/latest/api/token", HttpExchange::close)) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
+        }
+    }
+
+    public void testTokenMetadataApiIsNotAvailable() throws Exception {
         try (var metadataServer = metadataServerWithoutToken()) {
             assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
         }

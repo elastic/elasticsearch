@@ -73,7 +73,7 @@ public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
         });
         httpServer.start();
 
-        Path configDirectory = Files.createTempDirectory("web-idenity-token-test");
+        Path configDirectory = Files.createTempDirectory("web-identity-token-test");
         Files.createDirectory(configDirectory.resolve("repository-s3"));
         Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
         Environment environment = Mockito.mock(Environment.class);

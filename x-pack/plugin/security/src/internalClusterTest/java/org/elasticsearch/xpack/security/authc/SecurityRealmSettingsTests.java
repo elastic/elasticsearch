@@ -57,6 +57,11 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
             final Settings existingSettings = super.nodeSettings(nodeOrdinal, otherSettings);
             MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
             mockSecureSettings.setString("xpack.security.authc.realms.oidc.oidc1.rp.client_secret", randomAlphaOfLength(12));
+            mockSecureSettings.setString(
+                "xpack.security.authc.realms.jwt.jwt9.client_authentication.shared_secret",
+                "client-shared-secret-string"
+            );
+            mockSecureSettings.setString("xpack.security.authc.realms.jwt.jwt9.hmac_key", "hmac-oidc-key-string-for-hs256-algorithm");
             settings = Settings.builder()
                 .put(existingSettings.filter(s -> s.startsWith("xpack.security.authc.realms.") == false), false)
                 .put("xpack.security.authc.token.enabled", true)
@@ -86,6 +91,12 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.oidc.oidc1.rp.client_id", "my_client")
                 .put("xpack.security.authc.realms.oidc.oidc1.rp.response_type", "code")
                 .put("xpack.security.authc.realms.oidc.oidc1.claims.principal", "sub")
+                .put("xpack.security.authc.realms.jwt.jwt9.order", 9)
+                .put("xpack.security.authc.realms.jwt.jwt9.allowed_issuer", "iss9")
+                .put("xpack.security.authc.realms.jwt.jwt9.allowed_signature_algorithms", "HS256")
+                .put("xpack.security.authc.realms.jwt.jwt9.allowed_audiences", "aud9")
+                .put("xpack.security.authc.realms.jwt.jwt9.claims.principal", "sub")
+                .put("xpack.security.authc.realms.jwt.jwt9.client_authentication.type", "shared_secret")
                 .setSecureSettings(mockSecureSettings)
                 .build();
         } catch (IOException e) {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -330,7 +331,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    }, newExecutor());
                 }
 
             };
@@ -368,6 +369,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         updatedFollowers.putAll(newAutoFollowers);
         removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
         this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {

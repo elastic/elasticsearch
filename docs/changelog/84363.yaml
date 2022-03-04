@@ -1,0 +1,5 @@
+pr: 84363
+summary: New `random_sampler` aggregation for sampling documents in aggregations
+area: Aggregations
+type: feature
+issues: []

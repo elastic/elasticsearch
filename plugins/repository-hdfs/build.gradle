@@ -134,7 +134,10 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
 
             // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
             if (name.startsWith('secure')) {
-                miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
+                if (BuildParams.runtimeJavaVersion.isJava9Compatible()) {
+                  miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
+                  miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+                }
                 miniHDFSArgs.add("-Djava.security.krb5.conf=${project.configurations.krb5Config.getSingleFile().getPath()}")
                 miniHDFSArgs.add("-Dhdfs.config.port=" + getSecureNamenodePortForVersion(hadoopVer))
             } else {

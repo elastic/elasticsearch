@@ -57,10 +57,8 @@ tasks.named("internalClusterTest").configure {
   }
 }
 
-tasks.named("bundlePlugin").configure {
-  from("${project.buildDir}/ingest-geoip") {
+esplugin.bundleSpec.from("${project.buildDir}/ingest-geoip") {
     into '/'
-  }
 }
 
 tasks.named("thirdPartyAudit").configure {

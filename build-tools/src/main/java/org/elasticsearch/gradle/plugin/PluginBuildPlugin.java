@@ -219,31 +219,31 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     private static CopySpec createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
 
-            CopySpec bundleSpec = project.copySpec();
-            bundleSpec.from(buildProperties);
-            bundleSpec.from(pluginMetadata, copySpec -> {
-                // metadata (eg custom security policy)
-                // the codebases properties file is only for tests and not needed in production
-                copySpec.exclude("plugin-security.codebases");
-            });
-            bundleSpec.from(
-                (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.github.johnrengelman.shadow")
-                    ? project.getTasks().named("shadowJar")
-                    : project.getTasks().named("jar")
-            );
-            bundleSpec.from(
-                project.getConfigurations()
-                    .getByName("runtimeClasspath")
-                    .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
-            );
+        CopySpec bundleSpec = project.copySpec();
+        bundleSpec.from(buildProperties);
+        bundleSpec.from(pluginMetadata, copySpec -> {
+            // metadata (eg custom security policy)
+            // the codebases properties file is only for tests and not needed in production
+            copySpec.exclude("plugin-security.codebases");
+        });
+        bundleSpec.from(
+            (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.github.johnrengelman.shadow")
+                ? project.getTasks().named("shadowJar")
+                : project.getTasks().named("jar")
+        );
+        bundleSpec.from(
+            project.getConfigurations()
+                .getByName("runtimeClasspath")
+                .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
+        );
 
-            // extra files for the plugin to go into the zip
-            bundleSpec.from("src/main/packaging");// TODO: move all config/bin/_size/etc into packaging
-            bundleSpec.from("src/main", copySpec -> {
-                copySpec.include("config/**");
-                copySpec.include("bin/**");
-            });
-            return bundleSpec;
+        // extra files for the plugin to go into the zip
+        bundleSpec.from("src/main/packaging");// TODO: move all config/bin/_size/etc into packaging
+        bundleSpec.from("src/main", copySpec -> {
+            copySpec.include("config/**");
+            copySpec.include("bin/**");
+        });
+        return bundleSpec;
 
     }
 

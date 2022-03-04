@@ -14,9 +14,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.ScriptDocValuesSupplier;
+import org.elasticsearch.script.field.DocValuesSupplier;
 import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
-import org.elasticsearch.script.field.ScriptFieldSupplier;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -70,9 +69,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Longs extends ScriptDocValues<Long> {
 
-        protected final ScriptDocValuesSupplier<Long> supplier;
+        protected final DocValuesSupplier<Long> supplier;
 
-        public Longs(ScriptDocValuesSupplier<Long> supplier) {
+        public Longs(DocValuesSupplier<Long> supplier) {
             this.supplier = supplier;
         }
 
@@ -94,9 +93,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Dates extends ScriptDocValues<ZonedDateTime> {
 
-        protected final ScriptDocValuesSupplier<ZonedDateTime> supplier;
+        protected final DocValuesSupplier<ZonedDateTime> supplier;
 
-        public Dates(ScriptDocValuesSupplier<ZonedDateTime> supplier) {
+        public Dates(DocValuesSupplier<ZonedDateTime> supplier) {
             this.supplier = supplier;
         }
 
@@ -342,9 +341,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Booleans extends ScriptDocValues<Boolean> {
 
-        private final ScriptDocValuesSupplier<Boolean> supplier;
+        private final DocValuesSupplier<Boolean> supplier;
 
-        public Booleans(ScriptDocValuesSupplier<Boolean> supplier) {
+        public Booleans(DocValuesSupplier<Boolean> supplier) {
             this.supplier = supplier;
         }
 
@@ -367,9 +366,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Strings extends ScriptDocValues<String> {
 
-        protected final ScriptDocValuesSupplier<String> supplier;
+        protected final DocValuesSupplier<String> supplier;
 
-        public Strings(ScriptDocValuesSupplier<String> supplier) {
+        public Strings(DocValuesSupplier<String> supplier) {
             this.supplier = supplier;
         }
 

@@ -13,16 +13,16 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 
-public class BooleanDocValuesSource implements FieldDocValuesSource {
+public class LongDocValuesSource implements FieldDocValuesSource {
 
-    protected final BooleanDocValuesSupplier supplier;
+    protected final LongDocValuesSupplier supplier;
 
     // used for backwards compatibility for old-style "doc" access
     // as a delegate to this field class
-    protected ScriptDocValues.Booleans sdv = null;
+    protected ScriptDocValues.Longs sdv = null;
 
-    public BooleanDocValuesSource(SortedNumericDocValues docValues) {
-        this.supplier = new BooleanDocValuesSupplier(docValues);
+    public LongDocValuesSource(SortedNumericDocValues docValues) {
+        this.supplier = new LongDocValuesSupplier(docValues);
     }
 
     @Override
@@ -36,9 +36,9 @@ public class BooleanDocValuesSource implements FieldDocValuesSource {
     }
 
     @Override
-    public ScriptDocValues.Booleans toScriptDocValues() {
+    public ScriptDocValues.Longs toScriptDocValues() {
         if (sdv == null) {
-            sdv = new ScriptDocValues.Booleans(supplier);
+            sdv = new ScriptDocValues.Longs(supplier);
         }
 
         return sdv;

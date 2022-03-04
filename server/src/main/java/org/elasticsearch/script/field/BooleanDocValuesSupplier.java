@@ -8,20 +8,20 @@
 
 package org.elasticsearch.script.field;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
+import java.util.Arrays;
 
-public class StringDocValuesSupplier implements DocValuesSupplier<String>, FieldSupplier.Supplier<String> {
+public class BooleanDocValuesSupplier implements DocValuesSupplier<Boolean>, FieldSupplier.BooleanSupplier {
 
-    private final SortedBinaryDocValues input;
+    protected final SortedNumericDocValues input;
 
-    private String[] values = new String[0];
-    private int count;
+    protected boolean[] values = new boolean[0];
+    protected int count;
 
-    public StringDocValuesSupplier(SortedBinaryDocValues input) {
+    public BooleanDocValuesSupplier(SortedNumericDocValues input) {
         this.input = input;
     }
 
@@ -37,17 +37,20 @@ public class StringDocValuesSupplier implements DocValuesSupplier<String>, Field
         }
     }
 
-    private void resize(int newSize) {
+    protected void resize(int newSize) {
         count = newSize;
-        values = ArrayUtil.grow(values, count);
+        assert count >= 0 : "size must be positive (got " + count + "): likely integer overflow?";
+        if (values.length < count) {
+            values = Arrays.copyOf(values, ArrayUtil.oversize(count, 1));
+        }
     }
 
-    public String formatValue(BytesRef raw) {
-        return raw.utf8ToString();
+    public boolean formatValue(long raw) {
+        return raw == 1;
     }
 
     @Override
-    public String getCompatible(int index) {
+    public Boolean getCompatible(int index) {
         return get(index);
     }
 
@@ -57,7 +60,7 @@ public class StringDocValuesSupplier implements DocValuesSupplier<String>, Field
     }
 
     @Override
-    public String get(int index) {
+    public boolean get(int index) {
         return values[index];
     }
 }

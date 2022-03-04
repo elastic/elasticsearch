@@ -14,9 +14,9 @@ import java.util.NoSuchElementException;
 public class BooleanField implements Field<Boolean> {
 
     private final String name;
-    private final ScriptFieldSupplier.BooleanSupplier supplier;
+    private final FieldSupplier.BooleanSupplier supplier;
 
-    public BooleanField(String name, ScriptFieldSupplier.BooleanSupplier supplier) {
+    public BooleanField(String name, FieldSupplier.BooleanSupplier supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -28,7 +28,7 @@ public class BooleanField implements Field<Boolean> {
 
     @Override
     public boolean isEmpty() {
-        return supplier.size() == 0;
+        return size() == 0;
     }
 
     @Override
@@ -63,6 +63,7 @@ public class BooleanField implements Field<Boolean> {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
+
                 return supplier.get(index++);
             }
         };

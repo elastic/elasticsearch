@@ -12,18 +12,20 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 
 import java.io.IOException;
-import java.util.Arrays;
 
-public class BooleanFieldDocValuesSupplier
-    implements ScriptFieldDocValuesSupplier, ScriptDocValuesSupplier<Boolean>, ScriptFieldSupplier.BooleanSupplier {
+public class LongDocValuesSupplier implements DocValuesSupplier<Long>, FieldSupplier.LongSupplier {
 
     protected final SortedNumericDocValues input;
 
-    protected boolean[] values = new boolean[0];
+    protected long[] values = new long[0];
     protected int count;
 
-    public BooleanFieldDocValuesSupplier(SortedNumericDocValues input) {
+    public LongDocValuesSupplier(SortedNumericDocValues input) {
         this.input = input;
+    }
+
+    protected long formatValue(long raw) {
+        return raw;
     }
 
     @Override
@@ -31,7 +33,7 @@ public class BooleanFieldDocValuesSupplier
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = parseValue(input.nextValue());
+                values[i] = formatValue(input.nextValue());
             }
         } else {
             resize(0);
@@ -40,20 +42,12 @@ public class BooleanFieldDocValuesSupplier
 
     protected void resize(int newSize) {
         count = newSize;
-
-        assert count >= 0 : "size must be positive (got " + count + "): likely integer overflow?";
-        if (values.length < count) {
-            values = Arrays.copyOf(values, ArrayUtil.oversize(count, 1));
-        }
-    }
-
-    public boolean parseValue(long value) {
-        return value == 1;
+        values = ArrayUtil.grow(values, count);
     }
 
     @Override
-    public Boolean getCompatible(int index) {
-        return values[index];
+    public Long getCompatible(int index) {
+        return get(index);
     }
 
     @Override
@@ -61,8 +55,7 @@ public class BooleanFieldDocValuesSupplier
         return count;
     }
 
-    @Override
-    public boolean get(int index) {
+    public long get(int index) {
         return values[index];
     }
 }

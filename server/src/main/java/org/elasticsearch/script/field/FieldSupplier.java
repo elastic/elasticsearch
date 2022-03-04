@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.field;
 
-public class ScriptFieldSupplier {
+public class FieldSupplier {
 
     public interface Supplier<T> {
 
@@ -56,5 +56,9 @@ public class ScriptFieldSupplier {
 
         int size();
         double get(int index);
+    }
+
+    private FieldSupplier() {
+        // for namespace only
     }
 }

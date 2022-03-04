@@ -118,7 +118,7 @@ class org.elasticsearch.script.field.IpDocValuesField @dynamic_type {
   String asString(int, String)
 }
 
-class org.elasticsearch.script.field.AbstractLongDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.LongField @dynamic_type {
   long get(long)
   long get(int, long)
 }

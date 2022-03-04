@@ -8,20 +8,20 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 
-public class KeywordFieldDocValuesSource extends StringDocValuesSource {
+public class LongFieldDocValuesSource extends LongDocValuesSource {
 
-    protected KeywordField field = null;
+    protected LongField field = null;
 
-    public KeywordFieldDocValuesSource(SortedBinaryDocValues docValues) {
+    public LongFieldDocValuesSource(SortedNumericDocValues docValues) {
         super(docValues);
     }
 
     @Override
-    public KeywordField toScriptField(String name) {
+    public LongField toScriptField(String name) {
         if (field == null) {
-            field = new KeywordField(name, supplier);
+            field = new LongField(name, supplier);
         }
 
         return field;

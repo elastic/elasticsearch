@@ -8,8 +8,13 @@
 
 package org.elasticsearch.script.field;
 
-public interface ScriptDocValuesSupplier<T> {
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
-    int size();
-    T getCompatible(int index);
+import java.io.IOException;
+
+public interface FieldDocValuesSource extends FieldSource {
+
+    void setNextDocId(int docId) throws IOException;
+
+    ScriptDocValues<?> toScriptDocValues();
 }

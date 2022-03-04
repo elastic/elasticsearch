@@ -13,7 +13,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 
-public class StringDocValuesSource implements ScriptFieldDocValuesSource {
+public class StringDocValuesSource implements FieldDocValuesSource {
 
     protected final StringDocValuesSupplier supplier;
 

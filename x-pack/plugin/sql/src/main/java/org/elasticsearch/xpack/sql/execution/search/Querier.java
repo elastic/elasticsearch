@@ -197,7 +197,6 @@ public class Querier {
         searchRequest.indicesOptions(
             includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
         );
-        source.pointInTimeBuilder(null);
         searchRequest.source(source);
         return searchRequest;
     }

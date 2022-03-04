@@ -628,7 +628,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
-            this.nodes = new HashMap<>(nodes.getNodes().toMap());
+            this.nodes = new HashMap<>(nodes.getNodes());
         }
 
         /**

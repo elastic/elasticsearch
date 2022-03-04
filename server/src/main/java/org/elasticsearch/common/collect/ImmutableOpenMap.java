@@ -381,13 +381,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         return map.toString();
     }
 
-    /**
-     * Convert this ImmutableOpenMap to an immutable Java collection Map
-     */
-    public Map<KType, VType> toMap() {
-        return entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
     @Override
     @SuppressWarnings("rawtypes")
     public boolean equals(Object o) {

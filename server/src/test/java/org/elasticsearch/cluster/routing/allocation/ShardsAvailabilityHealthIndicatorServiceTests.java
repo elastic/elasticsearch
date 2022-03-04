@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -41,6 +40,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -122,7 +122,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 index(
                     "restarting-index",
                     new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis())
+                    new ShardAllocation("node-0", RESTARTING, System.nanoTime())
                 )
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
@@ -147,7 +147,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 index(
                     "restarting-index",
                     new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - between(60_001, 120_000))
+                    new ShardAllocation("node-0", RESTARTING, System.nanoTime() - timeValueSeconds(between(60, 180)).nanos())
                 )
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
@@ -181,7 +181,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenThereAreRestartingPrimaries() {
         var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis()))),
+            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.nanoTime()))),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
         var service = createAllocationHealthIndicatorService(clusterState);
@@ -195,7 +195,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testShouldBeRedWhenRestartingPrimariesReachedAllocationDelay() {
         var clusterState = createClusterStateWith(
             List.of(
-                index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - between(60_001, 120_000)))
+                index(
+                    "restarting-index",
+                    new ShardAllocation("node-0", RESTARTING, System.nanoTime() - timeValueSeconds(between(60, 120)).nanos())
+                )
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
@@ -228,9 +231,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             .setReason("test")
                             .setNodeSeen(true)
                             .setStartedAtMillis(System.currentTimeMillis())
-                            .setAllocationDelay(
-                                it.allocationDelaySeconds != null ? TimeValue.timeValueSeconds(it.allocationDelaySeconds) : null
-                            )
+                            .setAllocationDelay(it.allocationDelaySeconds != null ? timeValueSeconds(it.allocationDelaySeconds) : null)
                             .build()
                     )
                 )
@@ -298,8 +299,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 null,
                 null,
                 -1,
+                allocation.unassignedTimeNanos != null ? allocation.unassignedTimeNanos : 0,
                 0,
-                allocation.unassignedTimeMillis != null ? allocation.unassignedTimeMillis : 0,
                 false,
                 UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
                 Set.of(),
@@ -330,7 +331,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         RESTARTING
     }
 
-    private record ShardAllocation(String nodeId, ShardState state, Long unassignedTimeMillis) {
+    private record ShardAllocation(String nodeId, ShardState state, Long unassignedTimeNanos) {
 
         ShardAllocation(String nodeId, ShardState state) {
             this(nodeId, state, null);

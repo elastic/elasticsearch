@@ -121,8 +121,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
             return false;
         }
-        var now = System.currentTimeMillis();
-        var restartingAllocationDelayExpiration = info.getUnassignedTimeInMillis() + shutdown.getAllocationDelay().getMillis();
+        var now = System.nanoTime();
+        var restartingAllocationDelayExpiration = info.getUnassignedTimeInNanos() + shutdown.getAllocationDelay().nanos();
         return now <= restartingAllocationDelayExpiration;
     }
 

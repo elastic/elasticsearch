@@ -428,7 +428,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
             var shards = snapshotsInProgress.snapshot(snapshots.iterator().next()).shards();
-            long initShards = shards.entrySet().stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.INIT).count();
+            long initShards = shards.values().stream().filter(v -> v.state() == SnapshotsInProgress.ShardState.INIT).count();
             long successShards = shards.entrySet()
                 .stream()
                 .filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)

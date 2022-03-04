@@ -1,26 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.transform.transforms.DestConfig;
-import org.elasticsearch.client.transform.transforms.SettingsConfig;
-import org.elasticsearch.client.transform.transforms.SourceConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
-import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -55,31 +54,42 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
     }
 
     @Override
-    public TransformConfig createConfig() {
+    public TransformConfig createConfig() throws IOException {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
         if (datesAsEpochMillis) {
-            transformConfigBuilder.setSettings(addCommonSetings(new SettingsConfig.Builder()).setDatesAsEpochMillis(true).build());
+            transformConfigBuilder.setSettings(addCommonSettings(new SettingsConfig.Builder()).setDatesAsEpochMillis(true).build());
         }
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
         transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
-        PivotConfig.Builder pivotConfigBuilder = new PivotConfig.Builder();
-        GroupConfig.Builder groups = new GroupConfig.Builder().groupBy(
+
+        Map<String, SingleGroupSource> groupSource = new HashMap<>();
+        groupSource.put(
             "second",
-            new DateHistogramGroupSource.Builder().setField(metricTimestampField)
-                .setInterval(new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND))
-                .build()
+            new DateHistogramGroupSource(
+                metricTimestampField,
+                null,
+                false,
+                new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND),
+                null
+            )
         );
         if (addGroupByTerms) {
-            groups.groupBy("event", new TermsGroupSource.Builder().setField(termsField).build());
+            groupSource.put("event", new TermsGroupSource(termsField, null, false));
         }
-        pivotConfigBuilder.setGroups(groups.build());
+        var groupConfig = TransformRestTestCase.createGroupConfig(groupSource, xContentRegistry());
+
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
 
-        pivotConfigBuilder.setAggregations(aggregations);
-        transformConfigBuilder.setPivotConfig(pivotConfigBuilder.build());
+        PivotConfig pivotConfig = new PivotConfig(
+            groupConfig,
+            TransformRestTestCase.createAggConfig(aggregations, xContentRegistry()),
+            null
+        );
+
+        transformConfigBuilder.setPivotConfig(pivotConfig);
         return transformConfigBuilder.build();
     }
 
@@ -90,45 +100,64 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
 
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false);
-        SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
-        DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field(metricTimestampField)
-            .fixedInterval(DateHistogramInterval.SECOND)
-            .order(BucketOrder.key(true));
+        String eventAgg = """
+            , "aggs" : {"event": {"terms": {"field": "%s", "size": 1000, "order": {"_key": "asc"}}}}
+            """.formatted(termsField);
+
+        String querySource = """
+            {
+              "aggs": {
+                "second": {
+                  "date_histogram": {
+                    "field": "%s",
+                    "order": {"_key": "asc"},
+                    "fixed_interval": "1s"
+                  }%s
+                }
+              }
+            }
+            """.formatted(metricTimestampField, addGroupByTerms ? eventAgg : "");
+
+        Response searchResponseSource = search(
+            CONTINUOUS_EVENTS_SOURCE_INDEX,
+            querySource,
+            Map.of("allow_partial_search_results", "false", "size", "100")
+        );
+
+        String queryDest = addGroupByTerms ? """
+            {
+                "sort": ["second", "event"]
+            }
+            """ : """
+            {
+                "sort": ["second"]
+            }
+            """;
+        Response searchResponseDest = search(NAME, queryDest, Map.of("allow_partial_search_results", "false", "size", "10000"));
 
         if (addGroupByTerms) {
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("event").size(1000).field(termsField).order(BucketOrder.key(true));
-            bySecond.subAggregation(terms);
-        }
-        sourceBuilderSource.aggregation(bySecond);
-        searchRequestSource.source(sourceBuilderSource);
-        SearchResponse responseSource = search(searchRequestSource);
-
-        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false);
-        SearchSourceBuilder sourceBuilderDest = new SearchSourceBuilder().size(10000).sort("second");
-        if (addGroupByTerms) {
-            sourceBuilderDest.sort("event");
-        }
-
-        searchRequestDest.source(sourceBuilderDest);
-        SearchResponse responseDest = search(searchRequestDest);
-
-        if (addGroupByTerms) {
-            assertResultsGroupByDateHistogramAndTerms(iteration, responseSource, responseDest);
+            assertResultsGroupByDateHistogramAndTerms(iteration, searchResponseSource, searchResponseDest);
         } else {
-            assertResultsGroupByDateHistogram(iteration, responseSource, responseDest);
+            assertResultsGroupByDateHistogram(iteration, searchResponseSource, searchResponseDest);
         }
     }
 
-    private void assertResultsGroupByDateHistogram(int iteration, SearchResponse responseSource, SearchResponse responseDest) {
-        List<? extends Bucket> buckets = ((Histogram) responseSource.getAggregations().get("second")).getBuckets();
-        Iterator<? extends Bucket> sourceIterator = buckets.iterator();
-        Iterator<SearchHit> destIterator = responseDest.getHits().iterator();
+    @SuppressWarnings("unchecked")
+    private void assertResultsGroupByDateHistogram(int iteration, Response responseSource, Response responseDest) throws IOException {
+        var buckets = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "aggregations.second.buckets",
+            entityAsMap(responseSource)
+        );
+
+        var hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", entityAsMap(responseDest));
+
+        Iterator<Map<String, Object>> sourceIterator = buckets.iterator();
+        Iterator<Map<String, Object>> destIterator = hits.iterator();
 
         while (sourceIterator.hasNext() && destIterator.hasNext()) {
-            Bucket bucket = sourceIterator.next();
-            SearchHit searchHit = destIterator.next();
-            Map<String, Object> source = searchHit.getSourceAsMap();
+            var bucket = sourceIterator.next();
+            var searchHit = destIterator.next();
+            var source = (Map<String, Object>) searchHit.get("_source");
 
             String transformBucketKey;
             if (datesAsEpochMillis) {
@@ -139,21 +168,21 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             }
 
             // aggs return buckets with 0 doc_count while composite aggs skip over them
-            while (bucket.getDocCount() == 0L) {
+            while ((Integer) bucket.get("doc_count") == 0) {
                 assertTrue(sourceIterator.hasNext());
                 bucket = sourceIterator.next();
             }
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
-                "Buckets did not match, source: " + source + ", expected: " + bucket.getKeyAsString() + ", iteration: " + iteration,
+                "Buckets did not match, source: " + source + ", expected: " + bucket.get("key_as_string") + ", iteration: " + iteration,
                 transformBucketKey,
-                equalTo(bucket.getKeyAsString())
+                equalTo(bucket.get("key_as_string"))
             );
             assertThat(
-                "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
-                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
-                equalTo(bucket.getDocCount())
+                "Doc count did not match, source: " + source + ", expected: " + bucket.get("doc_count") + ", iteration: " + iteration,
+                (Integer) XContentMapValues.extractValue("count", source),
+                equalTo(bucket.get("doc_count"))
             );
 
             // transform should only rewrite documents that require it
@@ -178,28 +207,35 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         assertFalse(destIterator.hasNext());
     }
 
-    private void assertResultsGroupByDateHistogramAndTerms(int iteration, SearchResponse responseSource, SearchResponse responseDest) {
-        List<? extends Bucket> buckets = ((Histogram) responseSource.getAggregations().get("second")).getBuckets();
+    @SuppressWarnings("unchecked")
+    private void assertResultsGroupByDateHistogramAndTerms(int iteration, Response responseSource, Response responseDest)
+        throws IOException {
+        var buckets = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "aggregations.second.buckets",
+            entityAsMap(responseSource)
+        );
+
+        var hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", entityAsMap(responseDest));
 
         List<Map<String, Object>> flattenedBuckets = new ArrayList<>();
-        for (Bucket b : buckets) {
-            if (b.getDocCount() == 0) {
+        for (var b : buckets) {
+            if ((Integer) b.get("doc_count") == 0) {
                 continue;
             }
-            List<? extends Terms.Bucket> terms = ((Terms) b.getAggregations().get("event")).getBuckets();
-            for (Terms.Bucket t : terms) {
-                flattenedBuckets.add(flattenedResult(b.getKeyAsString(), t.getKeyAsString(), t.getDocCount()));
+            var terms = ((List<Map<String, Object>>) XContentMapValues.extractValue("event.buckets", b));
+            for (var t : terms) {
+                flattenedBuckets.add(flattenedResult((String) b.get("key_as_string"), (String) t.get("key"), (Integer) t.get("doc_count")));
             }
         }
 
         Iterator<Map<String, Object>> sourceIterator = flattenedBuckets.iterator();
-        Iterator<SearchHit> destIterator = responseDest.getHits().iterator();
+        Iterator<Map<String, Object>> destIterator = hits.iterator();
 
         while (sourceIterator.hasNext() && destIterator.hasNext()) {
             Map<String, Object> bucket = sourceIterator.next();
 
-            SearchHit searchHit = destIterator.next();
-            Map<String, Object> source = searchHit.getSourceAsMap();
+            var searchHit = destIterator.next();
+            var source = (Map<String, Object>) searchHit.get("_source");
 
             String transformBucketKey;
             if (datesAsEpochMillis) {
@@ -217,7 +253,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.get("count") + ", iteration: " + iteration,
-                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
+                (Integer) XContentMapValues.extractValue("count", source),
                 equalTo(bucket.get("count"))
             );
             assertThat(
@@ -247,7 +283,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         assertFalse(destIterator.hasNext());
     }
 
-    private static Map<String, Object> flattenedResult(String second, String event, long count) {
+    private static Map<String, Object> flattenedResult(String second, String event, int count) {
         Map<String, Object> doc = new HashMap<>();
         doc.put("second", second);
         doc.put("event", event);

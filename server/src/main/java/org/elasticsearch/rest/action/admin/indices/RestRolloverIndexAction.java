@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -48,7 +49,9 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 
     private boolean includeTypeName(RestRequest request) {

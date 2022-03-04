@@ -740,7 +740,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             }
 
             return new DiscoveryNodes(
-                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAll(nodes).build(),
+                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAllFromMap(nodes).build(),
                 dataNodesBuilder.build(),
                 masterNodesBuilder.build(),
                 ingestNodesBuilder.build(),

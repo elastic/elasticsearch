@@ -56,6 +56,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.hamcrest.Matchers.equalTo;
@@ -142,7 +145,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms.getBucketByKey("even"));
 
                 // Search odd with regex includeexcludes
-                sigAgg.includeExclude(new IncludeExclude("o.d", null));
+                sigAgg.includeExclude(new IncludeExclude("o.d", null, null, null));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
@@ -151,10 +154,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNull(terms.getBucketByKey("even"));
 
                 // Search with string-based includeexcludes
-                String oddStrings[] = new String[] { "odd", "weird" };
-                String evenStrings[] = new String[] { "even", "regular" };
+                SortedSet<BytesRef> oddStrings = new TreeSet<>(Set.of(new BytesRef("odd"), new BytesRef("weird")));
+                SortedSet<BytesRef> evenStrings = new TreeSet<>(Set.of(new BytesRef("even"), new BytesRef("regular")));
 
-                sigAgg.includeExclude(new IncludeExclude(oddStrings, evenStrings));
+                sigAgg.includeExclude(new IncludeExclude(null, null, oddStrings, evenStrings));
                 sigAgg.significanceHeuristic(heuristic);
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
@@ -165,7 +168,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNull(terms.getBucketByKey("even"));
                 assertNull(terms.getBucketByKey("regular"));
 
-                sigAgg.includeExclude(new IncludeExclude(evenStrings, oddStrings));
+                sigAgg.includeExclude(new IncludeExclude(null, null, evenStrings, oddStrings));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(0, terms.getBuckets().size());

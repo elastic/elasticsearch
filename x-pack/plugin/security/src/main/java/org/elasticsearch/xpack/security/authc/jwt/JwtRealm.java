@@ -59,6 +59,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "X-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
+    public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
@@ -71,7 +72,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
     final ClaimParser claimParserGroups;
-    final String clientAuthenticationType;
+    final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
@@ -97,6 +98,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
             this.clientAuthenticationSharedSecret
         );
+
+        if (config.hasSetting(JwtRealmSettings.HMAC_KEY) == false
+            && config.hasSetting(JwtRealmSettings.HMAC_JWKSET) == false
+            && config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
+            throw new SettingsException(
+                "At least one of ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_KEY)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_JWKSET)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH)
+                    + "] must be set"
+            );
+        }
 
         // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
@@ -266,7 +281,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
             threadContext,
             JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
         return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
@@ -362,12 +377,16 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Delegated role lookup: If enabled, lookup in authz realms. Otherwise, fall through to JWT realm role mapping.
             if (this.delegatedAuthorizationSupport.hasDelegation()) {
-                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(success -> {
-                    // Intercept the delegated authorization listener response to log roles. Empty roles is OK.
-                    final User user = success.getValue();
-                    final String rolesString = Arrays.toString(user.roles());
-                    LOGGER.debug("Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "].");
-                    listener.onResponse(success);
+                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(result -> {
+                    if (result.isAuthenticated()) {
+                        // Intercept the delegated authorization listener response to log roles. Empty roles is OK.
+                        final User user = result.getValue();
+                        final String rolesString = Arrays.toString(user.roles());
+                        LOGGER.debug(
+                            "Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "]."
+                        );
+                    }
+                    listener.onResponse(result);
                 }, e -> {
                     final String msg = "Realm [" + super.name() + "] delegated roles failed for principal=[" + principal + "].";
                     LOGGER.warn(msg, e);

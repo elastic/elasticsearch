@@ -10,7 +10,6 @@ package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
@@ -256,37 +255,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
     }
 
     /**
-     * Returns a specialized view of the keys of this associated container.
-     * The view additionally implements {@link ObjectLookupContainer}.
-     */
-    public ObjectLookupContainer<KType> keys() {
-        return map.keys();
-    }
-
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<KType> keysIt() {
-        final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
-        return new Iterator<KType>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public KType next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
      * Returns a {@link Set} view of the keys contained in this map.
      */
     @Override
@@ -294,7 +262,23 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         return new AbstractSet<>() {
             @Override
             public Iterator<KType> iterator() {
-                return keysIt();
+                final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
+                return new Iterator<KType>() {
+                    @Override
+                    public boolean hasNext() {
+                        return iterator.hasNext();
+                    }
+
+                    @Override
+                    public KType next() {
+                        return iterator.next().value;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
 
             @Override
@@ -517,6 +501,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         @Override
         public int removeAll(ObjectPredicate<? super KType> predicate) {
             return map.removeAll(predicate);
+        }
+
+        public void removeAllFromCollection(Collection<KType> collection) {
+            for (var k : collection) {
+                map.remove(k);
+            }
         }
 
         @Override

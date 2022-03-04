@@ -54,11 +54,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
      * @param field the soft deletes field
      */
     public LazySoftDeletesDirectoryReaderWrapper(DirectoryReader in, String field) throws IOException {
-        super(in, new LazySoftDeletesSubReaderWrapper(in, field));
-
-        readerCacheHelper = in.getReaderCacheHelper() == null
-            ? null
-            : new DelegatingCacheHelper(in.getReaderCacheHelper(), createCacheKey(in));
+        super(in, new LazySoftDeletesSubReaderWrapper(field));
+        readerCacheHelper = in.getReaderCacheHelper() == null ? null : new DelegatingCacheHelper(in.getReaderCacheHelper());
     }
 
     @Override
@@ -73,12 +70,10 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
     private static class LazySoftDeletesSubReaderWrapper extends SubReaderWrapper {
         private final String field;
-        private final DirectoryReader in;
 
-        LazySoftDeletesSubReaderWrapper(DirectoryReader in, String field) {
+        LazySoftDeletesSubReaderWrapper(String field) {
             Objects.requireNonNull(field, "Field must not be null");
             this.field = field;
-            this.in = in;
         }
 
         @Override
@@ -96,15 +91,11 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
         @Override
         public LeafReader wrap(LeafReader reader) {
-            try {
-                return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, field, in);
-            } catch (IOException e) {
-                throw new IllegalStateException("Unable to wrap leaf reader", e);
-            }
+            return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, field);
         }
     }
 
-    static LeafReader wrap(LeafReader reader, String field, DirectoryReader in) throws IOException {
+    static LeafReader wrap(LeafReader reader, String field) {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
         final int numSoftDeletes = segmentInfo.getSoftDelCount();
@@ -115,8 +106,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
         final LazyBits lazyBits = new LazyBits(maxDoc, field, reader, numSoftDeletes, numDocs);
         return reader instanceof CodecReader
-            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs, in)
-            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs, in);
+            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs)
+            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs);
     }
 
     public static final class LazySoftDeletesFilterLeafReader extends FilterLeafReader {
@@ -125,17 +116,14 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs, DirectoryReader in) throws IOException {
+        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs) {
             super(reader);
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
-
-            CacheKey cacheKey = (reader.getReaderCacheHelper() == null) ? null : createCacheKey(in);
-
-            this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
+            this.readerCacheHelper = reader.getReaderCacheHelper() == null
                 ? null
-                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), cacheKey);
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper());
         }
 
         @Override
@@ -165,17 +153,14 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs, DirectoryReader in) throws IOException {
+        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs) {
             super(reader);
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
-
-            CacheKey cacheKey = (reader.getReaderCacheHelper() == null) ? null : createCacheKey(in);
-
-            this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
+            this.readerCacheHelper = reader.getReaderCacheHelper() == null
                 ? null
-                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), cacheKey);
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper());
         }
 
         @Override
@@ -196,21 +181,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         @Override
         public CacheHelper getReaderCacheHelper() {
             return readerCacheHelper;
-        }
-    }
-
-    private record DelegatingCacheHelper(CacheHelper delegate, CacheKey cacheKey) implements CacheHelper {
-        @Override
-        public CacheKey getKey() {
-            return cacheKey;
-        }
-
-        @Override
-        public void addClosedListener(ClosedListener listener) {
-            // here we wrap the listener and call it with our cache key
-            // this is important since this key will be used to cache the reader and otherwise we won't
-            // free caches etc.
-            delegate.addClosedListener(unused -> listener.onClose(cacheKey));
         }
     }
 
@@ -299,14 +269,9 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         return newDeletes;
     }
 
-    static CacheKey createCacheKey(DirectoryReader in) {
-        try (DirectoryReader clone = DirectoryReader.open(in.directory())) {
-            if (clone.getReaderCacheHelper() == null) {
-                return null;
-            }
-            return clone.getReaderCacheHelper().getKey();
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to clone directory", e);
+    private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
+        DelegatingCacheHelper(CacheHelper delegate) {
+            super(delegate);
         }
     }
 }

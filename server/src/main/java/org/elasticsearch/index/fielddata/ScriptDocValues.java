@@ -15,8 +15,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.DocValuesSupplier;
-import org.elasticsearch.script.field.ValuesSuppliers;
+import org.elasticsearch.script.field.ScriptFieldDocValues;
+import org.elasticsearch.script.field.ScriptFieldValues;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -70,7 +70,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Longs extends ScriptDocValues<Long> {
 
-        public Longs(DocValuesSupplier<Long> supplier) {
+        public Longs(ScriptFieldDocValues<Long> supplier) {
             super(supplier);
         }
 
@@ -92,7 +92,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Dates extends ScriptDocValues<ZonedDateTime> {
 
-        public Dates(DocValuesSupplier<ZonedDateTime> supplier) {
+        public Dates(ScriptFieldDocValues<ZonedDateTime> supplier) {
             super(supplier);
         }
 
@@ -126,7 +126,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class DoublesSupplier implements DocValuesSupplier<Double> {
+    public static class DoublesSupplier implements ScriptFieldDocValues<Double> {
 
         private final SortedNumericDoubleValues in;
         private double[] values = new double[0];
@@ -170,7 +170,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Doubles extends ScriptDocValues<Double> {
 
-        public Doubles(DocValuesSupplier<Double> supplier) {
+        public Doubles(ScriptFieldDocValues<Double> supplier) {
             super(supplier);
         }
 
@@ -197,7 +197,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
 
-        public Geometry(DocValuesSupplier<T> supplier) {
+        public Geometry(ScriptFieldDocValues<T> supplier) {
             super(supplier);
         }
 
@@ -217,7 +217,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T> extends DocValuesSupplier<T> {
+    public interface GeometrySupplier<T> extends ScriptFieldDocValues<T> {
 
         GeoPoint getInternalCentroid();
 
@@ -342,9 +342,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Booleans extends ScriptDocValues<Boolean> {
 
-        private final ValuesSuppliers.BooleanValueSupplier supplier;
+        private final ScriptFieldValues.BooleanValues supplier;
 
-        public Booleans(ValuesSuppliers.BooleanValueSupplier supplier) {
+        public Booleans(ScriptFieldValues.BooleanValues supplier) {
             this.supplier = supplier;
         }
 
@@ -365,7 +365,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class StringsSupplier implements DocValuesSupplier<String> {
+    public static class StringsSupplier implements ScriptFieldDocValues<String> {
 
         private final SortedBinaryDocValues in;
         private BytesRefBuilder[] values = new BytesRefBuilder[0];
@@ -422,7 +422,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Strings extends ScriptDocValues<String> {
 
-        public Strings(DocValuesSupplier<String> supplier) {
+        public Strings(ScriptFieldDocValues<String> supplier) {
             super(supplier);
         }
 
@@ -449,7 +449,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        public BytesRefs(DocValuesSupplier<BytesRef> supplier) {
+        public BytesRefs(ScriptFieldDocValues<BytesRef> supplier) {
             super(supplier);
         }
 

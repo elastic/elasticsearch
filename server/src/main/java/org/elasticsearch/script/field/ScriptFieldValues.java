@@ -8,51 +8,51 @@
 
 package org.elasticsearch.script.field;
 
-public class ValuesSuppliers {
+public class ScriptFieldValues {
 
-    public interface ValueSupplier<T> {
+    public interface Values<T> {
 
         int size();
         T get(int index);
     }
 
-    public interface BooleanValueSupplier {
+    public interface BooleanValues {
 
         int size();
         boolean get(int index);
     }
 
-    public interface ByteValueSupplier {
+    public interface ByteValues {
 
         int size();
         byte get(int index);
     }
 
-    public interface CharValueSupplier {
+    public interface CharValues {
 
         int size();
         char get(int index);
     }
 
-    public interface IntValueSupplier {
+    public interface IntValues {
 
         int size();
         int get(int index);
     }
 
-    public interface LongValueSupplier {
+    public interface LongValues {
 
         int size();
         long get(int index);
     }
 
-    public interface FloatValueSupplier {
+    public interface FloatValues {
 
         int size();
         float get(int index);
     }
 
-    public interface DoubleValueSupplier {
+    public interface DoubleValues {
 
         int size();
         double get(int index);

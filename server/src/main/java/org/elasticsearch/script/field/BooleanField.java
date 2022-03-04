@@ -14,9 +14,9 @@ import java.util.NoSuchElementException;
 public class BooleanField implements Field<Boolean> {
 
     private final String name;
-    private final ValuesSuppliers.BooleanValueSupplier supplier;
+    private final ScriptFieldValues.BooleanValues supplier;
 
-    public BooleanField(String name, ValuesSuppliers.BooleanValueSupplier supplier) {
+    public BooleanField(String name, ScriptFieldValues.BooleanValues supplier) {
         this.name = name;
         this.supplier = supplier;
     }

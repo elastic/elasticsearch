@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class ByteDocValuesField implements DocValuesField<Byte>, DocValuesSupplier<Long> {
+public class ByteDocValuesField implements DocValuesField<Byte>, ScriptFieldDocValues<Long> {
 
     protected final SortedNumericDocValues input;
     protected final String name;

@@ -15,19 +15,14 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class BooleanDocValuesSupplier implements DocValuesSupplier, ValuesSuppliers.BooleanValueSupplier {
+public class BooleanDocValues implements ScriptFieldDocValues, ScriptFieldValues.BooleanValues {
 
     private final SortedNumericDocValues input;
 
     private boolean[] values = new boolean[0];
     private int count;
 
-    private BooleanField field = null;
-    // used for backwards compatibility for old-style "doc" access
-    // as a delegate to this field class
-    private ScriptDocValues.Booleans sdv = null;
-
-    public BooleanDocValuesSupplier(SortedNumericDocValues input) {
+    public BooleanDocValues(SortedNumericDocValues input) {
         this.input = input;
     }
 
@@ -60,23 +55,5 @@ public class BooleanDocValuesSupplier implements DocValuesSupplier, ValuesSuppli
     @Override
     public boolean get(int index) {
         return values[index];
-    }
-
-    @Override
-    public BooleanField getField(String name) {
-        if (field == null) {
-            field = new BooleanField(name, this);
-        }
-
-        return field;
-    }
-
-    @Override
-    public ScriptDocValues.Booleans getScriptDocValues() {
-        if (sdv == null) {
-            sdv = new ScriptDocValues.Booleans(this);
-        }
-
-        return sdv;
     }
 }

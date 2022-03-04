@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public class ScaledFloatDocValuesField implements DocValuesField<Double>, DocValuesSupplier<Double> {
+public class ScaledFloatDocValuesField implements DocValuesField<Double>, ScriptFieldDocValues<Double> {
 
     protected final SortedNumericDoubleValues input;
     protected final String name;

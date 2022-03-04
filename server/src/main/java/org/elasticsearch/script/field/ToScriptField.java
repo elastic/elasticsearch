@@ -19,5 +19,5 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
  */
 public interface ToScriptField<T> {
 
-    DocValuesSupplier getScriptField(T docValues);
+    ScriptFieldDocValuesSource getScriptField(T docValues);
 }

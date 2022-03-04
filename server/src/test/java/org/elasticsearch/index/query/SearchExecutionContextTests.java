@@ -62,7 +62,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.DocValuesSupplier;
+import org.elasticsearch.script.field.ScriptFieldDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
@@ -474,7 +474,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                         return new LeafFieldData() {
                             @Override
                             public DocValuesField<?> getScriptField(String name) {
-                                return new DelegateDocValuesField(new ScriptDocValues<String>(new DocValuesSupplier<String>() {
+                                return new DelegateDocValuesField(new ScriptDocValues<String>(new ScriptFieldDocValues<String>() {
                                     String value;
 
                                     @Override

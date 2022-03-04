@@ -38,14 +38,19 @@ RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEN
 RUN <%= retry.loop(package_manager, "${package_manager} install -y curl gcc make tar gzip") %>
 <% } %>
 
-<%
+WORKDIR /tmp
+<% if (docker_base == 'iron_bank') {
+// Iron Bank always copies local artifacts
+%>
+COPY zlib-${zlib_version}.tar.gz /tmp
+<% } else {
 // Fetch the zlib source.  Keep this command on one line - it is replaced
 // with a `COPY` during local builds.
 %>
-WORKDIR /tmp
 RUN curl --retry 10 -S -L -o zlib-${zlib_version}.tar.gz https://github.com/cloudflare/zlib/archive/refs/tags/v${zlib_version}.tar.gz
 RUN echo "7e393976368975446b263ae4143fb404bc33bf3b436e72007700b5b88e5be332cd461cdec42d31a4b6dffdca2368550f01b9fa1165d81c0aa818bbf2b1ac191e zlib-${zlib_version}.tar.gz" \\
       | sha512sum --check -
+<% } %>
 RUN tar xf zlib-${zlib_version}.tar.gz
 
 WORKDIR /tmp/zlib-${zlib_version}

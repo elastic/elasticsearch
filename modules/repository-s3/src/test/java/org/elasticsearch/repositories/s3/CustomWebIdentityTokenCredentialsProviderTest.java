@@ -76,6 +76,7 @@ public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
         Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
         Mockito.when(environment.configFile()).thenReturn(configDirectory);
 
+        // No region is set, but the SDK shouldn't fail because of that
         Map<String, String> environmentVariables = Map.of(
             "AWS_WEB_IDENTITY_TOKEN_FILE",
             "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
@@ -88,7 +89,6 @@ public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
             "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
             "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
         );
-
         var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
             environment,
             environmentVariables::get,

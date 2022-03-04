@@ -51,7 +51,7 @@ public class PivotCursor extends CompositeAggCursor {
         super.writeTo(out);
         if (previousKey != null) {
             out.writeBoolean(true);
-            out.writeMap(previousKey);
+            out.writeGenericMap(previousKey);
         } else {
             out.writeBoolean(false);
         }

@@ -92,7 +92,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeBoolean(includeUnmapped);
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
-        out.writeMap(runtimeFields);
+        out.writeGenericMap(runtimeFields);
         if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(allowedTypes);

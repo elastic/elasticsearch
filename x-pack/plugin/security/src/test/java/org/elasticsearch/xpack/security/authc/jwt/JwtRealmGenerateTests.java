@@ -85,7 +85,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
+                JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
             );
 
         // Create realm secure settings
@@ -165,7 +165,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), "roles")
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
+                JwtRealmSettings.ClientAuthenticationType.NONE.value()
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
@@ -243,7 +243,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)@[^.]*[.]example[.]com$")
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
+                JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
@@ -337,7 +337,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
+                JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
             );
 
         // Create realm secure settings

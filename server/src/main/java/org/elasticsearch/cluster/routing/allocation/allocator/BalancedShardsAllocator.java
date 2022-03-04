@@ -1132,7 +1132,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public void addShard(ShardRouting shard) {
-            indices.computeIfAbsent(shard.getIndexName(), ModelIndex::new).addShard(shard);
+            indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
             numShards++;
         }
 
@@ -1167,13 +1167,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static final class ModelIndex implements Iterable<ShardRouting> {
-        private final String indexName;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
         private int highestPrimary = -1;
 
-        ModelIndex(String indexName) {
-            this.indexName = indexName;
-        }
+        ModelIndex() {}
 
         public int highestPrimary() {
             if (highestPrimary == -1) {
@@ -1186,10 +1183,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return highestPrimary = maxId;
             }
             return highestPrimary;
-        }
-
-        public String getIndexName() {
-            return indexName;
         }
 
         public int numShards() {

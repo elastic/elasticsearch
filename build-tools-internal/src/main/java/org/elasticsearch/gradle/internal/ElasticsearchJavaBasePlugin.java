@@ -34,7 +34,6 @@ import java.util.List;
  * common configuration for production code.
  */
 public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
-
     @Override
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
@@ -154,4 +153,5 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             return Integer.parseInt(javaVersion.getMajorVersion());
         });
     }
+    
 }

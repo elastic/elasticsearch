@@ -107,8 +107,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             discoveryNodes.getDataNodes().size()
         );
         // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<String> node : discoveryNodes.getDataNodes().keySet()) {
-            nodesToShards.put(node.value, new LinkedHashMap<>()); // LinkedHashMap to preserve order
+        for (var node : discoveryNodes.getDataNodes().keySet()) {
+            nodesToShards.put(node, new LinkedHashMap<>()); // LinkedHashMap to preserve order
         }
 
         // fill in the inverse of node -> shards allocated

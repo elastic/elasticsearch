@@ -521,6 +521,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
             return map.removeAll(predicate);
         }
 
+        public void removeAllFromCollection(Collection<KType> collection) {
+            for (var k : collection) {
+                map.remove(k);
+            }
+        }
+
         @Override
         public <T extends ObjectObjectProcedure<? super KType, ? super VType>> T forEach(T procedure) {
             return map.forEach(procedure);

@@ -76,6 +76,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -473,13 +474,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keySet());
-        for (String index : intersection) {
+        Set<String> indicesKeys = indices.keySet();
+        Stream.of(concreteIndices).filter(indicesKeys::contains).forEach(index -> {
             onNextIndex.run();
             IndexMetadata indexMetadata = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
-        }
+        });
         return indexMapBuilder.build();
     }
 

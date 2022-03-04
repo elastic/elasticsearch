@@ -293,18 +293,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     final var aliasesOnFollowerNotOnLeader = new HashSet<String>();
 
                     for (final var aliasName : leaderIndexMetadata.getAliases().keySet()) {
-                        if (followerIndexMetadata.getAliases().containsKey(aliasName.value)) {
-                            aliasesInCommon.add(aliasName.value);
+                        if (followerIndexMetadata.getAliases().containsKey(aliasName)) {
+                            aliasesInCommon.add(aliasName);
                         } else {
-                            aliasesOnLeaderNotOnFollower.add(aliasName.value);
+                            aliasesOnLeaderNotOnFollower.add(aliasName);
                         }
                     }
 
                     for (final var aliasName : followerIndexMetadata.getAliases().keySet()) {
-                        if (leaderIndexMetadata.getAliases().containsKey(aliasName.value)) {
-                            assert aliasesInCommon.contains(aliasName.value) : aliasName.value;
+                        if (leaderIndexMetadata.getAliases().containsKey(aliasName)) {
+                            assert aliasesInCommon.contains(aliasName) : aliasName;
                         } else {
-                            aliasesOnFollowerNotOnLeader.add(aliasName.value);
+                            aliasesOnFollowerNotOnLeader.add(aliasName);
                         }
                     }
 

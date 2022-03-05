@@ -213,25 +213,21 @@ public class CompoundProcessorTests extends ESTestCase {
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
         TestProcessor firstFailingProcessor = new TestProcessor("id1", "first", null, new RuntimeException("first failure"));
-        TestProcessor onFailure1 = new TestProcessor("id2", "second", null, ingestDocument -> {
-            ingestDocument.setFieldValue("foofield", "exists");
-        });
+        TestProcessor onFailure1 = new TestProcessor(
+            "id2",
+            "second",
+            null,
+            ingestDocument -> { ingestDocument.setFieldValue("foofield", "exists"); }
+        );
         TestProcessor onFailure2 = new TestProcessor("id3", "third", null, new RuntimeException("onfailure2"));
-        TestProcessor onFailure2onFailure = new TestProcessor("id4", "4th", null, ingestDocument -> {
-            ingestDocument.setFieldValue("foofield2", "ran");
-        });
-        CompoundProcessor of2 = new CompoundProcessor(
-            false,
-            List.of(onFailure2),
-            List.of(onFailure2onFailure),
-            relativeTimeProvider
+        TestProcessor onFailure2onFailure = new TestProcessor(
+            "id4",
+            "4th",
+            null,
+            ingestDocument -> { ingestDocument.setFieldValue("foofield2", "ran"); }
         );
-        CompoundProcessor compoundOnFailProcessor = new CompoundProcessor(
-            false,
-            List.of(onFailure1, of2),
-            List.of(),
-            relativeTimeProvider
-        );
+        CompoundProcessor of2 = new CompoundProcessor(false, List.of(onFailure2), List.of(onFailure2onFailure), relativeTimeProvider);
+        CompoundProcessor compoundOnFailProcessor = new CompoundProcessor(false, List.of(onFailure1, of2), List.of(), relativeTimeProvider);
         CompoundProcessor compoundProcessor = new CompoundProcessor(
             false,
             Collections.singletonList(firstFailingProcessor),

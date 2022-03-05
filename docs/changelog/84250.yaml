@@ -2,4 +2,5 @@ pr: 84250
 summary: Ingest pipeline performance improvements
 area: Ingest
 type: enhancement
-issues: []
+issues:
+ - 84274

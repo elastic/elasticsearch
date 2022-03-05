@@ -439,7 +439,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
                                 if (exists != null) {
                                     if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
                                         handler.accept(null, new IllegalStateException(
-                                            "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
+                                            "expected document to contain ["
+                                                + exists
+                                                + "] but was ["
+                                                + ingestDocument.getSourceAndMetadata()
                                         ));
                                     }
                                 }

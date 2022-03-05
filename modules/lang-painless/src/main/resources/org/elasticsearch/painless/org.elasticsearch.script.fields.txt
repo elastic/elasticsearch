@@ -77,7 +77,7 @@ class org.elasticsearch.script.field.ByteField @dynamic_type {
 }
 
 # defaults are cast to short, taking an int facilitates resolution with constants without casting
-class org.elasticsearch.script.field.ShortDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.ShortField @dynamic_type {
   short get(int)
   short get(int, int)
 }

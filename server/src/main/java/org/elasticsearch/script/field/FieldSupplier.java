@@ -31,6 +31,12 @@ public final class FieldSupplier {
         byte get(int index);
     }
 
+    public interface ShortSupplier {
+
+        int size();
+        short get(int index);
+    }
+
     public interface CharSupplier {
 
         int size();

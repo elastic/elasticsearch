@@ -10,7 +10,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.script.field.ByteField;
 import org.elasticsearch.script.field.IntegerField;
-import org.elasticsearch.script.field.ShortDocValuesField;
+import org.elasticsearch.script.field.ShortField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class IntegralDocValuesFieldTests extends ESTestCase {
 
     public void testShortField() throws IOException {
         long[][] values = generate(ESTestCase::randomShort);
-        ShortDocValuesField shortField = new ShortDocValuesField(wrap(values), "test");
+        ShortField shortField = new ShortField(wrap(values), "test");
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             shortField.setNextDocId(d);

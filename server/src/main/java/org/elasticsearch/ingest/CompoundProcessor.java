@@ -61,7 +61,7 @@ public class CompoundProcessor implements Processor {
         this.onFailureProcessors = onFailureProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
         this.processorsWithMetrics = new ArrayList<>(processors.size());
-        this.isAsync = processors.stream().anyMatch(Processor::isAsync);
+        this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
         processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
 
@@ -142,50 +142,18 @@ public class CompoundProcessor implements Processor {
     public IngestDocument execute(IngestDocument document) throws Exception {
         assert isAsync == false;
 
-        for (Tuple<Processor, IngestMetric> processorWithMetric : processorsWithMetrics) {
-            Processor processor = processorWithMetric.v1();
-            IngestMetric metric = processorWithMetric.v2();
-            long startTimeInNanos = relativeTimeProvider.getAsLong();
-            try {
-                metric.preIngest();
-                if (processor.execute(document) == null) {
-                    return null;
-                }
-            } catch (Exception e) {
-                metric.ingestFailed();
-                if (ignoreFailure) {
-                    continue;
-                }
+        IngestDocument[] docHolder = new IngestDocument[1];
+        Exception[] exHolder = new Exception[1];
+        innerExecute(0, document, (result, e) -> {
+            docHolder[0] = result;
+            exHolder[0] = e;
+        });
 
-                ElasticsearchException compoundProcessorException = newCompoundProcessorException(e, processor, document);
-                if (onFailureProcessors.isEmpty()) {
-                    throw compoundProcessorException;
-                } else {
-                    document = executeOnFailure(document, compoundProcessorException);
-                    break;
-                }
-            } finally {
-                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-                metric.postIngest(ingestTimeInNanos);
-            }
+        if (exHolder[0] != null) {
+            throw exHolder[0];
         }
-        return document;
-    }
 
-    IngestDocument executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
-        try {
-            putFailureMetadata(ingestDocument, exception);
-            for (Processor processor : onFailureProcessors) {
-                try {
-                    return processor.execute(ingestDocument);
-                } catch (Exception e) {
-                    throw newCompoundProcessorException(e, processor, ingestDocument);
-                }
-            }
-        } finally {
-            removeFailureMetadata(ingestDocument);
-        }
-        return null;
+        return docHolder[0];
     }
 
     @Override
@@ -200,10 +168,11 @@ public class CompoundProcessor implements Processor {
             return;
         }
 
-        Tuple<Processor, IngestMetric> processorWithMetric = processorsWithMetrics.get(currentProcessor);
-        Processor processor = processorWithMetric.v1();
-        IngestMetric metric = processorWithMetric.v2();
+        Tuple<Processor, IngestMetric> processorWithMetric;
+        Processor processor;
+        IngestMetric metric;
         long startTimeInNanos = 0;
+        // iteratively execute any sync processors
         while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();

@@ -209,6 +209,52 @@ public class CompoundProcessorTests extends ESTestCase {
         assertStats(compoundProcessor, 1, 1, 0);
     }
 
+    public void testNestedOnFailureHandlers() {
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
+        TestProcessor firstFailingProcessor = new TestProcessor("id1", "first", null, new RuntimeException("first failure"));
+        TestProcessor onFailure1 = new TestProcessor("id2", "second", null, ingestDocument -> {
+            ingestDocument.setFieldValue("foofield", "exists");
+        });
+        TestProcessor onFailure2 = new TestProcessor("id3", "third", null, new RuntimeException("onfailure2"));
+        TestProcessor onFailure2onFailure = new TestProcessor("id4", "4th", null, ingestDocument -> {
+            ingestDocument.setFieldValue("foofield2", "ran");
+        });
+        CompoundProcessor of2 = new CompoundProcessor(
+            false,
+            List.of(onFailure2),
+            List.of(onFailure2onFailure),
+            relativeTimeProvider
+        );
+        CompoundProcessor compoundOnFailProcessor = new CompoundProcessor(
+            false,
+            List.of(onFailure1, of2),
+            List.of(),
+            relativeTimeProvider
+        );
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Collections.singletonList(firstFailingProcessor),
+            Collections.singletonList(compoundOnFailProcessor),
+            relativeTimeProvider
+        );
+        IngestDocument[] docHolder = new IngestDocument[1];
+        Exception[] exHolder = new Exception[1];
+        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {
+            docHolder[0] = result;
+            exHolder[0] = e;
+        });
+
+        assertThat(onFailure1.getInvokedCounter(), equalTo(1));
+        assertThat(onFailure2.getInvokedCounter(), equalTo(1));
+        assertThat(onFailure2onFailure.getInvokedCounter(), equalTo(1));
+        assertStats(compoundProcessor, 1, 1, 0);
+        assertThat(docHolder[0], notNullValue());
+        assertThat(exHolder[0], nullValue());
+        assertThat(docHolder[0].getFieldValue("foofield", String.class), equalTo("exists"));
+        assertThat(docHolder[0].getFieldValue("foofield2", String.class), equalTo("ran"));
+    }
+
     public void testCompoundProcessorExceptionFailWithoutOnFailure() throws Exception {
         TestProcessor firstProcessor = new TestProcessor("id1", "first", null, new RuntimeException("error"));
         TestProcessor secondProcessor = new TestProcessor("id3", "second", null, ingestDocument -> {

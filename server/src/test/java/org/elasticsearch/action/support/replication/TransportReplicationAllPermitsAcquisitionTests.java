@@ -111,7 +111,15 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         super.setUp();
         globalBlock = randomBoolean();
         RestStatus restStatus = randomFrom(RestStatus.values());
-        block = new ClusterBlock(randomIntBetween(1, 10), randomAlphaOfLength(5), false, true, false, restStatus, ClusterBlockLevel.ALL);
+        block = new ClusterBlock(
+            randomIntBetween(2, 16), // 1 means STATE_NOT_RECOVERED_BLOCK which conflicts with having a routing table
+            randomAlphaOfLength(5),
+            false,
+            true,
+            false,
+            restStatus,
+            ClusterBlockLevel.ALL
+        );
         clusterService = createClusterService(threadPool);
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());

@@ -87,43 +87,29 @@ public class ClusterStateUpdaters {
         return ClusterState.builder(state).blocks(blocks).build();
     }
 
-    static ClusterState updateRoutingTable(final ClusterState state) {
-        // initialize all index routing tables as empty
+    static ClusterState initializeRoutingTable(final ClusterState state) {
+        assert state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) : state;
+
+        // initialize all index routing tables as needing recovery
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
         for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             routingTableBuilder.addAsRecovery(indexMetadata);
         }
-        // start with 0 based versions for routing table
-        routingTableBuilder.version(0);
-        return ClusterState.builder(state).routingTable(routingTableBuilder.build()).build();
-    }
 
-    static ClusterState removeStateNotRecoveredBlock(final ClusterState state) {
         return ClusterState.builder(state)
+            // start with 0 based versions for routing table
+            .routingTable(routingTableBuilder.version(0).build())
+            // remove STATE_NOT_RECOVERED_BLOCK
             .blocks(ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
     }
 
     public static ClusterState addStateNotRecoveredBlock(ClusterState state) {
+        assert state.routingTable().version() == 0 : state;
+        assert state.routingTable().iterator().hasNext() == false : state;
         return ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
-    }
-
-    static ClusterState mixCurrentStateAndRecoveredState(final ClusterState currentState, final ClusterState recoveredState) {
-        assert currentState.metadata().indices().isEmpty();
-
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).blocks(recoveredState.blocks());
-
-        final Metadata.Builder metadataBuilder = Metadata.builder(recoveredState.metadata());
-        // automatically generate a UID for the metadata if we need to
-        metadataBuilder.generateClusterUuidIfNeeded();
-
-        for (final IndexMetadata indexMetadata : recoveredState.metadata()) {
-            metadataBuilder.put(indexMetadata, false);
-        }
-
-        return ClusterState.builder(currentState).blocks(blocks).metadata(metadataBuilder).build();
     }
 
     public static ClusterState hideStateIfNotRecovered(ClusterState state) {

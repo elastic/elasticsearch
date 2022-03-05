@@ -72,7 +72,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNode masterNode = randomNode("master");
         DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        final ClusterState.Builder initialClusterStateBuilder = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes);
+        if (randomBoolean()) {
+            initialClusterStateBuilder.blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+        }
+        ClusterState clusterState = initialClusterStateBuilder.build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
             otherNode,
@@ -256,7 +260,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
             }
         }
-        int additionalIndexCount = randomIntBetween(1, 20);
+        int additionalIndexCount = clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+            ? 0
+            : randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
             builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keySet().toArray(new String[0])));
         }
@@ -352,12 +358,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Returns a random global block
      */
-    private ClusterBlock randomGlobalBlock() {
-        return switch (randomInt(2)) {
-            case 0 -> NoMasterBlockService.NO_MASTER_BLOCK_ALL;
-            case 1 -> NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
-            default -> GatewayService.STATE_NOT_RECOVERED_BLOCK;
-        };
+    private static ClusterBlock randomGlobalBlock() {
+        return randomBoolean() ? NoMasterBlockService.NO_MASTER_BLOCK_ALL : NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
     }
 
     /**

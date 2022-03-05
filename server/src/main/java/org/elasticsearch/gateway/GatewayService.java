@@ -36,7 +36,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
@@ -222,10 +221,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 return currentState;
             }
 
-            return Function.<ClusterState>identity()
-                .andThen(ClusterStateUpdaters::updateRoutingTable)
-                .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
-                .apply(currentState);
+            return ClusterStateUpdaters.initializeRoutingTable(currentState);
         }
 
         @Override

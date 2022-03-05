@@ -296,7 +296,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(unblockBeforeTimeout ? 60 : 0));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(99, "", retryableBlock, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
             .blocks(ClusterBlocks.builder().addGlobalBlock(block))
             .build();
@@ -342,7 +342,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(99, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
             .blocks(ClusterBlocks.builder().addGlobalBlock(block))
             .build();
@@ -543,7 +543,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testTaskCancellation() {
-        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(99, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
             .blocks(ClusterBlocks.builder().addGlobalBlock(block))
             .build();

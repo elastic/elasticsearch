@@ -444,7 +444,9 @@ public class MasterService extends AbstractLifecycleComponent {
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
             Builder builder = incrementVersion(newClusterState);
-            if (previousClusterState.routingTable() != newClusterState.routingTable()) {
+            if (previousClusterState.routingTable() != newClusterState.routingTable()
+                && (previousClusterState.routingTable().iterator().hasNext())
+                || newClusterState.routingTable().iterator().hasNext()) {
                 builder.routingTable(newClusterState.routingTable().withIncrementedVersion());
             }
             if (previousClusterState.metadata() != newClusterState.metadata()) {

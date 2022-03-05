@@ -148,7 +148,7 @@ public class ClusterStateTests extends ESTestCase {
               "master_node": "nodeId1",
               "blocks": {
                 "global": {
-                  "1": {
+                  "99": {
                     "description": "description",
                     "retryable": true,
                     "disable_state_persistence": true,
@@ -358,7 +358,7 @@ public class ClusterStateTests extends ESTestCase {
               "master_node" : "nodeId1",
               "blocks" : {
                 "global" : {
-                  "1" : {
+                  "99" : {
                     "description" : "description",
                     "retryable" : true,
                     "disable_state_persistence" : true,
@@ -561,7 +561,7 @@ public class ClusterStateTests extends ESTestCase {
               "master_node" : "nodeId1",
               "blocks" : {
                 "global" : {
-                  "1" : {
+                  "99" : {
                     "description" : "description",
                     "retryable" : true,
                     "disable_state_persistence" : true,
@@ -884,7 +884,7 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
-                        new ClusterBlock(1, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
+                        new ClusterBlock(99, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
                     )
                     .addBlocks(indexMetadata)
                     .addIndexBlock(

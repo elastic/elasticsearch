@@ -213,7 +213,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testBlocksInReroutePhase() {
         final ClusterBlock nonRetryableBlock = new ClusterBlock(
-            1,
+            99,
             "non retryable",
             false,
             true,
@@ -222,7 +222,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ClusterBlockLevel.ALL
         );
         final ClusterBlock retryableBlock = new ClusterBlock(
-            1,
+            99,
             "retryable",
             true,
             true,
@@ -365,7 +365,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         if (globalBlock) {
             block.addGlobalBlock(
                 new ClusterBlock(
-                    randomIntBetween(1, 16),
+                    randomIntBetween(2, 16), // 1 means STATE_NOT_RECOVERED_BLOCK which conflicts with having a routing table
                     "test global block",
                     randomBoolean(),
                     randomBoolean(),

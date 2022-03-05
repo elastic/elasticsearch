@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -989,10 +991,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             outStream.bytes().streamInput(),
                             getNamedWriteableRegistry()
                         );
-                        // adapt cluster state to new localNode instance and add blocks
+                        final ClusterState rawState = ClusterState.readFrom(inStream, newLocalNode);
+                        // adapt cluster state to new localNode instance and revert state recovery
                         delegate = new InMemoryPersistedState(
                             adaptCurrentTerm.apply(persistedCurrentTerm),
-                            ClusterStateUpdaters.addStateNotRecoveredBlock(ClusterState.readFrom(inStream, newLocalNode))
+                            ClusterState.builder(rawState)
+                                .routingTable(RoutingTable.EMPTY_ROUTING_TABLE)
+                                .blocks(ClusterBlocks.builder().blocks(rawState.blocks()).addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+                                .build()
                         );
                     }
                 } catch (IOException e) {

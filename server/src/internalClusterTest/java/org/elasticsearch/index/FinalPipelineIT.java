@@ -438,12 +438,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
                             randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
                                 if (exists != null) {
                                     if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
-                                        handler.accept(null, new IllegalStateException(
-                                            "expected document to contain ["
-                                                + exists
-                                                + "] but was ["
-                                                + ingestDocument.getSourceAndMetadata()
-                                        ));
+                                        handler.accept(
+                                            null,
+                                            new IllegalStateException(
+                                                "expected document to contain ["
+                                                    + exists
+                                                    + "] but was ["
+                                                    + ingestDocument.getSourceAndMetadata()
+                                            )
+                                        );
                                     }
                                 }
                                 ingestDocument.setFieldValue("final", true);

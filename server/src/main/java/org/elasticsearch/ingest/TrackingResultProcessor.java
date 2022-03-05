@@ -193,7 +193,6 @@ public final class TrackingResultProcessor implements Processor {
         }
     }
 
-
     @Override
     public String getType() {
         return actualProcessor.getType();

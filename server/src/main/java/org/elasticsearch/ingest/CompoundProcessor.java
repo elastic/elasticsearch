@@ -106,8 +106,8 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public String getTag() {
-        return "CompoundProcessor-" +
-            flattenProcessors().stream().map(CompoundProcessor::processorDescription).collect(Collectors.joining("-"));
+        return "CompoundProcessor-"
+            + flattenProcessors().stream().map(CompoundProcessor::processorDescription).collect(Collectors.joining("-"));
     }
 
     private static String processorDescription(Processor p) {

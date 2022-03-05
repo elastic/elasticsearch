@@ -128,5 +128,5 @@ class org.elasticsearch.script.field.SeqNoField @dynamic_type {
 }
 
 # subclass of AbstractLongDocValuesField
-class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.VersionField @dynamic_type {
 }

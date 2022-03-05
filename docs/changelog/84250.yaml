@@ -1,5 +1,5 @@
 pr: 84250
-summary: Ingest pipeline performance improvements
+summary: Iteratively execute synchronous ingest processors
 area: Ingest
 type: enhancement
 issues:

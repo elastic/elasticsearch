@@ -624,7 +624,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private static final Map<Class<?>, Writer<?>> WRITERS = Map.ofEntries(
-        entry(String.class, (o, v) -> o.writeStringGeneric((String) v)),
+        entry(String.class, (o, v) -> o.writeGenericString((String) v)),
         entry(Integer.class, (o, v) -> {
             o.writeByte((byte) 1);
             o.writeInt((Integer) v);
@@ -651,7 +651,7 @@ public abstract class StreamOutput extends OutputStream {
             o.writeVInt(bytes.length);
             o.writeBytes(bytes);
         }),
-        entry(List.class, (o, v) -> o.writeListGeneric((List<?>) v, StreamOutput::writeGenericValue)),
+        entry(List.class, (o, v) -> o.writeGenericList((List<?>) v, StreamOutput::writeGenericValue)),
         entry(Object[].class, (o, v) -> {
             o.writeByte((byte) 8);
             final Object[] list = (Object[]) v;
@@ -748,12 +748,12 @@ public abstract class StreamOutput extends OutputStream {
         })
     );
 
-    public <T> void writeListGeneric(List<T> v, Writer<T> writer) throws IOException {
+    public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
         writeByte((byte) 7);
         writeCollection(v, writer);
     }
 
-    public void writeStringGeneric(String value) throws IOException {
+    public void writeGenericString(String value) throws IOException {
         writeByte((byte) 0);
         writeString(value);
     }

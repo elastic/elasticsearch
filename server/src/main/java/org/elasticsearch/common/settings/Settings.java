@@ -601,12 +601,12 @@ public final class Settings implements ToXContentFragment {
         // pull settings to exclude secure settings in size()
         out.writeMap(settings.settings, StreamOutput::writeString, (streamOutput, value) -> {
             if (value instanceof String) {
-                streamOutput.writeStringGeneric((String) value);
+                streamOutput.writeGenericString((String) value);
             } else if (value instanceof List<?>) {
                 @SuppressWarnings("unchecked")
                 // exploit the fact that we know all lists to be string lists
                 final List<String> stringList = (List<String>) value;
-                streamOutput.writeListGeneric(stringList, StreamOutput::writeStringGeneric);
+                streamOutput.writeGenericList(stringList, StreamOutput::writeGenericString);
             } else {
                 streamOutput.writeGenericValue(value);
             }

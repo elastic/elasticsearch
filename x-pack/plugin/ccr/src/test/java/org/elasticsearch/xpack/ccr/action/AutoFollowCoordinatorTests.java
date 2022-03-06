@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -1791,10 +1789,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            boolean expect = index.value.getState() == IndexMetadata.State.OPEN;
-            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(expect));
-            assertThat(followedIndices.contains(index.key), is(expect));
+        for (var index : remoteState.metadata().indices().entrySet()) {
+            boolean expect = index.getValue().getState() == IndexMetadata.State.OPEN;
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(expect));
+            assertThat(followedIndices.contains(index.getKey()), is(expect));
         }
     }
 
@@ -1898,11 +1896,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
-        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            final Index remoteIndex = index.value.getIndex();
+        for (var index : remoteState.metadata().indices().entrySet()) {
+            final Index remoteIndex = index.getValue().getIndex();
             boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
-            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(followed));
-            assertThat(followedIndices.contains(index.key), is(followed));
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(followed));
+            assertThat(followedIndices.contains(index.getKey()), is(followed));
             assertThat(autoFollowedIndices.contains(remoteIndex.getUUID()), equalTo(followed));
         }
     }

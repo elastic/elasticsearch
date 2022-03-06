@@ -2221,7 +2221,7 @@ public class MetadataTests extends ESTestCase {
         }
         assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
         assertThat(
-            metadata.indices().stream().map(entry -> entry.getValue().mapping()).collect(Collectors.toSet()),
+            metadata.indices().values().stream().map(IndexMetadata::mapping).collect(Collectors.toSet()),
             hasSize(metadata.getMappingsByHash().size())
         );
 

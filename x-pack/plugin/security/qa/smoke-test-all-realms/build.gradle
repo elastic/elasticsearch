@@ -87,7 +87,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms', 'HS256'
   setting 'xpack.security.authc.realms.jwt.jwt8.allowed_audiences', 'aud8'
   setting 'xpack.security.authc.realms.jwt.jwt8.claims.principal', 'sub'
-  setting 'xpack.security.authc.realms.jwt.jwt8.client_authentication.type', 'SharedSecret'
+  setting 'xpack.security.authc.realms.jwt.jwt8.client_authentication.type', 'shared_secret'
   keystore 'xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret', 'client-shared-secret-string'
   keystore 'xpack.security.authc.realms.jwt.jwt8.hmac_key', 'hmac-oidc-key-string-for-hs256-algorithm'
 

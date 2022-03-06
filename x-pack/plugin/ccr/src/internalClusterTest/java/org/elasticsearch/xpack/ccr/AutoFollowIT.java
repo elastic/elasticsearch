@@ -204,7 +204,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
             });
         } catch (AssertionError ae) {
-            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keys().toArray(String.class)));
+            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keySet().toArray(new String[0])));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -223,7 +223,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
-            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keys().toArray(String.class)));
+            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keySet().toArray(new String[0])));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }

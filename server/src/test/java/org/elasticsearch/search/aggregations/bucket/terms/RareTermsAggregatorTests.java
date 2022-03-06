@@ -66,6 +66,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
@@ -155,24 +157,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             dataset,
             aggregation -> aggregation.field(LONG_FIELD)
                 .maxDocCount(2) // bump to 2 since we're only including "2"
-                .includeExclude(new IncludeExclude(new long[] { 2 }, new long[] {})),
+                .includeExclude(new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("2"))), new TreeSet<>())),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
                 LongRareTerms.Bucket bucket = (LongRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo(2L));
-                assertThat(bucket.getDocCount(), equalTo(2L));
-            }
-        );
-        testSearchCase(
-            query,
-            dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD)
-                .maxDocCount(2) // bump to 2 since we're only including "2"
-                .includeExclude(new IncludeExclude(new String[] { "2" }, new String[] {})),
-            agg -> {
-                assertEquals(1, agg.getBuckets().size());
-                StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
-                assertThat(bucket.getKeyAsString(), equalTo("2"));
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
         );
@@ -193,7 +182,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Aggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-            assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
+            assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
         });
         testSearchCase(query, dataset, aggregation -> {
             MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
@@ -207,7 +196,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Aggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-            assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
+            assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
         });
     }
 

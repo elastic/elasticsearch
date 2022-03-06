@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
@@ -513,8 +511,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         String nodeAttrIndexRequireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexIncludeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexExcludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
-        for (ObjectObjectCursor<String, IndexMetadata> index : currentState.metadata().indices()) {
-            IndexMetadata indexMetadata = index.value;
+        for (var indexMetadata : currentState.metadata().indices().values()) {
             String indexName = indexMetadata.getIndex().getName();
             Settings currentSettings = indexMetadata.getSettings();
 
@@ -645,8 +642,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedLegacyTemplates = new ArrayList<>();
 
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> templateCursor : clusterState.metadata().templates()) {
-            IndexTemplateMetadata templateMetadata = templateCursor.value;
+        for (var template : clusterState.metadata().templates().entrySet()) {
+            IndexTemplateMetadata templateMetadata = template.getValue();
             if (templateMetadata.settings().keySet().contains(requireRoutingSetting)
                 || templateMetadata.settings().keySet().contains(includeRoutingSetting)) {
                 IndexTemplateMetadata.Builder templateMetadataBuilder = new IndexTemplateMetadata.Builder(templateMetadata);
@@ -657,7 +654,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 templateMetadataBuilder.settings(settingsBuilder);
 
                 mb.put(templateMetadataBuilder);
-                migratedLegacyTemplates.add(templateCursor.key);
+                migratedLegacyTemplates.add(template.getKey());
             }
         }
         return migratedLegacyTemplates;

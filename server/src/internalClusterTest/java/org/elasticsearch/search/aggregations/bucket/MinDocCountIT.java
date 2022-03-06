@@ -336,7 +336,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .executionHint(randomExecutionHint())
                         .order(order)
                         .size(size)
-                        .includeExclude(include == null ? null : new IncludeExclude(include, null))
+                        .includeExclude(include == null ? null : new IncludeExclude(include, null, null, null))
                         .shardSize(cardinality + randomInt(10))
                         .minDocCount(minDocCount)
                 )

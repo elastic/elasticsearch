@@ -1,6 +1,0 @@
-pr: 83661
-summary: Add log4j-slf4j-impl to repository-azure
-area: "Packaging"
-type: bug
-issues:
- - 83652

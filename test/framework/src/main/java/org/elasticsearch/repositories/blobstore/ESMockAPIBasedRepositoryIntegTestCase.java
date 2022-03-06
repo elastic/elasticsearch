@@ -82,7 +82,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
-    private static final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
     public static void startHttpServer() throws Exception {

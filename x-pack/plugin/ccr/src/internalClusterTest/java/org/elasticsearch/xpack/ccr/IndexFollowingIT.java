@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -488,8 +486,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .indices()
             .getAliases(new GetAliasesRequest("follower_alias"))
             .actionGet();
-        assertThat(response.getAliases().keys().size(), equalTo(1));
-        assertThat(response.getAliases().keys().iterator().next().value, equalTo("follower"));
+        assertThat(response.getAliases().keySet().size(), equalTo(1));
+        assertThat(response.getAliases().keySet().iterator().next(), equalTo("follower"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("follower");
         assertThat(aliasMetadata, hasSize(1));
         assertThat(aliasMetadata.get(0).alias(), equalTo("follower_alias"));
@@ -1365,8 +1363,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 new Index("index1", leaderUUID)
             );
 
-            for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
-                final ShardId shardId = shardRoutingTable.value.shardId();
+            for (final IndexShardRoutingTable shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
+                final ShardId shardId = shardRoutingTable.shardId();
                 leaderClient().execute(
                     RetentionLeaseActions.Remove.INSTANCE,
                     new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)

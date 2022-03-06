@@ -94,6 +94,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * @param name
      *            the name of this aggregation

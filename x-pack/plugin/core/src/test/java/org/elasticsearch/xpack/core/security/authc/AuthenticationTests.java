@@ -567,10 +567,17 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-        final AuthenticationType authenticationType = randomValueOtherThan(
-            AuthenticationType.API_KEY,
-            () -> randomFrom(AuthenticationType.values())
-        );
+        final AuthenticationType authenticationType;
+        if (realmRef.getDomain() != null) {
+            authenticationType = randomValueOtherThanMany(
+                authType -> authType == AuthenticationType.API_KEY
+                    || authType == AuthenticationType.INTERNAL
+                    || authType == AuthenticationType.ANONYMOUS,
+                () -> randomFrom(AuthenticationType.values())
+            );
+        } else {
+            authenticationType = randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()));
+        }
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -582,7 +589,7 @@ public class AuthenticationTests extends ESTestCase {
         if (randomBoolean()) { // run-as
             return new Authentication(
                 new User(user.principal(), user.roles(), randomUser()),
-                randomRealmRef(false),
+                randomRealmRef(randomBoolean()),
                 realmRef,
                 version,
                 authenticationType,

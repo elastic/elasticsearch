@@ -383,7 +383,7 @@ public class JobResultsProvider {
             // Expect one index. If this is not the case then it means the
             // index has been deleted almost immediately after being created, and this is
             // so unlikely that it's reasonable to fail the whole operation.
-            MappingMetadata indexMappings = getMappingsResponse.getMappings().iterator().next().value;
+            MappingMetadata indexMappings = getMappingsResponse.getMappings().values().iterator().next();
             addTermsMapping(indexMappings, indexName, termFields, listener);
         }, listener::onFailure);
 

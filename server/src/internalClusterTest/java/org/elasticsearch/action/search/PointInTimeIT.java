@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -155,8 +156,9 @@ public class PointInTimeIT extends ESIntegTestCase {
             final Set<String> dataNodes = clusterService().state()
                 .nodes()
                 .getDataNodes()
+                .values()
                 .stream()
-                .map(e -> e.getValue().getId())
+                .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
             assertAcked(
@@ -321,8 +323,9 @@ public class PointInTimeIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
+            .map(DiscoveryNode::getName)
             .collect(Collectors.toList());
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 

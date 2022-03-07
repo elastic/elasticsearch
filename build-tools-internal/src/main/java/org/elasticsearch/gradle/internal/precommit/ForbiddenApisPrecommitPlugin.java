@@ -66,11 +66,10 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
             String sourceSetTaskName = sourceSet.getTaskName(FORBIDDEN_APIS_TASK_NAME, null);
             var sourceSetTask = project.getTasks().register(sourceSetTaskName, CheckForbiddenApisTask.class, t -> {
                 t.setDescription("Runs forbidden-apis checks on '${sourceSet.name}' classes.");
-                t.dependsOn(sourceSet.getOutput());
                 t.getOutputs().upToDateWhen(Specs.SATISFIES_ALL);
                 t.setClassesDirs(sourceSet.getOutput().getClassesDirs());
                 t.dependsOn(resourcesTask);
-                t.setClasspath(project.files(sourceSet.getRuntimeClasspath()).plus(sourceSet.getCompileClasspath()));
+                t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()).plus(sourceSet.getOutput()));
                 t.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion().getMajorVersion());
                 t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out"));
                 t.setSignaturesFiles(

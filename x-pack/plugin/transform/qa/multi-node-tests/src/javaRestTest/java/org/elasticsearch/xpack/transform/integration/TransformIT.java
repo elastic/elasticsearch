@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
 @SuppressWarnings("removal")
-public class TransformIT extends TransformIntegTestCase {
+public class TransformIT extends TransformRestTestCase {
 
     private static final int NUM_USERS = 28;
 
@@ -425,6 +425,7 @@ public class TransformIT extends TransformIntegTestCase {
                 """.formatted(userId, i, business, stars, timestamp);
             bulkBuilder.append(source);
         }
+        bulkBuilder.append("\r\n");
         doBulk(bulkBuilder.toString(), true);
     }
 }

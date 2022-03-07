@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
  * This test checks, if an HTTP look-alike request (starting with an HTTP method and a space)
  * actually returns text response instead of just dropping the connection
  */
-public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
+public class Netty5SizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
         .put("node.name", "NettySizeHeaderFrameDecoderTests")

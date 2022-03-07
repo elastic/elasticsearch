@@ -16,7 +16,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CompletableContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.transport.TcpChannel;
@@ -26,7 +25,7 @@ import java.net.InetSocketAddress;
 
 public class Netty5TcpChannel implements TcpChannel {
 
-    private final Channel channel;
+    private volatile Channel channel;
     private final boolean isServer;
     private final String profile;
     private final CompletableContext<Void> connectContext;
@@ -34,14 +33,23 @@ public class Netty5TcpChannel implements TcpChannel {
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
 
-    Netty5TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, @Nullable Future<?> connectFuture) {
-        this.channel = channel;
+    Netty5TcpChannel(boolean isServer, String profile, boolean rstOnClose, Future<Channel> connectFuture) {
         this.isServer = isServer;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
+        connectFuture.addListener(f -> {
+            if (f.isSuccess()) {
+                channel = f.getNow();
+                channel.attr(Netty5Transport.CHANNEL_KEY).set(this);
+            }
+        });
         this.rstOnClose = rstOnClose;
-        addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
+        connectFuture.addListener(future -> {
+            if(future.isSuccess()) {
+                addListener(future.getNow().closeFuture(), closeContext);
+            }
+        });
     }
 
     public static void addListener(Future<?> channelFuture, CompletableContext<Void> context) {
@@ -60,7 +68,7 @@ public class Netty5TcpChannel implements TcpChannel {
         });
     }
 
-    public static <T> Future<T> addPromise(ActionListener<Void> listener, Future<T> future) {
+    public static <T> void addPromise(ActionListener<Void> listener, Future<T> future) {
         future.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(null);
@@ -74,7 +82,6 @@ public class Netty5TcpChannel implements TcpChannel {
                 }
             }
         });
-        return future;
     }
 
     @Override

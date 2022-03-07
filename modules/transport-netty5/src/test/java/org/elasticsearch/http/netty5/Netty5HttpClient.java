@@ -9,38 +9,33 @@
 package org.elasticsearch.http.netty5;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.api.Buffer;
-import io.netty.buffer.api.BufferAllocator;
-import io.netty.buffer.api.adaptor.ByteBufAdaptor;
 import io.netty.buffer.api.adaptor.ByteBufBuffer;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioHandler;
 import io.netty.channel.socket.SocketChannel;
+
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
-
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.FutureListener;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.netty5.Netty5Utils;
 import org.elasticsearch.transport.netty5.NettyAllocator;
+import org.elasticsearch.transport.netty5.NettyByteBufSizer;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -50,7 +45,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
@@ -144,14 +138,11 @@ class Netty5HttpClient implements Closeable {
         try {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
-
+            final Channel channel = channelFuture.getNow();
             for (HttpRequest request : requests) {
-                channelFuture.getNow().writeAndFlush(request).addListener(new FutureListener<Void>() {
-                    @Override
-                    public void operationComplete(Future<? extends Void> future) throws Exception {
-                        if (future.isFailed()) {
-                            throw new AssertionError(future.cause());
-                        }
+                channel.writeAndFlush(request).addListener(future -> {
+                    if (future.isFailed()) {
+                        throw new AssertionError(future.cause());
                     }
                 });
             }
@@ -189,17 +180,17 @@ class Netty5HttpClient implements Closeable {
         @Override
         protected void initChannel(SocketChannel ch) {
             final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
+            ch.pipeline().addLast(NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast(new HttpResponseDecoder());
             ch.pipeline().addLast(new HttpRequestEncoder());
             ch.pipeline().addLast(new HttpContentDecompressor());
             ch.pipeline().addLast(new HttpObjectAggregator<>(maxContentLength));
-            ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
+            ch.pipeline().addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
                 @Override
-                protected void messageReceived(ChannelHandlerContext ctx, HttpObject msg) {
-                    final FullHttpResponse response = (FullHttpResponse) msg;
+                protected void messageReceived(ChannelHandlerContext ctx, FullHttpResponse msg) {
                     // We copy the buffer manually to avoid a huge allocation on a pooled allocator. We have
                     // a test that tracks huge allocations, so we want to avoid them in this test code.
-                    content.add(response);
+                    content.add(msg);
                     latch.countDown();
                 }
 

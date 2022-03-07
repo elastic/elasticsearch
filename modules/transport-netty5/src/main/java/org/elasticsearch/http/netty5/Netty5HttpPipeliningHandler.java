@@ -59,14 +59,11 @@ public class Netty5HttpPipeliningHandler extends ChannelHandlerAdapter {
         try {
             List<Tuple<HttpPipelinedResponse, Promise<Void>>> readyResponses = aggregator.write(response, promise);
             for (Tuple<HttpPipelinedResponse, Promise<Void>> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getDelegateRequest()).addListener(new FutureListener<Void>() {
-                    @Override
-                    public void operationComplete(Future<? extends Void> future) throws Exception {
-                        if (future.isFailed()) {
-                            readyResponse.v2().tryFailure(future.cause());
-                        } else {
-                            readyResponse.v2().trySuccess(null);
-                        }
+                ctx.write(readyResponse.v1().getDelegateRequest()).addListener(future -> {
+                    if (future.isFailed()) {
+                        readyResponse.v2().tryFailure(future.cause());
+                    } else {
+                        readyResponse.v2().trySuccess(null);
                     }
                 });
             }

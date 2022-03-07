@@ -8,6 +8,8 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +38,8 @@ import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
  */
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+
+    private static final Logger logger = LogManager.getLogger(DefaultRestChannel.class);
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -130,7 +134,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
+            ActionListener<Void> listener = ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.trace("sent response");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to send response", e);
+                }
+            }, () -> Releasables.close(toClose));
             httpChannel.sendResponse(httpResponse, listener);
             success = true;
         } finally {

@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class Netty4BadRequestTests extends ESTestCase {
+public class Netty5BadRequestTests extends ESTestCase {
 
     private NetworkService networkService;
     private MockBigArrays bigArrays;

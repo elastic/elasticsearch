@@ -292,25 +292,14 @@ public class Netty5Transport extends TcpTransport {
     static final AttributeKey<Netty5TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty5TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+    protected Netty5TcpChannel initiateChannel(DiscoveryNode node) {
         InetSocketAddress address = node.getAddress().address();
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
         bootstrapWithHandler.handler(getClientChannelInitializer(node));
         bootstrapWithHandler.remoteAddress(address);
         Future<Channel> connectFuture = bootstrapWithHandler.connect();
 
-        final Channel channel;
-        connectFuture.syncUninterruptibly();
-        channel = connectFuture.getNow();
-        if (channel == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
-            throw new IOException(connectFuture.cause());
-        }
-
-        Netty5TcpChannel nettyChannel = new Netty5TcpChannel(channel, false, "default", rstOnClose, connectFuture);
-        channel.attr(CHANNEL_KEY).set(nettyChannel);
-
-        return nettyChannel;
+        return new Netty5TcpChannel(false, "default", rstOnClose, connectFuture);
     }
 
     @Override
@@ -360,11 +349,11 @@ public class Netty5Transport extends TcpTransport {
         }
 
         @Override
-        protected void initChannel(Channel ch) throws Exception {
+        protected void initChannel(Channel ch) {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty5NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty5NioSocketChannel) ch).javaChannel());
-            Netty5TcpChannel nettyTcpChannel = new Netty5TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
+            Netty5TcpChannel nettyTcpChannel = new Netty5TcpChannel(true, name, rstOnClose, ch.executor().newSucceededFuture(ch));
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", ESLoggingHandler.INSTANCE);

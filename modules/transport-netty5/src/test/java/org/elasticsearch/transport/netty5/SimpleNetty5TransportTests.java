@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
+public class SimpleNetty5TransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {

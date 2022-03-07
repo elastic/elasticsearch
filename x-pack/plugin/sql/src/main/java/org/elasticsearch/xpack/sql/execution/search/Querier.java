@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -441,9 +442,11 @@ public class Querier {
         private static class TotalHitsBucket implements Bucket {
 
             private final long totalHits;
+            private final Aggregations aggs;
 
-            TotalHitsBucket(long totalHits) {
+            TotalHitsBucket(long totalHits, Aggregations aggs) {
                 this.totalHits = totalHits;
+                this.aggs = aggs;
             }
 
             @Override
@@ -468,7 +471,7 @@ public class Querier {
 
             @Override
             public Aggregations getAggregations() {
-                throw new SqlIllegalArgumentException("No aggregations defined for TotalHitsBucket");
+                return aggs;
             }
         }
 
@@ -499,7 +502,8 @@ public class Querier {
 
         private void handleResponse(long hits, SearchResponse response) {
             if (hits > 0) {
-                Bucket globalBucket = new TotalHitsBucket(hits);
+                InternalGlobal global = response.getAggregations().get(Aggs.ROOT_GROUP_NAME);
+                Bucket globalBucket = new TotalHitsBucket(hits, global.getAggregations());
                 List<BucketExtractor> extractors = initBucketExtractors(response);
 
                 Object[] values = new Object[mask.cardinality()];

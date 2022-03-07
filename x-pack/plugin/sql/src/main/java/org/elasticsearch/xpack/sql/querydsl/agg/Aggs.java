@@ -116,7 +116,7 @@ public class Aggs {
     }
 
     public boolean groupByConstant() {
-        return groups.stream().allMatch(x -> x instanceof GroupByConstant);
+        return groups.size() > 0 && groups.stream().allMatch(x -> x instanceof GroupByConstant);
     }
 
     public Aggs addGroups(Collection<GroupByKey> groups) {

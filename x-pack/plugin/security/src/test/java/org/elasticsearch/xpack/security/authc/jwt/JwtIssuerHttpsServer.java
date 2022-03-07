@@ -71,7 +71,8 @@ public class JwtIssuerHttpsServer implements Closeable {
     }
 
     private SSLContext createSslContext() throws Exception {
-        final SSLContext sslContext = SSLContext.getInstance(ESTestCase.randomFrom("TLSv1.2", "TLSv1.3"));
+        final String tlsProtocol = ESTestCase.inFipsJvm() ? "TLSv1.2" : ESTestCase.randomFrom("TLSv1.2", "TLSv1.3");
+        final SSLContext sslContext = SSLContext.getInstance(tlsProtocol);
         final KeyManager keyManager = CertParsingUtils.getKeyManagerFromPEM(CERT_PATH, KEY_PATH, PASSWORD);
         sslContext.init(new KeyManager[] { keyManager }, null, JwtTestCase.SECURE_RANDOM);
         return sslContext;

@@ -151,6 +151,17 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
+        if (TrainedModelAllocationMetadata.fromState(state).modelAllocations().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because existing deployments reached the limit of [{}]",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS
+                )
+            );
+            return;
+        }
+
         ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart = ActionListener.wrap(
             modelAllocation -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {

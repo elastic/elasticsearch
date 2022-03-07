@@ -273,13 +273,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            final ShardId shardId = shardKeyMap.getShardId(coreKey);
-            Stats stats = shardStats.get(shardId);
-            if (stats == null) {
-                stats = new Stats(shardId);
-                shardStats.put(shardId, stats);
-            }
-            return stats;
+            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is

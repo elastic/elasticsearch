@@ -23,8 +23,6 @@ import java.io.IOException;
 
 public class QueryCacheStats implements Writeable, ToXContentFragment {
 
-    private static final Logger logger = LogManager.getLogger(QueryCacheStats.class);
-
     private long ramBytesUsed;
     private long hitCount;
     private long missCount;

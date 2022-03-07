@@ -1799,15 +1799,20 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client")
                     .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
-                    .endObject()
-                    .endObject();
+                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                if (originatingClientAuth.getSourceRealm().getDomain() != null) {
+                    builder.field("realm_domain", originatingClientAuth.getSourceRealm().getDomain());
+                }
+                builder.endObject().endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName())
-                .endObject();
+                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName());
+            if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
+            }
+            builder.endObject();
             builder.endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {

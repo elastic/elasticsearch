@@ -1034,12 +1034,12 @@ public class Lucene {
             }
 
             @Override
-            public VectorValues getVectorValues(String field) throws IOException {
+            public VectorValues getVectorValues(String field) {
                 return null;
             }
 
             @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
                 return null;
             }
 

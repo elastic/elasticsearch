@@ -10,7 +10,7 @@
  * The X-Content module.
  */
 module org.elasticsearch.xcontent {
-    requires transitive org.elasticsearch.core;
+    requires org.elasticsearch.core;
 
     exports org.elasticsearch.xcontent;
     exports org.elasticsearch.xcontent.cbor;

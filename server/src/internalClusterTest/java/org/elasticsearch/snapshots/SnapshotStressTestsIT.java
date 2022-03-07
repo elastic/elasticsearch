@@ -86,7 +86,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static Set<String> nodeNames(ImmutableOpenMap<String, DiscoveryNode> nodesMap) {
-        return nodesMap.stream().map(c -> c.getValue().getName()).collect(Collectors.toSet());
+        return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }
 
     /**

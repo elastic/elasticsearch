@@ -313,7 +313,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeMap(runtimeMappings);
+            out.writeGenericMap(runtimeMappings);
         } else {
             if (false == runtimeMappings.isEmpty()) {
                 throw new IllegalArgumentException(

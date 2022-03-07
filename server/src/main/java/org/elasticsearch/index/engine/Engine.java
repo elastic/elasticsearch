@@ -61,6 +61,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1099,6 +1100,7 @@ public abstract class Engine implements Closeable {
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
+        assert Transports.assertNotTransportThread("failEngine can block on IO");
         if (failure != null) {
             maybeDie(reason, failure);
         }

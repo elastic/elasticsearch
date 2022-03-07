@@ -30,13 +30,6 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.lang.invoke.VarHandle;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -104,7 +97,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
     static LeafReader wrap(LeafReader reader, String field) {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
-        assert isNRT(segmentReader) == false : "expected non-NRT reader";
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
         final int numSoftDeletes = segmentInfo.getSoftDelCount();
         if (numSoftDeletes == 0) {
@@ -192,24 +184,9 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    private static class DelegatingCacheHelper implements CacheHelper {
-        private final CacheHelper delegate;
-        private final CacheKey cacheKey = newCacheKey();
-
+    private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
         DelegatingCacheHelper(CacheHelper delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public CacheKey getKey() {
-            return cacheKey;
-        }
-
-        @Override
-        public void addClosedListener(ClosedListener listener) {
-            // here we wrap the listener and call it with our cache key
-            // this is important since this key will be used to cache the reader and otherwise we won't free caches etc.
-            delegate.addClosedListener(unused -> listener.onClose(cacheKey));
+            super(delegate);
         }
     }
 
@@ -281,53 +258,20 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    private static boolean isNRT(SegmentReader segmentReader) {
-        return (boolean) IS_NRT_HANDLE.get(segmentReader);
-    }
+    static int applySoftDeletes(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+        assert iterator != null;
+        int newDeletes = 0;
+        int docID;
 
-    private static CacheKey newCacheKey() {
-        try {
-            return (CacheKey) CACHE_KEY_HANDLE.invokeExact();
-        } catch (Throwable t) {
-            throw new AssertionError(t);
+        while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (bits.get(docID)) { // doc is live - clear it
+                bits.clear(docID);
+                newDeletes++;
+                // now that we know we deleted it and we fully control the hard deletes we can do correct
+                // accounting
+                // below.
+            }
         }
-    }
-
-    private static int applySoftDeletes(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
-        try {
-            return (int) APPLY_SOFT_DELETES_HANDLE.invokeExact(iterator, bits);
-        } catch (Throwable t) {
-            throw new IOException(t);
-        }
-    }
-
-    private static final VarHandle IS_NRT_HANDLE;
-    private static final MethodHandle CACHE_KEY_HANDLE;
-    private static final MethodHandle APPLY_SOFT_DELETES_HANDLE;
-
-    static {
-        try {
-            PrivilegedExceptionAction<VarHandle> pa1 = (PrivilegedExceptionAction<VarHandle>) () -> {
-                MethodHandles.Lookup l = MethodHandles.privateLookupIn(SegmentReader.class, MethodHandles.lookup());
-                return l.findVarHandle(SegmentReader.class, "isNRT", boolean.class);
-            };
-            IS_NRT_HANDLE = AccessController.doPrivileged(pa1);
-
-            PrivilegedExceptionAction<MethodHandle> pa2 = (PrivilegedExceptionAction<MethodHandle>) () -> {
-                MethodHandles.Lookup l = MethodHandles.privateLookupIn(CacheKey.class, MethodHandles.lookup());
-                return l.findConstructor(CacheKey.class, MethodType.methodType(void.class));
-            };
-            CACHE_KEY_HANDLE = AccessController.doPrivileged(pa2);
-
-            PrivilegedExceptionAction<MethodHandle> pa = (PrivilegedExceptionAction<MethodHandle>) () -> {
-                Class<?> c = Class.forName("org.apache.lucene.index.PendingSoftDeletes");
-                MethodHandles.Lookup l = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
-                MethodType mt = MethodType.methodType(int.class, DocIdSetIterator.class, FixedBitSet.class);
-                return l.findStatic(c, "applySoftDeletes", mt);
-            };
-            APPLY_SOFT_DELETES_HANDLE = AccessController.doPrivileged(pa);
-        } catch (PrivilegedActionException e) {
-            throw new ExceptionInInitializerError(e);
-        }
+        return newDeletes;
     }
 }

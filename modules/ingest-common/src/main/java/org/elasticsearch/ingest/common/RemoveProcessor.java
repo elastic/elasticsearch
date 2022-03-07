@@ -113,8 +113,8 @@ public final class RemoveProcessor extends AbstractProcessor {
                 throw newConfigurationException(
                     TYPE,
                     processorTag,
-                    "processors.remove.keep",
-                    "or [processors.remove.field] must be specified"
+                    "keep",
+                    "or [field] must be specified"
                 );
             }
 
@@ -122,8 +122,8 @@ public final class RemoveProcessor extends AbstractProcessor {
                 throw newConfigurationException(
                     TYPE,
                     processorTag,
-                    "processors.remove.keep",
-                    "and [processors.remove.field] cannot both be used in the same processor"
+                    "keep",
+                    "and [field] cannot both be used in the same processor"
                 );
             }
 

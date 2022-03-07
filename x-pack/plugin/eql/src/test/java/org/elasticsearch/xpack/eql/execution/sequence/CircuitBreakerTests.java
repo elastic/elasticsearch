@@ -74,12 +74,14 @@ import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
+import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -157,13 +159,14 @@ public class CircuitBreakerTests extends ESTestCase {
         window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
 
         CIRCUIT_BREAKER.startBreaking();
-        RuntimeException e = expectThrows(
-            RuntimeException.class,
-            () -> window.execute(wrap(p -> {}, ex -> { throw new RuntimeException(ex); }))
-        );
-        assertEquals(CircuitBreakingException.class, e.getCause().getClass());
+
+        Holder<Exception> thrownException = new Holder<>();
+        window.execute(wrap(p -> { fail("this shouldn't have been called"); }, ex -> { thrownException.set(ex); }));
+        assertNotNull(thrownException.get());
+        assertEquals(CircuitBreakingException.class, thrownException.get().getClass());
 
         CIRCUIT_BREAKER.stopBreaking();
+
         window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 
@@ -199,14 +202,15 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     public void testMemoryClearedOnSuccessfulRequest() {
-        assertMemoryCleared(2, PIT_ID_TYPE.SUCCESS_ID);
+        assertMemoryCleared(2, SuccessfulESMockClient::new);
     }
 
     public void testMemoryClearedOnShardsException() {
-        assertMemoryCleared(stages, PIT_ID_TYPE.FAILURE_ID);
+        assertMemoryCleared(stages, FailureESMockClient::new);
     }
 
-    private void assertMemoryCleared(int sequenceFiltersCount, PIT_ID_TYPE failureId) {
+    private void assertMemoryCleared(int sequenceFiltersCount, BiFunction<CircuitBreaker, Integer, ESMockClient> esClientSupplier) {
+        final int SEARCH_REQUESTS_EXPECTED_COUNT = 2;
         List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
             new BreakerSettings(
                 CIRCUIT_BREAKER_NAME,
@@ -222,7 +226,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 eqlBreakerSettings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            PitMockClient esClient = new PitMockClient(getTestName(), service.getBreaker(CIRCUIT_BREAKER_NAME), PIT_ID_TYPE.FAILURE_ID)
+            ESMockClient esClient = esClientSupplier.apply(service.getBreaker(CIRCUIT_BREAKER_NAME), SEARCH_REQUESTS_EXPECTED_COUNT);
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
@@ -296,8 +300,9 @@ public class CircuitBreakerTests extends ESTestCase {
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
             window.execute(wrap(p -> {}, ex -> {}));
 
-            assertEquals(0, eqlCircuitBreaker.getTrippedCount());
-            assertEquals(0, eqlCircuitBreaker.getUsed());
+            assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
+            assertEquals(0, eqlCircuitBreaker.getTrippedCount()); // the circuit breaker shouldn't trip
+            assertEquals(0, eqlCircuitBreaker.getUsed()); // the circuit breaker memory should be clear
         }
     }
 
@@ -307,16 +312,20 @@ public class CircuitBreakerTests extends ESTestCase {
      *  {@code CircuitBreakerTests#testMemoryClearedOnShardsException()} methods to test the circuit breaker memory usage
      *  in case of a successful sequence request but also for a failed sequence request.
      */
-    private static class PitMockClient extends NoOpClient {
+    private abstract class ESMockClient extends NoOpClient {
         private final AtomicLong pitContextCounter = new AtomicLong();
-        private final CircuitBreaker circuitBreaker;
-        private final String pitId;
+        protected final CircuitBreaker circuitBreaker;
+        // private final String pitId;
+        private int searchRequestsRemainingCount;
+        private final String pitId = "test_pit_id";
 
-        PitMockClient(String testName, CircuitBreaker circuitBreaker, PIT_ID_TYPE pitId) {
-            super(testName);
+        ESMockClient(CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
+            super(getTestName());
             this.circuitBreaker = circuitBreaker;
-            this.pitId = pitId.pitId;
+            this.searchRequestsRemainingCount = searchRequestsRemainingCount;
         }
+
+        abstract <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest);
 
         @SuppressWarnings("unchecked")
         @Override
@@ -329,41 +338,39 @@ public class CircuitBreakerTests extends ESTestCase {
                 pitContextCounter.incrementAndGet();
                 OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
                 listener.onResponse((Response) response);
-                return;
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
                 assert pitContextCounter.get() > 0;
                 pitContextCounter.decrementAndGet();
                 listener.onResponse((Response) response);
-                return;
             } else if (request instanceof SearchRequest searchRequest) {
-                String requestPitId = searchRequest.pointInTimeBuilder().getEncodedId();
+                searchRequestsRemainingCount--;
+                assertTrue(searchRequestsRemainingCount >= 0);
                 assertEquals(0, circuitBreaker.getTrippedCount());
-
-                // for a successful sequence request, there will be two search requests expected
-                if (requestPitId.startsWith(PIT_ID_TYPE.SUCCESS_ID.pitId)) {
-                    handleSuccessScenarioSearchRequest(listener, searchRequest, requestPitId);
-                }
-
-                // for a failed sequence request, there'll be a successful first request followed by a second one that throws an exception
-                // the first search request is designed to return valid results to allow the tumbling window to start the algorithm
-                if (requestPitId.startsWith(PIT_ID_TYPE.FAILURE_ID.pitId)) {
-                    handleFailureScenarioSearchRequest(listener, searchRequest, requestPitId);
-                }
-
+                handleSearchRequest(listener, searchRequest);
                 assert pitContextCounter.get() == 0;
-                return;
+            } else {
+                super.doExecute(action, request, listener);
             }
+        }
 
-            super.doExecute(action, request, listener);
+        int searchRequestsRemainingCount() {
+            return searchRequestsRemainingCount;
+        }
+    }
+
+    /*
+     * For a successful sequence request, there will be two search requests expected
+     */
+    private class SuccessfulESMockClient extends ESMockClient {
+
+        SuccessfulESMockClient(CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
+            super(circuitBreaker, expectedSearchRequestsCount);
         }
 
         @SuppressWarnings("unchecked")
-        private <Response extends ActionResponse> void handleSuccessScenarioSearchRequest(
-            ActionListener<Response> listener,
-            SearchRequest searchRequest,
-            String requestPitId
-        ) {
+        @Override
+        <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
             SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
             searchHit.sortValues(
@@ -381,11 +388,10 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                // copy the pit from the request and "increment" its "+" sign
-                requestPitId.equals(PIT_ID_TYPE.SUCCESS_ID.pitId) ? requestPitId + "+" : null
+                searchRequestsRemainingCount() == 1 ? searchRequest.pointInTimeBuilder().getEncodedId() : null
             );
 
-            if (requestPitId.equals(PIT_ID_TYPE.SUCCESS_ID.pitId)) {
+            if (searchRequestsRemainingCount() == 1) {
                 assertEquals(0, circuitBreaker.getUsed()); // this is the first response, so no memory usage so far
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
@@ -393,15 +399,24 @@ public class CircuitBreakerTests extends ESTestCase {
 
             listener.onResponse((Response) response);
         }
+    }
+
+    /*
+     * For a failed sequence request, there'll be a successful first request followed by a second one that throws an exception
+     * the first search request is designed to return valid results to allow the tumbling window to start the algorithm
+     */
+    private class FailureESMockClient extends ESMockClient {
+
+        FailureESMockClient(CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
+            super(circuitBreaker, expectedSearchRequestsCount);
+        }
 
         @SuppressWarnings("unchecked")
-        private <Response extends ActionResponse> void handleFailureScenarioSearchRequest(
-            ActionListener<Response> listener,
-            SearchRequest searchRequest,
-            String requestPitId
-        ) {
-            if (requestPitId.equals(PIT_ID_TYPE.FAILURE_ID.pitId)) {
-                assertEquals(0, circuitBreaker.getUsed()); // this is the first response, so no memory usage so far
+        @Override
+        <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
+            // this is the first response, so no memory usage so far
+            if (searchRequestsRemainingCount() == 1) {
+                assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
                 SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
@@ -419,11 +434,9 @@ public class CircuitBreakerTests extends ESTestCase {
                     0,
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY,
-                    // copy the pit from the request and "increment" its "+" sign
-                    requestPitId.equals(PIT_ID_TYPE.FAILURE_ID.pitId) ? requestPitId + "+" : null
+                    searchRequest.pointInTimeBuilder().getEncodedId()
                 );
                 listener.onResponse((Response) response);
-                // the next search (the one with the PIT id "the_pid_id+") request throws an exception
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
                 ShardSearchFailure[] failures = new ShardSearchFailure[] {
@@ -454,8 +467,7 @@ public class CircuitBreakerTests extends ESTestCase {
                         0,
                         failures,
                         SearchResponse.Clusters.EMPTY,
-                        // copy the pit from the request and "increment" its "+" sign
-                        searchRequest.pointInTimeBuilder() != null ? requestPitId + "+" : null
+                        null
                     );
 
                     // this should still be caught and the exception handled properly and circuit breaker cleared
@@ -463,17 +475,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 }
             }
         }
-    }
 
-    private enum PIT_ID_TYPE {
-        FAILURE_ID("failure_pit_id"),
-        SUCCESS_ID("successful_pit_id");
-
-        PIT_ID_TYPE(String pitId) {
-            this.pitId = pitId;
-        }
-
-        private String pitId;
     }
 
     private static class EqlTestCircuitBreaker extends NoopCircuitBreaker {

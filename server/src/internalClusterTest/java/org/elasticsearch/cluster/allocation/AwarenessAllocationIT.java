@@ -96,7 +96,6 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
             // verify that we have all the primaries on node3
             Map<String, Integer> counts = computeShardCounts(clusterState);
-            
             assertThat(counts.get(node3), equalTo(totalPrimaries));
         }, 10, TimeUnit.SECONDS);
     }

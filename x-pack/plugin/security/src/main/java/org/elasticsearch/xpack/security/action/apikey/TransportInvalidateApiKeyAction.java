@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
@@ -62,16 +60,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
             assert realms == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            if (authentication.isApiKey()) {
-                realms = new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
-            } else {
-                RealmDomain domain = authentication.getSourceRealm().getDomain();
-                if (domain != null) {
-                    realms = domain.realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new);
-                } else {
-                    realms = new String[] { authentication.getSourceRealm().getName() };
-                }
-            }
+            realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 
         apiKeyService.invalidateApiKeys(realms, username, apiKeyName, apiKeyIds, listener);

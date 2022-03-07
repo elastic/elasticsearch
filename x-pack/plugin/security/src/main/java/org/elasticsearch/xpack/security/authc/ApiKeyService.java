@@ -62,6 +62,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -991,6 +993,22 @@ public class ApiKeyService {
         }
     }
 
+    public static QueryBuilder filterForRealmNames(String[] realmNames) {
+        if (realmNames == null || realmNames.length == 0) {
+            return null;
+        }
+        if (realmNames.length == 1) {
+            return QueryBuilders.termQuery("creator.realm", realmNames[0]);
+        } else {
+            final BoolQueryBuilder realmsQuery = QueryBuilders.boolQuery();
+            for (String realmName : realmNames) {
+                realmsQuery.should(QueryBuilders.termQuery("creator.realm", realmName));
+            }
+            realmsQuery.minimumShouldMatch(1);
+            return realmsQuery;
+        }
+    }
+
     private void findApiKeysForUserRealmApiKeyIdAndNameCombination(
         String[] realmNames,
         String userName,
@@ -1007,17 +1025,9 @@ public class ApiKeyService {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
-            if (realmNames != null && realmNames.length > 0) {
-                if (realmNames.length == 1) {
-                    boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmNames[0]));
-                } else {
-                    final BoolQueryBuilder realmsQuery = QueryBuilders.boolQuery();
-                    for (String realmName : realmNames) {
-                        realmsQuery.should(QueryBuilders.termQuery("creator.realm", realmName));
-                    }
-                    realmsQuery.minimumShouldMatch(1);
-                    boolQuery.filter(realmsQuery);
-                }
+            QueryBuilder realmsQuery = filterForRealmNames(realmNames);
+            if (realmsQuery != null) {
+                boolQuery.filter(realmsQuery);
             }
             if (Strings.hasText(userName)) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
@@ -1336,6 +1346,19 @@ public class ApiKeyService {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
+        }
+    }
+
+    public static String[] getOwnersRealmNames(Authentication authentication) {
+        if (authentication.isApiKey()) {
+            return new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
+        } else {
+            RealmDomain domain = authentication.getSourceRealm().getDomain();
+            if (domain != null) {
+                return domain.realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new);
+            } else {
+                return new String[] { authentication.getSourceRealm().getName() };
+            }
         }
     }
 

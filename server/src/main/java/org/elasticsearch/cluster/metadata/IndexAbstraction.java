@@ -340,8 +340,9 @@ public interface IndexAbstraction {
             false
         );
 
-        public static final DateFormatter TIMESTAMP_FORMATTER =
-            DateFormatter.forPattern("strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis");
+        public static final DateFormatter TIMESTAMP_FORMATTER = DateFormatter.forPattern(
+            "strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis"
+        );
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
         private final List<String> referencedByDataStreamAliases;

@@ -685,7 +685,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> service.getApiKeys(randomAlphaOfLength(6), randomAlphaOfLength(8), null, null, new PlainActionFuture<>())
+            () -> service.getApiKeys(new String[] { randomAlphaOfLength(6) }, randomAlphaOfLength(8), null, null, new PlainActionFuture<>())
         );
 
         assertThat(e, instanceOf(FeatureNotEnabledException.class));

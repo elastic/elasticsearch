@@ -123,7 +123,11 @@ public class TumblingWindow implements Executable {
     public void execute(ActionListener<Payload> listener) {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
-        tumbleWindow(0, runAfter(listener, () -> close(listener)));// clear the memory at the end of the algorithm
+        // clear the memory at the end of the algorithm
+        tumbleWindow(0, runAfter(listener, () -> {
+            matcher.clear();
+            client.close(listener.delegateFailure((l, r) -> {}));
+        }));
     }
 
     /**
@@ -553,11 +557,6 @@ public class TumblingWindow implements Executable {
             SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
             return payload;
         }));
-    }
-
-    private void close(ActionListener<Payload> listener) {
-        matcher.clear();
-        client.close(listener.delegateFailure((l, r) -> {}));
     }
 
     private TimeValue timeTook() {

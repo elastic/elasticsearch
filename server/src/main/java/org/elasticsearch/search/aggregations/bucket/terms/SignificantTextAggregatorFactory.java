@@ -47,11 +47,14 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 
 public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
@@ -225,6 +228,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 fieldType,
                 analyzer,
                 sourceFieldNames,
+                context,
                 filterDuplicateText
             );
         }
@@ -234,6 +238,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             fieldType,
             analyzer,
             sourceFieldNames,
+            context,
             filterDuplicateText
         );
     }
@@ -243,6 +248,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private final BigArrays bigArrays;
         private final MappedFieldType fieldType;
         private final Analyzer analyzer;
+        private final AggregationContext context;
         private final String[] sourceFieldNames;
         private final BytesRefBuilder scratch = new BytesRefBuilder();
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
@@ -253,6 +259,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             MappedFieldType fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
+            AggregationContext context,
             boolean filterDuplicateText
         ) {
             this.sourceLookup = sourceLookup;
@@ -260,6 +267,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             this.fieldType = fieldType;
             this.analyzer = analyzer;
             this.sourceFieldNames = sourceFieldNames;
+            this.context = context;
             dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
         }
 
@@ -282,7 +290,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
-            CollectConsumer consumer
+            CollectConsumer consumer,
+            AggregationContext aggregationContext
         ) throws IOException {
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
@@ -306,7 +315,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                     BytesRefHash inDocTerms = new BytesRefHash(256, bigArrays);
 
                     try {
-                        for (String sourceField : sourceFieldNames) {
+                        final Set<String> sourceFields = Arrays.stream(sourceFieldNames)
+                            .flatMap(sourceFieldName -> aggregationContext.sourcePath(sourceFieldName).stream())
+                            .collect(Collectors.toUnmodifiableSet());
+                        for (String sourceField : sourceFields) {
                             Iterator<String> itr = extractRawValues(sourceField).stream().map(obj -> {
                                 if (obj == null) {
                                     return null;
@@ -418,9 +430,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             MappedFieldType fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
+            AggregationContext context,
             boolean filterDuplicateText
         ) {
-            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, filterDuplicateText);
+            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, context, filterDuplicateText);
         }
 
         @Override

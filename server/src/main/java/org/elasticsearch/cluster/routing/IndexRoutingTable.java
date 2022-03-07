@@ -170,7 +170,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
 
     @Override
     public Iterator<IndexShardRoutingTable> iterator() {
-        return shards.valuesIt();
+        return shards.values().iterator();
     }
 
     /**
@@ -540,6 +540,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
         }
 
         public Builder addIndexShard(IndexShardRoutingTable indexShard) {
+            assert indexShard.shardId().getIndex().equals(index)
+                : "cannot add shard routing table for " + indexShard.shardId() + " to index routing table for " + index;
             shards.put(indexShard.shardId().id(), indexShard);
             return this;
         }
@@ -549,6 +551,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
          * if it needs to be created.
          */
         public Builder addShard(ShardRouting shard) {
+            assert shard.index().equals(index) : "cannot add [" + shard + "] to routing table for " + index;
             IndexShardRoutingTable indexShard = shards.get(shard.id());
             if (indexShard == null) {
                 indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();

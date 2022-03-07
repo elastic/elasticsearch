@@ -75,8 +75,13 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
         final ClusterStateListener clusterStateListener = event -> {
+            PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(
+                event.state(),
+                SYSTEM_INDEX_UPGRADE_TASK_NAME
+            );
 
-            if (PersistentTasksCustomMetadata.getTaskWithId(event.state(), SYSTEM_INDEX_UPGRADE_TASK_NAME) != null
+            if (task != null
+                && task.getState() != null // Make sure the task is really started
                 && hasBlocked.compareAndSet(false, true)) {
                 try {
                     logger.info("Task created");

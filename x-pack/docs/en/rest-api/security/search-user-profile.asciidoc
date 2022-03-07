@@ -21,6 +21,15 @@ Searches for user profiles that match specified criteria.
 
 To use this API, you must have the `manage_user_profile` cluster privilege.
 
+[[security-api-search-user-profile-query-params]]
+==== {api-query-parms-title}
+
+`data`::
+(Optional, string) Comma-separated list of filters for the `data` field of
+the profile document. To return all content, use `data=*`. To return a
+subset of content, use `data=<key>` to retrieve the content nested under the
+specified `<key>`. Defaults to returning no content.
+
 [[security-api-search-user-profile-request-body]]
 ==== {api-request-body-title}
 

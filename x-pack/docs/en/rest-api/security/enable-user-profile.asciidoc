@@ -7,7 +7,6 @@
 
 beta::[]
 
-
 Enables a user profile so it's visible in
 <<security-api-search-user-profile,user profile searches>>.
 

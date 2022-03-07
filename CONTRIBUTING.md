@@ -182,7 +182,7 @@ action is required.
 
 Elasticsearch code is automatically formatted with [spotless], backed by the
 Eclipse formatter. You can do the same in IntelliJ with the
-[Eclipse Code Formatter]so that you can apply the correct formatting directly in
+[Eclipse Code Formatter] so that you can apply the correct formatting directly in
 your IDE.  The configuration for the plugin is held in
 `.idea/eclipseCodeFormatter.xml` and should be automatically applied, but manual
 instructions are below in case you need them.

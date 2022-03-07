@@ -901,13 +901,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
             for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS + 10; i++) {
                 long date = start + i;
-                iw.addDocument(
-                    List.of(
-                        new LongPoint("f", date),
-                        new NumericDocValuesField("f", date),
-                        new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, 2)
-                    )
-                );
+                iw.addDocument(List.of(new LongPoint("f", date), new NumericDocValuesField("f", date), DocCountFieldMapper.field(2)));
             }
         };
         DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");

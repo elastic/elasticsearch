@@ -1536,7 +1536,7 @@ public final class TokenService {
                 clientAuthentication.getUser().principal()
             );
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (clientAuthentication.getSourceRealm().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+        } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
             logger.warn(
                 "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
                 refreshToken.getAssociatedUser(),
@@ -1814,9 +1814,9 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client")
                     .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getSourceRealm().getName());
-                if (originatingClientAuth.getSourceRealm().getDomain() != null) {
-                    builder.field("realm_domain", originatingClientAuth.getSourceRealm().getDomain());
+                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                if (originatingClientAuth.getAuthenticatedBy().getDomain() != null) {
+                    builder.field("realm_domain", originatingClientAuth.getAuthenticatedBy().getDomain());
                 }
                 builder.endObject().endObject();
             }

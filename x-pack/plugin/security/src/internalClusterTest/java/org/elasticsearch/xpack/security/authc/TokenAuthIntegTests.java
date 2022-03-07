@@ -41,6 +41,10 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -70,6 +74,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressWarnings("removal")
@@ -840,7 +845,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testCreatorRealmCaptureWillWorkWithClientRunAs() throws IOException {
         final String nativeTokenUsername = "native_token_user";
         getSecurityClient().putUser(new User(nativeTokenUsername, "superuser"), SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-
+        // File realm user run-as a native realm user
         final Client runAsClient = client().filterWithHeader(
             Map.of(
                 "Authorization",
@@ -850,12 +855,21 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             )
         );
 
-        // Create a token with client credentials and run-as request header
+        // Create a token with client credentials and run-as, the token should be owned by the run-as user (native realm)
         var createTokenRequest1 = new org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest();
         createTokenRequest1.setGrantType("client_credentials");
         final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future1 = new PlainActionFuture<>();
         runAsClient.execute(CreateTokenAction.INSTANCE, createTokenRequest1, future1);
         final String accessToken = future1.actionGet().getTokenString();
+        // Token is usable
+        final AuthenticateResponse authenticateResponse = client().filterWithHeader(Map.of("Authorization", "Bearer " + accessToken))
+            .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(nativeTokenUsername))
+            .actionGet();
+        assertThat(authenticateResponse.authentication().getUser().principal(), equalTo(nativeTokenUsername));
+        assertThat(authenticateResponse.authentication().getLookedUpBy().getName(), equalTo("index"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("file"));
+        assertThat(authenticateResponse.authentication().getAuthenticationType(), is(Authentication.AuthenticationType.TOKEN));
+        // Invalidate tokens by realm and username respect the run-as user's username and realm
         var invalidateTokenRequest = new org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest(
             null,
             null,
@@ -867,7 +881,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client().execute(InvalidateTokenAction.INSTANCE, invalidateTokenRequest, future2);
         assertThat(future2.actionGet().getResult().getInvalidatedTokens().size(), equalTo(1));
 
-        // Create a token with password grant and run-as request header
+        // Create a token with password grant and run-as user (native realm)
         var createTokenRequest2 = new org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest();
         createTokenRequest2.setGrantType("password");
         createTokenRequest2.setUsername(ES_TEST_ROOT_USER);
@@ -881,6 +895,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         createTokenRequest3.setRefreshToken(refreshToken);
         final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future4 = new PlainActionFuture<>();
 
+        // Refresh token is bound to the original user that creates it. In this case, it is the run-as (native realm) user
         // refresh without run-as should fail
         client().filterWithHeader(
             Map.of("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING.clone()))

@@ -209,7 +209,11 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         if (shouldPreferPassageRelevancyOverSpeed(field)) {
             highlightFlags.add(HighlightFlag.PASSAGE_RELEVANCY_OVER_SPEED);
         }
+        if (shouldHandleMultiTermQuery(field) && shouldHighlightPhrasesStrictly(field)) {
+            highlightFlags.add(HighlightFlag.WEIGHT_MATCHES);
+        }
         return highlightFlags;
+
     }
 
     @Override

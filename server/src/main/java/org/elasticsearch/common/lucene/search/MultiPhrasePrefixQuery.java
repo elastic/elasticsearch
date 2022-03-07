@@ -19,10 +19,13 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -302,6 +305,15 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
+            for (int i = 0; i < termArrays.size() - 1; i++) {
+                visitor.consumeTerms(this, termArrays.get(i));
+            }
+            for (Term term : termArrays.get(termArrays.size() - 1)) {
+                visitor.consumeTermsMatching(this, field, () -> {
+                    Automaton a = PrefixQuery.toAutomaton(term.bytes());
+                    return new CompiledAutomaton(a).runAutomaton;
+                });
+            }
             visitor.visitLeaf(this);    // TODO implement term visiting
         }
     }

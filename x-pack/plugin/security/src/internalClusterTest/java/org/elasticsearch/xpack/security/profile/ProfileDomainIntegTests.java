@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.security.profile;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +42,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INT
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -293,11 +298,13 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                     );
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+                    profileService.activateProfile(authentication, future);
                     readyLatch.countDown();
                     startLatch.await();
-                    profileService.activateProfile(authentication, future);
                     try {
-                        allUids.add(future.actionGet().uid());
+                        final String uid = future.actionGet().uid();
+                        logger.info("create profile [{}] for authentication [{}]", uid, authentication);
+                        allUids.add(uid);
                     } catch (VersionConflictEngineException e) {
                         // Updating existing profile can error with version conflict. This is the current way
                         // of handling racing in updating existing profile.
@@ -328,14 +335,61 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         }
     }
 
+    public void testDifferentiator() {
+        String lastUid = null;
+        for (int i = 0; i < 10; i++) {
+            String currentUid = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING).uid();
+            assertThat(currentUid, endsWith("_" + i));
+            if (lastUid != null) {
+                // Base uid is identical
+                assertThat(currentUid.substring(0, currentUid.length() - 2), equalTo(lastUid.substring(0, lastUid.length() - 2)));
+            }
+            // Manually update the username to create hash collision
+            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + currentUid).setDoc("""
+                {
+                  "user_profile": {
+                    "user": { "username": "should-not-be-found" }
+                  }
+                }
+                """, XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
+            client().update(updateRequest).actionGet();
+            lastUid = currentUid;
+        }
+
+        final ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING)
+        );
+        assertThat(e.getMessage(), containsString("differentiator value is too high"));
+    }
+
+    public void testBackoffDepletion() {
+        final Subject subject = new Subject(
+            new User(randomAlphaOfLengthBetween(5, 12)),
+            AuthenticationTests.randomRealmRef(randomBoolean())
+        );
+        final ProfileDocument profileDocument = ProfileDocument.fromSubject(subject);
+
+        final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+        final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+        profileService.getOrCreateProfileWithBackoff(subject, profileDocument, List.of(TimeValue.timeValueMillis(50)).iterator(), future);
+
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("failed to retrieving profile [" + profileDocument.uid() + "] after all retries"));
+    }
+
     private String indexDocument() {
         final String uid = randomAlphaOfLength(20);
+        indexDocument(uid);
+        return uid;
+    }
+
+    private void indexDocument(String uid) {
         final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setId("profile_" + uid)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
             .setSource(source, XContentType.JSON)
             .get();
-        return uid;
     }
 }

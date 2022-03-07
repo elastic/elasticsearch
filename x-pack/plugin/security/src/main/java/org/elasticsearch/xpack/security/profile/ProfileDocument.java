@@ -94,6 +94,13 @@ public record ProfileDocument(
         return builder;
     }
 
+    public Subject subject() {
+        return new Subject(
+            new User(user.username, user.roles.toArray(String[]::new), user.fullName, user.email, Map.of(), user.active),
+            user.realm
+        );
+    }
+
     static ProfileDocument fromSubject(Subject subject) {
         final String baseUid = computeBaseUidForSubject(subject);
         return fromSubjectWithUid(subject, baseUid + "_0"); // initial differentiator is 0

@@ -345,8 +345,7 @@ public class ProfileService {
         });
     }
 
-    // Package private for testing
-    void createNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener) throws IOException {
+    private void createNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener) throws IOException {
         // When the code reaches here, we are sure no existing profile matches the subject's username and realm info
         // We go ahead to create the new profile document. If there is another concurrent creation request, it should
         // attempt to create a doc with the same ID and cause version conflict which is handled.
@@ -387,7 +386,8 @@ public class ProfileService {
         );
     }
 
-    private void getOrCreateProfileWithBackoff(
+    // Package private for test
+    void getOrCreateProfileWithBackoff(
         Subject subject,
         ProfileDocument profileDocument,
         Iterator<TimeValue> backoff,
@@ -414,9 +414,10 @@ public class ProfileService {
                 }
                 return;
             }
-            if (isSubjectOwnerOfProfileDocument(subject, versionedDocument.doc)) {
-                // The profile document is a match. It must have just got created by another thread, i.e. racing.
-                // Still need to update it with current auth info before return
+            // Ownership check between the subject and the profile document
+            if (subject.canAccessResourcesOf(versionedDocument.doc.subject())) {
+                // The profile document can be accessed by the subject. It must have just got created by another thread, i.e. racing.
+                // Still need to update it with current auth info before return.
                 updateProfileForActivate(subject, versionedDocument, listener);
             } else {
                 // The profile document is NOT a match, this means either genuine hash collision or profile document
@@ -427,61 +428,38 @@ public class ProfileService {
         }, listener::onFailure));
     }
 
-    private void incrementDifferentiatorAndCreateNewProfile(
-        Subject subject,
-        ProfileDocument profileDocument,
-        ActionListener<Profile> listener
-    ) throws IOException {
+    // Package private for tests
+    void incrementDifferentiatorAndCreateNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener)
+        throws IOException {
         final String uid = profileDocument.uid();
         final int index = uid.lastIndexOf("_");
         if (index == -1) {
-            throw new ElasticsearchException("profile uid [{}] does not contain any underscore character", uid);
+            listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain any underscore character", uid));
+            return;
         }
         final String baseUid = uid.substring(0, index);
         final String differentiatorString = uid.substring(index + 1);
         if (differentiatorString.isBlank()) {
-            throw new ElasticsearchException("profile uid [{}] does not contain a differentiator", uid);
+            listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain a differentiator", uid));
+            return;
         }
         final int differentiator;
         try {
             differentiator = Integer.parseInt(differentiatorString);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchException("profile uid [{}] differentiator is not a number", e, uid);
+            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator is not a number", e, uid));
+            return;
         }
         // Prevent infinite recursion. It is practically impossible to get this many clashes
-        if (differentiator > DIFFERENTIATOR_UPPER_LIMIT) {
-            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator number is too high", profileDocument.uid()));
+        if (differentiator >= DIFFERENTIATOR_UPPER_LIMIT) {
+            listener.onFailure(
+                new ElasticsearchException("profile differentiator value is too high for base Uid [{}]", uid.substring(0, index))
+            );
             return;
         }
         // New uid by increment the differentiator by 1
         final String newUid = baseUid + "_" + (differentiator + 1);
         createNewProfile(subject, ProfileDocument.fromSubjectWithUid(subject, newUid), listener);
-    }
-
-    /**
-     * Check whether the subject is the owner of the profile by comparing the username and realm/domain.
-     */
-    private boolean isSubjectOwnerOfProfileDocument(Subject subject, ProfileDocument doc) {
-        if (false == subject.getUser().principal().equals(doc.user().username())) {
-            return false;
-        }
-        final Authentication.RealmRef subjectRealm = subject.getRealm();
-        final Authentication.RealmRef docRealm = doc.user().realm();
-        if (subjectRealm.getType().equals(docRealm.getType())
-            && (isFileOrNativeRealm(subjectRealm.getType()) || subjectRealm.getName().equals(docRealm.getName()))) {
-            return true;
-        }
-        if (subjectRealm.getDomain() == null) {
-            return false;
-        }
-
-        return subjectRealm.getDomain()
-            .realms()
-            .stream()
-            .anyMatch(
-                realmIdentifier -> realmIdentifier.getType().equals(docRealm.getType())
-                    && (isFileOrNativeRealm(realmIdentifier.getType()) || realmIdentifier.getName().equals(docRealm.getName()))
-            );
     }
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)

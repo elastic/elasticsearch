@@ -2,4 +2,5 @@ pr: 84229
 summary: Normalise polygons only when necessary
 area: Geo
 type: enhancement
-issues: []
+issues:
+ - 35349

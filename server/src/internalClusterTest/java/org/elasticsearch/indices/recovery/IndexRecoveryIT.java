@@ -1000,7 +1000,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> nodes = randomSubsetOf(
             2,
-            clusterService().state().nodes().getDataNodes().stream().map(node -> node.getValue().getName()).collect(Collectors.toSet())
+            clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet())
         );
         String indexName = "test-index";
         createIndex(
@@ -1072,10 +1072,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info(
             "--> start recovery request: starting seq_no {}, commit {}",
             startRecoveryRequest.startingSeqNo(),
-            startRecoveryRequest.metadataSnapshot().getCommitUserData()
+            startRecoveryRequest.metadataSnapshot().commitUserData()
         );
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-            startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet()
+            startRecoveryRequest.metadataSnapshot().commitUserData().entrySet()
         );
         assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
         assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));

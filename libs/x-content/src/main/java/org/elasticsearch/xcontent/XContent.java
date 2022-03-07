@@ -79,16 +79,6 @@ public interface XContent {
 
     /**
      * Creates a parser over the provided bytes.
-     * @deprecated Use {@link #createParser(XContentParserConfiguration, byte[])}
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, byte[] data)
-        throws IOException {
-        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), data);
-    }
-
-    /**
-     * Creates a parser over the provided bytes.
      */
     XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException;
 

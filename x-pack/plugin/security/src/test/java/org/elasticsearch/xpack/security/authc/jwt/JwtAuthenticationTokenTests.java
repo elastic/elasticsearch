@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.jwk.JWK;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -22,17 +21,15 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
     public void testJwtAuthenticationTokenParse() throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
-        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(jwk);
-        final String serializedJWTOriginal = JwtTestCase.randomValidSignedJWT(jwsSigner, signatureAlgorithm).serialize();
 
-        final SecureString jwt = new SecureString(serializedJWTOriginal.toCharArray());
+        final SecureString jwt = JwtTestCase.randomJwt(jwk, signatureAlgorithm);
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
 
         final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(jwt, clientSharedSecret);
         final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
         final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
 
-        Assert.assertEquals(serializedJWTOriginal, endUserSignedJwt.toString());
+        Assert.assertEquals(jwt, endUserSignedJwt);
         Assert.assertEquals(clientSharedSecret, clientAuthenticationSharedSecret);
 
         jwtAuthenticationToken.clearCredentials();

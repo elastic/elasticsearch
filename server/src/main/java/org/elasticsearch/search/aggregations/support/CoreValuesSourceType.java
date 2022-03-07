@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -316,11 +315,15 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                                // Ignore queries that aren't "MUST"
-                                if (occur != Occur.MUST) {
-                                    return QueryVisitor.EMPTY_VISITOR;
+                                // Only extract bounds queries that must filter the results
+                                switch (occur) {
+                                    case MUST:
+                                    case FILTER:
+                                        return this;
+
+                                    default:
+                                        return QueryVisitor.EMPTY_VISITOR;
                                 }
-                                return this;
                             };
 
                             @Override

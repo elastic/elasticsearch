@@ -73,6 +73,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         boolean allShardsStarted = true;
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
+                assert primary == null : "duplicate primary: " + primary + " vs " + shard;
                 primary = shard;
             } else {
                 replicas.add(shard);
@@ -580,6 +581,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public Builder addShard(ShardRouting shardEntry) {
+            assert shardEntry.shardId().equals(shardId) : "cannot add [" + shardEntry + "] to routing table for " + shardId;
             shards.add(shardEntry);
             return this;
         }
@@ -592,6 +594,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         public IndexShardRoutingTable build() {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
+            assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 
@@ -609,6 +612,21 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                     }
                 }
             }
+            return true;
+        }
+
+        static boolean noDuplicatePrimary(List<ShardRouting> shards) {
+            boolean seenPrimary = false;
+            for (final var shard : shards) {
+                if (shard.primary()) {
+                    if (seenPrimary) {
+                        return false;
+                    }
+                    seenPrimary = true;
+                }
+            }
+            // We should be able to return seenPrimary here, but in tests there are many routing tables with no primary (e.g. empty) so for
+            // now we leniently allow there to be no primary as well. TODO fix those tests and stop being lenient here.
             return true;
         }
 

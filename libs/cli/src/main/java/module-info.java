@@ -10,4 +10,6 @@
 module org.elasticsearch.cli {
     requires jopt.simple;
     requires org.elasticsearch.core;
+
+    exports org.elasticsearch.cli;
 }

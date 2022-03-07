@@ -32,8 +32,8 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-
 import io.netty.util.concurrent.Future;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -177,7 +177,12 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty5HttpClient client = new Netty5HttpClient()) {
-                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Netty5Utils.EMPTY_BUFFER);
+                final FullHttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.POST,
+                    "/",
+                    Netty5Utils.EMPTY_BUFFER
+                );
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
 
@@ -185,17 +190,14 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
                     assertThat(response.status(), equalTo(expectedStatus));
                     if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
                         final FullHttpRequest continuationRequest = new DefaultFullHttpRequest(
-                                HttpVersion.HTTP_1_1,
-                                HttpMethod.POST,
-                                "/",
-                                Netty5Utils.EMPTY_BUFFER
+                            HttpVersion.HTTP_1_1,
+                            HttpMethod.POST,
+                            "/",
+                            Netty5Utils.EMPTY_BUFFER
                         );
                         try (FullHttpResponse continuationResponse = client.send(remoteAddress.address(), continuationRequest)) {
                             assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                            assertThat(
-                                    continuationResponse.payload().toString(StandardCharsets.UTF_8),
-                                    is("done")
-                            );
+                            assertThat(continuationResponse.payload().toString(StandardCharsets.UTF_8), is("done"));
                         }
                     }
                 }
@@ -286,7 +288,12 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
 
             try (Netty5HttpClient client = new Netty5HttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], StandardCharsets.UTF_8);
-                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url, Netty5Utils.EMPTY_BUFFER);
+                final FullHttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.GET,
+                    url,
+                    Netty5Utils.EMPTY_BUFFER
+                );
                 expectThrows(CompletionException.class, () -> client.send(remoteAddress.address(), request));
             }
         }
@@ -334,7 +341,12 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty5HttpClient client = new Netty5HttpClient()) {
-                DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url, Netty5Utils.EMPTY_BUFFER);
+                DefaultFullHttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.GET,
+                    url,
+                    Netty5Utils.EMPTY_BUFFER
+                );
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 long numOfHugeAllocations = getHugeAllocationCount();
                 try (FullHttpResponse response = client.send(remoteAddress.address(), request)) {
@@ -402,7 +414,12 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
 
             // Test pre-flight request
             try (Netty5HttpClient client = new Netty5HttpClient()) {
-                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/", Netty5Utils.EMPTY_BUFFER);
+                final FullHttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.OPTIONS,
+                    "/",
+                    Netty5Utils.EMPTY_BUFFER
+                );
                 request.headers().add(CorsHandler.ORIGIN, "elastic.co");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
 
@@ -416,7 +433,12 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
 
             // Test short-circuited request
             try (Netty5HttpClient client = new Netty5HttpClient()) {
-                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/", BufferAllocator.offHeapPooled().allocate(0));
+                final FullHttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.GET,
+                    "/",
+                    BufferAllocator.offHeapPooled().allocate(0)
+                );
                 request.headers().add(CorsHandler.ORIGIN, "elastic2.co");
 
                 try (FullHttpResponse response = client.send(remoteAddress.address(), request)) {
@@ -451,9 +473,7 @@ public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportT
             new TimeValue(randomIntBetween(100, 300))
         ).build();
 
-        EventLoopGroup group = new SingleThreadEventLoop(r -> {
-            return new Thread(r);
-        }, NioHandler.newFactory().newHandler());
+        EventLoopGroup group = new SingleThreadEventLoop(r -> { return new Thread(r); }, NioHandler.newFactory().newHandler());
         try (
             Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 settings,

@@ -10,8 +10,8 @@ package org.elasticsearch.transport.netty5;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
-
 import io.netty.util.concurrent.Future;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,7 +46,7 @@ public class Netty5TcpChannel implements TcpChannel {
         this.rstOnClose = rstOnClose;
         addListener(connectFuture, connectContext);
         connectFuture.addListener(future -> {
-            if(future.isSuccess()) {
+            if (future.isSuccess()) {
                 addListener(future.getNow().closeFuture(), closeContext);
             }
         });

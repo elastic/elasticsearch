@@ -14,9 +14,9 @@ import io.netty.buffer.api.adaptor.ByteBufAdaptor;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
-
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;

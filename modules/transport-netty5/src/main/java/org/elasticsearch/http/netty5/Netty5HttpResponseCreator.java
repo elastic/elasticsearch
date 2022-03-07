@@ -12,11 +12,11 @@ import io.netty.buffer.api.Buffer;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
-
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
+
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.transport.netty5.NettyAllocator;
 

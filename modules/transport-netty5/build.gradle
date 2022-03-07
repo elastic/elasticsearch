@@ -100,22 +100,13 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
-    // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-    'com.google.protobuf.ExtensionRegistry',
-    'com.google.protobuf.MessageLite$Builder',
-    'com.google.protobuf.MessageLite',
-    'com.google.protobuf.Parser',
-
     // from io.netty.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
 
-    // from Log4j (deliberate, Netty will fallback to Log4j 2)
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
-
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
@@ -131,20 +122,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
     'org.eclipse.jetty.npn.NextProtoNego',
 
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-    'org.jboss.marshalling.ByteInput',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-    'org.jboss.marshalling.ByteOutput',
-
-    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-    'org.jboss.marshalling.Marshaller',
-
-    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-    'org.jboss.marshalling.MarshallerFactory',
-    'org.jboss.marshalling.MarshallingConfiguration',
-    'org.jboss.marshalling.Unmarshaller',
-
     // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
     'org.slf4j.helpers.FormattingTuple',
     'org.slf4j.helpers.MessageFormatter',
@@ -152,15 +129,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
 
-    'com.google.protobuf.ExtensionRegistryLite',
-    'com.google.protobuf.MessageLiteOrBuilder',
-    'com.google.protobuf.nano.CodedOutputByteBufferNano',
-    'com.google.protobuf.nano.MessageNano',
     'com.github.luben.zstd.Zstd',
-    'com.jcraft.jzlib.Deflater',
-    'com.jcraft.jzlib.Inflater',
-    'com.jcraft.jzlib.JZlib$WrapperType',
-    'com.jcraft.jzlib.JZlib',
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
@@ -195,9 +164,6 @@ tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.PlatformDependent0$2',
-    'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
@@ -208,7 +174,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
 }

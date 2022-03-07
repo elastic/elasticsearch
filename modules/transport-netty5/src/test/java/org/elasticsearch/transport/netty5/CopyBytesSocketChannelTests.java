@@ -12,7 +12,6 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
-
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
@@ -23,6 +22,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.SingleThreadEventLoop;
 import io.netty.channel.nio.NioHandler;
 import io.netty.util.concurrent.Future;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
@@ -53,9 +53,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
     @SuppressForbidden(reason = "calls getLocalHost")
     public void setUp() throws Exception {
         super.setUp();
-        eventLoopGroup = new SingleThreadEventLoop(r -> {
-            return new Thread(r);
-        }, NioHandler.newFactory().newHandler());
+        eventLoopGroup = new SingleThreadEventLoop(r -> { return new Thread(r); }, NioHandler.newFactory().newHandler());
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.channel(CopyBytesServerSocketChannel.class);
         serverBootstrap.group(eventLoopGroup);

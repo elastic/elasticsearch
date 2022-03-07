@@ -18,12 +18,15 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvBufferAllocator;
 import io.netty.channel.RecvBufferAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
-
 import io.netty.util.concurrent.Future;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -310,7 +313,8 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
             final HttpObjectAggregator<?> aggregator = new HttpObjectAggregator<>(handlingSettings.getMaxContentLength());
             ch.pipeline().addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
-                //ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                // TODO: this stopped working with our buffer split hack
+                // ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", Netty5HttpRequestCreator.INSTANCE);
             ch.pipeline().addLast("response_creator", Netty5HttpResponseCreator.INSTANCE);

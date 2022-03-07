@@ -12,10 +12,14 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.api.Buffer;
 import io.netty.buffer.api.adaptor.ByteBufBuffer;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.SingleThreadEventLoop;
 import io.netty.channel.nio.NioHandler;
 import io.netty.channel.socket.SocketChannel;
-
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -29,6 +33,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.concurrent.Future;
+
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -77,9 +82,7 @@ class Netty5HttpClient implements Closeable {
     Netty5HttpClient() {
         clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
             .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
-            .group(new SingleThreadEventLoop(r -> {
-                return new Thread(r);
-            }, NioHandler.newFactory().newHandler()));
+            .group(new SingleThreadEventLoop(r -> { return new Thread(r); }, NioHandler.newFactory().newHandler()));
     }
 
     public List<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {

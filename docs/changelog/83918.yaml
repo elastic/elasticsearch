@@ -1,6 +1,0 @@
-pr: 83918
-summary: Always re-run Feature migrations which have encountered errors
-area: Infra/Core
-type: bug
-issues:
- - 83917

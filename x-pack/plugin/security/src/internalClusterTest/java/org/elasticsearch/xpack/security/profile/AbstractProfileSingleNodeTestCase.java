@@ -75,7 +75,15 @@ public abstract class AbstractProfileSingleNodeTestCase extends SecuritySingleNo
 
     @Override
     protected String configRoles() {
-        return super.configRoles() + "\n" + RAC_ROLE + ":\n" + "  cluster:\n" + "    - 'manage_own_api_key'\n" + "    - 'monitor'\n";
+        return super.configRoles()
+            + "\n"
+            + RAC_ROLE
+            + ":\n"
+            + "  cluster:\n"
+            + "    - 'manage_own_api_key'\n"
+            + "    - 'manage_token'\n"
+            + "    - 'manage_service_account'\n"
+            + "    - 'monitor'\n";
     }
 
     @Override

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -280,7 +279,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+                    public void clusterStatePublished(ClusterState newClusterState) {
                         latch.countDown();
                     }
                 }
@@ -678,7 +677,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterStatePublicationEvent clusterPublicationEvent) {
+            public void clusterStatePublished(ClusterState newClusterState) {
                 published.incrementAndGet();
                 semaphore.release();
             }

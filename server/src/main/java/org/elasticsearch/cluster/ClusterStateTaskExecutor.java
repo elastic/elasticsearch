@@ -14,8 +14,15 @@ import java.util.List;
 
 public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
-     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
-     * should be changed.
+     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no update should be published.
+     * <p>
+     * If this method throws an exception then the cluster state is unchanged and every task's {@link ClusterStateTaskListener#onFailure}
+     * method is called.
+     * <p>
+     * A common implementation pattern is to iterate through the tasks, constructing a new and updated {@link ClusterState} for each one.
+     * This works ok but beware that constructing a whole new {@link ClusterState} can be somewhat expensive, and there may sometimes be
+     * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
+     * should do that instead.
      *
      * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
      */
@@ -34,9 +41,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *
      * Note that this method will be executed using system context.
      *
-     * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
+     * @param newClusterState the new state which was published
      */
-    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {}
+    default void clusterStatePublished(ClusterState newClusterState) {}
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
@@ -62,7 +69,10 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * Creates a task executor that only executes a single task. Use a new instance of this executor to specifically submit a cluster state
      * update task that should be executed in isolation and not be batched with other state updates.
      * <p>
-     * If the task to be executed also implements {@link ClusterStateAckListener} then it is notified on acks.
+     * This executor exists for legacy reasons but is forbidden in new production code because unbatched tasks are a source of performance
+     * and stability bugs. You should instead implement your update logic in a dedicated {@link ClusterStateTaskExecutor} which is reused
+     * across multiple task instances. The task itself is typically just a collection of parameters consumed by the executor, together with
+     * any listeners to be notified when execution completes.
      */
     static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
         return new ClusterStateTaskExecutor<>() {

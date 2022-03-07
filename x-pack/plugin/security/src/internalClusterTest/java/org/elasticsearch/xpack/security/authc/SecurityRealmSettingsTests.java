@@ -96,7 +96,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.jwt.jwt9.allowed_signature_algorithms", "HS256")
                 .put("xpack.security.authc.realms.jwt.jwt9.allowed_audiences", "aud9")
                 .put("xpack.security.authc.realms.jwt.jwt9.claims.principal", "sub")
-                .put("xpack.security.authc.realms.jwt.jwt9.client_authentication.type", "SharedSecret")
+                .put("xpack.security.authc.realms.jwt.jwt9.client_authentication.type", "shared_secret")
                 .setSecureSettings(mockSecureSettings)
                 .build();
         } catch (IOException e) {

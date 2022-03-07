@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -789,6 +791,25 @@ public final class IngestDocument {
             }
     }
 
+    public static Set<String> getAllFields(Map<String, Object> input) {
+        return getAllFields(input, "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getAllFields(Map<String, Object> input, String prefix) {
+        Set<String> allFields = Sets.newHashSet();
+
+        input.forEach((k, v) -> {
+            allFields.add(prefix + k);
+
+            if (v instanceof Map<?, ?> mapValue) {
+                allFields.addAll(getAllFields((Map<String, Object>) mapValue, prefix + k + "."));
+            }
+        });
+
+        return allFields;
+    }
+
     /**
      * Executes the given pipeline with for this document unless the pipeline has already been executed
      * for this document.
@@ -856,10 +877,18 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
+        private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+            .map(metadata -> metadata.fieldName)
+            .collect(Collectors.toSet());
+
         private final String fieldName;
 
         Metadata(String fieldName) {
             this.fieldName = fieldName;
+        }
+
+        public static boolean isMetadata(String field) {
+            return METADATA_NAMES.contains(field);
         }
 
         public String getFieldName() {

@@ -52,14 +52,6 @@ if [ -z "$LIBFFI_TMPDIR" ]; then
   export LIBFFI_TMPDIR
 fi
 
-if [ -n "$ES_ZLIB_PATH" ]; then
-  if [ ! -d "$ES_ZLIB_PATH" ]; then
-    echo "zlib path specified in ES_ZLIB_PATH does not exist or is not a directory: $ES_ZLIB_PATH" >&2
-    exit 1
-  fi
-  export LD_LIBRARY_PATH="$ES_ZLIB_PATH:$LD_LIBRARY_PATH"
-fi
-
 # get keystore password before setting java options to avoid
 # conflicting GC configurations for the keystore tools
 unset KEYSTORE_PASSWORD

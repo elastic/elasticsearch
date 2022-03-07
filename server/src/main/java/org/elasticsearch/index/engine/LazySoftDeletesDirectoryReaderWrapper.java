@@ -6,11 +6,7 @@
  * Side Public License, v 1.
  */
 
-<<<<<<< HEAD:server/src/main/java/org/elasticsearch/lucene/index/LazySoftDeletesDirectoryReaderWrapper.java
-package org.elasticsearch.lucene.index;
-=======
 package org.elasticsearch.index.engine;
->>>>>>> master:server/src/main/java/org/elasticsearch/index/engine/LazySoftDeletesDirectoryReaderWrapper.java
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.CodecReader;
@@ -188,15 +184,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-<<<<<<< HEAD:server/src/main/java/org/elasticsearch/lucene/index/LazySoftDeletesDirectoryReaderWrapper.java
-    private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
-        DelegatingCacheHelper(CacheHelper delegate) {
-            super(delegate);
-        }
-    }
-
-=======
->>>>>>> master:server/src/main/java/org/elasticsearch/index/engine/LazySoftDeletesDirectoryReaderWrapper.java
     public static class LazyBits implements Bits {
 
         private final int maxDoc;
@@ -281,13 +268,10 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
         return newDeletes;
     }
-<<<<<<< HEAD:server/src/main/java/org/elasticsearch/lucene/index/LazySoftDeletesDirectoryReaderWrapper.java
-=======
 
     private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
         DelegatingCacheHelper(CacheHelper delegate) {
             super(delegate);
         }
     }
->>>>>>> master:server/src/main/java/org/elasticsearch/index/engine/LazySoftDeletesDirectoryReaderWrapper.java
 }

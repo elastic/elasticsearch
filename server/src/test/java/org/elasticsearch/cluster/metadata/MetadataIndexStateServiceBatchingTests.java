@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase {
 
@@ -60,6 +62,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         assertAcked(client().admin().indices().prepareClose(closedIndices));
         ensureGreen("test-1", "test-2", "test-3");
 
+        final var assertingListener = closedIndexCountListener(closedIndices.length);
+        clusterService.addListener(assertingListener);
+
         final var block1 = blockMasterService(masterService);
         block1.run(); // wait for block
 
@@ -81,6 +86,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             final var indexMetadata = clusterService.state().metadata().indices().get(index);
             assertThat(indexMetadata.getState(), is(State.OPEN));
         }
+
+        clusterService.removeListener(assertingListener);
     }
 
     public void testBatchCloseIndices() throws Exception {
@@ -92,6 +99,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
         createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
+
+        final var assertingListener = closedIndexCountListener(3);
+        clusterService.addListener(assertingListener);
 
         final var block1 = blockMasterService(masterService);
         block1.run(); // wait for block
@@ -130,6 +140,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             final var indexMetadata = clusterService.state().metadata().indices().get(index);
             assertThat(indexMetadata.getState(), is(State.CLOSE));
         }
+
+        clusterService.removeListener(assertingListener);
     }
 
     public void testBatchBlockIndices() throws Exception {
@@ -141,6 +153,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
         createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
+
+        final var assertingListener = blockedIndexCountListener();
+        clusterService.addListener(assertingListener);
 
         final var block1 = blockMasterService(masterService);
         block1.run(); // wait for block
@@ -179,6 +194,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             final var indexMetadata = clusterService.state().metadata().indices().get(index);
             assertThat(INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()), is(true));
         }
+
+        clusterService.removeListener(assertingListener);
     }
 
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
@@ -198,6 +215,17 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         );
 
         return () -> executionBarrier.await(10, TimeUnit.SECONDS);
+    }
+
+    private static ClusterStateListener closedIndexCountListener(int closedIndices) {
+        return event -> assertThat(event.state().metadata().getConcreteAllClosedIndices().length, oneOf(0, closedIndices));
+    }
+
+    private static ClusterStateListener blockedIndexCountListener() {
+        return event -> assertThat(
+            event.state().metadata().stream().filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())).count(),
+            oneOf(0L, 3L)
+        );
     }
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -63,6 +65,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -78,6 +81,8 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class ProfileService {
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
     private static final String DOC_ID_PREFIX = "profile_";
+    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
+    private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
 
     private final Settings settings;
     private final Clock clock;
@@ -372,18 +377,8 @@ public class ProfileService {
                 }, e -> {
                     if (e instanceof VersionConflictEngineException) {
                         // Document already exists with the specified ID, get the document with the ID
-                        // and check whether it is the right profile
-                        getVersionedDocument(profileDocument.uid(), ActionListener.wrap(versionedDocument -> {
-                            if (isTheRightProfileDocument(subject, versionedDocument.doc)) {
-                                // The profile document is a match, still need to update it with current auth info before return
-                                updateProfileForActivate(subject, versionedDocument, listener);
-                            } else {
-                                // The profile document is NOT a match, this means either genuine hash collision or profile document
-                                // was manually updated, e.g. realm or user rename etc. So we attempt to differentiate from the
-                                // existing profile document by increase the differentiator number by 1.
-                                incrementDifferentiatorAndCreateNewProfile(subject, profileDocument, listener);
-                            }
-                        }, listener::onFailure));
+                        // and check whether it is the right profile for the subject
+                        getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
                     } else {
                         listener.onFailure(e);
                     }
@@ -392,56 +387,88 @@ public class ProfileService {
         );
     }
 
+    private void getOrCreateProfileWithBackoff(
+        Subject subject,
+        ProfileDocument profileDocument,
+        Iterator<TimeValue> backoff,
+        ActionListener<Profile> listener
+    ) {
+        getVersionedDocument(profileDocument.uid(), ActionListener.wrap(versionedDocument -> {
+            if (versionedDocument == null) {
+                // Document not found. This can happen if the GET request hits a replica that is still processing the document
+                if (backoff.hasNext()) {
+                    final TimeValue backoffTimeValue = backoff.next();
+                    logger.debug("retrying get profile document [{}] after [{}] backoff", profileDocument.uid(), backoffTimeValue);
+                    client.threadPool()
+                        .schedule(
+                            () -> getOrCreateProfileWithBackoff(subject, profileDocument, backoff, listener),
+                            backoffTimeValue,
+                            ThreadPool.Names.GENERIC
+                        );
+                } else {
+                    // Retry has depleted. This can only happen when the document or the profile index itself gets deleted
+                    // in between requests.
+                    listener.onFailure(
+                        new ElasticsearchException("failed to retrieving profile [{}] after all retries", profileDocument.uid())
+                    );
+                }
+                return;
+            }
+            if (isSubjectOwnerOfProfileDocument(subject, versionedDocument.doc)) {
+                // The profile document is a match. It must have just got created by another thread, i.e. racing.
+                // Still need to update it with current auth info before return
+                updateProfileForActivate(subject, versionedDocument, listener);
+            } else {
+                // The profile document is NOT a match, this means either genuine hash collision or profile document
+                // was manually updated, e.g. realm or user rename etc. So we attempt to differentiate from the
+                // existing profile document by increase the differentiator number by 1.
+                incrementDifferentiatorAndCreateNewProfile(subject, profileDocument, listener);
+            }
+        }, listener::onFailure));
+    }
+
     private void incrementDifferentiatorAndCreateNewProfile(
         Subject subject,
         ProfileDocument profileDocument,
         ActionListener<Profile> listener
     ) throws IOException {
-        final String profileUid = profileDocument.uid();
-        final int index = profileUid.lastIndexOf("_");
+        final String uid = profileDocument.uid();
+        final int index = uid.lastIndexOf("_");
         if (index == -1) {
-            listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain any underscore character", profileUid));
-            return;
+            throw new ElasticsearchException("profile uid [{}] does not contain any underscore character", uid);
         }
-        final String differentiator = profileUid.substring(index + 1);
-        if (differentiator.isBlank()) {
-            listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain a differentiator", profileUid));
-            return;
+        final String baseUid = uid.substring(0, index);
+        final String differentiatorString = uid.substring(index + 1);
+        if (differentiatorString.isBlank()) {
+            throw new ElasticsearchException("profile uid [{}] does not contain a differentiator", uid);
         }
-        final int differentiatorNumber;
+        final int differentiator;
         try {
-            differentiatorNumber = Integer.parseInt(differentiator);
+            differentiator = Integer.parseInt(differentiatorString);
         } catch (NumberFormatException e) {
-            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator is not a number", e, profileUid));
+            throw new ElasticsearchException("profile uid [{}] differentiator is not a number", e, uid);
+        }
+        // Prevent infinite recursion. It is practically impossible to get this many clashes
+        if (differentiator > DIFFERENTIATOR_UPPER_LIMIT) {
+            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator number is too high", profileDocument.uid()));
             return;
         }
-        // TODO: temporary to prevent infinite recursion
-        if (differentiatorNumber > 99) {
-            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator number is too high (>99)", profileUid));
-            return;
-        }
-        createNewProfile(
-            subject,
-            new ProfileDocument(
-                profileUid.substring(0, index + 1) + (differentiatorNumber + 1),
-                profileDocument.enabled(),
-                profileDocument.lastSynchronized(),
-                profileDocument.user(),
-                profileDocument.access(),
-                profileDocument.applicationData()
-            ),
-            listener
-        );
+        // New uid by increment the differentiator by 1
+        final String newUid = baseUid + "_" + (differentiator + 1);
+        createNewProfile(subject, ProfileDocument.fromSubjectWithUid(subject, newUid), listener);
     }
 
-    private boolean isTheRightProfileDocument(Subject subject, ProfileDocument doc) {
+    /**
+     * Check whether the subject is the owner of the profile by comparing the username and realm/domain.
+     */
+    private boolean isSubjectOwnerOfProfileDocument(Subject subject, ProfileDocument doc) {
         if (false == subject.getUser().principal().equals(doc.user().username())) {
             return false;
         }
         final Authentication.RealmRef subjectRealm = subject.getRealm();
         final Authentication.RealmRef docRealm = doc.user().realm();
         if (subjectRealm.getType().equals(docRealm.getType())
-            && (subjectRealm.isFileOrNative() || subjectRealm.getName().equals(docRealm.getName()))) {
+            && (isFileOrNativeRealm(subjectRealm.getType()) || subjectRealm.getName().equals(docRealm.getName()))) {
             return true;
         }
         if (subjectRealm.getDomain() == null) {
@@ -453,7 +480,7 @@ public class ProfileService {
             .stream()
             .anyMatch(
                 realmIdentifier -> realmIdentifier.getType().equals(docRealm.getType())
-                    && (realmIdentifier.isFileOrNative() || realmIdentifier.getName().equals(docRealm.getName()))
+                    && (isFileOrNativeRealm(realmIdentifier.getType()) || realmIdentifier.getName().equals(docRealm.getName()))
             );
     }
 

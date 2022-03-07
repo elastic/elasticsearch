@@ -33,6 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.REALM_REF_PARSER;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 
 public record ProfileDocument(
     String uid,
@@ -95,7 +96,11 @@ public record ProfileDocument(
 
     static ProfileDocument fromSubject(Subject subject) {
         final String baseUid = computeBaseUidForSubject(subject);
-        final String uid = baseUid + "_0"; // Initial differentiator is 0
+        return fromSubjectWithUid(subject, baseUid + "_0"); // initial differentiator is 0
+    }
+
+    static ProfileDocument fromSubjectWithUid(Subject subject, String uid) {
+        assert uid.startsWith(computeBaseUidForSubject(subject) + "_");
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             uid,
@@ -118,15 +123,15 @@ public record ProfileDocument(
         final MessageDigest digest = MessageDigests.md5();
         digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
         if (subject.getRealm().getDomain() != null) {
-            subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
+            subject.getRealm().getDomain().realms().stream().sorted().forEach(realmIdentifier -> {
                 digest.update(realmIdentifier.getType().getBytes(StandardCharsets.UTF_8));
-                if (false == realmIdentifier.isFileOrNative()) {
+                if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
                     digest.update(realmIdentifier.getName().getBytes(StandardCharsets.UTF_8));
                 }
             });
         } else {
             digest.update(subject.getRealm().getType().getBytes(StandardCharsets.UTF_8));
-            if (false == subject.getRealm().isFileOrNative()) {
+            if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
                 digest.update(subject.getRealm().getName().getBytes(StandardCharsets.UTF_8));
             }
         }

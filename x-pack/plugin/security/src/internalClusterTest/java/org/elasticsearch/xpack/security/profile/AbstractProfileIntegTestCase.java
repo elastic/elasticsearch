@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.SecuritySingleNodeTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractProfileSingleNodeTestCase extends SecuritySingleNodeTestCase {
+public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase {
 
     protected static final String RAC_USER_NAME = "rac_user";
     protected static final String RAC_ROLE = "rac_role";
@@ -51,8 +51,8 @@ public abstract class AbstractProfileSingleNodeTestCase extends SecuritySingleNo
     }
 
     @Override
-    protected Settings nodeSettings() {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put("xpack.security.authc.token.enabled", "true");
         return builder.build();
     }
@@ -124,5 +124,10 @@ public abstract class AbstractProfileSingleNodeTestCase extends SecuritySingleNo
             .actionGet();
         assertThat(getProfilesResponse.getProfiles(), arrayWithSize(1));
         return getProfilesResponse.getProfiles()[0];
+    }
+
+    protected <T> T getInstanceFromRandomNode(Class<T> clazz) {
+        final String nodeName = randomFrom(internalCluster().getNodeNames());
+        return internalCluster().getInstance(clazz, nodeName);
     }
 }

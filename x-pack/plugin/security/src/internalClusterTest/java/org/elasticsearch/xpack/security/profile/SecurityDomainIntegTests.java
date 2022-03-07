@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SecurityDomainSingleNodeTestCase extends AbstractProfileSingleNodeTestCase {
+public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
 
     private static final Map<String, Object> REALM_DOMAIN_MAP = Map.of(
         "name",
@@ -44,8 +44,8 @@ public class SecurityDomainSingleNodeTestCase extends AbstractProfileSingleNodeT
     );
 
     @Override
-    protected Settings nodeSettings() {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // Register both file and native realms under the same domain
         builder.put("xpack.security.authc.domains.my_domain.realms", "file,index");
         return builder.build();

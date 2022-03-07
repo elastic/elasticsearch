@@ -562,10 +562,6 @@ public class Authentication implements ToXContentObject {
             return domain;
         }
 
-        public boolean isFileOrNative() {
-            return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

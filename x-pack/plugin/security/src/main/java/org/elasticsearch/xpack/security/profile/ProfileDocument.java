@@ -123,7 +123,11 @@ public record ProfileDocument(
         final MessageDigest digest = MessageDigests.md5();
         digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
         if (subject.getRealm().getDomain() != null) {
-            subject.getRealm().getDomain().realms().stream().sorted().forEach(realmIdentifier -> {
+            // Must sort with comparing type first because name does not matter for file/native realms
+            subject.getRealm().getDomain().realms().stream().sorted((o1, o2) -> {
+                int result = o1.getType().compareTo(o2.getType());
+                return (result == 0) ? o1.getName().compareTo(o2.getName()) : result;
+            }).forEach(realmIdentifier -> {
                 digest.update(realmIdentifier.getType().getBytes(StandardCharsets.UTF_8));
                 if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
                     digest.update(realmIdentifier.getName().getBytes(StandardCharsets.UTF_8));

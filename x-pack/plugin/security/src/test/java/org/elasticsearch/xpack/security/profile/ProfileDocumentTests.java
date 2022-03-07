@@ -40,7 +40,8 @@ public class ProfileDocumentTests extends ESTestCase {
                 realmRef = new Authentication.RealmRef(
                     realmIdentifier.getName(),
                     realmIdentifier.getType(),
-                    randomAlphaOfLengthBetween(3, 8)
+                    randomAlphaOfLengthBetween(3, 8),
+                    realmDomain
                 );
             }
             final ProfileDocument profileDocument = ProfileDocument.fromSubject(new Subject(new User(username), realmRef));

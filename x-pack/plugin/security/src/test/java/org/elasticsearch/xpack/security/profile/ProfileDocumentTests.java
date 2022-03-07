@@ -47,6 +47,5 @@ public class ProfileDocumentTests extends ESTestCase {
             allUids.add(profileDocument.uid());
         });
         assertThat(allUids, hasSize(1));
-        System.out.println(allUids);
     }
 }

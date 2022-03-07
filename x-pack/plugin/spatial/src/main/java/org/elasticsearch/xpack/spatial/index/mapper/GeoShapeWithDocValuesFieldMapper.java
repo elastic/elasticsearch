@@ -345,8 +345,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static class GeoShapeDocValuesField
         implements
-        Field<GeoShapeValues.GeoShapeValue>,
-        DocValuesScriptFieldSource,
+            Field<GeoShapeValues.GeoShapeValue>,
+            DocValuesScriptFieldSource,
             ScriptDocValues.GeometrySupplier<GeoShapeValues.GeoShapeValue> {
 
         private final GeoShapeValues in;

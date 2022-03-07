@@ -28,7 +28,11 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
         private final LongFieldScript.LeafFactory leafFactory;
         protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-        public Builder(String name, LongFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
+        public Builder(
+            String name,
+            LongFieldScript.LeafFactory leafFactory,
+            ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptFieldSource = toScriptFieldSource;

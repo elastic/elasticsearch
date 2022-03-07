@@ -37,7 +37,11 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     private final IpFieldScript.LeafFactory leafFactory;
     private final ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource;
 
-    private IpScriptFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource) {
+    private IpScriptFieldData(
+        String fieldName,
+        IpFieldScript.LeafFactory leafFactory,
+        ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource
+    ) {
         super(fieldName);
         this.leafFactory = leafFactory;
         this.toScriptFieldSource = toScriptFieldSource;

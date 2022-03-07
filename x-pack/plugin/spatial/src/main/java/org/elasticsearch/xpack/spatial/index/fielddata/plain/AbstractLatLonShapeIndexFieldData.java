@@ -32,7 +32,11 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldSource<GeoShapeValues> toScriptFieldSource;
 
-    AbstractLatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, ToScriptFieldSource<GeoShapeValues> toScriptFieldSource) {
+    AbstractLatLonShapeIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldSource<GeoShapeValues> toScriptFieldSource
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldSource = toScriptFieldSource;
@@ -59,7 +63,11 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     public static class LatLonShapeIndexFieldData extends AbstractLatLonShapeIndexFieldData {
-        public LatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, ToScriptFieldSource<GeoShapeValues> toScriptFieldSource) {
+        public LatLonShapeIndexFieldData(
+            String fieldName,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldSource<GeoShapeValues> toScriptFieldSource
+        ) {
             super(fieldName, valuesSourceType, toScriptFieldSource);
         }
 

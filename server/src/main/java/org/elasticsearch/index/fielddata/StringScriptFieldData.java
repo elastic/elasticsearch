@@ -22,7 +22,11 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
         private final StringFieldScript.LeafFactory leafFactory;
         protected final ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource;
 
-        public Builder(String name, StringFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource) {
+        public Builder(
+            String name,
+            StringFieldScript.LeafFactory leafFactory,
+            ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptFieldSource = toScriptFieldSource;

@@ -25,7 +25,11 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         private final DoubleFieldScript.LeafFactory leafFactory;
         protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        public Builder(String name, DoubleFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
+        public Builder(
+            String name,
+            DoubleFieldScript.LeafFactory leafFactory,
+            ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptFieldSource = toScriptFieldSource;
@@ -89,7 +93,10 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         private final DoubleScriptDocValues doubleScriptDocValues;
         protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        DoubleScriptLeafFieldData(DoubleScriptDocValues doubleScriptDocValues, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
+        DoubleScriptLeafFieldData(
+            DoubleScriptDocValues doubleScriptDocValues,
+            ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource
+        ) {
             super(0);
             this.doubleScriptDocValues = doubleScriptDocValues;
             this.toScriptFieldSource = toScriptFieldSource;

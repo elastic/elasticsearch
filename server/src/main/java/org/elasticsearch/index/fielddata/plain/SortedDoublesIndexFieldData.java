@@ -62,7 +62,11 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-    public SortedDoublesIndexFieldData(String fieldName, NumericType numericType, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
+    public SortedDoublesIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource
+    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
@@ -125,7 +129,11 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final String field;
         protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        SortedNumericHalfFloatFieldData(LeafReader reader, String field, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
+        SortedNumericHalfFloatFieldData(
+            LeafReader reader,
+            String field,
+            ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource
+        ) {
             super(0L);
             this.reader = reader;
             this.field = field;

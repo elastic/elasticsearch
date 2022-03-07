@@ -28,7 +28,11 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
         private final GeoPointFieldScript.LeafFactory leafFactory;
         private final ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource;
 
-        public Builder(String name, GeoPointFieldScript.LeafFactory leafFactory, ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource) {
+        public Builder(
+            String name,
+            GeoPointFieldScript.LeafFactory leafFactory,
+            ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptFieldSource = toScriptFieldSource;

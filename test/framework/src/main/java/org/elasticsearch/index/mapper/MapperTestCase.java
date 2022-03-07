@@ -658,10 +658,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesScriptFieldSource docValuesFieldSource = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-                .load(ctx)
-                .getScriptFieldSource("test");
+            DocValuesScriptFieldSource docValuesFieldSource = fieldType.fielddataBuilder(
+                "test",
+                () -> { throw new UnsupportedOperationException(); }
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldSource("test");
 
             docValuesFieldSource.setNextDocId(0);
 

@@ -26,7 +26,11 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
         private final BooleanFieldScript.LeafFactory leafFactory;
         protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-        public Builder(String name, BooleanFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
+        public Builder(
+            String name,
+            BooleanFieldScript.LeafFactory leafFactory,
+            ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptFieldSource = toScriptFieldSource;
@@ -90,7 +94,10 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
         private final BooleanScriptDocValues booleanScriptDocValues;
         protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-        BooleanScriptLeafFieldData(BooleanScriptDocValues booleanScriptDocValues, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
+        BooleanScriptLeafFieldData(
+            BooleanScriptDocValues booleanScriptDocValues,
+            ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
+        ) {
             super(0);
             this.booleanScriptDocValues = booleanScriptDocValues;
             this.toScriptFieldSource = toScriptFieldSource;

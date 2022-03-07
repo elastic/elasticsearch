@@ -13,7 +13,11 @@ import org.elasticsearch.script.field.Field;
 
 import java.util.Iterator;
 
-public abstract class DenseVectorDocValuesField implements Field<DenseVector>, DocValuesScriptFieldSource, DenseVectorScriptDocValues.DenseVectorSupplier {
+public abstract class DenseVectorDocValuesField
+    implements
+        Field<DenseVector>,
+        DocValuesScriptFieldSource,
+        DenseVectorScriptDocValues.DenseVectorSupplier {
     protected final String name;
 
     public DenseVectorDocValuesField(String name) {

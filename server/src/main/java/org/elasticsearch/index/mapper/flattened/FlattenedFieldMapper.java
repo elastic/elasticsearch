@@ -480,7 +480,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final IndexOrdinalsFieldData delegate;
         private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
 
-        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate, ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
+        private KeyedFlattenedFieldData(
+            String key,
+            IndexOrdinalsFieldData delegate,
+            ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+        ) {
             this.delegate = delegate;
             this.key = key;
             this.toScriptFieldSource = toScriptFieldSource;

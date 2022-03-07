@@ -62,7 +62,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-    public SortedNumericIndexFieldData(String fieldName, NumericType numericType, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
+    public SortedNumericIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
+    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;

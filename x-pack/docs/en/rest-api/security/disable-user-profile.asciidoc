@@ -1,12 +1,11 @@
 [role="xpack"]
 [[security-api-disable-user-profile]]
 === Disable user profile API
-
-beta::[]
-
 ++++
 <titleabbrev>Disable user profile</titleabbrev>
 ++++
+
+beta::[]
 
 Disables a user profile so it's not visible in
 <<security-api-search-user-profile,user profile searches>>.

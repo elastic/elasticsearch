@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.cbor;
+package org.elasticsearch.xcontent.provider.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
 
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContentParser;
+import org.elasticsearch.xcontent.provider.json.JsonXContentParser;
 
 public class CborXContentParser extends JsonXContentParser {
 

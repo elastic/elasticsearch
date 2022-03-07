@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -57,7 +58,7 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
                     }
                 }
             }
-        } catch (IOException | IllegalStateException e) {
+        } catch (IOException | IllegalStateException | XContentParseException e) {
             explanation.add("Not NDJSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
             return false;
         }

@@ -6,12 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.yaml;
+package org.elasticsearch.xcontent.provider.yaml;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContentGenerator;
+import org.elasticsearch.xcontent.provider.json.JsonXContentGenerator;
 
 import java.io.OutputStream;
 import java.util.Set;

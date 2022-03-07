@@ -40,11 +40,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, format, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = format;
     }
 
     /**
@@ -52,7 +51,6 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      */
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
         long minBarForHighestToLowestValueRatio = in.readLong();
         final int serializedLen = in.readVInt();

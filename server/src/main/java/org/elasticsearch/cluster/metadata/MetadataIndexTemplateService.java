@@ -34,8 +34,10 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -139,6 +141,11 @@ public class MetadataIndexTemplateService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
         clusterService.submitStateUpdateTask(
             "remove-index-template [" + request.name + "]",
@@ -179,7 +186,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -214,7 +221,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -386,7 +393,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -503,7 +510,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -662,6 +669,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
+        validateTsdbDataStreamsReferringTsdbTemplate(currentState, name, templateToValidate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
@@ -730,6 +738,53 @@ public class MetadataIndexTemplateService {
                     + "would cause data streams "
                     + newlyUnreferenced
                     + " to no longer match a data stream template"
+            );
+        }
+    }
+
+    // This method should be invoked after validateDataStreamsStillReferenced(...)
+    private static void validateTsdbDataStreamsReferringTsdbTemplate(
+        ClusterState state,
+        String templateName,
+        ComposableIndexTemplate newTemplate
+    ) {
+        Metadata updatedMetadata = null;
+        Set<String> dataStreamsWithNonTsdbTemplate = null;
+
+        for (var dataStream : state.metadata().dataStreams().values()) {
+            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+                continue;
+            }
+
+            if (updatedMetadata == null) {
+                updatedMetadata = Metadata.builder(state.metadata()).put(templateName, newTemplate).build();
+            }
+            var matchingTemplate = findV2Template(updatedMetadata, dataStream.getName(), false);
+            if (templateName.equals(matchingTemplate)) {
+                if (newTemplate.getDataStreamTemplate().getIndexMode() != IndexMode.TIME_SERIES) {
+                    if (dataStreamsWithNonTsdbTemplate == null) {
+                        dataStreamsWithNonTsdbTemplate = new HashSet<>();
+                    }
+                    dataStreamsWithNonTsdbTemplate.add(dataStream.getName());
+                }
+            }
+        }
+
+        if (dataStreamsWithNonTsdbTemplate != null) {
+            throw new IllegalArgumentException(
+                "composable template ["
+                    + templateName
+                    + "] with index patterns "
+                    + newTemplate.indexPatterns()
+                    + ", priority ["
+                    + newTemplate.priority()
+                    + "]"
+                    + ", index_mode ["
+                    + newTemplate.getDataStreamTemplate().getIndexMode()
+                    + "] "
+                    + "would cause tsdb data streams "
+                    + dataStreamsWithNonTsdbTemplate
+                    + " to no longer match a data stream template with a time_series index_mode"
             );
         }
     }
@@ -845,7 +900,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -980,7 +1035,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(new PutResponse(true));
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 

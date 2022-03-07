@@ -50,11 +50,16 @@ import java.util.Map;
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
-    record JwksAlgs(List<JWK> jwks, List<String> algs) {}
+    record JwksAlgs(List<JWK> jwks, List<String> algs) {
+        boolean isEmpty() {
+            return jwks.isEmpty() && algs.isEmpty();
+        }
+    }
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "X-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
+    public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
@@ -62,12 +67,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final String jwkSetPath;
     final CloseableHttpAsyncClient httpClient;
     final JwtRealm.JwksAlgs jwksAlgsHmac;
-    JwtRealm.JwksAlgs jwksAlgsPkc; // reloadable
+    final JwtRealm.JwksAlgs jwksAlgsPkc;
     final TimeValue allowedClockSkew;
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
     final ClaimParser claimParserGroups;
-    final String clientAuthenticationType;
+    final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
@@ -94,6 +99,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.clientAuthenticationSharedSecret
         );
 
+        if (config.hasSetting(JwtRealmSettings.HMAC_KEY) == false
+            && config.hasSetting(JwtRealmSettings.HMAC_JWKSET) == false
+            && config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
+            throw new SettingsException(
+                "At least one of ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_KEY)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_JWKSET)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH)
+                    + "] must be set"
+            );
+        }
+
         // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
         if (Strings.hasText(this.jwkSetPath)) {
@@ -107,16 +126,18 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        this.jwksAlgsHmac = this.parseJwksAlgsHmac(); // not reloadable
-        this.jwksAlgsPkc = this.parseJwksAlgsPkc(false); // reloadable
+        this.jwksAlgsHmac = this.parseJwksAlgsHmac();
+        this.jwksAlgsPkc = this.parseJwksAlgsPkc();
+        this.verifyAnyAvailableJwkAndAlgPair();
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
     private JwtRealm.JwksAlgs parseJwksAlgsHmac() {
+        final JwtRealm.JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
-        // HMAC Key vs HMAC JWKSet settings are mutually exclusive
         if (Strings.hasText(hmacJwkSetContents) && Strings.hasText(hmacKeyContents)) {
+            // HMAC Key vs HMAC JWKSet settings must be mutually exclusive
             throw new SettingsException(
                 "Settings ["
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET)
@@ -125,97 +146,78 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + "] are not allowed at the same time."
             );
         } else if ((Strings.hasText(hmacJwkSetContents) == false) && (Strings.hasText(hmacKeyContents) == false)) {
-            return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList()); // both empty OK, if PKC JWKSet non-empty
-        }
-        // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
-        List<JWK> jwksHmac;
-        if (Strings.hasText(hmacJwkSetContents)) {
-            jwksHmac = JwkValidateUtil.loadJwksFromJwkSetString(
-                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
-                hmacJwkSetContents.toString()
-            );
+            // If PKC JWKSet has at least one usable JWK, both HMAC Key vs HMAC JWKSet settings can be empty
+            jwksAlgsHmac = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         } else {
-            final OctetSequenceKey hmacKey = JwkValidateUtil.loadHmacJwkFromJwkString(
-                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
-                hmacKeyContents
-            );
-            jwksHmac = List.of(hmacKey);
+            // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
+            List<JWK> jwksHmac;
+            if (Strings.hasText(hmacJwkSetContents)) {
+                jwksHmac = JwkValidateUtil.loadJwksFromJwkSetString(
+                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
+                    hmacJwkSetContents.toString()
+                );
+            } else {
+                final OctetSequenceKey hmacKey = JwkValidateUtil.loadHmacJwkFromJwkString(
+                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
+                    hmacKeyContents
+                );
+                jwksHmac = List.of(hmacKey);
+            }
+            // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
+            final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+            final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+            jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
         }
-        // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
-        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-        final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
-        final JwtRealm.JwksAlgs jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
-        LOGGER.debug("HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
+        LOGGER.info("Usable HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
         return jwksAlgsHmac;
     }
 
-    private JwtRealm.JwksAlgs parseJwksAlgsPkc(final boolean isReload) {
-        // ASSUME: parseJwksAlgsHmac() has been called at startup, before parseJwksAlgsPkc() during startup or reload
-        assert this.jwksAlgsHmac != null : "HMAC not initialized, PKC validation not available";
+    private JwtRealm.JwksAlgs parseJwksAlgsPkc() {
+        final JwtRealm.JwksAlgs jwksAlgsPkc;
         if (Strings.hasText(this.jwkSetPath) == false) {
-            return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
-        }
-        // PKC JWKSet get contents from local file or remote HTTPS URL
-        final byte[] jwkSetContentBytesPkc;
-        if (this.httpClient == null) {
-            jwkSetContentBytesPkc = JwtUtil.readFileContents(
-                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
-                this.jwkSetPath,
-                super.config.env()
-            );
+            jwksAlgsPkc = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         } else {
-            final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
-            jwkSetContentBytesPkc = JwtUtil.readUriContents(
+            // PKC JWKSet get contents from local file or remote HTTPS URL
+            final byte[] jwkSetContentBytesPkc;
+            if (this.httpClient == null) {
+                jwkSetContentBytesPkc = JwtUtil.readFileContents(
+                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
+                    this.jwkSetPath,
+                    super.config.env()
+                );
+            } else {
+                final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
+                jwkSetContentBytesPkc = JwtUtil.readUriContents(
+                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
+                    jwkSetPathPkcUri,
+                    this.httpClient
+                );
+            }
+            final String jwkSetContentsPkc = new String(jwkSetContentBytesPkc, StandardCharsets.UTF_8);
+
+            // PKC JWKSet parse contents
+            final List<JWK> jwksPkc = JwkValidateUtil.loadJwksFromJwkSetString(
                 RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
-                jwkSetPathPkcUri,
-                this.httpClient
+                jwkSetContentsPkc
             );
-        }
-        final String jwkSetContentsPkc = new String(jwkSetContentBytesPkc, StandardCharsets.UTF_8);
 
-        // PKC JWKSet parse contents
-        final List<JWK> jwksPkc = JwkValidateUtil.loadJwksFromJwkSetString(
-            RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
-            jwkSetContentsPkc
-        );
-
-        // PKC JWKSet filter contents
-        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-        final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
-        final JwtRealm.JwksAlgs newJwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
-        LOGGER.debug("PKC: JWKs [" + newJwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", newJwksAlgsPkc.algs()) + "].");
-
-        // If HMAC has no content, PKC must have content. Fail hard during startup. Fail gracefully during reloads.
-        if (((this.jwksAlgsHmac.algs.isEmpty()) && (newJwksAlgsPkc.jwks().isEmpty()))
-            || ((this.jwksAlgsHmac.jwks.isEmpty()) && (newJwksAlgsPkc.algs().isEmpty()))) {
-            if (isReload) {
-                LOGGER.error("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
-                return newJwksAlgsPkc;
-            }
-            throw new SettingsException("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
+            // PKC JWKSet filter contents
+            final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+            final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
+            jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
         }
-        if (isReload) {
-            // Only give delta feedback during reloads.
-            if ((this.jwksAlgsPkc.jwks.isEmpty()) && (newJwksAlgsPkc.jwks().isEmpty() == false)) {
-                LOGGER.info("PKC JWKs changed from none to [" + newJwksAlgsPkc.jwks().size() + "].");
-            } else if ((this.jwksAlgsPkc.jwks.isEmpty() == false) && (newJwksAlgsPkc.jwks().isEmpty())) {
-                LOGGER.warn("PKC JWKs changed from [" + this.jwksAlgsPkc.jwks.size() + "] to none.");
-            } else if (this.jwksAlgsPkc.jwks.stream().sorted().toList().equals(newJwksAlgsPkc.jwks().stream().sorted().toList())) {
-                LOGGER.debug("PKC JWKs changed from [" + this.jwksAlgsPkc.jwks.size() + "] to [" + newJwksAlgsPkc.jwks().size() + "].");
-            } else {
-                LOGGER.trace("PKC JWKs no change from [" + this.jwksAlgsPkc.algs + "].");
-            }
-            if ((newJwksAlgsPkc.jwks().isEmpty()) && (newJwksAlgsPkc.algs().isEmpty() == false)) {
-                LOGGER.info("PKC algorithms changed from no usable content to having usable content " + newJwksAlgsPkc.algs() + ".");
-            } else if ((this.jwksAlgsPkc.algs.isEmpty() == false) && (newJwksAlgsPkc.algs().isEmpty())) {
-                LOGGER.warn("PKC algorithms changed from having usable content " + this.jwksAlgsPkc.algs + " to no usable content.");
-            } else if (this.jwksAlgsPkc.algs.stream().sorted().toList().equals(newJwksAlgsPkc.algs().stream().sorted().toList())) {
-                LOGGER.debug("PKC algorithms changed from usable content " + this.jwksAlgsHmac.algs + " to " + newJwksAlgsPkc.algs() + ".");
-            } else {
-                LOGGER.trace("PKC algorithms did not change from usable content " + this.jwksAlgsHmac.algs + ".");
-            }
+        LOGGER.info("Usable PKC: JWKs [" + jwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", jwksAlgsPkc.algs()) + "].");
+        return jwksAlgsPkc;
+    }
+
+    private void verifyAnyAvailableJwkAndAlgPair() {
+        assert this.jwksAlgsHmac != null : "HMAC not initialized";
+        assert this.jwksAlgsPkc != null : "PKC not initialized";
+        if (((this.jwksAlgsHmac.jwks.isEmpty()) && (this.jwksAlgsPkc.jwks.isEmpty()))
+            || ((this.jwksAlgsHmac.algs.isEmpty()) && (this.jwksAlgsPkc.algs.isEmpty()))) {
+            final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
+            throw new SettingsException(msg);
         }
-        return newJwksAlgsPkc;
     }
 
     void ensureInitialized() {
@@ -279,7 +281,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
             threadContext,
             JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
         return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
@@ -375,12 +377,16 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Delegated role lookup: If enabled, lookup in authz realms. Otherwise, fall through to JWT realm role mapping.
             if (this.delegatedAuthorizationSupport.hasDelegation()) {
-                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(success -> {
-                    // Intercept the delegated authorization listener response to log roles. Empty roles is OK.
-                    final User user = success.getValue();
-                    final String rolesString = Arrays.toString(user.roles());
-                    LOGGER.debug("Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "].");
-                    listener.onResponse(success);
+                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(result -> {
+                    if (result.isAuthenticated()) {
+                        // Intercept the delegated authorization listener response to log roles. Empty roles is OK.
+                        final User user = result.getValue();
+                        final String rolesString = Arrays.toString(user.roles());
+                        LOGGER.debug(
+                            "Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "]."
+                        );
+                    }
+                    listener.onResponse(result);
                 }, e -> {
                     final String msg = "Realm [" + super.name() + "] delegated roles failed for principal=[" + principal + "].";
                     LOGGER.warn(msg, e);

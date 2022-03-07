@@ -94,6 +94,7 @@ Machine Learning::
 * Avoid edge cases in the classification weights calculation to maximize minimum recall which could lead to only a single class being predicted {ml-pull}2194[#2194]
 * Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
 * Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
+* Fix bug restoring data gatherer state for time of day and week anomaly detection functions. This could lead to "No queue item for time" and "Time is out of range. Returning earliest bucket index" log errors {ml-pull}2213[#2213]
 
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
@@ -328,7 +329,7 @@ Geo::
 Machine Learning::
 * Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
 * Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
-* Upgrade Eigen library to version 3.4.0. (See {ml-pull}2137[#2137]
+* Upgrade Eigen library to version 3.4.0 {ml-pull}2137[#2137]
 
 Network::
 * Upgrade to Netty 4.1.73 {es-pull}82844[#82844]

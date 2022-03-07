@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest, GetApiKeyResponse> {
@@ -40,10 +43,10 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
 
     @Override
     protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
-        String apiKeyId = request.getApiKeyId();
+        String[] apiKeyIds = Strings.hasText(request.getApiKeyId()) ? new String[] { request.getApiKeyId() } : null;
         String apiKeyName = request.getApiKeyName();
         String username = request.getUserName();
-        String realm = request.getRealmName();
+        String[] realms = Strings.hasText(request.getRealmName()) ? new String[] { request.getRealmName() } : null;
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
@@ -51,13 +54,22 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         }
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
-            assert realm == null;
+            assert realms == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            realm = ApiKeyService.getCreatorRealmName(authentication);
+            if (authentication.isApiKey()) {
+                realms = new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
+            } else {
+                RealmDomain domain = authentication.getSourceRealm().getDomain();
+                if (domain != null) {
+                    realms = domain.realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new);
+                } else {
+                    realms = new String[] { authentication.getSourceRealm().getName() };
+                }
+            }
         }
 
-        apiKeyService.getApiKeys(realm, username, apiKeyName, apiKeyId, listener);
+        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, listener);
     }
 
 }

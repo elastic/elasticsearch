@@ -900,21 +900,21 @@ public class ApiKeyService {
 
     /**
      * Invalidate API keys for given realm, user name, API key name and id.
-     * @param realmName realm name
+     * @param realmNames realm name
      * @param username user name
      * @param apiKeyName API key name
      * @param apiKeyIds API key id
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
     public void invalidateApiKeys(
-        String realmName,
+        String[] realmNames,
         String username,
         String apiKeyName,
         String[] apiKeyIds,
         ActionListener<InvalidateApiKeyResponse> invalidateListener
     ) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false
+        if ((realmNames == null || realmNames.length == 0)
             && Strings.hasText(username) == false
             && Strings.hasText(apiKeyName) == false
             && (apiKeyIds == null || apiKeyIds.length == 0)) {
@@ -924,7 +924,7 @@ public class ApiKeyService {
             );
         } else {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(
-                realmName,
+                realmNames,
                 username,
                 apiKeyName,
                 apiKeyIds,
@@ -933,8 +933,8 @@ public class ApiKeyService {
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
-                            "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
-                            realmName,
+                            "No active api keys to invalidate for realms {}, username [{}], api key name [{}] and api key ids {}",
+                            Arrays.toString(realmNames),
                             username,
                             apiKeyName,
                             Arrays.toString(apiKeyIds)
@@ -992,7 +992,7 @@ public class ApiKeyService {
     }
 
     private void findApiKeysForUserRealmApiKeyIdAndNameCombination(
-        String realmName,
+        String[] realmNames,
         String userName,
         String apiKeyName,
         String[] apiKeyIds,
@@ -1007,8 +1007,17 @@ public class ApiKeyService {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
-            if (Strings.hasText(realmName)) {
-                boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmName));
+            if (realmNames != null && realmNames.length > 0) {
+                if (realmNames.length == 1) {
+                    boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmNames[0]));
+                } else {
+                    final BoolQueryBuilder realmsQuery = QueryBuilders.boolQuery();
+                    for (String realmName : realmNames) {
+                        realmsQuery.should(QueryBuilders.termQuery("creator.realm", realmName));
+                    }
+                    realmsQuery.minimumShouldMatch(1);
+                    boolQuery.filter(realmsQuery);
+                }
             }
             if (Strings.hasText(userName)) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
@@ -1177,23 +1186,22 @@ public class ApiKeyService {
 
     /**
      * Get API key information for given realm, user, API key name and id combination
-     * @param realmName realm name
+     * @param realmNames realm names
      * @param username user name
      * @param apiKeyName API key name
-     * @param apiKeyId API key id
+     * @param apiKeyIds API key ids
      * @param listener listener for {@link GetApiKeyResponse}
      */
     public void getApiKeys(
-        String realmName,
+        String[] realmNames,
         String username,
         String apiKeyName,
-        String apiKeyId,
+        String[] apiKeyIds,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
-        final String[] apiKeyIds = Strings.hasText(apiKeyId) == false ? null : new String[] { apiKeyId };
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            realmName,
+            realmNames,
             username,
             apiKeyName,
             apiKeyIds,
@@ -1202,11 +1210,11 @@ public class ApiKeyService {
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
-                        realmName,
+                        "No active api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
+                        Arrays.toString(realmNames),
                         username,
                         apiKeyName,
-                        apiKeyId
+                        Arrays.toString(apiKeyIds)
                     );
                     listener.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {

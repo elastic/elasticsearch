@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
@@ -48,7 +51,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         String[] apiKeyIds = request.getIds();
         String apiKeyName = request.getName();
         String username = request.getUserName();
-        String realm = request.getRealmName();
+        String[] realms = Strings.hasText(request.getRealmName()) ? new String[] { request.getRealmName() } : null;
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
@@ -56,13 +59,22 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         }
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
-            assert realm == null;
+            assert realms == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            realm = ApiKeyService.getCreatorRealmName(authentication);
+            if (authentication.isApiKey()) {
+                realms = new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
+            } else {
+                RealmDomain domain = authentication.getSourceRealm().getDomain();
+                if (domain != null) {
+                    realms = domain.realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new);
+                } else {
+                    realms = new String[] { authentication.getSourceRealm().getName() };
+                }
+            }
         }
 
-        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyIds, listener);
+        apiKeyService.invalidateApiKeys(realms, username, apiKeyName, apiKeyIds, listener);
     }
 
 }

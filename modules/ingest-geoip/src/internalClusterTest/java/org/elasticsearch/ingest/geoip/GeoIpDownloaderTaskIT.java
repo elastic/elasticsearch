@@ -55,7 +55,6 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84617")
     public void testTaskRemovedAfterCancellation() throws Exception {
         assertAcked(
             client().admin()
@@ -69,11 +68,13 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
             assertNotNull(task);
             assertTrue(task.isAssigned());
         });
-        ListTasksResponse tasks = client().admin()
-            .cluster()
-            .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-            .actionGet();
-        assertEquals(1, tasks.getTasks().size());
+        assertBusy(() -> {
+            ListTasksResponse tasks = client().admin()
+                .cluster()
+                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+                .actionGet();
+            assertEquals(1, tasks.getTasks().size());
+        });
         assertAcked(
             client().admin()
                 .cluster()

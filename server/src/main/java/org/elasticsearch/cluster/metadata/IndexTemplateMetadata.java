@@ -133,7 +133,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         if (this.mappings.isEmpty()) {
             return null;
         }
-        return this.mappings.iterator().next().value;
+        return this.mappings.values().iterator().next();
     }
 
     public CompressedXContent getMappings() {

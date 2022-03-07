@@ -8,8 +8,6 @@
 
 /** Elasticsearch Command Line Interface. */
 module org.elasticsearch.cli {
-    requires transitive jopt.simple;
-    requires transitive org.elasticsearch.core;
-
-    exports org.elasticsearch.cli;
+    requires jopt.simple;
+    requires org.elasticsearch.core;
 }

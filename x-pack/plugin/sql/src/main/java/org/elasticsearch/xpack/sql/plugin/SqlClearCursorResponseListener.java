@@ -19,8 +19,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
 
-public class SqlClearCursorResponseListener extends RestResponseListener<SqlClearCursorResponse> {
+import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_TOOK_NANOS;
+
+public class SqlClearCursorResponseListener extends RestResponseListener<SqlClearCursorResponse> {
+    private final long startNanos = System.nanoTime();
     RestRequest request;
     private final MediaType mediaType;
 
@@ -32,10 +36,19 @@ public class SqlClearCursorResponseListener extends RestResponseListener<SqlClea
 
     @Override
     public RestResponse buildResponse(SqlClearCursorResponse response) throws Exception {
-        assert mediaType instanceof XContentType;
-        XContentBuilder builder = channel.newBuilder(request.getXContentType(), (XContentType) mediaType, true);
-        response.toXContent(builder, request);
-        return new BytesRestResponse(RestStatus.OK, builder);
+        BytesRestResponse restResponse;
+        if (mediaType instanceof XContentType xContentType) {
+            XContentBuilder builder = channel.newBuilder(request.getXContentType(), xContentType, true);
+            response.toXContent(builder, request);
+            restResponse = new BytesRestResponse(RestStatus.OK, builder);
+        } else {
+            // TextFormat
+            TextFormat type = (TextFormat) mediaType;
+            final String data = "";
+            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
+        }
+        restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
+        return restResponse;
     }
 
 }

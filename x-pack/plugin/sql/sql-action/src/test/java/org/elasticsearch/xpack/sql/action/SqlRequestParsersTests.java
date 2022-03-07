@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -69,17 +70,20 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertNull(request.version());
         assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.getCursor());
+        assertTrue(request.binaryCommunication());
 
         randomMode = randomFrom(Mode.values());
         request = generateRequest("""
             {
               "cursor": "whatever",
               "mode": "%s",
-              "client_id": "bla"
+              "client_id": "bla",
+              "binary_format": false
             }""".formatted(randomMode.toString()), SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
         assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.getCursor());
+        assertFalse(request.binaryCommunication());
 
         request = generateRequest("{\"cursor\" : \"whatever\"}", SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
@@ -96,6 +100,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertNull(request.version());
         assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
+        assertEquals(CoreProtocol.BINARY_COMMUNICATION, request.binaryCommunication());
 
         request = generateRequest("""
             {"cursor" : "whatever", "client_id" : "cANVAs"}""", SqlClearCursorRequest::fromXContent);

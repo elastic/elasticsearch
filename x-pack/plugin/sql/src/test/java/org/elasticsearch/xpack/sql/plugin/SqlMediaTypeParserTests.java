@@ -124,6 +124,11 @@ public class SqlMediaTypeParserTests extends ESTestCase {
             getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.ODBC))
         );
         assertEquals(XContentType.CBOR, getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.CLI)));
+        assertEquals(
+            XContentType.JSON,
+            getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.PLAIN))
+        );
+
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {

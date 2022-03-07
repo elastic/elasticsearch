@@ -16,17 +16,17 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     private final String cursor;
     private final boolean binaryCommunication;
 
-    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo, boolean binaryMode) {
+    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo, boolean binaryCommunication) {
         super(requestInfo);
         this.cursor = cursor;
-        this.binaryCommunication = binaryMode;
+        this.binaryCommunication = binaryCommunication;
     }
 
     public String getCursor() {
         return cursor;
     }
 
-    public boolean isBinaryCommunication() {
+    public boolean binaryCommunication() {
         return binaryCommunication;
     }
 

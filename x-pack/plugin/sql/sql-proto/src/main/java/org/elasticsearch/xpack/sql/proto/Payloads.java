@@ -170,7 +170,7 @@ public final class Payloads {
         generator.writeStringField("mode", request.mode().toString());
         writeIfValid(generator, "client_id", request.clientId());
         writeIfValidAsString(generator, "version", request.version());
-        generator.writeBooleanField("binary_format", request.isBinaryCommunication());
+        generator.writeBooleanField("binary_format", request.binaryCommunication());
 
         generator.writeEndObject();
     }

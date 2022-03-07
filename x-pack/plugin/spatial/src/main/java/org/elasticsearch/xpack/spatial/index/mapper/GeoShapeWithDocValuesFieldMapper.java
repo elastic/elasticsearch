@@ -42,7 +42,8 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
@@ -344,7 +345,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static class GeoShapeDocValuesField
         implements
-            DocValuesField<GeoShapeValues.GeoShapeValue>,
+        Field<GeoShapeValues.GeoShapeValue>,
+        DocValuesScriptFieldSource,
             ScriptDocValues.GeometrySupplier<GeoShapeValues.GeoShapeValue> {
 
         private final GeoShapeValues in;
@@ -363,6 +365,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
+        public Field<?> toScriptField() {
+            return this;
+        }
+
+        @Override
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
                 value = in.value();
@@ -375,7 +382,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public ScriptDocValues<GeoShapeValues.GeoShapeValue> getScriptDocValues() {
+        public ScriptDocValues<GeoShapeValues.GeoShapeValue> toScriptDocValues() {
             if (geoShapeScriptValues == null) {
                 geoShapeScriptValues = new AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues(this);
             }

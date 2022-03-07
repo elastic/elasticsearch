@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class AbstractKeywordDocValuesField implements DocValuesField<String>, ScriptDocValues.Supplier<String> {
+public class AbstractKeywordDocValuesField implements Field<String>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<String> {
 
     protected final SortedBinaryDocValues input;
     protected final String name;
@@ -33,6 +33,11 @@ public class AbstractKeywordDocValuesField implements DocValuesField<String>, Sc
     public AbstractKeywordDocValuesField(SortedBinaryDocValues input, String name) {
         this.input = input;
         this.name = name;
+    }
+
+    @Override
+    public Field<?> toScriptField() {
+        return this;
     }
 
     @Override
@@ -63,7 +68,7 @@ public class AbstractKeywordDocValuesField implements DocValuesField<String>, Sc
     }
 
     @Override
-    public ScriptDocValues<String> getScriptDocValues() {
+    public ScriptDocValues<String> toScriptDocValues() {
         if (strings == null) {
             strings = new ScriptDocValues.Strings(this);
         }

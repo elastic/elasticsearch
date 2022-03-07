@@ -29,7 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocValues.Supplier<String> {
+public class IpDocValuesField implements Field<IPAddress>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<String> {
     protected final String name;
     protected final ScriptDocValues.Supplier<InetAddress> raw;
 
@@ -48,6 +48,11 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
     }
 
     @Override
+    public Field<?> toScriptField() {
+        return this;
+    }
+
+    @Override
     public void setNextDocId(int docId) throws IOException {
         raw.setNextDocId(docId);
     }
@@ -58,7 +63,7 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
     }
 
     @Override
-    public ScriptDocValues<String> getScriptDocValues() {
+    public ScriptDocValues<String> toScriptDocValues() {
         if (strings == null) {
             strings = new ScriptDocValues.Strings(this);
         }

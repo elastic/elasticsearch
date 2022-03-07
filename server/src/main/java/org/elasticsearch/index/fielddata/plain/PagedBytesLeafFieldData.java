@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 
 import java.util.Collection;
 import java.util.List;
@@ -29,9 +29,9 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
         PagedBytes.Reader bytes,
         PackedLongValues termOrdToBytesOffset,
         Ordinals ordinals,
-        ToScriptField<SortedSetDocValues> toScriptField
+        ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
     ) {
-        super(toScriptField);
+        super(toScriptFieldSource);
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;

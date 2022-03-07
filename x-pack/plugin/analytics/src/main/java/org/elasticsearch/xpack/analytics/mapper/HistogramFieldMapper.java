@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -207,7 +207,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField<?> getScriptField(String name) {
+                        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
                             throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
                         }
 

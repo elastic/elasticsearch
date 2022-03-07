@@ -13,8 +13,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DoubleFieldScript;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -23,32 +23,32 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DoubleFieldScript.LeafFactory leafFactory;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        public Builder(String name, DoubleFieldScript.LeafFactory leafFactory, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        public Builder(String name, DoubleFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
             this.name = name;
             this.leafFactory = leafFactory;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
         public DoubleScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new DoubleScriptFieldData(name, leafFactory, toScriptField);
+            return new DoubleScriptFieldData(name, leafFactory, toScriptFieldSource);
         }
     }
 
     private final String fieldName;
     DoubleFieldScript.LeafFactory leafFactory;
-    protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+    protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
     private DoubleScriptFieldData(
         String fieldName,
         DoubleFieldScript.LeafFactory leafFactory,
-        ToScriptField<SortedNumericDoubleValues> toScriptField
+        ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource
     ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
@@ -72,7 +72,7 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public DoubleScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new DoubleScriptLeafFieldData(new DoubleScriptDocValues(leafFactory.newInstance(context)), toScriptField);
+        return new DoubleScriptLeafFieldData(new DoubleScriptDocValues(leafFactory.newInstance(context)), toScriptFieldSource);
     }
 
     @Override
@@ -87,12 +87,12 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
 
     public static class DoubleScriptLeafFieldData extends LeafDoubleFieldData {
         private final DoubleScriptDocValues doubleScriptDocValues;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        DoubleScriptLeafFieldData(DoubleScriptDocValues doubleScriptDocValues, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        DoubleScriptLeafFieldData(DoubleScriptDocValues doubleScriptDocValues, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
             super(0);
             this.doubleScriptDocValues = doubleScriptDocValues;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
@@ -104,8 +104,8 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         public void close() {}
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+            return toScriptFieldSource.getScriptFieldSource(getDoubleValues(), name);
         }
     }
 }

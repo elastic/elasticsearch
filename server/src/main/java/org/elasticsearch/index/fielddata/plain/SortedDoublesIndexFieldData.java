@@ -25,8 +25,8 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -43,31 +43,31 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        public Builder(String name, NumericType numericType, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        public Builder(String name, NumericType numericType, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
             this.name = name;
             this.numericType = numericType;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, toScriptField);
+            return new SortedDoublesIndexFieldData(name, numericType, toScriptFieldSource);
         }
     }
 
     private final NumericType numericType;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+    protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-    public SortedDoublesIndexFieldData(String fieldName, NumericType numericType, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+    public SortedDoublesIndexFieldData(String fieldName, NumericType numericType, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
         this.valuesSourceType = numericType.getValuesSourceType();
-        this.toScriptField = toScriptField;
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
@@ -101,9 +101,9 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final String field = fieldName;
 
         return switch (numericType) {
-            case HALF_FLOAT -> new SortedNumericHalfFloatFieldData(reader, field, toScriptField);
-            case FLOAT -> new SortedNumericFloatFieldData(reader, field, toScriptField);
-            default -> new SortedNumericDoubleFieldData(reader, field, toScriptField);
+            case HALF_FLOAT -> new SortedNumericHalfFloatFieldData(reader, field, toScriptFieldSource);
+            case FLOAT -> new SortedNumericFloatFieldData(reader, field, toScriptFieldSource);
+            default -> new SortedNumericDoubleFieldData(reader, field, toScriptFieldSource);
         };
     }
 
@@ -123,13 +123,13 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        SortedNumericHalfFloatFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        SortedNumericHalfFloatFieldData(LeafReader reader, String field, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
             super(0L);
             this.reader = reader;
             this.field = field;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
@@ -154,8 +154,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+            return toScriptFieldSource.getScriptFieldSource(getDoubleValues(), name);
         }
     }
 
@@ -222,13 +222,13 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        SortedNumericFloatFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        SortedNumericFloatFieldData(LeafReader reader, String field, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
             super(0L);
             this.reader = reader;
             this.field = field;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
@@ -253,8 +253,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+            return toScriptFieldSource.getScriptFieldSource(getDoubleValues(), name);
         }
     }
 
@@ -321,13 +321,13 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericDoubleFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource;
 
-        SortedNumericDoubleFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        SortedNumericDoubleFieldData(LeafReader reader, String field, ToScriptFieldSource<SortedNumericDoubleValues> toScriptFieldSource) {
             super(0L);
             this.reader = reader;
             this.field = field;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
@@ -346,8 +346,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+            return toScriptFieldSource.getScriptFieldSource(getDoubleValues(), name);
         }
     }
 }

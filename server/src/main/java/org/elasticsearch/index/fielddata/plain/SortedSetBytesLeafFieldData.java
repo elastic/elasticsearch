@@ -13,7 +13,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -27,8 +27,8 @@ public final class SortedSetBytesLeafFieldData extends AbstractLeafOrdinalsField
     private final LeafReader reader;
     private final String field;
 
-    SortedSetBytesLeafFieldData(LeafReader reader, String field, ToScriptField<SortedSetDocValues> toScriptField) {
-        super(toScriptField);
+    SortedSetBytesLeafFieldData(LeafReader reader, String field, ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
+        super(toScriptFieldSource);
         this.reader = reader;
         this.field = field;
     }

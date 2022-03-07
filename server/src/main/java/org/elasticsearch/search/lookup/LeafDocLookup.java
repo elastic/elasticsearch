@@ -13,7 +13,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -31,7 +32,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    private final Map<String, DocValuesField<?>> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldSource> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -47,10 +48,10 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    public DocValuesField<?> getScriptField(String fieldName) {
-        DocValuesField<?> field = localCacheScriptFieldData.get(fieldName);
+    public DocValuesScriptFieldSource getScriptFieldSource(String fieldName) {
+        DocValuesScriptFieldSource source = localCacheScriptFieldData.get(fieldName);
 
-        if (field == null) {
+        if (source == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
             if (fieldType == null) {
@@ -59,35 +60,39 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
             // Load the field data on behalf of the script. Otherwise, it would require
             // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField<?>>() {
+            source = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldSource>() {
                 @Override
-                public DocValuesField<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
+                public DocValuesScriptFieldSource run() {
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptFieldSource(fieldName);
                 }
             });
 
-            localCacheScriptFieldData.put(fieldName, field);
+            localCacheScriptFieldData.put(fieldName, source);
         }
 
         try {
-            field.setNextDocId(docId);
+            source.setNextDocId(docId);
         } catch (IOException ioe) {
             throw ExceptionsHelper.convertToElastic(ioe);
         }
 
-        return field;
+        return source;
+    }
+
+    public Field<?> getScriptField(String fieldName) {
+        return getScriptFieldSource(fieldName).toScriptField();
     }
 
     @Override
     public ScriptDocValues<?> get(Object key) {
         String fieldName = key.toString();
-        return getScriptField(fieldName).getScriptDocValues();
+        return getScriptFieldSource(fieldName).toScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
         String fieldName = key.toString();
-        DocValuesField<?> docValuesField = localCacheScriptFieldData.get(fieldName);
+        DocValuesScriptFieldSource docValuesField = localCacheScriptFieldData.get(fieldName);
         return docValuesField != null || fieldTypeLookup.apply(fieldName) != null;
     }
 

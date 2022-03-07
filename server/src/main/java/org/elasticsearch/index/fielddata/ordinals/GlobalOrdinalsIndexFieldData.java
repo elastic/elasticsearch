@@ -20,7 +20,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -49,7 +49,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
 
     private final OrdinalMap ordinalMap;
     private final LeafOrdinalsFieldData[] segmentAfd;
-    private final ToScriptField<SortedSetDocValues> toScriptField;
+    private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
 
     protected GlobalOrdinalsIndexFieldData(
         String fieldName,
@@ -57,14 +57,14 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         LeafOrdinalsFieldData[] segmentAfd,
         OrdinalMap ordinalMap,
         long memorySizeInBytes,
-        ToScriptField<SortedSetDocValues> toScriptField
+        ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
@@ -227,7 +227,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             assert source.getReaderCacheHelper().getKey() == context.parent.reader().getReaderCacheHelper().getKey();
-            return new AbstractLeafOrdinalsFieldData(toScriptField) {
+            return new AbstractLeafOrdinalsFieldData(toScriptFieldSource) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
                     final SortedSetDocValues values = segmentAfd[context.ord].getOrdinalsValues();

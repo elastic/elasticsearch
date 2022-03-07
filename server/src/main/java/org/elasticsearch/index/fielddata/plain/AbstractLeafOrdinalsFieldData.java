@@ -14,23 +14,23 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 
 import java.util.Collection;
 import java.util.Collections;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    private final ToScriptField<SortedSetDocValues> toScriptField;
+    private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
 
-    protected AbstractLeafOrdinalsFieldData(ToScriptField<SortedSetDocValues> toScriptField) {
-        this.toScriptField = toScriptField;
+    protected AbstractLeafOrdinalsFieldData(ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
-    public final DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getOrdinalsValues(), name);
+    public final DocValuesScriptFieldSource getScriptFieldSource(String name) {
+        return toScriptFieldSource.getScriptFieldSource(getOrdinalsValues(), name);
     }
 
     @Override
@@ -38,8 +38,8 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
         return FieldData.toString(getOrdinalsValues());
     }
 
-    public static LeafOrdinalsFieldData empty(ToScriptField<SortedSetDocValues> toScriptField) {
-        return new AbstractLeafOrdinalsFieldData(toScriptField) {
+    public static LeafOrdinalsFieldData empty(ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
+        return new AbstractLeafOrdinalsFieldData(toScriptFieldSource) {
 
             @Override
             public long ramBytesUsed() {

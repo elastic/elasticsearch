@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.GeoPointFieldScript;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -26,32 +26,32 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final GeoPointFieldScript.LeafFactory leafFactory;
-        private final ToScriptField<MultiGeoPointValues> toScriptField;
+        private final ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource;
 
-        public Builder(String name, GeoPointFieldScript.LeafFactory leafFactory, ToScriptField<MultiGeoPointValues> toScriptField) {
+        public Builder(String name, GeoPointFieldScript.LeafFactory leafFactory, ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource) {
             this.name = name;
             this.leafFactory = leafFactory;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
         public GeoPointScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new GeoPointScriptFieldData(name, leafFactory, toScriptField);
+            return new GeoPointScriptFieldData(name, leafFactory, toScriptFieldSource);
         }
     }
 
     private final GeoPointFieldScript.LeafFactory leafFactory;
     private final String name;
-    private final ToScriptField<MultiGeoPointValues> toScriptField;
+    private final ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource;
 
     private GeoPointScriptFieldData(
         String fieldName,
         GeoPointFieldScript.LeafFactory leafFactory,
-        ToScriptField<MultiGeoPointValues> toScriptField
+        ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource
     ) {
         this.name = fieldName;
         this.leafFactory = leafFactory;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
@@ -86,7 +86,7 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
     @Override
     public LeafGeoPointFieldData load(LeafReaderContext context) {
         GeoPointFieldScript script = leafFactory.newInstance(context);
-        return new AbstractLeafGeoPointFieldData(toScriptField) {
+        return new AbstractLeafGeoPointFieldData(toScriptFieldSource) {
             @Override
             public MultiGeoPointValues getGeoPointValues() {
                 return new GeoPointScriptDocValues(script);

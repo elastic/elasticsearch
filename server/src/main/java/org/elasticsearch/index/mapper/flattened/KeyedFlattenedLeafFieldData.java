@@ -16,8 +16,8 @@ import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,12 +36,12 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     private final String key;
     private final LeafOrdinalsFieldData delegate;
-    private final ToScriptField<SortedSetDocValues> toScriptField;
+    private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
 
-    KeyedFlattenedLeafFieldData(String key, LeafOrdinalsFieldData delegate, ToScriptField<SortedSetDocValues> toScriptField) {
+    KeyedFlattenedLeafFieldData(String key, LeafOrdinalsFieldData delegate, ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
         this.key = key;
         this.delegate = delegate;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
@@ -80,8 +80,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     @Override
-    public DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getOrdinalsValues(), name);
+    public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+        return toScriptFieldSource.getScriptFieldSource(getOrdinalsValues(), name);
     }
 
     @Override

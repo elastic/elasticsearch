@@ -12,18 +12,18 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 
 import java.util.Collection;
 import java.util.Collections;
 
 public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointFieldData {
 
-    protected final ToScriptField<MultiGeoPointValues> toScriptField;
+    protected final ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource;
 
-    public AbstractLeafGeoPointFieldData(ToScriptField<MultiGeoPointValues> toScriptField) {
-        this.toScriptField = toScriptField;
+    public AbstractLeafGeoPointFieldData(ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource) {
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
@@ -32,12 +32,12 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
     }
 
     @Override
-    public DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getGeoPointValues(), name);
+    public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+        return toScriptFieldSource.getScriptFieldSource(getGeoPointValues(), name);
     }
 
-    public static LeafGeoPointFieldData empty(final int maxDoc, ToScriptField<MultiGeoPointValues> toScriptField) {
-        return new AbstractLeafGeoPointFieldData(toScriptField) {
+    public static LeafGeoPointFieldData empty(final int maxDoc, ToScriptFieldSource<MultiGeoPointValues> toScriptFieldSource) {
+        return new AbstractLeafGeoPointFieldData(toScriptFieldSource) {
 
             @Override
             public long ramBytesUsed() {

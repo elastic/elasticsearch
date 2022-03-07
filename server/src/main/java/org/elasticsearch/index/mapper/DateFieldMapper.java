@@ -43,7 +43,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -152,12 +152,12 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final String type;
         private final NumericType numericType;
-        private final ToScriptField<SortedNumericDocValues> toScriptField;
+        private final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-        Resolution(String type, NumericType numericType, ToScriptField<SortedNumericDocValues> toScriptField) {
+        Resolution(String type, NumericType numericType, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
             this.type = type;
             this.numericType = numericType;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         public String type() {
@@ -168,8 +168,8 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        ToScriptField<SortedNumericDocValues> getDefaultToScriptField() {
-            return toScriptField;
+        ToScriptFieldSource<SortedNumericDocValues> getDefaultToScriptField() {
+            return toScriptFieldSource;
         }
 
         /**

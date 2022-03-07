@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptDocValues.GeometrySupplier<GeoPoint> {
+public class GeoPointDocValuesField implements Field<GeoPoint>, DocValuesScriptFieldSource, ScriptDocValues.GeometrySupplier<GeoPoint> {
 
     protected final MultiGeoPointValues input;
     protected final String name;
@@ -34,6 +34,11 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
     public GeoPointDocValuesField(MultiGeoPointValues input, String name) {
         this.input = input;
         this.name = name;
+    }
+
+    @Override
+    public Field<?> toScriptField() {
+        return this;
     }
 
     @Override
@@ -92,7 +97,7 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
     }
 
     @Override
-    public ScriptDocValues<GeoPoint> getScriptDocValues() {
+    public ScriptDocValues<GeoPoint> toScriptDocValues() {
         if (geoPoints == null) {
             geoPoints = new ScriptDocValues.GeoPoints(this);
         }

@@ -14,8 +14,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DateFieldScript;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldSource;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -24,32 +24,32 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DateFieldScript.LeafFactory leafFactory;
-        protected final ToScriptField<SortedNumericDocValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-        public Builder(String name, DateFieldScript.LeafFactory leafFactory, ToScriptField<SortedNumericDocValues> toScriptField) {
+        public Builder(String name, DateFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
             this.name = name;
             this.leafFactory = leafFactory;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
         public DateScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new DateScriptFieldData(name, leafFactory, toScriptField);
+            return new DateScriptFieldData(name, leafFactory, toScriptFieldSource);
         }
     }
 
     private final String fieldName;
     private final DateFieldScript.LeafFactory leafFactory;
-    protected final ToScriptField<SortedNumericDocValues> toScriptField;
+    protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
     private DateScriptFieldData(
         String fieldName,
         DateFieldScript.LeafFactory leafFactory,
-        ToScriptField<SortedNumericDocValues> toScriptField
+        ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
     ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldSource = toScriptFieldSource;
     }
 
     @Override
@@ -73,7 +73,7 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public DateScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptField);
+        return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptFieldSource);
     }
 
     @Override
@@ -88,12 +88,12 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     public static class DateScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
-        protected final ToScriptField<SortedNumericDocValues> toScriptField;
+        protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
 
-        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptField<SortedNumericDocValues> toScriptField) {
+        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
             super(0);
             this.longScriptDocValues = longScriptDocValues;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldSource = toScriptFieldSource;
         }
 
         @Override
@@ -102,8 +102,8 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getLongValues(), name);
+        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
+            return toScriptFieldSource.getScriptFieldSource(getLongValues(), name);
         }
     }
 }

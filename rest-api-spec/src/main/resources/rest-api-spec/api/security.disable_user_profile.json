@@ -2,7 +2,7 @@
   "security.disable_user_profile":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user-profile.html",
-      "description":"Disable the user profile of the given unique ID so it is not visible to search."
+      "description":"Disables a user profile so it's not visible in user profile searches."
     },
     "stability":"experimental",
     "visibility":"public",
@@ -20,7 +20,7 @@
           "parts":{
             "uid":{
               "type":"string",
-              "description":"An unique identifier of the user profile"
+              "description":"Unique identifier for the user profile"
             }
           }
         }

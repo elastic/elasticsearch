@@ -2,7 +2,7 @@
   "security.enable_user_profile":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user-profile.html",
-      "description":"Enable the user profile of the given unique ID so it is visible to search."
+      "description":"Enables a user profile so it's visible in user profile searches."
     },
     "stability":"experimental",
     "visibility":"public",

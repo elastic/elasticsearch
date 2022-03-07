@@ -8,53 +8,44 @@ beta::[]
 <titleabbrev>Disable user profile</titleabbrev>
 ++++
 
-Disable th user profile that's associated with the specified unique ID.
-The user profile is **not** visible to search once disabled.
+Disables a user profile so it's not visible in
+<<security-api-search-user-profile,user profile searches>>.
 
 [[security-api-disable-user-profile-request]]
 ==== {api-request-title}
 
 `POST /_security/profile/<uid>/_disable`
 
+`PUT /_security/profile/<uid>/_disable`
+
 [[security-api-disable-user-profile-prereqs]]
 ==== {api-prereq-title}
 
-To use this API, you must have at least the `manage_user_profile` cluster privilege.
+To use this API, you must have the `manage_user_profile` cluster privilege.
 
 [[security-api-disable-user-profile-desc]]
 ==== {api-description-title}
 
-When activating a user profile with <<security-api-activiate-user-profile>>,
-the profile becomes enabled. You can use this Disable User Profile API and
-the <<security-api-enable-user-profile>> to change the `enabled` status.
+When you <<security-api-activiate-user-profile,activate a user profile>>, it's
+automatically enabled and visible in user profile searches. You can use the
+disable user profile API to disable a user profile so it's not visible in
+these searches.
+
+To re-enable a disabled user profile, use the
+<<security-api-enable-user-profile,enable user profile API>> .
 
 [[security-api-disable-user-profile-path-params]]
 ==== {api-path-parms-title}
 
-`uid`::
-(Required, string) A unique identifier for the user profile.
+`<uid>`::
+(Required, string) Unique identifier for the user profile.
 
 [[security-api-disable-user-profile-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-`uid`::
-(Required, string) A unique identifier for the user profile.
 
-[[security-api-disable-user-profile-response-body]]
-==== {api-response-body-title}
-
-A successful disable user profile API call returns a JSON structure
-indicating that the request is acknowledged:
-
-[source,js]
-----
-{
-  "acknowledged": true
-}
-----
-// NOTCONSOLE
 
 [[security-api-disable-user-profile-example]]
 ==== {api-examples-title}

@@ -1,45 +1,40 @@
 [role="xpack"]
 [[security-api-search-user-profile]]
 === Search user profile API
-
-beta::[]
-
 ++++
 <titleabbrev>Search user profile</titleabbrev>
 ++++
 
-Search for user profiles that match the specified search criteria.
+beta::[]
+
+Searches for user profiles that match specified criteria.
 
 [[security-api-search-user-profile-request]]
 ==== {api-request-title}
+
+`GET /_security/profile/_search`
 
 `POST /_security/profile/_search`
 
 [[security-api-search-user-profile-prereqs]]
 ==== {api-prereq-title}
 
-To use this API, you must have at least the `manage_user_profile` cluster privilege.
-
-[[security-api-search-user-profile-desc]]
-==== {api-description-title}
+To use this API, you must have the `manage_user_profile` cluster privilege.
 
 [[security-api-search-user-profile-request-body]]
 ==== {api-request-body-title}
 
 `name`::
 (Optional, string)
-The string used for matching named related fields of the user profile document.
-Name related fields are `username`, `full_name` and `email` of the user from
-the profile document.
+Query string used to match name-related fields in <<security-api-activate-user-profile-desc,user profile documents>>. Name-related fields are the user's `username`, `full_name` and `email`.
 
 `size`::
-(Optional, number)
-The number of results to be returned from the search. Defaults to 10.
+(Optional, integer)
+Number of profiles to return. Defaults to `10`.
 
 [[security-api-search-user-profile-response-body]]
 ==== {api-response-body-title}
 
-This API returns the following top level fields:
 
 `total`::
 (object)
@@ -50,12 +45,13 @@ Metadata about the number of matching profiles.
 Milliseconds it took {es} to execute the request.
 
 `profiles`::
-A list of profile documents (ordered by relevance) that match the search criteria.
+(array of objects)
+List of profile documents, ordered by relevance, that match the search criteria.
 
 [[security-api-search-user-profile-example]]
 ==== {api-examples-title}
 
-The following request searches for profile documents with name related fields
+The following request searches for profile documents with name-related fields
 matching `jack`:
 
 [source,console]
@@ -67,7 +63,7 @@ POST /_security/profile/_search
 ----
 // TEST[skip:TODO setup and tests will be possible once the profile uid is predictable]
 
-The API returns the following response
+The API returns:
 
 [source,js]
 ----

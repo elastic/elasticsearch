@@ -2,7 +2,7 @@
   "security.search_user_profile":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-search-user-profile.html",
-      "description":"Search for user profiles that match the specified search criteria."
+      "description":"Searches for user profiles that match specified criteria."
     },
     "stability":"experimental",
     "visibility":"public",

@@ -8,6 +8,7 @@
 
 module org.elasticsearch.logging {
     requires org.elasticsearch.cli;
+    requires org.elasticsearch.core;
     requires org.elasticsearch.xcontent;
     requires log4j2.ecs.layout;
     requires ecs.logging.core;

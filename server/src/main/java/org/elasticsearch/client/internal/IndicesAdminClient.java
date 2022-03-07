@@ -253,7 +253,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Open an index based on the index name.
      *
-     * @param request The close index request
+     * @param request The open index request
      * @return The result future
      * @see org.elasticsearch.client.internal.Requests#openIndexRequest(String)
      */
@@ -262,7 +262,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Open an index based on the index name.
      *
-     * @param request  The close index request
+     * @param request  The open index request
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.internal.Requests#openIndexRequest(String)
      */

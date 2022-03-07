@@ -124,23 +124,9 @@ public class CompoundProcessor implements Processor {
         return isAsync;
     }
 
-    // delegates to appropriate sync or async method
-    void executeCompound(IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
-        if (isAsync()) {
-            execute(doc, handler);
-        } else {
-            try {
-                IngestDocument result = execute(doc);
-                handler.accept(result, null);
-            } catch (Exception e) {
-                handler.accept(null, e);
-            }
-        }
-    }
-
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
-        assert isAsync == false;
+        assert isAsync == false; // must not be executed if there are async processors
 
         IngestDocument[] docHolder = new IngestDocument[1];
         Exception[] exHolder = new Exception[1];
@@ -158,7 +144,6 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        assert isAsync;
         innerExecute(0, ingestDocument, handler);
     }
 

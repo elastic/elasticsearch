@@ -475,9 +475,6 @@ public class ForEachProcessorTests extends ESTestCase {
         });
     }
 
-    // need tests with both sync and async processors, sync and async error processors
-    // with compound processor mixing sync and async?
-
     // executes either sync or async forEach processor
     private static void execProcessor(ForEachProcessor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
         if (processor.isAsync()) {

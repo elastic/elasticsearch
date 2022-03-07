@@ -48,7 +48,7 @@ public class CompoundProcessorTests extends ESTestCase {
         CompoundProcessor processor = new CompoundProcessor();
         assertThat(processor.getProcessors().isEmpty(), is(true));
         assertThat(processor.getOnFailureProcessors().isEmpty(), is(true));
-        processor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(processor, ingestDocument, (result, e) -> {});
     }
 
     public void testSingleProcessor() throws Exception {
@@ -63,7 +63,7 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(compoundProcessor.getProcessors().get(0), sameInstance(processor));
         assertThat(compoundProcessor.getProcessors().get(0), sameInstance(processor));
         assertThat(compoundProcessor.getOnFailureProcessors().isEmpty(), is(true));
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
         verify(relativeTimeProvider, times(2)).getAsLong();
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertStats(compoundProcessor, 1, 0, 1);
@@ -79,7 +79,7 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(compoundProcessor.getProcessors().get(0), sameInstance(processor));
         assertThat(compoundProcessor.getOnFailureProcessors().isEmpty(), is(true));
         Exception[] holder = new Exception[1];
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> holder[0] = e);
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> holder[0] = e);
         assertThat(((ElasticsearchException) holder[0]).getRootCause().getMessage(), equalTo("error"));
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertStats(compoundProcessor, 1, 1, 0);
@@ -97,7 +97,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.emptyList(),
             relativeTimeProvider
         );
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertStats(0, compoundProcessor, 0, 1, 1, 0);
         assertThat(processor2.getInvokedCounter(), equalTo(1));
@@ -123,7 +123,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.singletonList(processor2),
             relativeTimeProvider
         );
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
         verify(relativeTimeProvider, times(2)).getAsLong();
 
         assertThat(processor1.getInvokedCounter(), equalTo(1));
@@ -165,7 +165,7 @@ public class CompoundProcessorTests extends ESTestCase {
             relativeTimeProvider
         );
         IngestDocument[] result = new IngestDocument[1];
-        compoundProcessor.executeCompound(ingestDocument, (r, e) -> result[0] = r);
+        executeCompound(compoundProcessor, ingestDocument, (r, e) -> result[0] = r);
         assertThat(result[0], nullValue());
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertStats(compoundProcessor, 1, 1, 0);
@@ -202,7 +202,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.singletonList(compoundOnFailProcessor),
             relativeTimeProvider
         );
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
 
         assertThat(processorToFail.getInvokedCounter(), equalTo(1));
         assertThat(lastProcessor.getInvokedCounter(), equalTo(1));
@@ -236,7 +236,7 @@ public class CompoundProcessorTests extends ESTestCase {
         );
         IngestDocument[] docHolder = new IngestDocument[1];
         Exception[] exHolder = new Exception[1];
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {
             docHolder[0] = result;
             exHolder[0] = e;
         });
@@ -271,7 +271,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.singletonList(secondProcessor),
             relativeTimeProvider
         );
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
 
         assertThat(firstProcessor.getInvokedCounter(), equalTo(1));
         assertThat(secondProcessor.getInvokedCounter(), equalTo(1));
@@ -304,7 +304,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.singletonList(secondProcessor),
             relativeTimeProvider
         );
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
 
         assertThat(firstProcessor.getInvokedCounter(), equalTo(1));
         assertThat(secondProcessor.getInvokedCounter(), equalTo(1));
@@ -336,7 +336,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.singletonList(secondProcessor),
             relativeTimeProvider
         );
-        compoundProcessor.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
 
         assertThat(firstProcessor.getInvokedCounter(), equalTo(1));
         assertThat(secondProcessor.getInvokedCounter(), equalTo(1));
@@ -355,7 +355,7 @@ public class CompoundProcessorTests extends ESTestCase {
             Collections.singletonList(onFailureProcessor),
             relativeTimeProvider
         );
-        pipeline.executeCompound(ingestDocument, (result, e) -> {});
+        executeCompound(pipeline, ingestDocument, (result, e) -> {});
         assertThat(firstProcessor.getInvokedCounter(), equalTo(1));
         assertThat(secondProcessor.getInvokedCounter(), equalTo(0));
         assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
@@ -484,6 +484,20 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(ingestProcessorException.getHeader("processor_tag"), equalTo(List.of("my_tag")));
         assertThat(ingestProcessorException.getHeader("processor_type"), equalTo(List.of("my_type")));
         assertThat(ingestProcessorException.getHeader("pipeline_origin"), equalTo(List.of("2", "1")));
+    }
+
+    // delegates to appropriate sync or async method
+    private static void executeCompound(CompoundProcessor cp, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+        if (cp.isAsync()) {
+            cp.execute(doc, handler);
+        } else {
+            try {
+                IngestDocument result = cp.execute(doc);
+                handler.accept(result, null);
+            } catch (Exception e) {
+                handler.accept(null, e);
+            }
+        }
     }
 
     private void assertStats(CompoundProcessor compoundProcessor, long count, long failed, long time) {

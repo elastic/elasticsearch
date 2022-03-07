@@ -158,7 +158,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterAndDataNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
-        nodes.putAll(masterNodes);
+        nodes.putAllFromMap(masterNodes);
         return nodes.build();
     }
 
@@ -179,7 +179,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.stream().map(Map.Entry::getValue), stream().filter(n -> n.isMasterNode() == false));
+        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
     }
 
     /**

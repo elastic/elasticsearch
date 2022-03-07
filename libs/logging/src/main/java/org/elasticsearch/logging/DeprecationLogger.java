@@ -8,6 +8,8 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.internal.DeprecatedMessage;
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.logging.internal.HeaderWarningAppender; // TODO: remove from the API docs.
 import org.elasticsearch.logging.internal.RateLimitingFilter; // TODO: remove from the API docs.
 import org.elasticsearch.logging.internal.ServerSupportImpl;

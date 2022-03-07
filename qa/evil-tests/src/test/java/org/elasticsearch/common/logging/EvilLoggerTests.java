@@ -43,6 +43,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -327,7 +329,15 @@ public class EvilLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        Settings envSettings = environment.settings();
+        String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(envSettings).value();
+        String nodeName = Node.NODE_NAME_SETTING.get(envSettings);
+        Optional<Level> defaultLogLevel = LogSettings.defaultLogLevel(envSettings);
+        Map<String, Level> logLevelSettingsMap = LogSettings.logLevelSettingsMap(envSettings);
+        Path configFile = environment.configFile();
+        Path logsFile = environment.logsFile();
+
+        LogConfigurator.configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {

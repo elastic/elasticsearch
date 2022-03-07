@@ -19,8 +19,6 @@ import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.filter.AbstractFilter;
 import org.apache.logging.log4j.message.Message;
-import org.elasticsearch.logging.DeprecatedMessage;
-import org.elasticsearch.logging.ESLogMessage;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

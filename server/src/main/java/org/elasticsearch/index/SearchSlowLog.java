@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.logging.ESLogMessage;
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;

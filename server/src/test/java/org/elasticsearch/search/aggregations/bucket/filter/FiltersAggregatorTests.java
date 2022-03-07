@@ -36,7 +36,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
@@ -472,7 +471,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(List.of(new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, i + 1)));
+                iw.addDocument(List.of(DocCountFieldMapper.field(i + 1)));
             }
         };
         debugTestCase(
@@ -522,7 +521,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     List.of(
                         new Field("a", Integer.toString(i % 2), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                        new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, i + 1)
+                        DocCountFieldMapper.field(i + 1)
                     )
                 );
             }

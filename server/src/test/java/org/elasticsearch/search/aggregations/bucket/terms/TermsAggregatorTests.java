@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -2211,12 +2209,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 assertEquals(GlobalOrdinalsStringTermsAggregator.LowCardinality.class, impl);
                 assertMap(
                     debug,
-                    matchesMap().entry(
-                        "t",
-                        matchesMap().extraOk()
-                            .entry("result_strategy", "terms")
-                            .entry("collection_strategy", "dense")
-                    )
+                    matchesMap().entry("t", matchesMap().extraOk().entry("result_strategy", "terms").entry("collection_strategy", "dense"))
                 );
             } else {
                 assertEquals(impl, StringTermsAggregatorFromFilters.class);
@@ -2227,7 +2220,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
-                                matchesMap().extraOk().entry("segments_with_doc_count_field", hasDocCountField ? greaterThan(0) : equalTo(0))
+                                matchesMap().extraOk()
+                                    .entry("segments_with_doc_count_field", hasDocCountField ? greaterThan(0) : equalTo(0))
                             )
                     )
                 );

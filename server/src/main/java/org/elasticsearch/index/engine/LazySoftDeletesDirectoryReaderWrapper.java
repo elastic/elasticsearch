@@ -6,9 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.index;
+package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.util.Bits;
@@ -84,7 +97,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
     static LeafReader wrap(LeafReader reader, String field) {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
-        assert segmentReader.isNRT == false : "expected non-NRT reader";
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
         final int numSoftDeletes = segmentInfo.getSoftDelCount();
         if (numSoftDeletes == 0) {
@@ -172,27 +184,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    private static class DelegatingCacheHelper implements CacheHelper {
-        private final CacheHelper delegate;
-        private final CacheKey cacheKey = new CacheKey();
-
-        DelegatingCacheHelper(CacheHelper delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public CacheKey getKey() {
-            return cacheKey;
-        }
-
-        @Override
-        public void addClosedListener(ClosedListener listener) {
-            // here we wrap the listener and call it with our cache key
-            // this is important since this key will be used to cache the reader and otherwise we won't free caches etc.
-            delegate.addClosedListener(unused -> listener.onClose(cacheKey));
-        }
-    }
-
     public static class LazyBits implements Bits {
 
         private final int maxDoc;
@@ -246,7 +237,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
                 bits = new FixedBitSet(maxDoc);
                 bits.set(0, maxDoc);
             }
-            int numComputedSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
+            int numComputedSoftDeletes = applySoftDeletes(iterator, bits);
             assert numComputedSoftDeletes == numSoftDeletes
                 : "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
 
@@ -258,6 +249,29 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
         public boolean initialized() {
             return materializedBits != null;
+        }
+    }
+
+    static int applySoftDeletes(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+        assert iterator != null;
+        int newDeletes = 0;
+        int docID;
+
+        while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (bits.get(docID)) { // doc is live - clear it
+                bits.clear(docID);
+                newDeletes++;
+                // now that we know we deleted it and we fully control the hard deletes we can do correct
+                // accounting
+                // below.
+            }
+        }
+        return newDeletes;
+    }
+
+    private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
+        DelegatingCacheHelper(CacheHelper delegate) {
+            super(delegate);
         }
     }
 }

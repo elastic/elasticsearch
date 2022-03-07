@@ -238,10 +238,3 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
-
-tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-    // These are tricky because Lucene itself splits the index package,
-    // but this should be fixed in Lucene 9
-  ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
-}

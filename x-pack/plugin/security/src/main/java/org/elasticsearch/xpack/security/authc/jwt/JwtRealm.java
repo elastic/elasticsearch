@@ -14,6 +14,7 @@ import com.nimbusds.jwt.SignedJWT;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -168,7 +169,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
             jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
         }
-        LOGGER.info("Usable HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
+        LOGGER.info("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
         return jwksAlgsHmac;
     }
 
@@ -206,7 +207,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
             jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
         }
-        LOGGER.info("Usable PKC: JWKs [" + jwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", jwksAlgsPkc.algs()) + "].");
+        LOGGER.info("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
         return jwksAlgsPkc;
     }
 
@@ -247,7 +248,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             try {
                 this.httpClient.close();
             } catch (IOException e) {
-                LOGGER.warn("Exception closing HTTPS client for realm [" + super.name() + "]", e);
+                LOGGER.warn("Exception closing HTTPS client for realm [{}]", super.name(), e);
             }
         }
     }
@@ -302,7 +303,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
             try {
                 JwtUtil.validateClientAuthentication(this.clientAuthenticationType, this.clientAuthenticationSharedSecret, clientSecret);
-                LOGGER.trace("Realm [" + super.name() + "] client authentication succeeded for token=[" + tokenPrincipal + "].");
+                LOGGER.trace("Realm [{}] client authentication succeeded for token=[{}].", super.name(), tokenPrincipal);
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
                 LOGGER.debug(msg, e);
@@ -337,7 +338,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     jwksAndAlgs.algs,
                     jwksAndAlgs.jwks
                 );
-                LOGGER.trace("Realm [" + super.name() + "] JWT validation succeeded for token=[" + tokenPrincipal + "].");
+                LOGGER.trace("Realm [{}] JWT validation succeeded for token=[{}].", super.name(), tokenPrincipal);
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
                 final AuthenticationResult<User> failure = AuthenticationResult.unsuccessful(msg, e);
@@ -383,7 +384,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         final User user = result.getValue();
                         final String rolesString = Arrays.toString(user.roles());
                         LOGGER.debug(
-                            "Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "]."
+                            "Realm [{}] delegated roles [{}] for principal=[{}].",
+                            super.name(),
+                            rolesString,
+                            principal
+
                         );
                     }
                     listener.onResponse(result);
@@ -401,8 +406,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
                 final String[] rolesArray = rolesSet.toArray(new String[0]);
                 final User user = new User(principal, rolesArray, null, null, userData.getMetadata(), true);
-                final String rolesString = Arrays.toString(rolesArray);
-                LOGGER.debug("Realm [" + super.name() + "] mapped roles " + rolesString + " for principal=[" + principal + "].");
+                LOGGER.debug(
+                    () -> new ParameterizedMessage(
+                        "Realm [{}] mapped roles [{}] for principal=[{}].",
+                        super.name(),
+                        Strings.arrayToCommaDelimitedString(rolesArray),
+                        principal
+                    )
+                );
                 listener.onResponse(AuthenticationResult.success(user));
             }, e -> {
                 final String msg = "Realm [" + super.name() + "] mapped roles failed for principal=[" + principal + "].";

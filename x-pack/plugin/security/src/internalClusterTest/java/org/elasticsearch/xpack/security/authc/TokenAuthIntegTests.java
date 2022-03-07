@@ -895,7 +895,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         createTokenRequest3.setRefreshToken(refreshToken);
         final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future4 = new PlainActionFuture<>();
 
-        // Refresh token is bound to the original user that creates it. In this case, it is the run-as (native realm) user
+        // Refresh token is bound to the original user that creates it. In this case, it is the run-as user
         // refresh without run-as should fail
         client().filterWithHeader(
             Map.of("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING.clone()))

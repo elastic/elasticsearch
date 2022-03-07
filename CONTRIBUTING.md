@@ -482,9 +482,11 @@ that the logs fill up with noise and the useful signal is lost.
 
 Elasticsearch uses Log4J for logging. In most cases you should log via a
 `Logger` named after the class that is writing the log messages, which you can
-do by declaring a static field of the class as follows:
+do by declaring a static field of the class. For example:
 
-    private static final Logger logger = LogManager.getLogger();
+    class Foo {
+        private static final Logger logger = LogManager.getLogger(Foo.class);
+    }
 
 In rare situations you may want to configure your `Logger` slightly
 differently, perhaps specifying a different class or maybe using one of the

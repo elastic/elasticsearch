@@ -62,7 +62,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
             List.of("foo", "bar"),
             false,
             "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST)
+            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
         );
 
         Map<String, Object> config = new HashMap<>() {
@@ -152,7 +152,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
             ),
             equalTo(
                 new ZeroShotClassificationConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
                 ).build().apply(originalConfig)
             )
         );
@@ -209,7 +209,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
             randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomAlphaOfLength(5),
-            randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()))
+            randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null)
         );
     }
 

@@ -93,12 +93,12 @@ public class JwtUtil {
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
     public static void validateClientAuthenticationSettings(
         final String clientAuthenticationTypeConfigKey,
-        final String clientAuthenticationType,
+        final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType,
         final String clientAuthenticationSharedSecretConfigKey,
         final SecureString clientAuthenticationSharedSecret
     ) throws SettingsException {
         switch (clientAuthenticationType) {
-            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET:
+            case SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
                 if (Strings.hasText(clientAuthenticationSharedSecret) == false) {
                     throw new SettingsException(
@@ -107,12 +107,12 @@ public class JwtUtil {
                             + "]. It is required when setting ["
                             + clientAuthenticationTypeConfigKey
                             + "] is ["
-                            + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
+                            + JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
                             + "]"
                     );
                 }
                 break;
-            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE:
+            case NONE:
             default:
                 // If type is "None", the shared secret value must not be set
                 if (Strings.hasText(clientAuthenticationSharedSecret)) {
@@ -122,7 +122,7 @@ public class JwtUtil {
                             + "] is not supported, because setting ["
                             + clientAuthenticationTypeConfigKey
                             + "] is ["
-                            + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
+                            + JwtRealmSettings.ClientAuthenticationType.NONE.value()
                             + "]"
                     );
                 }
@@ -130,17 +130,20 @@ public class JwtUtil {
                     "Setting ["
                         + clientAuthenticationSharedSecretConfigKey
                         + "] value ["
-                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
+                        + JwtRealmSettings.ClientAuthenticationType.NONE.value()
                         + "] may not be secure. Unauthorized clients may be able to submit JWTs from the same issuer."
                 );
                 break;
         }
     }
 
-    public static void validateClientAuthentication(final String type, final SecureString expectedSecret, final SecureString actualSecret)
-        throws Exception {
+    public static void validateClientAuthentication(
+        final JwtRealmSettings.ClientAuthenticationType type,
+        final SecureString expectedSecret,
+        final SecureString actualSecret
+    ) throws Exception {
         switch (type) {
-            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET:
+            case SHARED_SECRET:
                 if (Strings.hasText(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret is missing.");
                 } else if (expectedSecret.equals(actualSecret) == false) {
@@ -148,7 +151,7 @@ public class JwtUtil {
                 }
                 LOGGER.trace("Accepted client. Authentication type is [" + type + "] and secret matched.");
                 break;
-            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE:
+            case NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
                     LOGGER.debug("Accepted client. Authentication type [" + type + "]. Secret is present but ignored.");

@@ -203,6 +203,14 @@ public class TestSecurityClient {
      * Uses the REST API to add a role-mapping to the native store.
      * @see org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction
      */
+    public void putRoleMapping(String mappingName, Map<String, Object> mappingBody) throws IOException {
+        putRoleMapping(mappingName, toJson(mappingBody));
+    }
+
+    /**
+     * Uses the REST API to add a role-mapping to the native store.
+     * @see org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction
+     */
     public void putRoleMapping(String mappingName, String mappingJson) throws IOException {
         final String endpoint = "/_security/role_mapping/" + mappingName;
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);

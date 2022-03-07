@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -222,7 +224,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final String authcRealmName = "realm_" + jwtIssuer.issuer;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
-        final String clientAuthenticationType = randomFrom(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES);
+        final ClientAuthenticationType clientAuthenticationType = randomFrom(ClientAuthenticationType.values());
         final Settings.Builder authcSettings = Settings.builder()
             .put(this.globalSettings)
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
@@ -235,7 +237,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
                 randomBoolean() ? "sub" : authcRealmName + "_sub"
             );
-        if ((JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType) == false) || (randomBoolean())) {
+        if ((ClientAuthenticationType.SHARED_SECRET != clientAuthenticationType) || (randomBoolean())) {
             // always set "None", optionally set "SharedSecret" or let it get picked by default
             authcSettings.put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
@@ -305,7 +307,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 jwtIssuer.encodedKeyHmacOidc
             );
         }
-        if (clientAuthenticationType.equals(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET)) {
+        if (clientAuthenticationType.equals(ClientAuthenticationType.SHARED_SECRET)) {
             // always set if type is "SharedSecret"
             final String clientAuthenticationSharedSecret = randomAlphaOfLength(64);
             secureSettings.setString(
@@ -552,6 +554,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(),
             algJwkPair.alg(), // alg
             randomAlphaOfLengthBetween(10, 20), // jwtID
             jwtIssuerAndRealm.realm.allowedIssuer, // iss
@@ -565,7 +568,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             Date.from(now), // iat
             Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
             Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
-            randomBoolean() ? null : new Nonce(32),
+            randomBoolean() ? null : new Nonce(32).toString(),
             randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
         );
         final SecureString signedJWT = JwtValidateUtil.signJwt(algJwkPair.jwk(), unsignedJwt);

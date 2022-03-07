@@ -109,12 +109,12 @@ explain:
   - length:   { aggregations.page.buckets: 2 }
   - match:    { aggregations.page.buckets.0.key: 1 }
   - close_to: { aggregations.page.buckets.0.top_hits.hits.hits.0._explanation.value: { value: 0.14543022, error: 0.001 }}
-  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.0._explanation.description: "weight(text:the in 0) [PerFieldSimilarity], result of:" }
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.0._explanation.description: "/weight\\(text:the\\ in\\ \\d\\)\\ \\[PerFieldSimilarity\\],\\ result\\ of:/" }
   - close_to: { aggregations.page.buckets.0.top_hits.hits.hits.1._explanation.value: { value: 0.13353139, error: 0.001 }}
-  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.1._explanation.description: "weight(text:the in 1) [PerFieldSimilarity], result of:" }
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.1._explanation.description: "/weight\\(text:the\\ in\\ \\d\\)\\ \\[PerFieldSimilarity\\],\\ result\\ of:/" }
   - match:    { aggregations.page.buckets.1.key: 2 }
   - close_to: { aggregations.page.buckets.1.top_hits.hits.hits.0._explanation.value: { value: 0.12343238, error: 0.001 }}
-  - match:    { aggregations.page.buckets.1.top_hits.hits.hits.0._explanation.description: "weight(text:the in 2) [PerFieldSimilarity], result of:" }
+  - match:    { aggregations.page.buckets.1.top_hits.hits.hits.0._explanation.description: "/weight\\(text:the\\ in\\ \\d\\)\\ \\[PerFieldSimilarity\\],\\ result\\ of:/" }
 
 ---
 from:

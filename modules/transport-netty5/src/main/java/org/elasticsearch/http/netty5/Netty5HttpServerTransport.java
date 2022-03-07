@@ -307,10 +307,10 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator<DefaultHttpContent> aggregator = new HttpObjectAggregator<>(handlingSettings.getMaxContentLength());
+            final HttpObjectAggregator<?> aggregator = new HttpObjectAggregator<>(handlingSettings.getMaxContentLength());
             ch.pipeline().addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                //ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", Netty5HttpRequestCreator.INSTANCE);
             ch.pipeline().addLast("response_creator", Netty5HttpResponseCreator.INSTANCE);

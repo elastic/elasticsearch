@@ -68,7 +68,7 @@ public class Netty5TcpChannel implements TcpChannel {
         });
     }
 
-    public static <T> void addPromise(ActionListener<Void> listener, Future<T> future) {
+    public static void addPromise(ActionListener<Void> listener, Future<Void> future) {
         future.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(null);

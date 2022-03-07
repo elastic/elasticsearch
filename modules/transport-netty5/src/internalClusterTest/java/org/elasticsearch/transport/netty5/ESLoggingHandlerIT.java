@@ -10,7 +10,7 @@ package org.elasticsearch.transport.netty5;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.ESNetty5IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -23,7 +23,7 @@ import org.elasticsearch.transport.TransportLogger;
 import java.io.IOException;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
-public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
+public class ESLoggingHandlerIT extends ESNetty5IntegTestCase {
 
     private MockLogAppender appender;
 

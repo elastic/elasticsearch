@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.transport.netty5;
 
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.ESNetty5IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
-public class Netty5TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
+public class Netty5TransportMultiPortIntegrationIT extends ESNetty5IntegTestCase {
 
     private static int randomPort = -1;
     private static String randomPortRange;

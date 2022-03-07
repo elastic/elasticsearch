@@ -11,9 +11,8 @@ package org.elasticsearch.http.netty5;
 import io.netty.buffer.api.Resource;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.util.ReferenceCounted;
 
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.ESNetty5IntegTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,7 +38,7 @@ import static org.hamcrest.Matchers.hasSize;
  * a single node "cluster".
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1)
-public class Netty5HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
+public class Netty5HttpRequestSizeLimitIT extends ESNetty5IntegTestCase {
 
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 

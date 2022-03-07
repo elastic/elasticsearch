@@ -140,11 +140,7 @@ class Netty5HttpClient implements Closeable {
             channelFuture.sync();
             final Channel channel = channelFuture.getNow();
             for (HttpRequest request : requests) {
-                channel.writeAndFlush(request).addListener(future -> {
-                    if (future.isFailed()) {
-                        throw new AssertionError(future.cause());
-                    }
-                });
+                channel.writeAndFlush(request).syncUninterruptibly().getNow();
             }
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");

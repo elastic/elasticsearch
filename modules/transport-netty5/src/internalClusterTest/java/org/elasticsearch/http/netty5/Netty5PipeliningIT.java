@@ -11,7 +11,7 @@ package org.elasticsearch.http.netty5;
 import io.netty.buffer.api.Resource;
 import io.netty.handler.codec.http.FullHttpResponse;
 
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.ESNetty5IntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class Netty5PipeliningIT extends ESNetty4IntegTestCase {
+public class Netty5PipeliningIT extends ESNetty5IntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {

@@ -17,7 +17,7 @@ import org.elasticsearch.transport.netty5.Netty5Transport;
 import java.util.Collection;
 import java.util.Collections;
 
-public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
+public abstract class ESNetty5IntegTestCase extends ESIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {

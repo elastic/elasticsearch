@@ -9,6 +9,7 @@
 package org.elasticsearch.http.netty5;
 
 import io.netty.buffer.api.Buffer;
+import io.netty.buffer.api.BufferAllocator;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -149,7 +150,12 @@ public class Netty5HttpRequest implements HttpRequest {
             return this;
         }
         try {
-            final Buffer copiedContent = request.payload().copy();
+            final Buffer copiedContent;
+            if (request.payload().readableBytes() > 0) {
+                copiedContent = BufferAllocator.onHeapUnpooled().allocate(request.payload().readableBytes()).writeBytes(request.payload());
+            } else {
+                copiedContent = Netty5Utils.EMPTY_BUFFER;
+            }
             return new Netty5HttpRequest(
                 new DefaultFullHttpRequest(
                     request.protocolVersion(),

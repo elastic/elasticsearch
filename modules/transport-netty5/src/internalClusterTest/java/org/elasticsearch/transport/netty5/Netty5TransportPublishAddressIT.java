@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport.netty5;
 
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.ESNetty5IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkModule;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * different ports on ipv4 and ipv6.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
+public class Netty5TransportPublishAddressIT extends ESNetty5IntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()

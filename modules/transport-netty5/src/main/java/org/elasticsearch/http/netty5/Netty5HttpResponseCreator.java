@@ -12,11 +12,11 @@ import io.netty.buffer.api.Buffer;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
+
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
-
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.transport.netty5.NettyAllocator;
 
@@ -54,7 +54,7 @@ final class Netty5HttpResponseCreator extends MessageToMessageEncoder<Netty5Http
             while (content.readableBytes() > SPLIT_THRESHOLD) {
                 out.add(new DefaultHttpContent(content.readSplit(SPLIT_THRESHOLD)));
             }
-            out.add(new DefaultLastHttpContent(content.readSplit(content.readableBytes())));
+            out.add(new DefaultLastHttpContent(content));
         }
     }
 }

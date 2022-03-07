@@ -25,13 +25,6 @@ public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf msg) {
-        int readableBytes = msg.readableBytes();
-        if (msg.capacity() >= 1024) {
-            ByteBuf resized = msg.discardReadBytes().capacity(readableBytes);
-            assert resized.readableBytes() == readableBytes;
-            ctx.fireChannelRead(ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), resized.retain()));
-        } else {
-            ctx.fireChannelRead(ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), msg.retain()));
-        }
+        ctx.fireChannelRead(ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), msg.retain()));
     }
 }

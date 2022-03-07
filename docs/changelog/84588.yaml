@@ -1,5 +1,5 @@
 pr: 84588
-summary: Fix `PolicyStepsRegistry's` `cachedSteps` null handling
+summary: Fix `PolicyStepsRegistry`'s `cachedSteps` null handling
 area: ILM+SLM
 type: bug
 issues: []

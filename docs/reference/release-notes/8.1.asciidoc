@@ -35,12 +35,21 @@ Authorization::
 Autoscaling::
 * Fix autoscaling of follower data streams {es-pull}83302[#83302] (issue: {es-issue}82857[#82857])
 
+Client::
+* Fix for self-suppression in REST client {es-pull}83568[#83568] (issue: {es-issue}42223[#42223])
+
 Distributed::
 * [GCE Discovery] Correctly handle large zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
+
+Engine::
+* Fork to `WRITE` thread when failing shard {es-pull}84606[#84606] (issue: {es-issue}84602[#84602])
 
 Geo::
 * Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
 * `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
+
+ILM+SLM::
+* Fix `PolicyStepsRegistry`'s `cachedSteps` null handling {es-pull}84588[#84588]
 
 Indices APIs::
 * Allow removing unreferenced composable data stream templates {es-pull}84376[#84376] (issues: {es-issue}84171[#84171], {es-issue}84188[#84188])

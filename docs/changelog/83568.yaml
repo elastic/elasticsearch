@@ -1,5 +1,5 @@
 pr: 83568
-summary: Fix for self-suppression in rest client
+summary: Fix for self-suppression in REST client
 area: Client
 type: bug
 issues:

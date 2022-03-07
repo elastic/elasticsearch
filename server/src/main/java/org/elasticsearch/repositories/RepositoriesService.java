@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -40,10 +41,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,7 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -98,7 +101,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
-    private final List<Consumer<IndexMetadata>> preRestoreChecks;
+    private final List<BiConsumer<Snapshot, Version>> preRestoreChecks;
 
     public RepositoriesService(
         Settings settings,
@@ -107,7 +110,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
-        List<Consumer<IndexMetadata>> preRestoreChecks
+        List<BiConsumer<Snapshot, Version>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -265,8 +268,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     publicationStep.onResponse(oldState != newState);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     /**
@@ -327,7 +335,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     listener.onResponse(null);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -389,7 +397,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -781,7 +789,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    public List<Consumer<IndexMetadata>> getPreRestoreChecks() {
+    public List<BiConsumer<Snapshot, Version>> getPreRestoreVersionChecks() {
         return preRestoreChecks;
     }
 

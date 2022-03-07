@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -254,6 +255,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void runRecovery() {
-        clusterService.submitStateUpdateTask(TASK_SOURCE, new RecoverStateUpdateTask(), ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(TASK_SOURCE, new RecoverStateUpdateTask(), newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

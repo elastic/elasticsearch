@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -389,6 +390,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
             builder.setModelType(null);
             builder.setLocation(null);
+        }
+        if (instance.getInferenceConfig()instanceof TextClassificationConfig textClassificationConfig) {
+            builder.setInferenceConfig(TextClassificationConfigTests.mutateInstance(textClassificationConfig, version));
         }
         return builder.build();
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -740,7 +742,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     public void deleteStoredScript(
@@ -757,7 +759,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {

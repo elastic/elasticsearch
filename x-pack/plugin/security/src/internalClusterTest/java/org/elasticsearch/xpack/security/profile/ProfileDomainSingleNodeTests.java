@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
@@ -214,6 +216,41 @@ public class ProfileDomainSingleNodeTests extends AbstractProfileSingleNodeTestC
         assertThat(future3.actionGet(), nullValue());
     }
 
+    public void testGetProfileByAuthenticationWillNotCheckRealmNameForFileOrNativeRealm() {
+        // File and native realms are under the same domain, activate the profile from either the realm
+        final Profile profile1;
+        if (randomBoolean()) {
+            profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+        } else {
+            profile1 = doActivateProfile(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD);
+        }
+        final ProfileService profileService = node().injector().getInstance(ProfileService.class);
+
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String realmType = randomBoolean() ? FileRealmSettings.TYPE : NativeRealmSettings.TYPE;
+        final RealmDomain realmDomain = new RealmDomain(
+            randomAlphaOfLengthBetween(3, 8),
+            Set.of(
+                new RealmConfig.RealmIdentifier(realmType, realmName),
+                new RealmConfig.RealmIdentifier(
+                    FileRealmSettings.TYPE.equals(realmType) ? NativeRealmSettings.TYPE : FileRealmSettings.TYPE,
+                    randomAlphaOfLengthBetween(3, 8)
+                )
+            )
+        );
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
+            realmName,
+            realmType,
+            randomAlphaOfLengthBetween(3, 8),
+            realmDomain
+        );
+        final Authentication authentication1 = Authentication.newRealmAuthentication(new User(RAC_USER_NAME), authenticatedBy);
+
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.activateProfile(authentication1, future1);
+        assertThat(future1.actionGet().uid(), equalTo(profile1.uid()));
+    }
+
     public void testConcurrentCreationOfNewProfiles() throws InterruptedException {
         // The profile index may or may not exist
         if (randomBoolean()) {
@@ -223,19 +260,13 @@ public class ProfileDomainSingleNodeTests extends AbstractProfileSingleNodeTestC
         final ProfileService profileService = node().injector().getInstance(ProfileService.class);
         final String domainName = randomAlphaOfLengthBetween(3, 8);
         final RealmDomain realmDomain = randomFrom(
-            new RealmDomain(
-                domainName,
-                Set.of(new RealmConfig.RealmIdentifier("file", "file"), new RealmConfig.RealmIdentifier("native", "index"))
-            ),
-            null
-        );
-        final RealmConfig.RealmIdentifier realmIdentifier = realmDomain == null
-            ? new RealmConfig.RealmIdentifier("file", "file")
-            : randomFrom(realmDomain.realms());
-        final Authentication authentication = Authentication.newRealmAuthentication(
-            new User(randomAlphaOfLengthBetween(5, 12)),
-            new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), randomAlphaOfLengthBetween(3, 8), realmDomain)
-        );
+            new RealmDomain(domainName,
+                Set.of(new RealmConfig.RealmIdentifier("file", "file"), new RealmConfig.RealmIdentifier("native", "index"))),
+            null);
+        final RealmConfig.RealmIdentifier realmIdentifier =
+            realmDomain == null ? new RealmConfig.RealmIdentifier("file", "file") : randomFrom(realmDomain.realms());
+        final Authentication authentication = Authentication.newRealmAuthentication(new User(randomAlphaOfLengthBetween(5, 12)),
+            new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), randomAlphaOfLengthBetween(3, 8), realmDomain));
         final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
         final ProfileDocument profileDocument1 = ProfileDocument.fromSubject(subject);
 
@@ -274,7 +305,7 @@ public class ProfileDomainSingleNodeTests extends AbstractProfileSingleNodeTestC
         assertThat(profile1.uid(), equalTo(profileDocument1.uid()));
         assertThat(profile1.user().username(), equalTo(profileDocument1.user().username()));
     }
-
+    
     private String indexDocument() {
         final String uid = randomAlphaOfLength(20);
         final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());

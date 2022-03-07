@@ -1,13 +1,16 @@
 ==== Connect clients to {es}
 
-When you start {es} for the first time, TLS is configured automatically for the 
-HTTP layer. A CA certificate is generated and stored on disk, and the hex-coded 
-SHA-256 fingerprint of this certificate is also output to the terminal. Any 
-clients that connect to {es}, such as the 
+When you start {es} for the first time, TLS is configured automatically for the
+HTTP layer. A CA certificate is generated and stored on disk at
+`$ES_HOME/config/certs/http_ca.crt`. The hex-encoded SHA-256 fingerprint of this
+certificate is also output to the terminal. Any clients that connect to {es},
+such as the 
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
-{beats}, {ls}, and {fleet} must validate that they trust the certificate that
-{es} uses for HTTPS. Clients can establish trust by using either the fingerprint
-of the CA certificate or the CA certificate itself.
+{beats}, standalone {agent}s, and {ls} must validate that they trust the
+certificate that {es} uses for HTTPS. {fleet-server} and {fleet}-managed
+{agent}s are automatically configured to trust the CA certificate.
+Other clients can establish trust by using either the fingerprint of the CA
+certificate or the CA certificate itself.
 
 If the auto-configuration process already completed, you can still obtain the 
 fingerprint of the security certificate. You can also copy the CA certificate
@@ -29,8 +32,6 @@ path is to the auto-generated CA certificate for the HTTP layer.
 openssl x509 -fingerprint -sha256 -in config/certs/http_ca.crt
 ----
 
-`<timestamp>`:: The timestamp of when the auto-configuration process created the security files directory.
-
 The command returns the security certificate, including the fingerprint.
 The `issuer` should be `Elasticsearch security auto-configuration HTTP CA`.
 
@@ -45,6 +46,6 @@ SHA256 Fingerprint=<fingerprint>
 
 If your library doesn't support a method of validating the fingerprint, the 
 auto-generated CA certificate is created in the
-`config/certs` directory on each {es} node. Copy the
+`$ES_HOME/config/certs/` directory on each {es} node. Copy the
 `http_ca.crt` file to your machine and configure your client to use this
 certificate to establish trust when it connects to {es}.

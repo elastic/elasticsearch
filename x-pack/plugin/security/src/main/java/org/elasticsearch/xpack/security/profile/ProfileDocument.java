@@ -49,7 +49,6 @@ public record ProfileDocument(
         Authentication.RealmRef realm,
         String email,
         String fullName,
-        String displayName,
         boolean active
     ) implements ToXContent {
 
@@ -61,9 +60,6 @@ public record ProfileDocument(
             builder.field("realm", realm);
             builder.field("email", email);
             builder.field("full_name", fullName);
-            if (displayName != null) {
-                builder.field("display_name", displayName);
-            }
             builder.field("active", active);
             builder.endObject();
             return builder;
@@ -71,7 +67,7 @@ public record ProfileDocument(
 
         public Profile.ProfileUser toProfileUser() {
             final String domainName = realm.getDomain() != null ? realm.getDomain().name() : null;
-            return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName, displayName, active);
+            return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName, active);
         }
     }
 
@@ -111,7 +107,6 @@ public record ProfileDocument(
                 subject.getRealm(),
                 subjectUser.email(),
                 subjectUser.fullName(),
-                null,
                 subjectUser.enabled()
             ),
             Map.of(),
@@ -152,8 +147,7 @@ public record ProfileDocument(
             (Authentication.RealmRef) args[2],
             (String) args[3],
             (String) args[4],
-            (String) args[5],
-            (Boolean) args[6]
+            (Boolean) args[5]
         )
     );
 
@@ -183,7 +177,6 @@ public record ProfileDocument(
         PROFILE_DOC_USER_PARSER.declareObject(constructorArg(), (p, c) -> REALM_REF_PARSER.parse(p, c), new ParseField("realm"));
         PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("email"));
         PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("full_name"));
-        PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("display_name"));
         PROFILE_DOC_USER_PARSER.declareBoolean(constructorArg(), new ParseField("active"));
 
         PROFILE_DOC_PARSER.declareString(constructorArg(), new ParseField("uid"));

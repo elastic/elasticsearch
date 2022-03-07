@@ -95,14 +95,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             assertThat("Some indices not closed", notClosedIndices, empty());
 
             // verify that we have all the primaries on node3
-            Map<String, Integer> counts = new HashMap<>();
-            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
-                    }
-                }
-            }
+            Map<String, Integer> counts = computeShardCounts(clusterState);
+            
             assertThat(counts.get(node3), equalTo(totalPrimaries));
         }, 10, TimeUnit.SECONDS);
     }

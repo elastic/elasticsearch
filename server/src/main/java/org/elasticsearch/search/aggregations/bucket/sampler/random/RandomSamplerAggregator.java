@@ -84,11 +84,21 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
      *
      * @param ctx reader context
      * @param sub collector
-     * @return this always returns {@link LeafBucketCollector#NO_OP_COLLECTOR}
+     * @return returns {@link LeafBucketCollector#NO_OP_COLLECTOR} if sampling was done. Otherwise, it is a simple pass through collector
      * @throws IOException when building the query or extracting docs fails
      */
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        // No sampling is being done, collect all docs
+        if (probability >= 1.0) {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    collectBucket(sub, doc, 0);
+                }
+            };
+        }
+        // TODO know when sampling would be much slower and skip sampling: https://github.com/elastic/elasticsearch/issues/84353
         Scorer scorer = weightSupplier.get().scorer(ctx);
         // This means there are no docs to iterate, possibly due to the fields not existing
         if (scorer == null) {

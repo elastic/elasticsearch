@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
@@ -122,7 +123,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
                     },
-                    ClusterStateTaskExecutor.unbatched()
+                    newExecutor()
                 );
             }
         });
@@ -302,12 +303,17 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     }
                                 }
                             },
-                            ClusterStateTaskExecutor.unbatched()
+                            newExecutor()
                         );
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                newExecutor()
             );
         }, listener::onFailure);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

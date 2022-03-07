@@ -127,7 +127,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         out.writeStringArray(index);
         queryProvider.writeTo(out);
         out.writeOptionalWriteable(sourceFiltering);
-        out.writeMap(runtimeMappings);
+        out.writeGenericMap(runtimeMappings);
     }
 
     @Override

@@ -13,8 +13,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,7 +47,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         subAggregationsSupplier = () -> {
             List<InternalAggregation> aggs = new ArrayList<>();
             if (hasInternalMax) {
-                aggs.add(new InternalMax("max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+                aggs.add(new Max("max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             }
             if (hasInternalMin) {
                 aggs.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
@@ -78,7 +78,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             case 1 -> docCount += between(1, 2000);
             case 2 -> {
                 List<InternalAggregation> aggs = new ArrayList<>();
-                aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+                aggs.add(new Max("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
                 aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
                 aggregations = InternalAggregations.from(aggs);
             }
@@ -99,11 +99,11 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         assertEquals(inputs.stream().mapToLong(InternalSingleBucketAggregation::getDocCount).sum(), reduced.getDocCount());
         if (hasInternalMax) {
             double expected = inputs.stream().mapToDouble(i -> {
-                InternalMax max = i.getAggregations().get("max");
-                return max.getValue();
+                Max max = i.getAggregations().get("max");
+                return max.value();
             }).max().getAsDouble();
-            InternalMax reducedMax = reduced.getAggregations().get("max");
-            assertEquals(expected, reducedMax.getValue(), 0);
+            Max reducedMax = reduced.getAggregations().get("max");
+            assertEquals(expected, reducedMax.value(), 0);
         }
         if (hasInternalMin) {
             double expected = inputs.stream().mapToDouble(i -> {

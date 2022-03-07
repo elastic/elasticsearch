@@ -132,7 +132,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = discoveryNodes.getNodes().keys().toArray(String.class);
+        String[] nodeIds = discoveryNodes.getNodes().keySet().toArray(new String[0]);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
@@ -410,6 +410,10 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Version.fromString("6.3.0")
             )
         );
+        discoBuilder.localNodeId("node_" + between(1, 3));
+        if (randomBoolean()) {
+            discoBuilder.masterNodeId("node_" + between(1, 3));
+        }
         discoBuilder.add(
             new DiscoveryNode(
                 "name_" + 3,
@@ -420,8 +424,6 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Version.fromString("1.1.0")
             )
         );
-        discoBuilder.localNodeId("name_1");
-        discoBuilder.masterNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
         assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());

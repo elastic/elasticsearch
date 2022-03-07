@@ -1,0 +1,5 @@
+pr: 84316
+summary: "Fleet: Add a new mapping for .fleet-actions-results `action_input_type` field"
+area: Security
+type: enhancement
+issues: []

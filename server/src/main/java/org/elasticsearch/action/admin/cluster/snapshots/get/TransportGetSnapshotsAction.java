@@ -149,7 +149,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final Predicate<RepositoryMetadata> predicate = order == SortOrder.ASC
             ? repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) <= 0
             : repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) >= 0;
-        return repositories.stream().filter(predicate).collect(Collectors.toUnmodifiableList());
+        return repositories.stream().filter(predicate).toList();
     }
 
     private void getMultipleReposSnapshotInfo(
@@ -180,7 +180,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v2)
                     .filter(Objects::nonNull)
                     .flatMap(snapshotsInRepo -> snapshotsInRepo.snapshotInfos.stream())
-                    .collect(Collectors.toUnmodifiableList());
+                    .toList();
                 final Map<String, ElasticsearchException> failures = responses.stream()
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
@@ -377,7 +377,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             snapshots(
                 snapshotsInProgress,
                 repo,
-                toResolve.stream().map(Snapshot::getSnapshotId).collect(Collectors.toUnmodifiableList()),
+                toResolve.stream().map(Snapshot::getSnapshotId).toList(),
                 ignoreUnavailable,
                 task,
                 sortBy,
@@ -395,7 +395,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } else {
                 // only want current snapshots
                 snapshotInfos = sortSnapshots(
-                    currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()),
+                    currentSnapshots.stream().map(SnapshotInfo::basic).toList(),
                     sortBy,
                     after,
                     0,
@@ -435,13 +435,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
             repositoryName,
-            snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList())
+            snapshotIdsToIterate.stream().map(SnapshotId::getName).toList()
         );
         for (SnapshotsInProgress.Entry entry : entries) {
             if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                 final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
                 if (predicate.test(snapshotInfo)) {
-                    snapshotSet.add(SnapshotInfo.inProgress(entry));
+                    snapshotSet.add(snapshotInfo);
                 }
             }
         }
@@ -598,10 +598,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             infos = infos.filter(buildAfterPredicate(sortBy, after, order));
         }
         infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
-        final List<SnapshotInfo> allSnapshots = infos.collect(Collectors.toUnmodifiableList());
+        final List<SnapshotInfo> allSnapshots = infos.toList();
         final List<SnapshotInfo> snapshots;
         if (size != GetSnapshotsRequest.NO_LIMIT) {
-            snapshots = allSnapshots.stream().limit(size + 1).collect(Collectors.toUnmodifiableList());
+            snapshots = allSnapshots.stream().limit(size + 1).toList();
         } else {
             snapshots = allSnapshots;
         }

@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -42,7 +42,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException(
                 "The number of provided percents and percentiles didn't match. percents: "
@@ -51,7 +51,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
                     + Arrays.toString(percentiles)
             );
         }
-        this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
         this.keyed = keyed;
@@ -69,7 +68,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
      */
     public InternalPercentilesBucket(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
@@ -130,7 +128,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalMax reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public Max reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

@@ -16,11 +16,15 @@ import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
+import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
 
@@ -75,6 +79,19 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
+
+        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(t ->
+        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+        project.getPluginManager().withPlugin("elasticsearch.internal-es-plugin", plugin -> {
+            TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
+            t.dependsOn(bundle);
+            if (GradleUtils.isModuleProject(project.getPath())) {
+                t.getClusters().forEach(c -> c.module(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+            } else {
+                t.getClusters().forEach(c -> c.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+            }
+
+        }));
     }
 
     private String systemProperty(String propName) {

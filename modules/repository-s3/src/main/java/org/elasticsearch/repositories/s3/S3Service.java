@@ -18,7 +18,6 @@ import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
@@ -323,15 +322,8 @@ class S3Service implements Closeable {
 
             // Custom system property used for specifying a mocked version of the STS for testing
             String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
-            String region = null;
-            try {
-                // We need to load the configured AWS region explicitly under the Security Manager,
-                // so the AWS SDK doesn't make any guesses internally.
-                region = SocketAccess.doPrivileged(() -> new DefaultAwsRegionProviderChain().getRegion());
-            } catch (Exception e) {
-                LOGGER.warn("Unable to lookup information about the AWS region", e);
-            }
-            stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, region));
+            // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
+            stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
             try {

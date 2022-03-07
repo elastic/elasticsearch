@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -370,15 +368,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
-        for (ObjectCursor<String> cursor : state.nodes().getDataNodes().keys()) {
-            String id = cursor.value;
+        for (var id : state.nodes().getDataNodes().keySet()) {
             builder.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
         }
         ImmutableOpenMap<String, DiskUsage> diskUsage = builder.build();
         return new ClusterInfo(
             diskUsage,
             diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAll(shardSizes).build(),
+            ImmutableOpenMap.<String, Long>builder().putAllFromMap(shardSizes).build(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()

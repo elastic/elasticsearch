@@ -20,7 +20,6 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractCollection;
-import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -30,8 +29,6 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -39,7 +36,7 @@ import java.util.stream.StreamSupport;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
  * option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, Iterable<ObjectObjectCursor<KType, VType>> {
+public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
 
     private final ObjectObjectHashMap<KType, VType> map;
 
@@ -116,43 +113,17 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         throw new UnsupportedOperationException("modification is not supported");
     }
 
-    /**
-     * @return Returns the current size (number of assigned keys) in the container.
-     */
+    @Override
     public int size() {
         return map.size();
     }
 
-    /**
-     * @return Return <code>true</code> if this hash map contains no assigned keys.
-     */
+    @Override
     public boolean isEmpty() {
         return map.isEmpty();
     }
 
-    /**
-     * Returns a cursor over the entries (key-value pairs) in this map. The iterator is
-     * implemented as a cursor and it returns <b>the same cursor instance</b> on every
-     * call to {@link Iterator#next()}. To read the current key and value use the cursor's
-     * public fields. An example is shown below.
-     * <pre>
-     * for (IntShortCursor c : intShortMap)
-     * {
-     *     System.out.println(&quot;index=&quot; + c.index
-     *       + &quot; key=&quot; + c.key
-     *       + &quot; value=&quot; + c.value);
-     * }
-     * </pre>
-     * <p>
-     * The <code>index</code> field inside the cursor gives the internal index inside
-     * the container's implementation. The interpretation of this index depends on
-     * to the container.
-     */
     @Override
-    public Iterator<ObjectObjectCursor<KType, VType>> iterator() {
-        return map.iterator();
-    }
-
     public Set<Map.Entry<KType, VType>> entrySet() {
         Set<Map.Entry<KType, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
@@ -180,6 +151,20 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         @Override
         public VType setValue(VType value) {
             throw new UnsupportedOperationException("collection is immutable");
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Map.Entry) == false) return false;
+            Map.Entry that = (Map.Entry) o;
+            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
         }
     }
 
@@ -254,9 +239,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         }
     }
 
-    /**
-     * Returns a {@link Set} view of the keys contained in this map.
-     */
     @Override
     public Set<KType> keySet() {
         return new AbstractSet<>() {
@@ -327,26 +309,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
                 throw new UnsupportedOperationException();
             }
         };
-    }
-
-    /**
-     * Returns a sequential unordered stream of the map entries.
-     *
-     * @return a {@link Stream} of the map entries as {@link Map.Entry}
-     */
-    public Stream<Map.Entry<KType, VType>> stream() {
-        final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
-            @Override
-            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
-                if (mapIterator.hasNext() == false) {
-                    return false;
-                }
-                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
-                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
-                return true;
-            }
-        }, false);
     }
 
     @Override

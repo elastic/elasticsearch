@@ -41,8 +41,10 @@ public class JwtIssuerHttpsServer implements Closeable {
     private static final int STOP_DELAY_SECONDS = 0; // 0 no limit, >0 limited
     private static final String PATH = "/valid/"; // Tests can call other paths like "/invalid/" to verify graceful HTTP 404 error handling
 
-    static final Path CERT_PATH = JwtUtil.resolvePath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-    private static final Path KEY_PATH = JwtUtil.resolvePath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+    static final Path CERT_PATH = JwtTestCase.resolvePath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+    private static final Path KEY_PATH = JwtTestCase.resolvePath(
+        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"
+    );
     private static final char[] PASSWORD = "testnode".toCharArray();
 
     private final HttpsServer httpsServer;

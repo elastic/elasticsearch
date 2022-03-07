@@ -50,6 +50,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -575,5 +576,17 @@ public abstract class JwtTestCase extends ESTestCase {
             );
         }
         return requestThreadContext;
+    }
+
+    static Path resolvePath(final String relativePath) {
+        try {
+            final URL url = JwtTestCase.class.getResource(relativePath);
+            if (url != null) {
+                return PathUtils.get(url.toURI()).toAbsolutePath().normalize();
+            }
+        } catch (Exception e) {
+            LOGGER.error("resource not found: " + relativePath, e);
+        }
+        return null;
     }
 }

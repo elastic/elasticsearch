@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -353,14 +352,5 @@ public class JwtUtil {
             || value instanceof Number
             || (value instanceof Collection
                 && ((Collection<?>) value).stream().allMatch(e -> e instanceof String || e instanceof Boolean || e instanceof Number)));
-    }
-
-    static Path resolvePath(final String relativePath) {
-        try {
-            return PathUtils.get(JwtUtil.class.getResource(relativePath).toURI()).toAbsolutePath().normalize();
-        } catch (Exception e) {
-            LOGGER.error("resource not found: " + relativePath, e);
-            return null;
-        }
     }
 }

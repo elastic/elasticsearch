@@ -110,21 +110,11 @@ public final class RemoveProcessor extends AbstractProcessor {
             final List<TemplateScript.Factory> compiledTemplatesToKeep = getTemplates(processorTag, config, "keep");
 
             if (compiledTemplatesToRemove.isEmpty() && compiledTemplatesToKeep.isEmpty()) {
-                throw newConfigurationException(
-                    TYPE,
-                    processorTag,
-                    "keep",
-                    "or [field] must be specified"
-                );
+                throw newConfigurationException(TYPE, processorTag, "keep", "or [field] must be specified");
             }
 
             if (compiledTemplatesToRemove.isEmpty() == false && compiledTemplatesToKeep.isEmpty() == false) {
-                throw newConfigurationException(
-                    TYPE,
-                    processorTag,
-                    "keep",
-                    "and [field] cannot both be used in the same processor"
-                );
+                throw newConfigurationException(TYPE, processorTag, "keep", "and [field] cannot both be used in the same processor");
             }
 
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);

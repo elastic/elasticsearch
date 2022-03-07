@@ -83,10 +83,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("[keep] and [field] cannot both be used in the same processor")
-            );
+            assertThat(e.getMessage(), equalTo("[keep] and [field] cannot both be used in the same processor"));
         }
     }
 

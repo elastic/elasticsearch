@@ -472,9 +472,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                     "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
                     index.getName(),
                     getName(),
-                    Strings.collectionToCommaDelimitedString(
-                        im.getAliases().stream().map(Map.Entry::getKey).sorted().collect(Collectors.toList())
-                    )
+                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().collect(Collectors.toList()))
                 )
             );
         }

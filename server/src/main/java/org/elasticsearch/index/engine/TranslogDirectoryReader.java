@@ -351,8 +351,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
-            return getDelegate().searchNearestVectors(field, target, k, acceptDocs);
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
         }
 
         @Override

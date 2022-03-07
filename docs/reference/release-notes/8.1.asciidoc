@@ -62,6 +62,13 @@ Machine Learning::
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
+* Wait for model process to stop in stop deployment {es-pull}83644[#83644]
+* Fix a bug in the tuning of the hyperparameters when training regression classification models {ml-pull}2128[#2128]
+* Improve training stability for regression and classification models {ml-pull}2144[#2144], {ml-pull}2147[#2147], {ml-pull}2150[#2150]
+* Avoid edge cases in the classification weights calculation to maximize minimum recall which could lead to only a single class being predicted {ml-pull}2194[#2194]
+* Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
+* Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
+* Fix bug restoring data gatherer state for time of day and week anomaly detection functions. This could lead to "No queue item for time" and "Time is out of range. Returning earliest bucket index" log errors {ml-pull}2213[#2213]
 
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
@@ -200,6 +207,8 @@ Machine Learning::
 * Set default value of 30 days for model prune window {es-pull}81377[#81377]
 * Track token positions and use source string to tag NER entities {es-pull}81275[#81275]
 * Warn when creating job with an unusual bucket span {es-pull}82145[#82145] (issue: {es-issue}81645[#81645])
+* Improve skip_model_update rule behavior {ml-pull}2096[#2096]
+* Prevent over-subscription of threads in pytorch_inference {ml-pull}2141[#2141]
 
 Mapping::
 * Allow doc-values only search on geo_point fields {es-pull}83395[#83395]
@@ -286,6 +295,11 @@ Transform::
 
 Geo::
 * Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
+
+Machine Learning::
+* Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
+* Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
+* Upgrade Eigen library to version 3.4.0 {ml-pull}2137[#2137]
 
 Network::
 * Upgrade to Netty 4.1.73 {es-pull}82844[#82844]

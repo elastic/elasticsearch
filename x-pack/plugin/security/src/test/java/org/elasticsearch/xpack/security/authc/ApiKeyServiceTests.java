@@ -1231,7 +1231,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ApiKeyService.getCreatorRealmType(authentication2), equalTo(lookupRealmRef.getType()));
 
         // Realm
-        final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(false);
+        final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(randomBoolean());
         assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
         assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
 

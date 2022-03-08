@@ -435,12 +435,12 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     }
 
     public void testFindDatafeedIdsForJobIds_ManyJobs() throws Exception {
-        var jobIds = new ArrayList<String>();
-        var dfIds = new HashSet<String>();
+        List<String> jobIds = new ArrayList<>();
+        Set<String> dfIds = new HashSet<>();
         for (int i = 0; i < 13; i++) {
             String id = Integer.toString(i);
-            var dfId = "df-" + id;
-            var jobId = "j-" + id;
+            String dfId = "df-" + id;
+            String jobId = "j-" + id;
             putDatafeedConfig(createDatafeedConfig(dfId, jobId), Collections.emptyMap());
             dfIds.add(dfId);
             jobIds.add(jobId);
@@ -495,11 +495,11 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     }
 
     public void testFindDatafeedsForJobIds_ManyJobs() throws Exception {
-        var jobIds = new ArrayList<String>();
+        List<String> jobIds = new ArrayList<String>();
         for (int i = 0; i < 13; i++) {
             String id = Integer.toString(i);
-            var dfId = "df-" + id;
-            var jobId = "j-" + id;
+            String dfId = "df-" + id;
+            String jobId = "j-" + id;
             putDatafeedConfig(createDatafeedConfig(dfId, jobId), Collections.emptyMap());
             jobIds.add(jobId);
         }

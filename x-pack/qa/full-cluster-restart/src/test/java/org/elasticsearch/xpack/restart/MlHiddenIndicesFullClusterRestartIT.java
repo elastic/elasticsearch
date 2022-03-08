@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -156,7 +155,10 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     @SuppressWarnings("unchecked")
     private static Map<String, Object> contentAsMap(Response response) throws IOException {
         InputStreamReader reader = new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8);
-        XContentParser parser = XContentProvider.provider().getJsonXContent().XContent().createParser(XContentParserConfiguration.EMPTY, reader);
+        XContentParser parser = XContentProvider.provider()
+            .getJsonXContent()
+            .XContent()
+            .createParser(XContentParserConfiguration.EMPTY, reader);
         return parser.map();
     }
 

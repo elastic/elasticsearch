@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterName;
@@ -29,7 +27,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;

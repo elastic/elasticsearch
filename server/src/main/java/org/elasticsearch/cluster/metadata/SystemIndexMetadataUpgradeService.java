@@ -24,6 +24,7 @@ import org.elasticsearch.indices.SystemIndices;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A service responsible for updating the metadata used by system indices.
@@ -106,9 +107,13 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         updated = true;
                     }
-                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
+                    if (isSystem
+                        && indexMetadata.getAliases()
+                            .values()
+                            .stream()
+                            .anyMatch(a -> Objects.nonNull(a.isHidden()) && a.isHidden() == false)) {
                         for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                            if (aliasMetadata.isHidden() == false) {
+                            if (Objects.nonNull(aliasMetadata.isHidden()) && aliasMetadata.isHidden() == false) {
                                 builder.removeAlias(aliasMetadata.alias());
                                 builder.putAlias(
                                     AliasMetadata.builder(aliasMetadata.alias())

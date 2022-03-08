@@ -616,7 +616,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
-        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new, new MayHaveBeenIndexedBefore.Standard());
     }
 
     @FunctionalInterface

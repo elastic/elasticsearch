@@ -23,6 +23,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.MayHaveBeenIndexedBefore;
+import org.elasticsearch.index.engine.Engine.Index;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
@@ -43,7 +45,13 @@ public class FollowingEngine extends InternalEngine {
      * @param engineConfig the engine configuration
      */
     FollowingEngine(final EngineConfig engineConfig) {
-        super(validateEngineConfig(engineConfig));
+        super(validateEngineConfig(engineConfig), new MayHaveBeenIndexedBefore.Standard() {
+            protected boolean assertPrimaryCanOptimizeAddDocument(Index index) {
+                assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
+                    : "version [" + index.version() + "], type [" + index.versionType() + "]";
+                return true;
+            }
+        });
     }
 
     private static EngineConfig validateEngineConfig(final EngineConfig engineConfig) {
@@ -167,13 +175,6 @@ public class FollowingEngine extends InternalEngine {
 
     @Override
     protected boolean assertNonPrimaryOrigin(final Operation operation) {
-        return true;
-    }
-
-    @Override
-    protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
-        assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
-            : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;
     }
 

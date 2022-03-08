@@ -4995,7 +4995,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.config().getMergePolicy()
                 )
             );
-            noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
+            noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier, new MayHaveBeenIndexedBefore.Standard()) {
                 @Override
                 protected long doGenerateSeqNoForOperation(Operation operation) {
                     throw new UnsupportedOperationException();

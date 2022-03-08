@@ -31,7 +31,7 @@ class InternalTestEngine extends InternalEngine {
         int maxDocs,
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier
     ) {
-        super(engineConfig, maxDocs, localCheckpointTrackerSupplier);
+        super(engineConfig, maxDocs, localCheckpointTrackerSupplier, new MayHaveBeenIndexedBefore.Standard());
     }
 
     @Override

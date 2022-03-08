@@ -237,7 +237,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.bigArrays(),
             fieldType,
             analyzer,
-            sourceFieldNames,
+            Arrays.stream(sourceFieldNames)
+                .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
+                .toArray(String[]::new),
             context,
             filterDuplicateText
         );
@@ -315,10 +317,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                     BytesRefHash inDocTerms = new BytesRefHash(256, bigArrays);
 
                     try {
-                        final Set<String> sourceFields = Arrays.stream(sourceFieldNames)
-                            .flatMap(sourceFieldName -> aggregationContext.sourcePath(sourceFieldName).stream())
-                            .collect(Collectors.toUnmodifiableSet());
-                        for (String sourceField : sourceFields) {
+                        for (String sourceField : sourceFieldNames) {
                             Iterator<String> itr = extractRawValues(sourceField).stream().map(obj -> {
                                 if (obj == null) {
                                     return null;
@@ -433,7 +432,17 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             AggregationContext context,
             boolean filterDuplicateText
         ) {
-            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, context, filterDuplicateText);
+            super(
+                sourceLookup,
+                bigArrays,
+                fieldType,
+                analyzer,
+                Arrays.stream(sourceFieldNames)
+                    .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
+                    .toArray(String[]::new),
+                context,
+                filterDuplicateText
+            );
         }
 
         @Override

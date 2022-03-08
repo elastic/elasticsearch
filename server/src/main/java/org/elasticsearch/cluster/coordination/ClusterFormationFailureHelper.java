@@ -129,7 +129,10 @@ public class ClusterFormationFailureHelper {
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();
-            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(
+                clusterState.nodes().getMasterNodes().values().iterator(),
+                clusterStateNodes
+            );
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,

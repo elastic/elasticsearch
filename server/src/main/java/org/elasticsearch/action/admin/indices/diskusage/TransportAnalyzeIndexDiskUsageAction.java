@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -89,9 +90,12 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         final CancellableTask cancellableTask = (CancellableTask) task;
         final Runnable checkForCancellation = cancellableTask::ensureNotCancelled;
         final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
+        shard.store().incRef();
         try (Engine.IndexCommitRef commitRef = shard.acquireLastIndexCommit(request.flush)) {
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(shardId, commitRef.getIndexCommit(), checkForCancellation);
             return new AnalyzeDiskUsageShardResponse(shardId, stats);
+        } finally {
+            shard.store().decRef();
         }
     }
 
@@ -109,8 +113,10 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             if (r instanceof AnalyzeDiskUsageShardResponse resp) {
                 ++successfulShards;
                 combined.compute(resp.getIndex(), (k, v) -> v == null ? resp.stats : v.add(resp.stats));
-            } else if (r instanceof DefaultShardOperationFailedException) {
-                shardFailures.add((DefaultShardOperationFailedException) r);
+            } else if (r instanceof DefaultShardOperationFailedException e) {
+                shardFailures.add(e);
+            } else if (r instanceof Exception e) {
+                shardFailures.add(new DefaultShardOperationFailedException(ExceptionsHelper.convertToElastic(e)));
             } else {
                 assert false : "unknown response [" + r + "]";
                 throw new IllegalStateException("unknown response [" + r + "]");

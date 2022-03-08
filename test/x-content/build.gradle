@@ -21,3 +21,44 @@ dependencies {
   implementation "org.apache.commons:commons-compress:1.19"
   implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
+}
+
+// TODO: should we have licenses for our test deps?
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("dependenciesGraph").configure { enabled = false }
+
+// no tests of the tests, yet
+tasks.named("testingConventions").configure { enabled = false }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'com.github.luben.zstd.ZstdInputStream',
+          'com.github.luben.zstd.ZstdOutputStream',
+          'java.util.jar.Pack200',
+          'java.util.jar.Pack200$Packer',
+          'java.util.jar.Pack200$Unpacker',
+          'org.brotli.dec.BrotliInputStream',
+          'org.jcodings.specific.UTF8Encoding',
+          'org.joni.Matcher',
+          'org.joni.Regex',
+          'org.joni.Syntax',
+          'org.slf4j.Logger',
+          'org.slf4j.LoggerFactory',
+          'org.tukaani.xz.DeltaOptions',
+          'org.tukaani.xz.FilterOptions',
+          'org.tukaani.xz.LZMA2InputStream',
+          'org.tukaani.xz.LZMA2Options',
+          'org.tukaani.xz.LZMAInputStream',
+          'org.tukaani.xz.LZMAOutputStream',
+          'org.tukaani.xz.MemoryLimitException',
+          'org.tukaani.xz.UnsupportedOptionsException',
+          'org.tukaani.xz.XZ',
+          'org.tukaani.xz.XZOutputStream',
+  )
+}

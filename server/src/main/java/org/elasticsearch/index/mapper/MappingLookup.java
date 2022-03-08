@@ -336,7 +336,7 @@ public final class MappingLookup {
     }
 
     public boolean isMultiField(String field) {
-        if (fieldTypeLookup.isRuntimeField(field)) {
+        if (fieldMappers.containsKey(field) == false) {
             return false;
         }
         String sourceParent = parentObject(field);

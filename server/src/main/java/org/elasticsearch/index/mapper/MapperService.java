@@ -507,7 +507,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean isMultiField(String field) {
-        return mappingLookup().isMultiField(field);
+        return mappingLookup().isShadowed(field) == false && mappingLookup().isMultiField(field);
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {

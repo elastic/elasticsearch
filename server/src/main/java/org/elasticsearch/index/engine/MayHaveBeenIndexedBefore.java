@@ -29,7 +29,10 @@ public interface MayHaveBeenIndexedBefore {
     long getMaxSeenAutoIdTimestamp();
 
     /**
-     *
+     * {@code true} if it's valid to call {@link #mayHaveBeenIndexedBefore}
+     * on the provided {@link Index}, false otherwise. This should be fast
+     * an only rely on state from the {@link Index} and not rely on any
+     * internal state.
      */
     boolean canOptimizeAddDocument(Index index);
 
@@ -38,6 +41,9 @@ public interface MayHaveBeenIndexedBefore {
      * processed by the engine. Note that it is OK to rarely return true even
      * if this is not the case. However a {@code false} return value must
      * always be correct.
+     * <p>
+     * This relies on state internal to the implementation and may modify
+     * that state.
      */
     boolean mayHaveBeenIndexedBefore(Index index);
 

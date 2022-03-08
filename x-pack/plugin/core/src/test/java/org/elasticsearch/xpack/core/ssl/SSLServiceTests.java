@@ -55,7 +55,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -878,8 +877,8 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.wrapWithDiagnostics(wrappedTrustManager, sslConfiguration), sameInstance(wrappedTrustManager));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84703")
     public void testDeprecationOfTruststoreWithNoTrustedEntries() throws IllegalAccessException {
+        assumeFalse("Cannot use PKCS#12/JKS Keystores in FIPS", inFipsJvm());
         final String keystoreName;
         final String password;
         if (randomBoolean()) {

@@ -67,7 +67,6 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
   options.compilerArgs.add("-Xlint:-exports") // requires transitive core
 }
 

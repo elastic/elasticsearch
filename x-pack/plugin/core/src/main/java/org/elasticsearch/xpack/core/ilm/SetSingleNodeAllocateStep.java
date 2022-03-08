@@ -89,10 +89,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 new NodeReplacementAllocationDecider()
             )
         );
-        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(
-            clusterState.getMetadata().settings(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
         Set<String> validNodeIds = new HashSet<>();
         String indexName = indexMetadata.getIndex().getName();
@@ -117,9 +114,14 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             }
 
             if (dataNodeIds.size() == 0) {
-                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
+                logger.debug(
+                    "could not find any nodes to allocate each shard's copy of the index [{}] onto prior to shrink",
+                    indexName
+                );
                 listener.onFailure(
-                    new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto prior to shrink")
+                    new NoNodeAvailableException(
+                        "could not find any nodes to allocate each shard's copy of the index [" + indexName + "] onto prior to shrink"
+                    )
                 );
                 return;
             }
@@ -156,6 +158,11 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 if (indexMetadata.getNumberOfReplicas() != 0) {
                     indexPrimaryShardsStorageBytes /= indexMetadata.getNumberOfReplicas();
                 }
+
+                DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(
+                    clusterState.getMetadata().settings(),
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                );
                 for (String nodeId : dataNodeIds) {
                     if (nodeStatsMap.get(nodeId) != null) {
                         FsInfo.Path totalFsInfo = nodeStatsMap.get(nodeId).getFs().getTotal();

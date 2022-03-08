@@ -103,8 +103,10 @@ PUT _ilm/policy/my_policy
 [[ilm-shrink-shard-allocation]]
 ==== Shard allocation for shrink
 
-During a `shrink` action, {ilm-init} allocates the source index's primary shards
-to one node. After shrinking the index, {ilm-init} reallocates the shrunken
+During a `shrink` action, {ilm-init} allocates every shard's copy of the source index
+to the node selected by {ilm-init}. In order to reduce the data transfer cost, {ilm-init} will prefer to select the node which
+contains the maximum shards storage bytes of the source index if it can find one, if not it will select randomly.
+After shrinking the index, {ilm-init} reallocates the shrunken
 index's shards to the appropriate nodes based on your allocation rules.
 
 These allocation steps can fail for several reasons, including:

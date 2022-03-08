@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -20,7 +21,6 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -151,7 +151,7 @@ public interface IndexAbstraction {
             this.concreteIndexName = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? List.of(indexMetadata.getAliases().keys().toArray(String.class)) : null;
+            this.aliases = indexMetadata.getAliases() != null ? indexMetadata.getAliases().keySet().stream().toList() : null;
             this.dataStream = dataStream;
         }
 
@@ -333,7 +333,7 @@ public interface IndexAbstraction {
     class DataStream implements IndexAbstraction {
 
         public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
-            Set.of("@timestamp"),
+            Set.of(TimestampField.FIXED_TIMESTAMP_FIELD),
             null,
             false
         );
@@ -382,29 +382,24 @@ public interface IndexAbstraction {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
                 switch (parser.nextToken()) {
-                    case VALUE_STRING:
-                        // TODO: deal with nanos too here.
-                        // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
-                        // so we can use it here)
-                        timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
-                        break;
-                    case VALUE_NUMBER:
-                        timestamp = Instant.ofEpochMilli(parser.longValue());
-                        break;
-                    default:
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            String.format(
-                                Locale.ROOT,
-                                "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                                XContentParser.Token.VALUE_STRING,
-                                XContentParser.Token.VALUE_NUMBER,
-                                parser.currentToken()
-                            )
-                        );
+                    // TODO: deal with nanos too here.
+                    // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
+                    // so we can use it here)
+                    case VALUE_STRING -> timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
+                    case VALUE_NUMBER -> timestamp = Instant.ofEpochMilli(parser.longValue());
+                    default -> throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                            XContentParser.Token.VALUE_STRING,
+                            XContentParser.Token.VALUE_NUMBER,
+                            parser.currentToken()
+                        )
+                    );
                 }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Error extracting timestamp: " + e.getMessage(), e);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
             }
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
             if (result == null) {

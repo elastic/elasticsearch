@@ -1,6 +1,0 @@
-pr: 83243
-summary: Bump bundled JDK to 17.0.2+8
-area: Packaging
-type: upgrade
-issues:
- - 83242

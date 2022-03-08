@@ -278,11 +278,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalExtendedStats(
             name,
-            samplingContext.inverseScale(count),
-            samplingContext.inverseScale(sum),
+            samplingContext.scaleUp(count),
+            samplingContext.scaleUp(sum),
             min,
             max,
-            samplingContext.inverseScale(sumOfSqrs),
+            samplingContext.scaleUp(sumOfSqrs),
             sigma,
             format,
             getMetadata()

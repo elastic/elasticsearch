@@ -32,7 +32,7 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
             new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10)),
-            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE)
+            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE, -1)
         );
 
         ZeroShotClassificationConfig config = new ZeroShotClassificationConfig(
@@ -48,7 +48,7 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
 
         NlpTask.Request request = processor.getRequestBuilder(
             (NlpConfig) new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build().apply(config)
-        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
+        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 

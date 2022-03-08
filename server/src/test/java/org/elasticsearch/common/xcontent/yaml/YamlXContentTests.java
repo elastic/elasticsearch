@@ -8,11 +8,10 @@
 
 package org.elasticsearch.common.xcontent.yaml;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
+import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.ByteArrayOutputStream;
 
@@ -25,7 +24,7 @@ public class YamlXContentTests extends BaseXContentTestCase {
 
     public void testBigInteger() throws Exception {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        JsonGenerator generator = new YAMLFactory().createGenerator(os);
+        XContentGenerator generator = YamlXContent.yamlXContent.createGenerator(os);
         doTestBigInteger(generator, os);
     }
 }

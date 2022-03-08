@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -89,6 +90,11 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         this.maxOpenJobs = maxOpenJobs;
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -119,7 +125,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                         )
                     );
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }
     }
 
@@ -142,7 +148,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     public void createNewModelAllocation(
@@ -164,7 +170,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(TrainedModelAllocationMetadata.fromState(newState).getModelAllocation(params.getModelId()));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     public void setModelAllocationToStopping(String modelId, ActionListener<AcknowledgedResponse> listener) {
@@ -183,7 +189,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     public void removeModelAllocation(String modelId, ActionListener<AcknowledgedResponse> listener) {
@@ -202,7 +208,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     // Used by the reset action directly
@@ -222,7 +228,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     private static ClusterState update(ClusterState currentState, TrainedModelAllocationMetadata.Builder modelAllocations) {

@@ -67,6 +67,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected InternalAutoDateHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         RoundingInfo[] roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int roundingIndex = between(0, roundingInfos.length - 1);

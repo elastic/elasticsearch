@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -249,6 +251,7 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
             final PutUserRequest putUserRequest1 = new PutUserRequest();
             putUserRequest1.username(key);
             putUserRequest1.fullName(value);
+            putUserRequest1.email(key.substring(5) + "email@example.org");
             putUserRequest1.roles("rac_role");
             putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
             assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
@@ -274,6 +277,13 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
         // Match of different terms on different fields
         final SearchProfilesResponse.ProfileHit[] profiles5 = doSearch(randomFrom("admin very", "very admin"));
         assertThat(extractUsernames(profiles5), equalTo(users.keySet()));
+
+        // Match email
+        final SearchProfilesResponse.ProfileHit[] profiles6 = doSearch(randomFrom("fooem", "fooemail"));
+        assertThat(extractUsernames(profiles6), equalTo(Set.of("user_foo")));
+
+        final SearchProfilesResponse.ProfileHit[] profiles7 = doSearch("example.org");
+        assertThat(extractUsernames(profiles7), equalTo(users.keySet()));
     }
 
     public void testProfileAPIsWhenIndexNotCreated() {
@@ -316,6 +326,53 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
 
         // TODO: The index is created after the update call regardless. Should it not do that?
         assertThat(getProfileIndexResponse().getIndices(), hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8));
+    }
+
+    public void testSetEnabled() {
+        final Profile profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+
+        final SearchProfilesResponse.ProfileHit[] profileHits1 = doSearch(RAC_USER_NAME);
+        assertThat(profileHits1, arrayWithSize(1));
+        assertThat(profileHits1[0].profile().uid(), equalTo(profile1.uid()));
+
+        // Disable the profile
+        final SetProfileEnabledRequest setProfileEnabledRequest1 = new SetProfileEnabledRequest(
+            profile1.uid(),
+            false,
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        client().execute(SetProfileEnabledAction.INSTANCE, setProfileEnabledRequest1).actionGet();
+
+        // No longer visible to search
+        final SearchProfilesResponse.ProfileHit[] profileHits2 = doSearch(RAC_USER_NAME);
+        assertThat(profileHits2, emptyArray());
+
+        // But can still direct get
+        final Profile profile2 = getProfile(profile1.uid(), Set.of());
+        assertThat(profile2.uid(), equalTo(profile1.uid()));
+        assertThat(profile2.enabled(), is(false));
+
+        // Enable again for search
+        final SetProfileEnabledRequest setProfileEnabledRequest2 = new SetProfileEnabledRequest(
+            profile1.uid(),
+            true,
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        client().execute(SetProfileEnabledAction.INSTANCE, setProfileEnabledRequest2).actionGet();
+        final SearchProfilesResponse.ProfileHit[] profileHits3 = doSearch(RAC_USER_NAME);
+        assertThat(profileHits3, arrayWithSize(1));
+        assertThat(profileHits3[0].profile().uid(), equalTo(profile1.uid()));
+
+        // Enable or disable non-existing profile will throw error
+        final SetProfileEnabledRequest setProfileEnabledRequest3 = new SetProfileEnabledRequest(
+            "not-" + profile1.uid(),
+            randomBoolean(),
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        expectThrows(
+            DocumentMissingException.class,
+            () -> client().execute(SetProfileEnabledAction.INSTANCE, setProfileEnabledRequest3).actionGet()
+        );
     }
 
     private SearchProfilesResponse.ProfileHit[] doSearch(String query) {

@@ -166,7 +166,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         ConfigurableClusterPrivileges.writeArray(out, this.configurableClusterPrivileges);
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     public RoleDescriptor roleDescriptor() {

@@ -1,0 +1,5 @@
+pr: 84754
+summary: Allow refresh aliases with only privileges over aliases
+area: Authorization
+type: bug
+issues: []

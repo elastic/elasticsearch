@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
@@ -36,8 +37,7 @@ import javax.net.ssl.SSLContext;
 public class JwtIssuerHttpsServer implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(JwtIssuerHttpsServer.class);
 
-    @SuppressForbidden(reason = "This is recommended instead of hardcoded localhost.")
-    private static final String ADDRESS = InetAddress.getLoopbackAddress().getHostAddress(); // localhost, 127.0.0.1, ::1, hostname, FQDN
+    private static final String ADDRESS = NetworkAddress.format(InetAddress.getLoopbackAddress()); // localhost, 127.0.0.1, ::1
     private static final int PORT = 0; // 443, 0 (ephemeral port)
     private static final int BACKLOG = 0; // max queued incoming connections
     private static final int STOP_DELAY_SECONDS = 0; // 0 no limit, >0 limited
@@ -52,6 +52,11 @@ public class JwtIssuerHttpsServer implements Closeable {
     private final HttpsServer httpsServer;
     final String url; // JWT realm needs this for HTTP GET requests
 
+    /**
+     * HTTPS server for JWT issuer to host a public PKC JWKSet.
+     * @param encodedJwkSetPkcPublicBytes UTF-8 bytes of the encoded PKC JWKSet.
+     * @throws Exception Error for configuration or start error.
+     */
     @SuppressForbidden(reason = "MockHttpServer.createHttps requires InetSocketAddress, PORT=0 resolves to an available ephemeral port.")
     public JwtIssuerHttpsServer(final byte[] encodedJwkSetPkcPublicBytes) throws Exception {
         this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);

@@ -292,7 +292,7 @@ class S3Service implements Closeable {
                 return;
             }
             // Make sure that a readable symlink to the token file exists in the plugin config directory
-            // If it doesn't, the user doesn't wan to use AWS web identity tokens
+            // AWS_WEB_IDENTITY_ENV_VAR exists but we only use  Web Identity Tokens if a corresponding symlink exists and is readable
             Path webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
             if (Files.exists(webIdentityTokenFileSymlink) == false) {
                 LOGGER.warn("A Web Identity Token symlink in the config directory doesn't exist");

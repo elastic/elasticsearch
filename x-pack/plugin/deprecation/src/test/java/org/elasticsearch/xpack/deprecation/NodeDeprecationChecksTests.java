@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -743,7 +742,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    public void testDynamicSettings() throws JsonProcessingException {
+    public void testDynamicSettings() {
         String concreteSettingKey = "xpack.monitoring.exporters." + randomAlphaOfLength(10) + ".use_ingest";
         Settings clusterSettings = Settings.builder().put(concreteSettingKey, randomBoolean()).build();
         Settings nodettings = Settings.builder().build();
@@ -774,15 +773,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             meta
         );
         assertThat(issues, hasItem(expected));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
-        String settingNamesString = Arrays.stream(settingNames)
-            .map(settingName -> "\"" + settingName + "\"")
-            .collect(Collectors.joining(","));
-        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
-        return new ObjectMapper().readValue(metaString, Map.class);
     }
 
     public void testCheckNodeAttrData() {

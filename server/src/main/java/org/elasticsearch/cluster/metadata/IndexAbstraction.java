@@ -151,7 +151,7 @@ public interface IndexAbstraction {
             this.concreteIndexName = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? List.of(indexMetadata.getAliases().keys().toArray(String.class)) : null;
+            this.aliases = indexMetadata.getAliases() != null ? indexMetadata.getAliases().keySet().stream().toList() : null;
             this.dataStream = dataStream;
         }
 

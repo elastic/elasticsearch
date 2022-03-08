@@ -331,7 +331,7 @@ public class MasterService extends AbstractLifecycleComponent {
                             }
 
                             try {
-                                executor.clusterStatePublished(clusterStatePublicationEvent);
+                                executor.clusterStatePublished(newClusterState);
                             } catch (Exception e) {
                                 logger.error(
                                     () -> new ParameterizedMessage(
@@ -572,8 +572,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     /**
      * A wrapper around a {@link ClusterStateAckListener} which restores the given thread context before delegating to the inner listener's
-     * callbacks, and also logs and swallows any exceptions thrown. One of these is created for each task in the batch that implements
-     * {@link ClusterStateAckListener}.
+     * callbacks, and also logs and swallows any exceptions thrown. One of these is created for each task in the batch that passes a
+     * {@link ClusterStateAckListener} to {@link ClusterStateTaskExecutor.TaskContext#success}.
      */
     private record ContextPreservingAckListener(ClusterStateAckListener listener, Supplier<ThreadContext.StoredContext> context) {
 

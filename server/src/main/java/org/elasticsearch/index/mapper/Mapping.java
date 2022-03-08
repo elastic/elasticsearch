@@ -25,8 +25,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.unmodifiableMap;
-
 /**
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
@@ -45,26 +43,22 @@ public final class Mapping implements ToXContentFragment {
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
-        Map<String, MetadataFieldMapper> metadataMappersByName = new HashMap<>();
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            metadataMappersMap.put(metadataMapper.getClass(), metadataMapper);
-            metadataMappersByName.put(metadataMapper.name(), metadataMapper);
+        Map.Entry<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>[] metadataMappersMap = new Map.Entry[metadataMappers.length];
+        Map.Entry<String, MetadataFieldMapper>[] metadataMappersByName = new Map.Entry[metadataMappers.length];
+        for (int i = 0; i < metadataMappers.length; i++) {
+            MetadataFieldMapper metadataMapper = metadataMappers[i];
+            metadataMappersMap[i] = Map.entry(metadataMapper.getClass(), metadataMapper);
+            metadataMappersByName[i] = Map.entry(metadataMapper.name(), metadataMapper);
         }
         this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
-        Arrays.sort(metadataMappers, new Comparator<Mapper>() {
-            @Override
-            public int compare(Mapper o1, Mapper o2) {
-                return o1.name().compareTo(o2.name());
-            }
-        });
-        this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
-        this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
+        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::name));
+        this.metadataMappersMap = Map.ofEntries(metadataMappersMap);
+        this.metadataMappersByName = Map.ofEntries(metadataMappersByName);
         this.meta = meta;
-
     }
 
     /**

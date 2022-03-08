@@ -9,12 +9,12 @@ setup:
             properties:
               full_text:
                 type: text
-                analyzer: turkish
+                analyzer: standard
                 fields:
                   eng:
                     type: text
                     store: true
-                    analyzer: english
+                    analyzer: stop
 
   - do:
       bulk:
@@ -64,7 +64,7 @@ setup:
   - length: { aggregations.significant_texts.keywords.buckets: 4 }
   - match: { aggregations.significant_texts.keywords.doc_count: 7 }
   - match: { aggregations.significant_texts.keywords.bg_count: 8 }
-  - match: { aggregations.significant_texts.keywords.buckets.0.key: "appl" }
+  - match: { aggregations.significant_texts.keywords.buckets.0.key: "apple" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.1.key: "melon" }
@@ -103,7 +103,7 @@ setup:
   - length: { aggregations.significant_texts.keywords.buckets: 2 }
   - match: { aggregations.significant_texts.keywords.doc_count: 7 }
   - match: { aggregations.significant_texts.keywords.bg_count: 8 }
-  - match: { aggregations.significant_texts.keywords.buckets.0.key: "appl" }
+  - match: { aggregations.significant_texts.keywords.buckets.0.key: "apple" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.1.key: "melon" }
@@ -136,7 +136,7 @@ setup:
   - length: { aggregations.significant_texts.keywords.buckets: 1 }
   - match: { aggregations.significant_texts.keywords.doc_count: 7 }
   - match: { aggregations.significant_texts.keywords.bg_count: 8 }
-  - match: { aggregations.significant_texts.keywords.buckets.0.key: "appl" }
+  - match: { aggregations.significant_texts.keywords.buckets.0.key: "apple" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 5 }
 

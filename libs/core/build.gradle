@@ -43,6 +43,6 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-missing-explicit-ctor,-requires-automatic,-requires-transitive-automatic")
+  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
   options.compilerArgs.add("-Xlint:-module") // qualified exports
 }

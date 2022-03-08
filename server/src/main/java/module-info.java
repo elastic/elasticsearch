@@ -262,7 +262,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.ingest;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
-    exports org.elasticsearch.lucene.index;
     exports org.elasticsearch.lucene.queries;
     exports org.elasticsearch.lucene.search.uhighlight;
     exports org.elasticsearch.lucene.search.vectorhighlight;

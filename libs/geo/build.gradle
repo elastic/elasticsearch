@@ -20,8 +20,3 @@ tasks.named('forbiddenApisMain').configure {
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
   replaceSignatureFiles 'jdk-signatures'
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
-}
-

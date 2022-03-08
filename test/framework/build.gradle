@@ -31,14 +31,6 @@ dependencies {
   api 'org.objenesis:objenesis:3.2'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
-
-  // json schema validation dependencies
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "org.apache.commons:commons-compress:1.19"
-  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

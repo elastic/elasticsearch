@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -1451,7 +1448,7 @@ public class NumberFieldMapper extends FieldMapper {
         Number value;
         try {
             value = value(context.parser(), type, nullValue, coerce());
-        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+        } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
                 return;
@@ -1466,13 +1463,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     /**
      * Read the value at the current position of the parser.
-     * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
-     * @throws JsonParseException if there was any error parsing the json
      * @throws IllegalArgumentException if there was an error parsing the value from the json
      * @throws IOException if there was any other IO error
      */
     private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
-        throws InputCoercionException, JsonParseException, IllegalArgumentException, IOException {
+        throws IllegalArgumentException, IOException {
 
         if (parser.currentToken() == Token.VALUE_NULL) {
             return nullValue;

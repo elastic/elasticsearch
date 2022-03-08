@@ -265,7 +265,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
         lock.lock();
         try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {}) {
-            return new MetadataSnapshot(commit, directory, logger);
+            return MetadataSnapshot.loadFromIndexCommit(commit, directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -448,7 +448,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Directory dir = new NIOFSDirectory(indexLocation)
         ) {
             failIfCorrupted(dir);
-            return new MetadataSnapshot(null, dir, logger);
+            return MetadataSnapshot.loadFromIndexCommit(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -756,80 +756,24 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * change concurrently for safety reasons.
      *
      * @see StoreFileMetadata
+     *
+     * @param numDocs the number of documents in this store snapshot
      */
-    public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
-        private final Map<String, StoreFileMetadata> metadata;
-        private final Map<String, String> commitUserData;
-        private final long numDocs;
+    public record MetadataSnapshot(Map<String, StoreFileMetadata> fileMetadataMap, Map<String, String> commitUserData, long numDocs)
+        implements
+            Iterable<StoreFileMetadata>,
+            Writeable {
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot(emptyMap(), emptyMap(), 0L);
 
-        public MetadataSnapshot(Map<String, StoreFileMetadata> metadata, Map<String, String> commitUserData, long numDocs) {
-            this.metadata = metadata;
-            this.commitUserData = commitUserData;
-            this.numDocs = numDocs;
-        }
-
-        MetadataSnapshot(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            LoadedMetadata loadedMetadata = loadMetadata(commit, directory, logger);
-            metadata = loadedMetadata.fileMetadata;
-            commitUserData = loadedMetadata.userData;
-            numDocs = loadedMetadata.numDocs;
-            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
-        }
-
-        public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
-            final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
-            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
-            final var numDocs = in.readLong();
-
-            if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
-                return MetadataSnapshot.EMPTY;
-            } else {
-                return new MetadataSnapshot(metadata, commitUserData, numDocs);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeMapValues(metadata);
-            out.writeMap(commitUserData, StreamOutput::writeString, StreamOutput::writeString);
-            out.writeLong(numDocs);
-        }
-
-        /**
-         * Returns the number of documents in this store snapshot
-         */
-        public long getNumDocs() {
-            return numDocs;
-        }
-
-        @Nullable
-        public org.elasticsearch.Version getCommitVersion() {
-            String version = commitUserData.get(ES_VERSION);
-            return version == null ? null : org.elasticsearch.Version.fromString(version);
-        }
-
-        static class LoadedMetadata {
-            final Map<String, StoreFileMetadata> fileMetadata;
-            final Map<String, String> userData;
+        static MetadataSnapshot loadFromIndexCommit(IndexCommit commit, Directory directory, Logger logger) throws IOException {
             final long numDocs;
-
-            LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
-                this.fileMetadata = fileMetadata;
-                this.userData = userData;
-                this.numDocs = numDocs;
-            }
-        }
-
-        static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            long numDocs;
-            Map<String, StoreFileMetadata> builder = new HashMap<>();
-            Map<String, String> commitUserDataBuilder = new HashMap<>();
+            final Map<String, StoreFileMetadata> metadataByFile = new HashMap<>();
+            final Map<String, String> commitUserData;
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
-                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
+                commitUserData = Map.copyOf(segmentCommitInfos.getUserData());
                 // we don't know which version was used to write so we take the max version.
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion();
                 for (SegmentCommitInfo info : segmentCommitInfos) {
@@ -849,7 +793,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         checksumFromLuceneFile(
                             directory,
                             file,
-                            builder,
+                            metadataByFile,
                             logger,
                             version.toString(),
                             SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)),
@@ -864,7 +808,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 checksumFromLuceneFile(
                     directory,
                     segmentsFile,
-                    builder,
+                    metadataByFile,
                     logger,
                     maxVersion.toString(),
                     true,
@@ -886,16 +830,41 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         ex
                     );
                     Lucene.checkSegmentInfoIntegrity(directory);
-                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException cex) {
-                    cex.addSuppressed(ex);
-                    throw cex;
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
                     throw inner;
                 }
                 throw ex;
             }
-            return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
+            final var metadataSnapshot = new MetadataSnapshot(unmodifiableMap(metadataByFile), commitUserData, numDocs);
+            assert metadataSnapshot.fileMetadataMap.isEmpty() || metadataSnapshot.numSegmentFiles() == 1
+                : "numSegmentFiles: " + metadataSnapshot.numSegmentFiles();
+            return metadataSnapshot;
+        }
+
+        public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
+            final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
+            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
+            final var numDocs = in.readLong();
+
+            if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
+                return MetadataSnapshot.EMPTY;
+            } else {
+                return new MetadataSnapshot(metadata, commitUserData, numDocs);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMapValues(fileMetadataMap);
+            out.writeMap(commitUserData, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeLong(numDocs);
+        }
+
+        @Nullable
+        public org.elasticsearch.Version getCommitVersion() {
+            String version = commitUserData.get(ES_VERSION);
+            return version == null ? null : org.elasticsearch.Version.fromString(version);
         }
 
         private static void checksumFromLuceneFile(
@@ -956,15 +925,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public Iterator<StoreFileMetadata> iterator() {
-            return metadata.values().iterator();
+            return fileMetadataMap.values().iterator();
         }
 
         public StoreFileMetadata get(String name) {
-            return metadata.get(name);
-        }
-
-        public Map<String, StoreFileMetadata> asMap() {
-            return metadata;
+            return fileMetadataMap.get(name);
         }
 
         private static final String SEGMENT_INFO_EXTENSION = "si";
@@ -1079,13 +1044,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Collections.unmodifiableList(different),
                 Collections.unmodifiableList(missing)
             );
-            assert recoveryDiff.size() == metadata.size()
+            assert recoveryDiff.size() == fileMetadataMap.size()
                 : "some files are missing: recoveryDiff is ["
                     + recoveryDiff
                     + "] comparing: ["
-                    + metadata
+                    + fileMetadataMap
                     + "] to ["
-                    + targetSnapshot.metadata
+                    + targetSnapshot.fileMetadataMap
                     + "]";
             return recoveryDiff;
         }
@@ -1094,11 +1059,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * Returns the number of files in this snapshot
          */
         public int size() {
-            return metadata.size();
-        }
-
-        public Map<String, String> getCommitUserData() {
-            return commitUserData;
+            return fileMetadataMap.size();
         }
 
         /**
@@ -1112,7 +1073,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * Returns true iff this metadata contains the given file.
          */
         public boolean contains(String existingFile) {
-            return metadata.containsKey(existingFile);
+            return fileMetadataMap.containsKey(existingFile);
         }
 
         /**
@@ -1124,7 +1085,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     return file;
                 }
             }
-            assert metadata.isEmpty();
+            assert fileMetadataMap.isEmpty();
             return null;
         }
 

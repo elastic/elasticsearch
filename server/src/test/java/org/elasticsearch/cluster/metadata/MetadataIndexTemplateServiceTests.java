@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -23,8 +21,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -36,8 +36,11 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -428,7 +431,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            JsonParseException.class,
+            XContentParseException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2)
         );
 
@@ -1913,6 +1916,155 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null
         );
         service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
+    }
+
+    public void testDataStreamsUsingTemplates() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "unreferenced",
+                            new DataStream.TimestampField("@timestamp"),
+                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-unreferenced-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Collections.singletonList("logs-*-*"),
+            null,
+            null,
+            100L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-mysql-default",
+                            new DataStream.TimestampField("@timestamp"),
+                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ComposableIndexTemplate fineGrainedLogsTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("logs-mysql-*"),
+            null,
+            null,
+            200L, // Higher priority
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(stateWithDS, false, "logs2", fineGrainedLogsTemplate);
+
+        // Test replacing it with a version without the data stream config
+        final ClusterState stateWithTwoTemplates = state;
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs*")
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString("unable to remove composable templates [logs, logs2] as they are in use by a data streams [logs-mysql-default]")
+        );
+
+        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs")), equalTo(Set.of()));
+        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs2")), equalTo(Set.of("logs-mysql-default")));
+
+        // The unreferenced template can be removed without an exception
+        MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
+    }
+
+    public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Collections.singletonList("logs-*-*"),
+            null,
+            null,
+            100L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES),
+            null
+        );
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+
+        Instant now = Instant.now();
+        Metadata.Builder mBuilder = new Metadata.Builder(state.getMetadata());
+        DataStreamTestHelper.getClusterStateWithDataStream(
+            mBuilder,
+            "unreferenced",
+            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
+        );
+        DataStreamTestHelper.getClusterStateWithDataStream(
+            mBuilder,
+            "logs-mysql-default",
+            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
+        );
+        ClusterState stateWithDS = ClusterState.builder(state).metadata(mBuilder).build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(
+                Collections.singletonList("logs-*-*"),
+                null,
+                null,
+                100L,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? null : IndexMode.STANDARD),
+                null
+            );
+            service.addIndexTemplateV2(stateWithDS, false, "logs", nonDSTemplate);
+        });
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "would cause tsdb data streams [logs-mysql-default] to no longer match a data stream template with a time_series index_mode"
+            )
+        );
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

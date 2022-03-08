@@ -75,6 +75,13 @@ security settings from your {es} cluster, authenticates to {es} with the
 The following command starts a single-node {es} cluster for development or
 testing.
 
+. Create a new docker network for {es} and {kib}
++
+[source,sh]
+----
+docker network create elastic
+----
+
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.
 +
@@ -514,7 +521,7 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in 
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 /*
  * This QA test is intended to smoke test all security realms with minimal dependencies.
  * That is, it makes sure a node that has every realm configured can start, and tests those realms that can be tested without needing external services.
@@ -17,6 +19,8 @@ dependencies {
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
+
+  requiresFeature 'es.jwt_realm_feature_flag_enabled', Version.fromString("8.2.0")
 
   extraConfigFile 'http-server.key', file('src/javaRestTest/resources/ssl/http-server.key')
   extraConfigFile 'http-server.crt', file('src/javaRestTest/resources/ssl/http-server.crt')
@@ -77,6 +81,15 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.oidc.openid7.op.jwkset_path', 'oidc-jwkset.json'
   setting 'xpack.security.authc.realms.oidc.openid7.claims.principal', 'sub'
   keystore 'xpack.security.authc.realms.oidc.openid7.rp.client_secret', 'this-is-my-secret'
+  //  - JWT (works)
+  setting 'xpack.security.authc.realms.jwt.jwt8.order', '8'
+  setting 'xpack.security.authc.realms.jwt.jwt8.allowed_issuer', 'iss8'
+  setting 'xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms', 'HS256'
+  setting 'xpack.security.authc.realms.jwt.jwt8.allowed_audiences', 'aud8'
+  setting 'xpack.security.authc.realms.jwt.jwt8.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.jwt.jwt8.client_authentication.type', 'shared_secret'
+  keystore 'xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret', 'client-shared-secret-string'
+  keystore 'xpack.security.authc.realms.jwt.jwt8.hmac_key', 'hmac-oidc-key-string-for-hs256-algorithm'
 
   rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"

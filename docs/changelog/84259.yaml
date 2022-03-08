@@ -1,0 +1,5 @@
+pr: 84259
+summary: Batch close-indices cluster state updates
+area: Indices APIs
+type: enhancement
+issues: []

@@ -1052,7 +1052,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         // adds alias from new index to existing index
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
-            AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
+            AliasMetadata newAlias = indexMetadata.getAliases().values().iterator().next();
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
@@ -1128,7 +1128,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
-        assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
     }
 

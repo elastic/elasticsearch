@@ -40,8 +40,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -893,7 +893,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 assertThat(histo.getBuckets().size(), equalTo(10));
                 for (int i = 0; i < 10; i++) {
                     assertThat(histo.getBuckets().get(i).key, equalTo((double) i));
-                    assertThat(((InternalMax) histo.getBuckets().get(i).aggregations.get("max")).getValue(), equalTo((double) i));
+                    assertThat(((Max) histo.getBuckets().get(i).aggregations.get("max")).value(), equalTo((double) i));
                     if (i > 0) {
                         assertThat(((InternalSimpleValue) histo.getBuckets().get(i).aggregations.get("deriv")).getValue(), equalTo(1.0));
                     }
@@ -980,8 +980,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     private Map<String, Double> maxAsMap(InternalAutoDateHistogram result) {
         Map<String, Double> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
         result.getBuckets().stream().forEach(b -> {
-            InternalMax max = b.getAggregations().get("max");
-            Object old = map.put(b.getKeyAsString(), max.getValue());
+            Max max = b.getAggregations().get("max");
+            Object old = map.put(b.getKeyAsString(), max.value());
             assertNull(old);
         });
         return map;

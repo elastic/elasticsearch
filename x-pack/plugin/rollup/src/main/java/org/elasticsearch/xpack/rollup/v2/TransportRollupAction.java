@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -245,7 +246,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }, listener::onFailure));
     }
 
@@ -381,7 +382,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)
                 );
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     private void deleteTmpIndex(String originalIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
@@ -400,5 +401,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex + "]", e));
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

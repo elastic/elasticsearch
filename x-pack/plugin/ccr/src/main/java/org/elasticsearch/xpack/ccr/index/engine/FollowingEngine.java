@@ -21,7 +21,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine.Index;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.MayHaveBeenIndexedBefore;

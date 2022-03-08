@@ -14,15 +14,19 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -166,6 +170,35 @@ public class ProfileIT extends ESRestTestCase {
         // 404 for non-existing uid
         final ResponseException e1 = expectThrows(ResponseException.class, () -> doSetEnabled("not-" + uid, randomBoolean()));
         assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testSettingsOutputIncludeDomain() throws IOException {
+        final Request getSettingsRequest = new Request("GET", "_cluster/settings");
+        getSettingsRequest.addParameter("include_defaults", "true");
+        getSettingsRequest.addParameter("filter_path", "**.security.authc.domains");
+        final Response getSettingsResponse = adminClient().performRequest(getSettingsRequest);
+        assertOK(getSettingsResponse);
+        final String responseString = new String(getSettingsResponse.getEntity().getContent().readAllBytes());
+        assertThat(responseString, containsString("""
+            {"domains":{"my_domain":{"realms":["default_file"]}}}"""));
+    }
+
+    public void testXpackUsageOutput() throws IOException {
+        final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
+        xpackUsageRequest.addParameter("filter_path", "security");
+        final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
+        assertOK(xpackUsageResponse);
+        final XContentTestUtils.JsonMapView xpackUsageView = XContentTestUtils.createJsonMapView(
+            xpackUsageResponse.getEntity().getContent()
+        );
+        final Map<String, Object> domainsUsage = castToMap(xpackUsageView.get("security.domains"));
+        assertThat(domainsUsage.keySet(), equalTo(Set.of("my_domain", "other_domain")));
+        @SuppressWarnings("unchecked")
+        final List<String> myDomainRealms = (List<String>) domainsUsage.get("my_domain");
+        assertThat(myDomainRealms, containsInAnyOrder("default_file", "ldap1"));
+        @SuppressWarnings("unchecked")
+        final List<String> otherDomainRealms = (List<String>) domainsUsage.get("other_domain");
+        assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
     }
 
     private Map<String, Object> doActivateProfile() throws IOException {

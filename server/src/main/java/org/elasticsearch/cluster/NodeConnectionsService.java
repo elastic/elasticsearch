@@ -24,7 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -276,7 +276,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
                         logger.log(
                             level,
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "failed to connect to {} (tried [{}] times)",
                                 discoveryNode,
                                 currentFailureCount

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -111,8 +111,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
                     new ValidationException().addValidationError(
-                        new ParameterizedMessage("Unexpected status from response of test query: {}", response.status())
-                            .getFormattedMessage()
+                        Message.createParameterizedMessage("Unexpected status from response of test query: {}", response.status())
+                                .getFormattedMessage()
                     )
                 );
                 return;
@@ -125,7 +125,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                 : RestStatus.SERVICE_UNAVAILABLE;
             listener.onFailure(
                 new ValidationException(unwrapped).addValidationError(
-                    new ParameterizedMessage("Failed to test query, received status: {}", status).getFormattedMessage()
+                    Message.createParameterizedMessage("Failed to test query, received status: {}", status).getFormattedMessage()
                 )
             );
         }));

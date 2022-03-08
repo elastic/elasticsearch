@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.process.logging;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -348,7 +348,7 @@ public class CppLogMessageHandler implements Closeable {
         } catch (IOException e) {
             if (jobId != null) {
                 LOGGER.warn(
-                    new ParameterizedMessage(
+                    Message.createParameterizedMessage(
                         "[{}] IO failure receiving C++ log message: {}",
                         new Object[] { jobId, bytesRef.utf8ToString() }
                     ),
@@ -356,7 +356,7 @@ public class CppLogMessageHandler implements Closeable {
                 );
             } else {
                 LOGGER.warn(
-                    new ParameterizedMessage("IO failure receiving C++ log message: {}", new Object[] { bytesRef.utf8ToString() }),
+                    Message.createParameterizedMessage("IO failure receiving C++ log message: {}", new Object[] { bytesRef.utf8ToString() }),
                     e
                 );
             }

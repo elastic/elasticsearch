@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -109,7 +109,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             reason,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
-                e -> logger.error(new ParameterizedMessage("[{}] error stopping the model after task cancellation", getModelId()), e)
+                e -> logger.error(Message.createParameterizedMessage("[{}] error stopping the model after task cancellation", getModelId()), e)
             )
         );
     }

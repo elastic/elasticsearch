@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.ssl.DerParser;
 
 import java.io.IOException;
@@ -98,7 +98,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         Set<String> names = readCommonNames(certificate);
         if (verifyCertificateNames(names)) {
             logger.debug(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Trusting certificate [{}] [{}] with common-names [{}]",
                     certificate.getSubjectDN(),
                     certificate.getSerialNumber().toString(16),

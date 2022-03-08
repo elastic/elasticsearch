@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -87,7 +87,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "{} datafeeds are currently being updated",
                 updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
             )
@@ -105,15 +105,15 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
             );
             try {
                 updateDatafeeds.actionGet();
-                logger.debug(() -> new ParameterizedMessage("[{}] datafeed successfully updated", update.getId()));
+                logger.debug(() -> Message.createParameterizedMessage("[{}] datafeed successfully updated", update.getId()));
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("[{}] failed being updated", update.getId()), ex);
+                logger.warn(Message.createParameterizedMessage("[{}] failed being updated", update.getId()), ex);
                 failures.add(new ElasticsearchException("Failed to update datafeed {}", ex, update.getId()));
             }
         }
         if (failures.isEmpty()) {
             logger.debug(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "{} datafeeds are finished being updated",
                     updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
                 )

@@ -33,7 +33,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.util.Collections;
 import java.util.List;
@@ -181,7 +181,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
             // making the wrong decision here is not catastrophic so we only need to cover the common case.
             logger.trace(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "new nodes {} found, clearing primary async-fetch-store cache",
                     Sets.difference(newEphemeralIds, lastSeenEphemeralIds)
                 )
@@ -232,7 +232,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 Priority.HIGH,
                 ActionListener.wrap(
                     r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
-                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)
+                    e -> logger.debug(Message.createParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)
                 )
             );
         }

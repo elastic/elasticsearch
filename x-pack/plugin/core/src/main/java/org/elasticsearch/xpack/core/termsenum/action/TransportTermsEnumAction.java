@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
@@ -672,7 +672,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     channel.sendResponse(e);
                 } catch (Exception e1) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "Failed to send error response for action [{}] and request [{}]",
                             actionName,
                             request

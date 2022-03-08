@@ -12,7 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -45,7 +45,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.used = new AtomicLong(0);
         this.trippedCount = new AtomicLong(0);
         this.logger = logger;
-        logger.trace(() -> new ParameterizedMessage("creating ChildCircuitBreaker with settings {}", settings));
+        logger.trace(() -> Message.createParameterizedMessage("creating ChildCircuitBreaker with settings {}", settings));
         this.parent = parent;
     }
 
@@ -72,7 +72,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             + "/"
             + new ByteSizeValue(memoryBytesLimit)
             + "]";
-        logger.debug(() -> new ParameterizedMessage("{}", message));
+        logger.debug(() -> Message.createParameterizedMessage("{}", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }
 
@@ -120,7 +120,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         long newUsed;
         newUsed = this.used.addAndGet(bytes);
         logger.trace(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
                 this.name,
                 new ByteSizeValue(bytes),
@@ -183,7 +183,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
-        logger.trace(() -> new ParameterizedMessage("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u));
+        logger.trace(() -> Message.createParameterizedMessage("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u));
         assert u >= 0 : "Used bytes: [" + u + "] must be >= 0";
     }
 

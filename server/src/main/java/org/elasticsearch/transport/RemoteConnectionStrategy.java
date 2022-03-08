@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -338,7 +338,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 ActionListener.wrap(
                     ignore -> logger.trace("[{}] successfully connected after disconnect of {}", clusterAlias, node),
                     e -> logger.debug(
-                        () -> new ParameterizedMessage("[{}] failed to connect after disconnect of {}", clusterAlias, node),
+                        () -> Message.createParameterizedMessage("[{}] failed to connect after disconnect of {}", clusterAlias, node),
                         e
                     )
                 )

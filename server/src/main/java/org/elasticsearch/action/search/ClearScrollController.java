@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -135,7 +135,7 @@ public final class ClearScrollController implements Runnable {
     }
 
     private void onFailedFreedContext(Throwable e, DiscoveryNode node) {
-        logger.warn(() -> new ParameterizedMessage("Clear SC failed on node[{}]", node), e);
+        logger.warn(() -> Message.createParameterizedMessage("Clear SC failed on node[{}]", node), e);
         /*
          * We have to set the failure marker before we count down otherwise we can expose the failure marker before we have set it to a
          * racing thread successfully freeing a context. This would lead to that thread responding that the clear scroll succeeded.

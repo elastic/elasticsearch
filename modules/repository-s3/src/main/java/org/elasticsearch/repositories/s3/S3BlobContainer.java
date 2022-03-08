@@ -25,7 +25,7 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
@@ -365,7 +365,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Failed to delete some blobs {}",
                     e.getErrors()
                         .stream()

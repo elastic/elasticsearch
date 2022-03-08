@@ -19,7 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -344,7 +344,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         @Override
         public void onFailure(Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                logger.debug(Message.createParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
             }
             onPhaseFailure("round", e);
         }
@@ -378,7 +378,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             phaseFactory.apply(getIterator(results, shardsIts)).start();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                logger.debug(Message.createParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
             }
             onPhaseFailure("finish", e);
         }
@@ -449,7 +449,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                    logger.debug(Message.createParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
                 }
                 onPhaseFailure("start", e);
             }

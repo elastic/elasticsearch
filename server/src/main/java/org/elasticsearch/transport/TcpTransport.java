@@ -46,7 +46,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
@@ -657,7 +657,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 List<TcpServerChannel> channels = entry.getValue();
                 ActionListener<Void> closeFailLogger = ActionListener.wrap(
                     c -> {},
-                    e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)
+                    e -> logger.warn(() -> Message.createParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)
                 );
                 channels.forEach(c -> c.addCloseListener(closeFailLogger));
                 CloseableChannel.closeChannels(channels, true);
@@ -703,20 +703,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     logger.log(
                         closeConnectionExceptionLevel,
-                        new ParameterizedMessage(
-                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
-                            channel
-                        ),
+                            Message.createParameterizedMessage(
+                                "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                                channel
+                            ),
                         e
                     );
                 }
             } else if (isConnectException(e)) {
-                logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> Message.createParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             } else if (e instanceof BindException) {
-                logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> Message.createParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             } else if (e instanceof CancelledKeyException) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
                         channel
                     ),
@@ -733,11 +733,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     closeChannel = false;
                 }
             } else if (e instanceof StreamCorruptedException) {
-                logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+                logger.warn(() -> Message.createParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
             } else if (e instanceof TransportNotReadyException) {
-                logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+                logger.debug(() -> Message.createParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
             } else {
-                logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+                logger.warn(() -> Message.createParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             }
         } finally {
             if (closeChannel) {
@@ -748,9 +748,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
-            logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+            logger.debug(() -> Message.createParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
         } else {
-            logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            logger.error(Message.createParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
         }
     }
 
@@ -760,7 +760,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
-        logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
+        logger.trace(() -> Message.createParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }
 
     /**
@@ -1165,7 +1165,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // Connection failures are generally logged elsewhere, but go via the ChannelsConnectedListener which only captures the first
             // exception for each bundle of channels. If the ChannelOpenTraceLogger is installed then trace-logging is enabled so we can log
             // every failure.
-            logger.trace(new ParameterizedMessage("failed to open transport channel: {}", channel), e);
+            logger.trace(Message.createParameterizedMessage("failed to open transport channel: {}", channel), e);
         }
     }
 

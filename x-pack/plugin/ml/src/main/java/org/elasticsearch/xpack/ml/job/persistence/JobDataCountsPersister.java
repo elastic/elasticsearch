@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -73,9 +73,9 @@ public class JobDataCountsPersister {
                 retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage)
             );
         } catch (IOException ioe) {
-            logger.error(() -> new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
+            logger.error(() -> Message.createParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
         } catch (Exception ex) {
-            logger.error(() -> new ParameterizedMessage("[{}] Failed persisting data_counts stats", jobId), ex);
+            logger.error(() -> Message.createParameterizedMessage("[{}] Failed persisting data_counts stats", jobId), ex);
             auditor.error(jobId, "Failed persisting data_counts stats: " + ex.getMessage());
         }
     }
@@ -105,7 +105,7 @@ public class JobDataCountsPersister {
                 listener.delegateFailure((l, r) -> l.onResponse(true))
             );
         } catch (IOException ioe) {
-            String msg = new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId).getFormattedMessage();
+            String msg = Message.createParameterizedMessage("[{}] Failed writing data_counts stats", jobId).getFormattedMessage();
             logger.error(msg, ioe);
             listener.onFailure(ExceptionsHelper.serverError(msg, ioe));
         }

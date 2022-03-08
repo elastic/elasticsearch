@@ -17,7 +17,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -106,7 +106,7 @@ public class ElectionSchedulerFactory {
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
             throw new IllegalArgumentException(
-                new ParameterizedMessage(
+                Message.createParameterizedMessage(
                     "[{}] is [{}], but must be at least [{}] which is [{}]",
                     ELECTION_MAX_TIMEOUT_SETTING_KEY,
                     maxTimeout,
@@ -180,7 +180,7 @@ public class ElectionSchedulerFactory {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage("unexpected exception in wakeup of {}", this), e);
+                    logger.debug(Message.createParameterizedMessage("unexpected exception in wakeup of {}", this), e);
                     assert false : e;
                 }
 

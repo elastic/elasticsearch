@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPException;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -303,7 +303,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 IOUtils.closeWhileHandlingException(ldapSessionAtomicReference.get());
             }
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Exception occurred during {} for {}", action, LdapRealm.this), e);
+                logger.debug(Message.createParameterizedMessage("Exception occurred during {} for {}", action, LdapRealm.this), e);
             }
             resultListener.onResponse(AuthenticationResult.unsuccessful(action + " failed", e));
         }

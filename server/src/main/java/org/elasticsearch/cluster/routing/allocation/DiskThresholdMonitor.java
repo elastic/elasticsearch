@@ -33,7 +33,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -459,7 +459,7 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onResponse(r);
         }, e -> {
-            logger.debug(new ParameterizedMessage("setting indices [{}] read-only failed", readOnly), e);
+            logger.debug(Message.createParameterizedMessage("setting indices [{}] read-only failed", readOnly), e);
             setLastRunTimeMillis();
             listener.onFailure(e);
         });

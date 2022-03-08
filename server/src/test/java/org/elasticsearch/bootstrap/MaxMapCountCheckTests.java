@@ -8,18 +8,14 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.*;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.logging.MockLogAppender;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -210,7 +206,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         public void match(final LogEvent event) {
             if (event.getLevel().equals(level)
                 && event.getLoggerName().equals(loggerName)
-                && event.getMessage()instanceof final ParameterizedMessage message) {
+                && event.getMessage()instanceof final Message message) {
                 saw = message.getFormat().equals(messagePattern)
                     && Arrays.deepEquals(arguments, message.getParameters())
                     && throwablePredicate.test(event.getThrown());

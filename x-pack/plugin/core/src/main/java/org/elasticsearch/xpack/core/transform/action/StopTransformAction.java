@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -131,7 +131,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         public ActionRequestValidationException validate() {
             if (force && waitForCheckpoint) {
                 return addValidationError(
-                    new ParameterizedMessage(
+                    Message.createParameterizedMessage(
                         "cannot set both [{}] and [{}] to true",
                         TransformField.FORCE,
                         TransformField.WAIT_FOR_CHECKPOINT

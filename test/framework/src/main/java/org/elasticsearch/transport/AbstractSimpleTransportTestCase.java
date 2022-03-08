@@ -37,10 +37,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -902,7 +900,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             listener.actionGet();
                         } catch (Exception e) {
                             logger.trace(
-                                (java.util.function.Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
+                                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("caught exception while sending to node {}", nodeA),
                                 e
                             );
                         }
@@ -945,7 +943,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                                 // ok!
                             } catch (Exception e) {
                                 logger.error(
-                                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
+                                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("caught exception while sending to node {}", node),
                                     e
                                 );
                                 sendingErrors.add(e);
@@ -2103,7 +2101,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug((java.util.function.Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);

@@ -24,7 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
@@ -155,11 +155,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                                 // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
                                                 // publish address.
                                                 logger.warn(
-                                                    new ParameterizedMessage(
-                                                        "[{}] completed handshake with [{}] but followup connection failed",
-                                                        thisConnectionAttempt,
-                                                        remoteNode
-                                                    ),
+                                                        Message.createParameterizedMessage(
+                                                            "[{}] completed handshake with [{}] but followup connection failed",
+                                                            thisConnectionAttempt,
+                                                            remoteNode
+                                                        ),
                                                     e
                                                 );
                                                 listener.onFailure(e);
@@ -176,7 +176,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                 // we opened a connection and successfully performed a low-level handshake, so we were definitely
                                 // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
                                 // mismatched configurations (e.g. cluster name) that the user should address
-                                logger.warn(new ParameterizedMessage("handshake failed for [{}]", thisConnectionAttempt), e);
+                                logger.warn(Message.createParameterizedMessage("handshake failed for [{}]", thisConnectionAttempt), e);
                                 IOUtils.closeWhileHandlingException(connection);
                                 listener.onFailure(e);
                             }

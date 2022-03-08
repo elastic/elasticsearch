@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -461,7 +461,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(e);
                     } catch (Exception e1) {
                         logger.warn(
-                             () -> new ParameterizedMessage(
+                             () -> Message.createParameterizedMessage(
                                 "Failed to send error response for action [{}] and request [{}]",
                                 actionName,
                                 request

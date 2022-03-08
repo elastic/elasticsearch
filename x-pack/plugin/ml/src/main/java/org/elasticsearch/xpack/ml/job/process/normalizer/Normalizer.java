@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResultHandler;
@@ -58,7 +58,7 @@ public class Normalizer {
             try {
                 resultsHandler.process();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error reading normalizer results", new Object[] { jobId }), e);
+                LOGGER.error(Message.createParameterizedMessage("[{}] Error reading normalizer results", new Object[] { jobId }), e);
             }
         });
 
@@ -94,7 +94,7 @@ public class Normalizer {
             resultsHandlerFuture.get();
             mergeNormalizedScoresIntoResults(resultsHandler.getNormalizedResults(), results);
         } catch (ExecutionException e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error processing normalizer results", new Object[] { jobId }), e);
+            LOGGER.error(Message.createParameterizedMessage("[{}] Error processing normalizer results", new Object[] { jobId }), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

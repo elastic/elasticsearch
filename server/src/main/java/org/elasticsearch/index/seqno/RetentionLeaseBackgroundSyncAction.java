@@ -31,7 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -134,7 +134,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                             // the index was deleted or the shard is closed
                             return;
                         }
-                        getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                        getLogger().warn(Message.createParameterizedMessage("{} retention lease background sync failed", shardId), e);
                     }
                 }
             );

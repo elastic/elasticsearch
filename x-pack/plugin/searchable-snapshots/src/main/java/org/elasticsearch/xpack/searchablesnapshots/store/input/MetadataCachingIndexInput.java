@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
@@ -214,12 +214,12 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 );
             } catch (Exception e) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
-                        cachedBlob.from(),
-                        cachedBlob.to(),
-                        fileInfo
-                    ),
+                        Message.createParameterizedMessage(
+                            "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
+                            cachedBlob.from(),
+                            cachedBlob.to(),
+                            fileInfo
+                        ),
                     e
                 );
                 // oh well, no big deal, at least we can return them to the caller.
@@ -257,7 +257,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
+        logger.trace(() -> Message.createParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
         long bytesCopied = 0L;
         long remaining = end - start;
@@ -370,7 +370,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 final long length = b.remaining();
                 final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
                 logger.trace(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "direct reading of range [{}-{}] for cache file [{}]",
                         position,
                         position + length,

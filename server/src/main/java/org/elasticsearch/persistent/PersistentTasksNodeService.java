@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -260,11 +260,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception notificationException) {
                     notificationException.addSuppressed(originalException);
                     logger.warn(
-                        new ParameterizedMessage(
-                            "notification for task [{}] with id [{}] failed",
-                            taskInProgress.getTaskName(),
-                            taskInProgress.getAllocationId()
-                        ),
+                            Message.createParameterizedMessage(
+                                "notification for task [{}] with id [{}] failed",
+                                taskInProgress.getTaskName(),
+                                taskInProgress.getAllocationId()
+                            ),
                         notificationException
                     );
                 }
@@ -296,7 +296,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
                     logger.warn(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "failed to cancel task [{}] with id [{}] and allocation id [{}]",
                             task.getAction(),
                             task.getPersistentTaskId(),

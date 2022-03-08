@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -191,7 +191,7 @@ public class DatafeedNodeSelector {
                 );
             }
         } catch (Exception e) {
-            String msg = new ParameterizedMessage(
+            String msg = Message.createParameterizedMessage(
                 "failed resolving indices given [{}] and indices_options [{}]",
                 Strings.arrayToCommaDelimitedString(index),
                 indicesOptions

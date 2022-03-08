@@ -86,7 +86,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
@@ -126,7 +126,7 @@ public class Lucene {
         try {
             return Version.parse(version);
         } catch (ParseException e) {
-            logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
+            logger.warn(() -> Message.createParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
             return defaultVersion;
         }
     }

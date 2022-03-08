@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -385,7 +385,7 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                        logger.error(Message.createParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());

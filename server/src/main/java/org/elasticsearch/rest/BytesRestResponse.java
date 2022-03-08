@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -86,7 +85,7 @@ public class BytesRestResponse extends RestResponse {
         ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
-            Supplier<Message> messageSupplier = () -> new ParameterizedMessage(
+            Supplier<Message> messageSupplier = () -> Message.createParameterizedMessage(
                 "path: {}, params: {}",
                 channel.request().rawPath(),
                 channel.request().params()

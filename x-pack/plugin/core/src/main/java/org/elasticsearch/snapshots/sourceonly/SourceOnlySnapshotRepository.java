@@ -8,7 +8,7 @@ package org.elasticsearch.snapshots.sourceonly;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -172,7 +172,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "Existing staging directory [{}] appears corrupted and will be pruned and recreated.",
                         snapPath
                     ),

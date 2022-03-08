@@ -40,7 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -262,7 +262,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         @Override
         public void handleException(TransportException exp) {
-            logger.debug(() -> new ParameterizedMessage("shards active request failed for {}", shardId), exp);
+            logger.debug(() -> Message.createParameterizedMessage("shards active request failed for {}", shardId), exp);
             if (awaitingResponses.decrementAndGet() == 0) {
                 allNodesResponded();
             }
@@ -306,7 +306,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                     try {
                         indicesService.deleteShardStore("no longer used", shardId, currentState);
                     } catch (Exception ex) {
-                        logger.debug(() -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
+                        logger.debug(() -> Message.createParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
                 }, new ActionListener<>() {
                     @Override
@@ -315,7 +315,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                     @Override
                     public void onFailure(Exception e) {
                         logger.error(
-                            () -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId),
+                            () -> Message.createParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId),
                             e
                         );
                     }
@@ -373,7 +373,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
                             } catch (IOException | EsRejectedExecutionException e) {
                                 logger.error(
-                                    () -> new ParameterizedMessage(
+                                    () -> Message.createParameterizedMessage(
                                         "failed send response for shard active while trying to "
                                             + "delete shard {} - shard will probably not be removed",
                                         request.shardId

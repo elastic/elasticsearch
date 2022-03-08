@@ -33,7 +33,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -198,7 +198,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
                             if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
                                 logger.debug(
-                                    () -> new ParameterizedMessage(
+                                    () -> Message.createParameterizedMessage(
                                         "master could not publish cluster state or "
                                             + "stepped down before publishing action [{}], scheduling a retry",
                                         actionName
@@ -242,11 +242,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         retryOnMasterChange(clusterState, cause);
                                     } else {
                                         logger.trace(
-                                            new ParameterizedMessage(
-                                                "failure when forwarding request [{}] to master [{}]",
-                                                actionName,
-                                                masterNode
-                                            ),
+                                                Message.createParameterizedMessage(
+                                                    "failure when forwarding request [{}] to master [{}]",
+                                                    actionName,
+                                                    masterNode
+                                                ),
                                             exp
                                         );
                                         listener.onFailure(exp);
@@ -270,7 +270,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             if (observer == null) {
                 final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
                 if (remainingTimeoutMS <= 0) {
-                    logger.debug(() -> new ParameterizedMessage("timed out before retrying [{}] after failure", actionName), failure);
+                    logger.debug(() -> Message.createParameterizedMessage("timed out before retrying [{}] after failure", actionName), failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                     return;
                 }
@@ -297,7 +297,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.debug(
-                        () -> new ParameterizedMessage("timed out while retrying [{}] after failure (timeout [{}])", actionName, timeout),
+                        () -> Message.createParameterizedMessage("timed out while retrying [{}] after failure (timeout [{}])", actionName, timeout),
                         failure
                     );
                     listener.onFailure(new MasterNotDiscoveredException(failure));

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.LoggerMessageFormat;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -120,7 +120,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "updated model allocations based on node changes in the cluster; new metadata [{}]",
                             Strings.toString(TrainedModelAllocationMetadata.fromState(newState), false, true)
                         )
@@ -302,7 +302,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         final String nodeId = request.getNodeId();
         TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(currentState);
         logger.trace(
-            () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
+            () -> Message.createParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
         );
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
@@ -321,7 +321,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         // If we are stopping, don't update anything
         if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
             logger.debug(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "[{}] requested update from node [{}] to update route state to [{}]",
                     modelId,
                     nodeId,

@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -19,7 +17,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -227,7 +224,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 checkpoint -> transformsConfigManager.putTransformCheckpoint(
                     checkpoint,
                     ActionListener.wrap(putCheckPointResponse -> listener.onResponse(checkpoint), createCheckpointException -> {
-                        logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
+                        logger.warn(Message.createParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
                         listener.onFailure(
                             new RuntimeException(
                                 "Failed to create checkpoint due to: " + createCheckpointException.getMessage(),
@@ -237,7 +234,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     })
                 ),
                 getCheckPointException -> {
-                    logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
+                    logger.warn(Message.createParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
                     listener.onFailure(
                         new RuntimeException(
                             "Failed to retrieve checkpoint due to: " + getCheckPointException.getMessage(),
@@ -305,14 +302,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         }, failure -> {
                             progress = new TransformProgress();
                             logger.warn(
-                                new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()),
+                                    Message.createParameterizedMessage("[{}] unable to load progress information for task.", getJobId()),
                                 failure
                             );
                             finalListener.onResponse(null);
                         }));
                     }, failure -> {
                         progress = new TransformProgress();
-                        logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()), failure);
+                        logger.warn(Message.createParameterizedMessage("[{}] unable to load progress information for task.", getJobId()), failure);
                         finalListener.onResponse(null);
                     }));
                 }, listener::onFailure));
@@ -455,7 +452,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "[{}] Run delete based on retention policy using dbq [{}] with query: [{}]",
                 getJobId(),
                 deleteByQuery,
@@ -465,7 +462,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         getStats().markStartDelete();
 
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
-            logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
+            logger.trace(() -> Message.createParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
 
             getStats().markEndDelete();
             getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
@@ -629,7 +626,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         try {
             handleFailure(exc);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()), e);
+            logger.error(Message.createParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()), e);
         }
     }
 
@@ -774,11 +771,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         } catch (InterruptedException e) {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Interrupt waiting ({}s) for transform state to be stored.",
-                    getJobId(),
-                    PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
-                ),
+                    Message.createParameterizedMessage(
+                        "[{}] Interrupt waiting ({}s) for transform state to be stored.",
+                        getJobId(),
+                        PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
+                    ),
                 e
             );
 
@@ -790,7 +787,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 )
             );
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] failed to persist transform state.", getJobId()), e);
+            logger.error(Message.createParameterizedMessage("[{}] failed to persist transform state.", getJobId()), e);
             shouldStopAtCheckpointListener.onFailure(e);
         }
     }
@@ -844,11 +841,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Timed out ({}s) waiting for transform state to be stored.",
-                            getJobId(),
-                            PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
-                        )
+                            Message.createParameterizedMessage(
+                                "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                                getJobId(),
+                                PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
+                            )
                     );
                 }
 
@@ -918,7 +915,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * (Note: originally this method was synchronized, which is not necessary)
      */
     void handleFailure(Exception e) {
-        logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
+        logger.warn(Message.createParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 
         if (unwrappedException instanceof CircuitBreakingException) {
@@ -993,7 +990,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     lastCheckpointCleanup = context.getCheckpoint();
                 }, e -> {
                     logger.warn(
-                        new ParameterizedMessage("[{}] failed to cleanup old checkpoints, retrying after next checkpoint", getJobId()),
+                            Message.createParameterizedMessage("[{}] failed to cleanup old checkpoints, retrying after next checkpoint", getJobId()),
                         e
                     );
                     auditor.warning(
@@ -1016,7 +1013,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             hasChangedListener.onResponse(hasChanged);
         }, e -> {
             logger.warn(
-                new ParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
+                    Message.createParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
                 e
             );
             auditor.warning(

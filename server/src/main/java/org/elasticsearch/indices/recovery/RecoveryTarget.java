@@ -38,7 +38,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.repositories.IndexId;
 
@@ -575,7 +575,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e);
+            logger.debug(Message.createParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e);
             listener.onFailure(e);
         }
     }

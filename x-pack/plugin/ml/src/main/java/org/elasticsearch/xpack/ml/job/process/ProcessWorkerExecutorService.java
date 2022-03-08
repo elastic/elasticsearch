@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -115,7 +115,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
                     try {
                         runnable.run();
                     } catch (Exception e) {
-                        logger.error(() -> new ParameterizedMessage("error handling process [{}] operation", processName), e);
+                        logger.error(() -> Message.createParameterizedMessage("error handling process [{}] operation", processName), e);
                     }
                     EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
                 }

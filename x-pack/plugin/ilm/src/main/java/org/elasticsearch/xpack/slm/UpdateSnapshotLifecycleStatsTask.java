@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -56,10 +56,10 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
     @Override
     public void onFailure(Exception e) {
         logger.error(
-            new ParameterizedMessage(
-                "failed to update cluster state with snapshot lifecycle stats, " + "source: [" + TASK_SOURCE + "], missing stats: [{}]",
-                runStats
-            ),
+                Message.createParameterizedMessage(
+                    "failed to update cluster state with snapshot lifecycle stats, " + "source: [" + TASK_SOURCE + "], missing stats: [{}]",
+                    runStats
+                ),
             e
         );
     }

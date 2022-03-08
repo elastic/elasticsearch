@@ -9,7 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -580,7 +580,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param failure if non null then the request failed catastrophically with this exception
      */
     protected void finishHim(Exception failure) {
-        logger.debug(() -> new ParameterizedMessage("[{}]: finishing with a catastrophic failure", task.getId()), failure);
+        logger.debug(() -> Message.createParameterizedMessage("[{}]: finishing with a catastrophic failure", task.getId()), failure);
         finishHim(failure, emptyList(), emptyList(), false);
     }
 

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.annotations;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -94,7 +94,7 @@ public class AnnotationPersister {
             try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
                 bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder).setRequireAlias(true));
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising annotation", jobId), e);
+                logger.error(Message.createParameterizedMessage("[{}] Error serialising annotation", jobId), e);
             }
 
             if (bulkRequest.numberOfActions() >= bulkLimit) {
@@ -111,7 +111,7 @@ public class AnnotationPersister {
                 return null;
             }
             //TODO PG I would prefer the original one
-            logger.trace(()->new ParameterizedMessage("[{}] ES API CALL: bulk request with {} actions",  jobId, bulkRequest.numberOfActions()));
+            logger.trace(()-> Message.createParameterizedMessage("[{}] ES API CALL: bulk request with {} actions",  jobId, bulkRequest.numberOfActions()));
             BulkResponse bulkResponse = resultsPersisterService.bulkIndexWithRetry(
                 bulkRequest,
                 jobId,

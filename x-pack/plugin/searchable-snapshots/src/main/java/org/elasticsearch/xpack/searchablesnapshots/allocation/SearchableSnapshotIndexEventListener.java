@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -70,11 +70,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
             preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "pre-warm operation failed for [{}] while it was the target of primary relocation [{}]",
-                        shardRouting.shardId(),
-                        shardRouting
-                    ),
+                        Message.createParameterizedMessage(
+                            "pre-warm operation failed for [{}] while it was the target of primary relocation [{}]",
+                            shardRouting.shardId(),
+                            shardRouting
+                        ),
                     e
                 );
                 preWarmCondition.run();

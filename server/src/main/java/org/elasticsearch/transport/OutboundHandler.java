@@ -22,10 +22,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -169,7 +166,7 @@ final class OutboundHandler {
         try {
             message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
+            logger.warn(() -> Message.createParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
             wrappedListener.onFailure(e);
             throw e;
         }
@@ -200,13 +197,13 @@ final class OutboundHandler {
                 public void onFailure(Exception e) {
                     final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, rstOnClose);
                     if (closeConnectionExceptionLevel == Level.OFF) {
-                        logger.warn(new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                        logger.warn(Message.createParameterizedMessage("send message failed [channel: {}]", channel), e);
                     } else if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
                         logger.info("send message failed [channel: {}]: {}", channel, e.getMessage());
                     } else {
                         logger.log(
                             closeConnectionExceptionLevel,
-                            new ParameterizedMessage("send message failed [channel: {}]", channel),
+                                Message.createParameterizedMessage("send message failed [channel: {}]", channel),
                             e
                         );
                     }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -55,7 +55,7 @@ class ServiceAccountAuthenticator implements Authenticator {
             assert authentication != null : "service account authenticate should return either authentication or call onFailure";
             listener.onResponse(AuthenticationResult.success(authentication));
         }, e -> {
-            logger.debug(new ParameterizedMessage("Failed to validate service account token for request [{}]", context.getRequest()), e);
+            logger.debug(Message.createParameterizedMessage("Failed to validate service account token for request [{}]", context.getRequest()), e);
             listener.onFailure(context.getRequest().exceptionProcessingRequest(e, serviceAccountToken));
         }));
     }

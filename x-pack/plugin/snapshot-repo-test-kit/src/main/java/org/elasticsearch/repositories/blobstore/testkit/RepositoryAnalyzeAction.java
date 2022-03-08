@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -521,7 +521,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("failed [{}]", thisTask), exp);
+                            logger.debug(Message.createParameterizedMessage("failed [{}]", thisTask), exp);
                             fail(exp);
                             onWorkerCompletion();
                         }
@@ -584,7 +584,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         fail(repositoryVerificationException);
                     }
                 } catch (Exception e) {
-                    logger.debug(new ParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath), e);
+                    logger.debug(Message.createParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath), e);
                     fail(e);
                 }
             }
@@ -639,7 +639,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     )
                 );
             } else {
-                logger.debug(new ParameterizedMessage("analysis of repository [{}] failed", request.repositoryName), exception);
+                logger.debug(Message.createParameterizedMessage("analysis of repository [{}] failed", request.repositoryName), exception);
                 listener.onFailure(
                     new RepositoryVerificationException(
                         request.getRepositoryName(),

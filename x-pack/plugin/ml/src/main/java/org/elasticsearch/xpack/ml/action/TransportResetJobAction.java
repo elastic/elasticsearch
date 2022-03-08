@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
@@ -143,7 +143,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         ResetJobAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId));
+        logger.debug(() -> Message.createParameterizedMessage("[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId));
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
@@ -168,13 +168,13 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             Job job = jobResponse.build();
             if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
                 // This means the previous reset task finished successfully as it managed to unset the blocked reason.
-                logger.debug(() -> new ParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId()));
+                logger.debug(() -> Message.createParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId()));
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
                 // Seems like the task was removed abruptly as it hasn't unset the block on reset.
                 // Let us try reset again.
                 logger.debug(
-                    () -> new ParameterizedMessage("[{}] Existing reset task was interrupted; retrying reset", request.getJobId())
+                    () -> Message.createParameterizedMessage("[{}] Existing reset task was interrupted; retrying reset", request.getJobId())
                 );
                 ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(
                     client,

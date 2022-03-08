@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -60,7 +60,7 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     boolean incompatibleLicense = false;
                     if (dlsFlsUsage.hasFieldLevelSecurity()) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "User [{}] has field level security on [{}]",
                                 requestInfo.getAuthentication(),
                                 indicesAccessControl.getIndicesWithFieldLevelSecurity()
@@ -72,7 +72,7 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     }
                     if (dlsFlsUsage.hasDocumentLevelSecurity()) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "User [{}] has document level security on [{}]",
                                 requestInfo.getAuthentication(),
                                 indicesAccessControl.getIndicesWithDocumentLevelSecurity()

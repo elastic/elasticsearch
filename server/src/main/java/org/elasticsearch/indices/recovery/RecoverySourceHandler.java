@@ -61,7 +61,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -828,10 +828,10 @@ public class RecoverySourceHandler {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "failed to recover file [{}] from snapshot, " + "will recover from primary instead",
-                                snapshotFileToRecover.metadata()
-                            ),
+                                Message.createParameterizedMessage(
+                                    "failed to recover file [{}] from snapshot, " + "will recover from primary instead",
+                                    snapshotFileToRecover.metadata()
+                                ),
                             e
                         );
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode()) {
@@ -1465,7 +1465,7 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "{} Remote file corruption on node {}, recovering {}. local checksum OK",
                         shardId,
                         request.targetNode(),

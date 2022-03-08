@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -293,7 +293,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             // fail if a transform is too old, this can only happen on a rolling upgrade
             if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
-                String transformTooOldError = new ParameterizedMessage(
+                String transformTooOldError = Message.createParameterizedMessage(
                     "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
                         + "Minimum required version is [{}]",
                     config.getVersion(),

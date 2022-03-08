@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.tasks.Task;
@@ -137,7 +137,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("Reload failed for plugin [{}]", p.getClass().getSimpleName()), e);
+                    logger.warn(() -> Message.createParameterizedMessage("Reload failed for plugin [{}]", p.getClass().getSimpleName()), e);
                     exceptions.add(e);
                 }
             });

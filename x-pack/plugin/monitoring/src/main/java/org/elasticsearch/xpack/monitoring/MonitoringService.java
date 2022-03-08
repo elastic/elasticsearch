@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -174,7 +174,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 scheduleExecution();
                 logger.debug("monitoring service started");
             } catch (Exception e) {
-                logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to start monitoring service"), e);
+                logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to start monitoring service"), e);
                 started.set(false);
                 throw e;
             }
@@ -272,7 +272,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                             }
                         } catch (Exception e) {
                             logger.warn(
-                                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                                     "monitoring collector [{}] failed to collect data",
                                     collector.name()
                                 ),

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -684,7 +684,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             }
             final AutoFollowStats finalAutoFollowStats = autoFollowStats;
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "AssertionError when waiting for auto-follower, auto-follow stats are: {}",
                     finalAutoFollowStats != null ? Strings.toString(finalAutoFollowStats) : "null"
                 ),

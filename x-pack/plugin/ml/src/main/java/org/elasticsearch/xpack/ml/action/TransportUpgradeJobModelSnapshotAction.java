@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -285,12 +285,12 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] [{}] Failed to cancel persistent task that could not be assigned due to {}",
-                    persistentTask.getParams().getJobId(),
-                    persistentTask.getParams().getSnapshotId(),
-                    exception.getMessage()
-                ),
+                    Message.createParameterizedMessage(
+                        "[{}] [{}] Failed to cancel persistent task that could not be assigned due to {}",
+                        persistentTask.getParams().getJobId(),
+                        persistentTask.getParams().getSnapshotId(),
+                        exception.getMessage()
+                    ),
                 e
             );
             listener.onFailure(exception);

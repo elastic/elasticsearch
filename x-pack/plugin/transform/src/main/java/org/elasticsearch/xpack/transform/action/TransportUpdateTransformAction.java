@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -184,7 +184,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
 
         for (String warning : warnings) {
-            logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+            logger.warn(Message.createParameterizedMessage("[{}] {}", config.getId(), warning));
             auditor.warning(config.getId(), warning);
         }
     }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -102,7 +102,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
+                        Message.createParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
                     e
                 );
                 listener.onFailure(e);

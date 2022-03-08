@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -348,7 +348,7 @@ public class CacheService extends AbstractLifecycleComponent {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(
-                            () -> new ParameterizedMessage("failed to evict cache files associated with shard {}", shardEviction),
+                            () -> Message.createParameterizedMessage("failed to evict cache files associated with shard {}", shardEviction),
                             e
                         );
                         assert false : e;
@@ -408,7 +408,7 @@ public class CacheService extends AbstractLifecycleComponent {
                         try {
                             cache.invalidate(cacheFile.getCacheKey(), cacheFile);
                         } catch (RuntimeException e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                            logger.warn(() -> Message.createParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
                             assert false : e;
                         }
                     }
@@ -574,7 +574,7 @@ public class CacheService extends AbstractLifecycleComponent {
                                         shouldPersist = true;
                                     } catch (Exception e) {
                                         logger.warn(
-                                            () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
+                                            () -> Message.createParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
                                             e
                                         );
                                         assert e instanceof IOException : e;
@@ -591,7 +591,7 @@ public class CacheService extends AbstractLifecycleComponent {
                     }
                 } catch (Exception e) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "failed to process [{}] for cache file [{}]",
                             event.type,
                             cacheFile.getFile().getFileName()

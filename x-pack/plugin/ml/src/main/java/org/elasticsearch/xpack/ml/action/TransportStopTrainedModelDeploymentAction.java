@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -106,7 +106,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         }
 
         logger.debug(
-            () -> new ParameterizedMessage("[{}] Received request to undeploy{}", request.getId(), request.isForce() ? " (force)" : "")
+            () -> Message.createParameterizedMessage("[{}] Received request to undeploy{}", request.getId(), request.isForce() ? " (force)" : "")
         );
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelsResponse -> {
@@ -198,7 +198,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 modelId,
                 ActionListener.wrap(deleted -> listener.onResponse(r), deletionFailed -> {
                     logger.error(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}] failed to delete model allocation after nodes unallocated the deployment",
                             modelId
                         ),

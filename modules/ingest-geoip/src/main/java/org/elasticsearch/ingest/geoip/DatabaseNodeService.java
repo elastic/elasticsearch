@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -216,7 +216,7 @@ public final class DatabaseNodeService implements Closeable {
             try {
                 retrieveAndUpdateDatabase(name, metadata);
             } catch (Exception ex) {
-                LOGGER.error(() -> new ParameterizedMessage("attempt to download database [{}] failed", name), ex);
+                LOGGER.error(() -> Message.createParameterizedMessage("attempt to download database [{}] failed", name), ex);
             }
         });
 
@@ -299,7 +299,7 @@ public final class DatabaseNodeService implements Closeable {
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
-                LOGGER.error(() -> new ParameterizedMessage("failed to download database [{}]", databaseName), failure);
+                LOGGER.error(() -> Message.createParameterizedMessage("failed to download database [{}]", databaseName), failure);
                 try {
                     Files.deleteIfExists(databaseTmpFile);
                     Files.deleteIfExists(databaseTmpGzFile);
@@ -334,7 +334,7 @@ public final class DatabaseNodeService implements Closeable {
                             );
                         } catch (Exception e) {
                             LOGGER.debug(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "failed to reload pipeline [{}] after downloading of database [{}]",
                                     id,
                                     databaseFileName
@@ -349,7 +349,7 @@ public final class DatabaseNodeService implements Closeable {
             }
             LOGGER.info("successfully loaded geoip database file [{}]", file.getFileName());
         } catch (Exception e) {
-            LOGGER.error(() -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
+            LOGGER.error(() -> Message.createParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }
     }
 
@@ -361,7 +361,7 @@ public final class DatabaseNodeService implements Closeable {
                 assert existing != null;
                 existing.close(true);
             } catch (Exception e) {
-                LOGGER.error(() -> new ParameterizedMessage("failed to clean database [{}]", staleEntry), e);
+                LOGGER.error(() -> Message.createParameterizedMessage("failed to clean database [{}]", staleEntry), e);
             }
         }
     }

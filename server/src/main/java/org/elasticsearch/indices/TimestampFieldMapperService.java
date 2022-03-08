@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -113,7 +113,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
                     executor.execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            logger.debug(new ParameterizedMessage("failed to compute mapping for {}", index), e);
+                            logger.debug(Message.createParameterizedMessage("failed to compute mapping for {}", index), e);
                             future.onResponse(null); // no need to propagate a failure to create the mapper service to searches
                         }
 

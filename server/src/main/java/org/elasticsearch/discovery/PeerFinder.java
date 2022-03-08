@@ -24,7 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -413,7 +413,7 @@ public abstract class PeerFinder {
                     if (verboseFailureLogging) {
                         if (logger.isDebugEnabled()) {
                             // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
-                            logger.warn(new ParameterizedMessage("{} discovery result", Peer.this), e);
+                            logger.warn(Message.createParameterizedMessage("{} discovery result", Peer.this), e);
                         } else {
                             final StringBuilder messageBuilder = new StringBuilder();
                             Throwable cause = e;
@@ -427,7 +427,7 @@ public abstract class PeerFinder {
                             logger.warn("{} discovery result{}", Peer.this, message);
                         }
                     } else {
-                        logger.debug(new ParameterizedMessage("{} discovery result", Peer.this), e);
+                        logger.debug(Message.createParameterizedMessage("{} discovery result", Peer.this), e);
                     }
                     synchronized (mutex) {
                         assert probeConnectionResult.get() == null
@@ -489,7 +489,7 @@ public abstract class PeerFinder {
                 @Override
                 public void handleException(TransportException exp) {
                     peersRequestInFlight = false;
-                    logger.warn(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
+                    logger.warn(Message.createParameterizedMessage("{} peers request failed", Peer.this), exp);
                 }
 
                 @Override

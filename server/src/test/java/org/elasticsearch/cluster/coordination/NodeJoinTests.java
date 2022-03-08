@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -276,14 +276,14 @@ public class NodeJoinTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+                    logger.error(() -> Message.createParameterizedMessage("unexpected error for {}", future), e);
                     future.markAsFailed(e);
                 }
             };
 
             joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+            logger.error(() -> Message.createParameterizedMessage("unexpected error for {}", future), e);
             future.markAsFailed(e);
         }
         return future;

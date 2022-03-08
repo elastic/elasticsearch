@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -48,7 +48,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
         ActionListener<GetModelSnapshotsAction.Response> listener
     ) {
         logger.debug(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "Get model snapshots for job {} snapshot ID {}. from = {}, size = {} start = '{}', end='{}', sort={} descending={}",
                 request.getJobId(),
                 request.getSnapshotId(),

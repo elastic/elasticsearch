@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -64,12 +64,12 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     @Override
     public void handleFailure(Exception e) {
         logger.warn(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to set step info for step [{}].",
-                policy,
-                index,
-                currentStepKey
-            ),
+                Message.createParameterizedMessage(
+                    "policy [{}] for index [{}] failed trying to set step info for step [{}].",
+                    policy,
+                    index,
+                    currentStepKey
+                ),
             e
         );
     }

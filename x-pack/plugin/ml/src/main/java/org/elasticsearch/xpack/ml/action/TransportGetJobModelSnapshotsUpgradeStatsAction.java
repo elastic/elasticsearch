@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -72,7 +72,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         logger.debug(
-            () -> new ParameterizedMessage("[{}] get stats for model snapshot [{}] upgrades", request.getJobId(), request.getSnapshotId())
+            () -> Message.createParameterizedMessage("[{}] get stats for model snapshot [{}] upgrades", request.getJobId(), request.getSnapshotId())
         );
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);

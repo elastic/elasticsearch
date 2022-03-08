@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -289,7 +289,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                     transform.getId(),
                     "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
                 );
-                logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
+                logger.error(Message.createParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
@@ -465,7 +465,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);
         }, failure -> {
-            logger.error(new ParameterizedMessage("[{}] failed to update cluster state for transform.", transform.getId()), failure);
+            logger.error(Message.createParameterizedMessage("[{}] failed to update cluster state for transform.", transform.getId()), failure);
             listener.onFailure(failure);
         }));
     }
@@ -516,7 +516,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
                 String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
                 auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
-                logger.error(new ParameterizedMessage("[{}] {}", getTransformId(), msg), e);
+                logger.error(Message.createParameterizedMessage("[{}] {}", getTransformId(), msg), e);
                 listener.onFailure(e);
             }));
         }

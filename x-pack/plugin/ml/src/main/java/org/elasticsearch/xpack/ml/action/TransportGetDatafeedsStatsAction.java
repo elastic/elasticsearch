@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -64,7 +64,7 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        logger.debug(() -> new ParameterizedMessage("[{}] get stats for datafeed", request.getDatafeedId()));
+        logger.debug(() -> Message.createParameterizedMessage("[{}] get stats for datafeed", request.getDatafeedId()));
         ClusterState state = clusterService.state();
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Response.Builder responseBuilder = new Response.Builder();

@@ -9,7 +9,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.http.HttpServerTransport;
@@ -87,7 +87,7 @@ public final class NioGroupFactory {
 
     private void onException(Exception exception) {
         logger.warn(
-            new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+                Message.createParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
             exception
         );
     }

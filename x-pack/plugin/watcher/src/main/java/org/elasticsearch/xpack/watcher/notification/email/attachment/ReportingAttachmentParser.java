@@ -6,13 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -150,7 +147,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     void warningValidator(String name, String value) {
         if (WARNINGS.keySet().contains(name) == false) {
             throw new IllegalArgumentException(
-                new ParameterizedMessage(
+                Message.createParameterizedMessage(
                     "Warning [{}] is not supported. Only the following warnings are supported [{}]",
                     name,
                     String.join(", ", WARNINGS.keySet())

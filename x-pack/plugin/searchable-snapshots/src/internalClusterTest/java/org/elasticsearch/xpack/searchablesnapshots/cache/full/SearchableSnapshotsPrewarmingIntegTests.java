@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -237,7 +237,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey()), equalTo("true"));
 
                 } catch (Throwable t) {
-                    logger.error(() -> new ParameterizedMessage("Fail to mount snapshot for index [{}]", indexName), t);
+                    logger.error(() -> Message.createParameterizedMessage("Fail to mount snapshot for index [{}]", indexName), t);
                     throwables.setOnce(threadId, t);
                 }
             });

@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.*;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.logging.DeprecationCategory;
-import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
@@ -136,7 +132,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
-                logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
+                logger.debug(() -> Message.createParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
             }
             final Set<RoleDescriptor> effectiveDescriptors;
             Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
@@ -149,7 +145,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 effectiveDescriptors = roleDescriptors;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Exposing effective role descriptors [{}] for role names [{}]",
                     effectiveDescriptors,
                     roleNames
@@ -172,7 +168,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
             if (negativeLookupCache.get(s) != null) {
-                logger.debug(() -> new ParameterizedMessage("Requested role [{}] does not exist (cached)", s));
+                logger.debug(() -> Message.createParameterizedMessage("Requested role [{}] does not exist (cached)", s));
                 return false;
             } else {
                 return true;
@@ -215,7 +211,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
                 if (result.isSuccess()) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "Roles [{}] were resolved by [{}]",
                             result.getDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
                             rolesProvider
@@ -229,7 +225,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     }
                 } else {
                     logger.warn(
-                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                            Message.createParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
                         result.getFailure()
                     );
                     rolesResult.setFailure();

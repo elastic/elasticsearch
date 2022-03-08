@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -102,7 +102,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
                 new ValidationException().addValidationError(
-                    new ParameterizedMessage(
+                    Message.createParameterizedMessage(
                         "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
                             + "Minimum required version is [{}]",
                         config.getVersion(),

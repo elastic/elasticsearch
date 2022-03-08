@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -176,7 +176,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
                             logger.warn(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "exception when releasing recovery of shard {}",
                                     startRecoveryRequest.shardId()
                                 ),

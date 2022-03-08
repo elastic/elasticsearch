@@ -11,7 +11,7 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,7 +52,7 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
                 return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
                     .collect(Collectors.toList());
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
                 return Collections.emptyList();
             }
         }

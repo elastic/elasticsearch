@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -113,7 +113,7 @@ public class InferenceRunner {
                 inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
             }
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error running inference on model [{}]", config.getId(), modelId), e);
+            LOGGER.error(Message.createParameterizedMessage("[{}] Error running inference on model [{}]", config.getId(), modelId), e);
 
             if (e instanceof ElasticsearchException) {
                 Throwable rootCause = ((ElasticsearchException) e).getRootCause();
@@ -160,7 +160,7 @@ public class InferenceRunner {
         Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
         if (lastIncrementalId != null) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "[{}] Resuming inference; last incremental id [{}]; processed test doc count [{}]",
                     config.getId(),
                     lastIncrementalId,

@@ -16,7 +16,7 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
@@ -839,7 +839,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
+                logger.warn(Message.createParameterizedMessage("An error occurred while reloading file [{}]", file), e);
             }
         }
     }
@@ -856,7 +856,7 @@ public final class SamlRealm extends Realm implements Releasable {
         List<String> getAttribute(SamlAttributes attributes) {
             final List<String> attrValue = parser.apply(attributes);
             logger.trace(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Parser [{}] generated values [{}]",
                     name,
                     Strings.collectionToCommaDelimitedString(attrValue)

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -156,7 +156,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
             if (targetNodeName != null && type != SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError(
-                    new ParameterizedMessage(
+                    Message.createParameterizedMessage(
                         "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
                         type,
                         targetNodeName

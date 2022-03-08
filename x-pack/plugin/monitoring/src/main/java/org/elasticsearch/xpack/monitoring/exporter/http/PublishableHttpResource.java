@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpEntity;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
@@ -286,7 +286,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     }
                 } catch (Exception e) {
                     logger.error(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "failed to parse [{}/{}] on the [{}]",
                             resourceBasePath,
                             resourceName,
@@ -306,7 +306,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     final int statusCode = response.getStatusLine().getStatusCode();
 
                     logger.error(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "failed to verify {} [{}] on the [{}] {} with status code [{}]",
                             resourceType,
                             resourceName,
@@ -318,7 +318,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     );
                 } else {
                     logger.error(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "failed to verify {} [{}] on the [{}] {}",
                             resourceType,
                             resourceName,
@@ -397,7 +397,7 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to upload {} [{}] on the [{}] {}",
                         resourceType,
                         resourceName,
@@ -468,7 +468,7 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(Exception exception) {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to delete {} [{}] on the [{}] {}",
                         resourceType,
                         resourceName,

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -68,15 +68,15 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     private void runUpdate(UpdateAction action) {
         try {
-            logger.debug(() -> new ParameterizedMessage("[{}] starting executing update action", action.getName()));
+            logger.debug(() -> Message.createParameterizedMessage("[{}] starting executing update action", action.getName()));
             action.runUpdate();
             this.completedUpdates.add(action.getName());
-            logger.debug(() -> new ParameterizedMessage("[{}] succeeded executing update action", action.getName()));
+            logger.debug(() -> Message.createParameterizedMessage("[{}] succeeded executing update action", action.getName()));
         } catch (Exception ex) {
-            logger.warn(new ParameterizedMessage("[{}] failure executing update action", action.getName()), ex);
+            logger.warn(Message.createParameterizedMessage("[{}] failure executing update action", action.getName()), ex);
         } finally {
             this.currentlyUpdating.remove(action.getName());
-            logger.debug(() -> new ParameterizedMessage("[{}] no longer executing update action", action.getName()));
+            logger.debug(() -> Message.createParameterizedMessage("[{}] no longer executing update action", action.getName()));
         }
     }
 

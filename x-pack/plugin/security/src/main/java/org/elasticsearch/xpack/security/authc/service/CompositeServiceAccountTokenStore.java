@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
@@ -44,7 +44,7 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
         try {
             authenticatingListener.run();
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("authentication of service token [{}] failed", token.getQualifiedName()), e);
+            logger.debug(Message.createParameterizedMessage("authentication of service token [{}] failed", token.getQualifiedName()), e);
             listener.onFailure(e);
         }
     }

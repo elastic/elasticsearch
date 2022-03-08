@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -117,7 +117,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
         // the number of search hits should be equal to the number of buckets returned by the aggregation
         int numHits = (Integer) XContentMapValues.extractValue("hits.total.value", searchResponse);
         assertThat(
-            new ParameterizedMessage(
+            Message.createParameterizedMessage(
                 "Number of buckets did not match, source: {}, expected: {}, iteration: {}",
                 numHits,
                 buckets.size(),
@@ -145,7 +145,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
 
             // Verify that the results from the aggregation and the results from the transform are the same.
             assertThat(
-                new ParameterizedMessage(
+                Message.createParameterizedMessage(
                     "Buckets did not match, source: {}, expected: {}, iteration: {}",
                     source,
                     bucket.get("key"),
@@ -160,7 +160,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
             // In the assertion below we only take 3 fractional (i.e.: after a dot) digits for comparison.
             // This is due to the lack of precision of the max aggregation value which is represented as "double".
             assertThat(
-                new ParameterizedMessage(
+                Message.createParameterizedMessage(
                     "Timestamps did not match, source: {}, expected: {}, iteration: {}",
                     source,
                     maxTimestampValueAsString,

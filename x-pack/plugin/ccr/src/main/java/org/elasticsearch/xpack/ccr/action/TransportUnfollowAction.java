@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -159,11 +159,11 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
             private void onLeaseRemovalFailure(Index index, String retentionLeaseId, Exception e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "[{}] failure while removing retention lease [{}] on leader primary shards",
-                        index,
-                        retentionLeaseId
-                    ),
+                        Message.createParameterizedMessage(
+                            "[{}] failure while removing retention lease [{}] on leader primary shards",
+                            index,
+                            retentionLeaseId
+                        ),
                     e
                 );
                 final ElasticsearchException wrapper = new ElasticsearchException(e);
@@ -205,23 +205,23 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 if (cause instanceof RetentionLeaseNotFoundException) {
                     // treat as success
                     logger.trace(
-                        new ParameterizedMessage(
-                            "{} retention lease [{}] not found on {} while unfollowing",
-                            followerShardId,
-                            retentionLeaseId,
-                            leaderShardId
-                        ),
+                            Message.createParameterizedMessage(
+                                "{} retention lease [{}] not found on {} while unfollowing",
+                                followerShardId,
+                                retentionLeaseId,
+                                leaderShardId
+                            ),
                         e
                     );
                     listener.onResponse(ActionResponse.Empty.INSTANCE);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "{} failed to remove retention lease [{}] on {} while unfollowing",
-                            followerShardId,
-                            retentionLeaseId,
-                            leaderShardId
-                        ),
+                            Message.createParameterizedMessage(
+                                "{} failed to remove retention lease [{}] on {} while unfollowing",
+                                followerShardId,
+                                retentionLeaseId,
+                                leaderShardId
+                            ),
                         e
                     );
                     listener.onFailure(e);

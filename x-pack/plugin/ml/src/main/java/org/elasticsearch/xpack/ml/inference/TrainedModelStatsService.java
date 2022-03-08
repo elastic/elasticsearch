@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.inference;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -221,7 +221,7 @@ public class TrainedModelStatsService {
         try {
             resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobPattern, () -> shouldStop() == false, (msg) -> {});
         } catch (ElasticsearchException ex) {
-            logger.warn(() -> new ParameterizedMessage("failed to store stats for [{}]", jobPattern), ex);
+            logger.warn(() -> Message.createParameterizedMessage("failed to store stats for [{}]", jobPattern), ex);
         }
     }
 
@@ -291,7 +291,7 @@ public class TrainedModelStatsService {
             return updateRequest;
         } catch (IOException ex) {
             logger.error(
-                () -> new ParameterizedMessage("[{}] [{}] failed to serialize stats for update.", stats.getModelId(), stats.getNodeId()),
+                () -> Message.createParameterizedMessage("[{}] [{}] failed to serialize stats for update.", stats.getModelId(), stats.getNodeId()),
                 ex
             );
         }

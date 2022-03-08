@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -274,11 +274,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
                     logger.debug(
-                        new ParameterizedMessage(
-                            "failed to open remote connection [remote cluster: {}, address: {}]",
-                            clusterAlias,
-                            resolved
-                        ),
+                            Message.createParameterizedMessage(
+                                "failed to open remote connection [remote cluster: {}, address: {}]",
+                                clusterAlias,
+                                resolved
+                            ),
                         e
                     );
                     l.onFailure(e);

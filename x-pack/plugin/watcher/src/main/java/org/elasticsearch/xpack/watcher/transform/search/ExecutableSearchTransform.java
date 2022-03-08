@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.transform.search;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -70,7 +70,7 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             }
             return new SearchTransform.Result(request, new Payload.XContent(resp, params));
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
+            logger.error(Message.createParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new SearchTransform.Result(request, e);
         }
     }

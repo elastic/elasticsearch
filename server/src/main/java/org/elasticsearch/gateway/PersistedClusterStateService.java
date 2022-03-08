@@ -65,7 +65,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -329,7 +329,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(Message.createParameterizedMessage("no on-disk state at {}", indexPath), e);
                 }
             }
         }
@@ -357,7 +357,7 @@ public class PersistedClusterStateService {
                         indexWriter.commit();
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(Message.createParameterizedMessage("no on-disk state at {}", indexPath), e);
                 }
             }
         }
@@ -463,7 +463,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(Message.createParameterizedMessage("no on-disk state at {}", indexPath), e);
                 }
             }
         }

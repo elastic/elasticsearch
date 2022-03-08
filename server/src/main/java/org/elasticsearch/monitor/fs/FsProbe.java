@@ -16,7 +16,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -107,7 +107,7 @@ public class FsProbe {
             // do not fail Elasticsearch if something unexpected
             // happens here
             logger.debug(
-                () -> new ParameterizedMessage("unexpected exception processing /proc/diskstats for devices {}", devicesNumbers),
+                () -> Message.createParameterizedMessage("unexpected exception processing /proc/diskstats for devices {}", devicesNumbers),
                 e
             );
             return null;

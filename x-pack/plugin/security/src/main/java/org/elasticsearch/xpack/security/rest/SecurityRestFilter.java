@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -121,7 +121,7 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
-        logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
+        logger.debug(Message.createParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
             channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
@@ -149,7 +149,7 @@ public class SecurityRestFilter implements RestHandler {
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error(
-                (java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
                 inner
             );
         }

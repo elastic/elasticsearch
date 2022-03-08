@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -587,7 +584,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 // Only retry is the shard follow task is not stopped.
                 int currentRetry = retryCounter.incrementAndGet();
                 LOGGER.debug(
-                    new ParameterizedMessage("{} error during follow shard task, retrying [{}]", params.getFollowShardId(), currentRetry),
+                        Message.createParameterizedMessage("{} error during follow shard task, retrying [{}]", params.getFollowShardId(), currentRetry),
                     e
                 );
                 long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());

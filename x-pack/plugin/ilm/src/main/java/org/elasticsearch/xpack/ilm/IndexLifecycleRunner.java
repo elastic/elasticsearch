@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -303,11 +303,11 @@ class IndexLifecycleRunner {
                     @Override
                     public void onFailure(Exception e) {
                         logger.error(
-                            new ParameterizedMessage(
-                                "retry execution of step [{}] for index [{}] failed",
-                                failedStep.getKey().getName(),
-                                index
-                            ),
+                                Message.createParameterizedMessage(
+                                    "retry execution of step [{}] for index [{}] failed",
+                                    failedStep.getKey().getName(),
+                                    index
+                                ),
                             e
                         );
                     }
@@ -516,12 +516,12 @@ class IndexLifecycleRunner {
      */
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
-                policy,
-                index.getName(),
-                currentStepKey
-            ),
+                Message.createParameterizedMessage(
+                    "policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
+                    policy,
+                    index.getName(),
+                    currentStepKey
+                ),
             e
         );
         clusterService.submitStateUpdateTask(
@@ -577,11 +577,11 @@ class IndexLifecycleRunner {
      */
     private void markPolicyRetrievalError(String policyName, Index index, LifecycleExecutionState executionState, Exception e) {
         logger.debug(
-            new ParameterizedMessage(
-                "unable to retrieve policy [{}] for index [{}], recording this in step_info for this index",
-                policyName,
-                index.getName()
-            ),
+                Message.createParameterizedMessage(
+                    "unable to retrieve policy [{}] for index [{}], recording this in step_info for this index",
+                    policyName,
+                    index.getName()
+                ),
             e
         );
         setStepInfo(index, policyName, Step.getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));

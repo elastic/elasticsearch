@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
@@ -64,7 +64,7 @@ public class HistoryStore {
             bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
-            logger.error(new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
+            logger.error(Message.createParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
         }
     }
 

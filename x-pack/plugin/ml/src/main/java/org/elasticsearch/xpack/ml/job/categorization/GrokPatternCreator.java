@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.categorization;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -125,7 +125,7 @@ public final class GrokPatternCreator {
                 assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
                 if (example.endsWith("...")) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}] Pattern [{}] did not match truncated example",
                             jobId,
                             exampleProcessor.pattern()

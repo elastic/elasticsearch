@@ -41,7 +41,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
@@ -159,7 +159,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
                     new IllegalStateException(
-                        new ParameterizedMessage("indices must be open to be migrated, but indices {} are closed", closedIndices)
+                        Message.createParameterizedMessage("indices must be open to be migrated, but indices {} are closed", closedIndices)
                             .getFormattedMessage()
                     )
                 );
@@ -188,7 +188,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
-                                new ParameterizedMessage(
+                                Message.createParameterizedMessage(
                                     "failed to resume system index migration from index [{}], that index is not present in the cluster",
                                     stateIndexName
                                 ).getFormattedMessage()
@@ -196,7 +196,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         );
                     }
                     logger.warn(
-                        new ParameterizedMessage(
+                        Message.createParameterizedMessage(
                             "resuming system index migration with index [{}], which does not match index given in last task state [{}]",
                             nextMigrationInfo.getCurrentIndexName(),
                             stateIndexName
@@ -427,7 +427,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         }
                     }, e -> {
                         logger.error(
-                            new ParameterizedMessage(
+                            Message.createParameterizedMessage(
                                 "error occurred while reindexing index [{}] from feature [{}] to destination index [{}]",
                                 oldIndexName,
                                 migrationInfo.getFeatureName(),
@@ -441,7 +441,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }, innerListener::onFailure));
         } catch (Exception ex) {
             logger.error(
-                new ParameterizedMessage(
+                Message.createParameterizedMessage(
                     "error occurred while migrating index [{}] from feature [{}] to new index [{}]",
                     oldIndexName,
                     migrationInfo.getFeatureName(),

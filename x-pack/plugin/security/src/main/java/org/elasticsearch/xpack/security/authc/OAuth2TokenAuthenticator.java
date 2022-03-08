@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
@@ -53,7 +53,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
                 listener.onResponse(AuthenticationResult.unsuccessful("invalid token", null));
             }
         }, e -> {
-            logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);
+            logger.debug(Message.createParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);
             if (e instanceof ElasticsearchSecurityException
                 && false == tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
                 // intentionally ignore the returned exception; we call this primarily

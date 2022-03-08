@@ -52,7 +52,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
@@ -696,7 +696,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                 if (e != null) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "failed to execute pipeline [{}] for document [{}/{}]",
                             pipelineId,
                             indexRequest.index(),
@@ -751,7 +751,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             });
         } catch (Exception e) {
             logger.debug(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "failed to execute pipeline [{}] for document [{}/{}]",
                     pipelineId,
                     indexRequest.index(),

@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.util.Map;
 
@@ -59,7 +59,7 @@ public class ClusterStateUpdaters {
 
     private static void logInvalidSetting(final String settingType, final Map.Entry<String, String> e, final IllegalArgumentException ex) {
         logger.warn(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "ignoring invalid {} setting: [{}] with value [{}]; archiving",
                 settingType,
                 e.getKey(),

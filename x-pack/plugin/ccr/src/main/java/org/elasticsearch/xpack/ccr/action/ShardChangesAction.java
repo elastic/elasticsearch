@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -464,7 +464,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final IndexShard indexShard
         ) {
             logger.trace(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "{} exception waiting for global checkpoint advancement to [{}]",
                     shardId,
                     request.getFromSeqNo()

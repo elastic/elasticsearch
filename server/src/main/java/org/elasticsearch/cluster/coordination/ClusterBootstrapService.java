@@ -18,7 +18,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -225,7 +225,7 @@ public class ClusterBootstrapService {
         try {
             votingConfigurationConsumer.accept(votingConfiguration);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("exception when bootstrapping with {}, rescheduling", votingConfiguration), e);
+            logger.warn(Message.createParameterizedMessage("exception when bootstrapping with {}, rescheduling", votingConfiguration), e);
             transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC, new Runnable() {
                 @Override
                 public void run() {

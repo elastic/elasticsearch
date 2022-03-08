@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -444,19 +444,19 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         private void cleanUpAndReturnFailure(Exception exception) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
+                logger.trace(Message.createParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
             }
             try {
                 blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
-                    new ParameterizedMessage(
-                        "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
-                        request.getRepositoryName(),
-                        request.getBlobPath(),
-                        request.getBlobName()
-                    ),
+                        Message.createParameterizedMessage(
+                            "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
+                            request.getRepositoryName(),
+                            request.getBlobPath(),
+                            request.getBlobName()
+                        ),
                     exception
                 );
             }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -101,7 +101,7 @@ public class NodeSeenService implements ClusterStateListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
+                    logger.warn(Message.createParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
                 }
             }, newExecutor());
         }

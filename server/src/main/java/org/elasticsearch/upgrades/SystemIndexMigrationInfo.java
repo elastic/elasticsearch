@@ -21,7 +21,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.util.Comparator;
@@ -248,7 +248,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         // The first case shouldn't happen, master nodes must have all `SystemIndexPlugins` installed.
         // In the second case, we should just start over.
         if (descriptor == null) {
-            String errorMsg = new ParameterizedMessage(
+            String errorMsg = Message.createParameterizedMessage(
                 "couldn't find system index descriptor for index [{}] from feature [{}], which likely means this node is missing a plugin",
                 taskState.getCurrentIndex(),
                 taskState.getCurrentFeature()
@@ -259,7 +259,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         }
 
         if (imd == null) {
-            String errorMsg = new ParameterizedMessage(
+            String errorMsg = Message.createParameterizedMessage(
                 "couldn't find index [{}] from feature [{}] with descriptor pattern [{}]",
                 taskState.getCurrentIndex(),
                 taskState.getCurrentFeature(),

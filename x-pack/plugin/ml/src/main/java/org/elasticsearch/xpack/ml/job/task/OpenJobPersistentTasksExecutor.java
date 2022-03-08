@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.job.task;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -243,14 +243,14 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 params.getJobId(),
                 ActionListener.wrap(r -> runJob(jobTask, jobState, params), e -> {
                     if (autodetectProcessManager.isNodeDying() == false) {
-                        logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
+                        logger.warn(Message.createParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
                         runJob(jobTask, jobState, params);
                     }
                 })
             ),
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    logger.error(new ParameterizedMessage("[{}] Failed verifying snapshot version", params.getJobId()), e);
+                    logger.error(Message.createParameterizedMessage("[{}] Failed verifying snapshot version", params.getJobId()), e);
                     failTask(jobTask, "failed snapshot verification; cause: " + e.getMessage());
                 }
             }
@@ -260,7 +260,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             mappingsUpdate -> verifyCurrentSnapshotVersion(params.getJobId(), checkSnapshotVersionListener),
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
+                    logger.error(Message.createParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
                     failTask(jobTask, "failed to update results mapping; cause: " + e.getMessage());
                 }
             }
@@ -311,7 +311,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobTask,
                     ActionListener.wrap(response -> openJob(jobTask), e -> {
                         if (autodetectProcessManager.isNodeDying() == false) {
-                            logger.error(new ParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
+                            logger.error(Message.createParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
                             failTask(jobTask, "failed to revert to current snapshot");
                         }
                     })
@@ -322,7 +322,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             }
         }, e -> {
             if (autodetectProcessManager.isNodeDying() == false) {
-                logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobTask.getJobId()), e);
+                logger.error(Message.createParameterizedMessage("[{}] failed to search for associated datafeed", jobTask.getJobId()), e);
                 failTask(jobTask, "failed to search for associated datafeed");
             }
         });
@@ -338,7 +338,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             logger.debug("[{}] updated task state to failed", jobId);
             stopAssociatedDatafeedForFailedJob(jobId);
         }, e -> {
-            logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId), e);
+            logger.error(Message.createParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId), e);
             jobTask.markAsFailed(e);
             stopAssociatedDatafeedForFailedJob(jobId);
         }));
@@ -368,11 +368,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     e -> {
                         if (autodetectProcessManager.isNodeDying() == false) {
                             logger.error(
-                                new ParameterizedMessage(
-                                    "[{}] failed to stop associated datafeed [{}] after job failure",
-                                    jobId,
-                                    runningDatafeedId
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "[{}] failed to stop associated datafeed [{}] after job failure",
+                                        jobId,
+                                        runningDatafeedId
+                                    ),
                                 e
                             );
                             auditor.error(jobId, "failed to stop associated datafeed after job failure");
@@ -382,7 +382,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             );
         }, e -> {
             if (autodetectProcessManager.isNodeDying() == false) {
-                logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobId), e);
+                logger.error(Message.createParameterizedMessage("[{}] failed to search for associated datafeed", jobId), e);
             }
         });
 
@@ -544,7 +544,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             if (hasFailedAtLeastOnce == false) {
                 hasFailedAtLeastOnce = true;
                 logger.error(
-                    new ParameterizedMessage("[{}] error reverting job to its current snapshot; attempting retry", jobTask.getJobId()),
+                        Message.createParameterizedMessage("[{}] error reverting job to its current snapshot; attempting retry", jobTask.getJobId()),
                     e
                 );
             }
@@ -579,7 +579,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                             // changed nodes while waiting for it to close then it will remove the persistent task, which should
                             // stop the job doing anything significant on its new node. However, the finish time of the job will
                             // not be set correctly.
-                            logger.error(new ParameterizedMessage("[{}] error finalizing job", jobId), e);
+                            logger.error(Message.createParameterizedMessage("[{}] error finalizing job", jobId), e);
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                 jobTask.markAsCompleted();
@@ -596,7 +596,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobTask.markAsCompleted();
                 }
             } else if (autodetectProcessManager.isNodeDying() == false) {
-                logger.error(new ParameterizedMessage("[{}] failed to open job", jobTask.getJobId()), e2);
+                logger.error(Message.createParameterizedMessage("[{}] failed to open job", jobTask.getJobId()), e2);
                 failTask(jobTask, "failed to open job: " + e2.getMessage());
             }
         });

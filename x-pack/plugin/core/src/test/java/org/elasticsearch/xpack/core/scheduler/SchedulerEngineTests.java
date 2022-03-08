@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.scheduler;
 
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.ActiveSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;
@@ -76,7 +76,7 @@ public class SchedulerEngineTests extends ESTestCase {
                         // this happens after the listener has been notified, threw an exception, and then mock logged the exception
                         latch.countDown();
                         return null;
-                    }).when(mockLogger).warn(any(ParameterizedMessage.class), any(RuntimeException.class));
+                    }).when(mockLogger).warn(any(Message.class), any(RuntimeException.class));
                 }
                 listeners.add(Tuple.tuple(listener, trigger));
             }
@@ -217,10 +217,10 @@ public class SchedulerEngineTests extends ESTestCase {
     }
 
     private void assertFailedListenerLogMessage(Logger mockLogger, int times) {
-        final ArgumentCaptor<ParameterizedMessage> messageCaptor = ArgumentCaptor.forClass(ParameterizedMessage.class);
+        final ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         final ArgumentCaptor<Throwable> throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
         verify(mockLogger, times(times)).warn(messageCaptor.capture(), throwableCaptor.capture());
-        for (final ParameterizedMessage message : messageCaptor.getAllValues()) {
+        for (final Message message : messageCaptor.getAllValues()) {
             assertThat(message.getFormat(), equalTo("listener failed while handling triggered event [{}]"));
             assertThat(message.getParameters(), arrayWithSize(1));
             assertThat(message.getParameters()[0], equalTo(getTestName()));

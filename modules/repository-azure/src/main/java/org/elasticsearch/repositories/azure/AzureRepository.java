@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -155,7 +155,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
 
         logger.debug(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
                 blobStore,
                 chunkSize,

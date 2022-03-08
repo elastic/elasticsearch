@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -335,7 +335,7 @@ public final class DestinationIndex {
             String createdVersionString = (String) version.get(CREATED);
             return Version.fromString(createdVersionString);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
+            logger.error(Message.createParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
             return null;
         }
     }

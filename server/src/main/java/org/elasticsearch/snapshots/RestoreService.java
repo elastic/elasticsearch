@@ -66,7 +66,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -264,7 +264,7 @@ public class RestoreService implements ClusterStateApplier {
             }, listener::onFailure), listener::onFailure);
         } catch (Exception e) {
             logger.warn(
-                () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
+                () -> Message.createParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
                 e
             );
             listener.onFailure(e);
@@ -333,7 +333,7 @@ public class RestoreService implements ClusterStateApplier {
                 return true;
             }
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Restoring snapshot[{}] skipping feature [{}] because it is not available in this cluster",
                     snapshotInfo.snapshotId(),
                     featureName
@@ -391,7 +391,7 @@ public class RestoreService implements ClusterStateApplier {
 
             if (explicitlyRequestedSystemIndices.size() > 0) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
+                    Message.createParameterizedMessage(
                         "requested system indices {}, but system indices can only be restored as part of a feature state",
                         explicitlyRequestedSystemIndices
                     ).getFormattedMessage()
@@ -565,7 +565,7 @@ public class RestoreService implements ClusterStateApplier {
                     dataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else if (requestIndices.contains(requestedDataStream)) {
                     throw new IllegalArgumentException(
-                        new ParameterizedMessage(
+                        Message.createParameterizedMessage(
                             "requested system data stream [{}], but system data streams can only be restored as part of a feature state",
                             requestedDataStream
                         ).getFormattedMessage()
@@ -1058,7 +1058,7 @@ public class RestoreService implements ClusterStateApplier {
             @Override
             public void onFailure(final Exception e) {
                 cleanupInProgress = false;
-                logger.warn(() -> new ParameterizedMessage("failed to remove completed restores from cluster state"), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to remove completed restores from cluster state"), e);
             }
 
             @Override
@@ -1564,7 +1564,7 @@ public class RestoreService implements ClusterStateApplier {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshot), e);
+            logger.warn(() -> Message.createParameterizedMessage("[{}] failed to restore snapshot", snapshot), e);
             listener.onFailure(e);
         }
 

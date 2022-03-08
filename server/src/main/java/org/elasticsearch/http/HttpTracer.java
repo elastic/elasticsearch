@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
@@ -55,14 +55,14 @@ class HttpTracer {
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(
-                new ParameterizedMessage(
-                    "[{}][{}][{}][{}] received request from [{}]",
-                    restRequest.getRequestId(),
-                    restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
-                    restRequest.method(),
-                    restRequest.uri(),
-                    restRequest.getHttpChannel()
-                ),
+                    Message.createParameterizedMessage(
+                        "[{}][{}][{}][{}] received request from [{}]",
+                        restRequest.getRequestId(),
+                        restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
+                        restRequest.method(),
+                        restRequest.uri(),
+                        restRequest.getHttpChannel()
+                    ),
                 e
             );
             return this;
@@ -89,16 +89,16 @@ class HttpTracer {
         boolean success
     ) {
         logger.trace(
-            new ParameterizedMessage(
-                "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
-                requestId,
-                opaqueHeader,
-                restResponse.status(),
-                restResponse.contentType(),
-                contentLength,
-                httpChannel,
-                success
-            )
+                Message.createParameterizedMessage(
+                    "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
+                    requestId,
+                    opaqueHeader,
+                    restResponse.status(),
+                    restResponse.contentType(),
+                    contentLength,
+                    httpChannel,
+                    success
+                )
         );
     }
 

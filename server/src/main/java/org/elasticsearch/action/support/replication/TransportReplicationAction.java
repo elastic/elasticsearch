@@ -54,7 +54,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -478,10 +478,10 @@ public abstract class TransportReplicationAction<
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
-                                        new ParameterizedMessage(
-                                            "{} failed to execute post-operation global checkpoint sync",
-                                            primaryShardReference.indexShard.shardId()
-                                        ),
+                                            Message.createParameterizedMessage(
+                                                "{} failed to execute post-operation global checkpoint sync",
+                                                primaryShardReference.indexShard.shardId()
+                                            ),
                                         e
                                     );
                                 }
@@ -700,7 +700,7 @@ public abstract class TransportReplicationAction<
         public void onFailure(Exception e) {
             if (e instanceof RetryOnReplicaException) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "Retrying operation on replica, action [{}], request [{}]",
                         transportReplicaAction,
                         replicaRequest.getRequest()
@@ -986,7 +986,7 @@ public abstract class TransportReplicationAction<
                             || cause instanceof NodeClosedException
                             || (isPrimaryAction && retryPrimaryException(cause))) {
                             logger.trace(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "received an error from node [{}] for request [{}], scheduling a retry",
                                     node.getId(),
                                     requestToPerform
@@ -1036,7 +1036,7 @@ public abstract class TransportReplicationAction<
         void finishAsFailed(Exception failure) {
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");
-                logger.trace(() -> new ParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request), failure);
+                logger.trace(() -> Message.createParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request), failure);
                 listener.onFailure(failure);
             } else {
                 assert false : new AssertionError("finishAsFailed called but operation is already finished", failure);
@@ -1045,7 +1045,7 @@ public abstract class TransportReplicationAction<
 
         void finishWithUnexpectedFailure(Exception failure) {
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "unexpected error during the primary phase for action [{}], request [{}]",
                     actionName,
                     request

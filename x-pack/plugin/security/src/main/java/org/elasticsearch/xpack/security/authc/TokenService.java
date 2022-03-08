@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
@@ -522,7 +522,7 @@ public final class TokenService {
                                 tokensIndex.aliasName()
                             );
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
+                            logger.error(Message.createParameterizedMessage("failed to get access token [{}]", userTokenId), e);
                         }
                         listener.onFailure(e);
                     }),
@@ -610,7 +610,7 @@ public final class TokenService {
                         }
                     }, listener::onFailure));
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
+                    logger.debug(() -> Message.createParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
                 }
             }
@@ -877,7 +877,7 @@ public final class TokenService {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                                     logger.debug(
-                                        () -> new ParameterizedMessage(
+                                        () -> Message.createParameterizedMessage(
                                             "Invalidated [{}] for doc [{}]",
                                             srcPrefix,
                                             updateResponse.getGetResult().getId()
@@ -1024,7 +1024,7 @@ public final class TokenService {
                     refreshTokenVersion = versionAndRefreshTokenTuple.v1();
                     unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
-                    logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
+                    logger.debug(() -> Message.createParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
                     listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                     return;
                 }
@@ -1200,7 +1200,7 @@ public final class TokenService {
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "updated the original token document to {}",
                                     updateResponse.getGetResult().sourceAsMap()
                                 )
@@ -1976,7 +1976,7 @@ public final class TokenService {
                             logger.warn("failed to get access token because index is not available");
                             listener.onResponse(null);
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
+                            logger.error(Message.createParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
                             listener.onFailure(e);
                         }
                     }),
@@ -2194,12 +2194,12 @@ public final class TokenService {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
+                    logger.trace(() -> Message.createParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
+                    logger.trace(() -> Message.createParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+                logger.trace(() -> Message.createParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
             }
         }
         return exception;
@@ -2213,12 +2213,12 @@ public final class TokenService {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                    logger.trace(() -> Message.createParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                    logger.trace(() -> Message.createParameterizedMessage("Failure in [{}]", action), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+                logger.trace(() -> Message.createParameterizedMessage("Failure in [{}]", action), exception);
             }
         }
         return exception;
@@ -2398,7 +2398,7 @@ public final class TokenService {
         }
         createdTimeStamps.set(maxTimestamp);
         keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug(() -> new ParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
+        logger.debug(() -> Message.createParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
     }
 
     private SecureString generateTokenKey() {

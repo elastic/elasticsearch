@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -158,7 +158,7 @@ public class SchedulerEngine {
             if (previousSchedule != null) {
                 previousSchedule.cancel();
             }
-            logger.debug(() -> new ParameterizedMessage("added job [{}]", job.getId()));
+            logger.debug(() -> Message.createParameterizedMessage("added job [{}]", job.getId()));
             return schedule;
         });
     }
@@ -166,7 +166,7 @@ public class SchedulerEngine {
     public boolean remove(String jobId) {
         ActiveSchedule removedSchedule = schedules.remove(jobId);
         if (removedSchedule != null) {
-            logger.debug(() -> new ParameterizedMessage("removed job [{}]", jobId));
+            logger.debug(() -> Message.createParameterizedMessage("removed job [{}]", jobId));
             removedSchedule.cancel();
         }
         return removedSchedule != null;
@@ -186,7 +186,7 @@ public class SchedulerEngine {
                 listener.triggered(event);
             } catch (final Exception e) {
                 // do not allow exceptions to escape this method; we should continue to notify listeners and schedule the next run
-                logger.warn(new ParameterizedMessage("listener failed while handling triggered event [{}]", name), e);
+                logger.warn(Message.createParameterizedMessage("listener failed while handling triggered event [{}]", name), e);
             }
         }
     }
@@ -216,7 +216,7 @@ public class SchedulerEngine {
         public void run() {
             final long triggeredTime = clock.millis();
             try {
-                logger.debug(() -> new ParameterizedMessage("job [{}] triggered with triggeredTime=[{}]", name, triggeredTime));
+                logger.debug(() -> Message.createParameterizedMessage("job [{}] triggered with triggeredTime=[{}]", name, triggeredTime));
                 notifyListeners(name, triggeredTime, scheduledTime);
             } catch (final Throwable t) {
                 /*
@@ -240,7 +240,7 @@ public class SchedulerEngine {
                     synchronized (this) {
                         if (future == null || future.isCancelled() == false) {
                             logger.debug(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "schedule job [{}] with scheduleTime=[{}] and delay=[{}]",
                                     name,
                                     scheduledTime,

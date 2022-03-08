@@ -43,7 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -135,12 +135,12 @@ public class ShardStateAction {
                         waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
-                                actionName,
-                                masterNode,
-                                request
-                            ),
+                                Message.createParameterizedMessage(
+                                    "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
+                                    actionName,
+                                    masterNode,
+                                    request
+                                ),
                             exp
                         );
                         listener.onFailure(
@@ -292,7 +292,7 @@ public class ShardStateAction {
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug(
-                () -> new ParameterizedMessage("{} received shard failed for [{}]", request.getShardId(), request),
+                () -> Message.createParameterizedMessage("{} received shard failed for [{}]", request.getShardId(), request),
                 request.failure
             );
             var update = new FailedShardUpdateTask(request, new ChannelActionListener<>(channel, TASK_SOURCE, request));
@@ -413,7 +413,7 @@ public class ShardStateAction {
                     taskContext.success(taskContext.getTask().newPublicationListener());
                 }
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
                 // failures are communicated back to the requester
                 // cluster state will not be updated in this case
                 for (final var taskContext : tasksToBeApplied) {
@@ -443,7 +443,7 @@ public class ShardStateAction {
                     Priority.NORMAL,
                     ActionListener.wrap(
                         r -> logger.trace("{}, reroute completed", reason),
-                        e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)
+                        e -> logger.debug(Message.createParameterizedMessage("{}, reroute failed", reason), e)
                     )
                 );
             }
@@ -558,11 +558,11 @@ public class ShardStateAction {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof NotMasterException) {
-                logger.debug(() -> new ParameterizedMessage("{} no longer master while failing shard [{}]", entry.shardId, entry));
+                logger.debug(() -> Message.createParameterizedMessage("{} no longer master while failing shard [{}]", entry.shardId, entry));
             } else if (e instanceof FailedToCommitClusterStateException) {
-                logger.debug(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
+                logger.debug(() -> Message.createParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
             } else {
-                logger.error(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
+                logger.error(() -> Message.createParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
             }
             listener.onFailure(e);
         }
@@ -750,7 +750,7 @@ public class ShardStateAction {
                     taskContext.success(taskContext.getTask().newPublicationListener());
                 }
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
                 for (final var taskContext : tasksToBeApplied) {
                     taskContext.onFailure(e);
                 }
@@ -882,11 +882,11 @@ public class ShardStateAction {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof NotMasterException) {
-                logger.debug(() -> new ParameterizedMessage("{} no longer master while starting shard [{}]", entry.shardId, entry));
+                logger.debug(() -> Message.createParameterizedMessage("{} no longer master while starting shard [{}]", entry.shardId, entry));
             } else if (e instanceof FailedToCommitClusterStateException) {
-                logger.debug(() -> new ParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
+                logger.debug(() -> Message.createParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
             } else {
-                logger.error(() -> new ParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
+                logger.error(() -> Message.createParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
             }
             listener.onFailure(e);
         }

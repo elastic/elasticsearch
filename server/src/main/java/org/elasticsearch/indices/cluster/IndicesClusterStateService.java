@@ -60,7 +60,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -274,7 +274,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
                     if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                        getLogger().info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);
+                        getLogger().info(Message.createParameterizedMessage("{} global checkpoint sync failed", shardId), e);
                     }
                 })
             );
@@ -332,7 +332,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+                        logger.warn(() -> Message.createParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
                     }
 
                     @Override
@@ -770,7 +770,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception inner) {
             inner.addSuppressed(failure);
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "[{}][{}] failed to remove shard after failure ([{}])",
                     shardRouting.getIndexName(),
                     shardRouting.getId(),
@@ -787,7 +787,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
             logger.warn(
-                () -> new ParameterizedMessage("{} marking and sending shard failed due to [{}]", shardRouting.shardId(), message),
+                () -> Message.createParameterizedMessage("{} marking and sending shard failed due to [{}]", shardRouting.shardId(), message),
                 failure
             );
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
@@ -795,7 +795,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "[{}][{}] failed to mark shard as failed (because of [{}])",
                     shardRouting.getIndexName(),
                     shardRouting.getId(),

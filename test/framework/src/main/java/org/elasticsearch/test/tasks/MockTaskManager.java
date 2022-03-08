@@ -10,8 +10,7 @@ package org.elasticsearch.test.tasks;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
-import java.util.function.Supplier;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +50,7 @@ public class MockTaskManager extends TaskManager {
                 listener.onTaskRegistered(task);
             } catch (Exception e) {
                 logger.warn(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to notify task manager listener about registering the task with id {}",
                         task.getId()
                     ),
@@ -71,7 +70,7 @@ public class MockTaskManager extends TaskManager {
                     listener.onTaskUnregistered(task);
                 } catch (Exception e) {
                     logger.warn(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "failed to notify task manager listener about unregistering the task with id {}",
                             task.getId()
                         ),
@@ -92,7 +91,7 @@ public class MockTaskManager extends TaskManager {
                 listener.waitForTaskCompletion(task);
             } catch (Exception e) {
                 logger.warn(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to notify task manager listener about waitForTaskCompletion the task with id {}",
                         task.getId()
                     ),

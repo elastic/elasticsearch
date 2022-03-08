@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -113,7 +113,7 @@ public class CacheFile {
                 fileChannel.close();
             } catch (IOException e) {
                 // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-                logger.warn(() -> new ParameterizedMessage("Failed to close [{}]", file), e);
+                logger.warn(() -> Message.createParameterizedMessage("Failed to close [{}]", file), e);
             } finally {
                 decrementRefCount();
             }
@@ -530,7 +530,7 @@ public class CacheFile {
             Files.deleteIfExists(file);
         } catch (IOException e) {
             // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-            logger.warn(() -> new ParameterizedMessage("Failed to delete [{}]", file), e);
+            logger.warn(() -> Message.createParameterizedMessage("Failed to delete [{}]", file), e);
         } finally {
             listener.onCacheFileDelete(CacheFile.this);
         }

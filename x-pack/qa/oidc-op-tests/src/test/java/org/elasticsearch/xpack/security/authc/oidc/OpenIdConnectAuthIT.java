@@ -27,7 +27,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -304,7 +304,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
             return body.apply(response);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("HTTP Request [{}] failed", request.getURI()), e);
+            logger.warn(Message.createParameterizedMessage("HTTP Request [{}] failed", request.getURI()), e);
             throw e;
         }
     }

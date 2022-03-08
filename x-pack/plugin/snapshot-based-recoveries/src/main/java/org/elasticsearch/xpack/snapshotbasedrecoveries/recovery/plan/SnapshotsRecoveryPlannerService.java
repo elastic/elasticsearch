@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.plan;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
@@ -194,7 +194,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(new ParameterizedMessage("Unable to fetch available snapshots for shard {}", shardId), e);
+                logger.warn(Message.createParameterizedMessage("Unable to fetch available snapshots for shard {}", shardId), e);
                 listener.accept(Optional.empty());
             }
         };

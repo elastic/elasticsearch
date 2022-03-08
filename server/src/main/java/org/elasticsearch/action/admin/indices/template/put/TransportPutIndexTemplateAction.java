@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -102,7 +102,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                    logger.debug(() -> Message.createParameterizedMessage("failed to put template [{}]", request.name()), e);
                     listener.onFailure(e);
                 }
             }

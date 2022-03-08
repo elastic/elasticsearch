@@ -68,7 +68,7 @@ import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -298,9 +298,9 @@ public class MetadataCreateIndexService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                        logger.trace(() -> Message.createParameterizedMessage("[{}] failed to create", request.index()), e);
                     } else {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                        logger.debug(() -> Message.createParameterizedMessage("[{}] failed to create", request.index()), e);
                     }
                     super.onFailure(e);
                 }

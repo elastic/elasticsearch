@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -73,7 +73,7 @@ public class VersionHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to verify minimum version [{}] on the [{}] monitoring cluster",
                         minimumVersion,
                         resourceOwnerName

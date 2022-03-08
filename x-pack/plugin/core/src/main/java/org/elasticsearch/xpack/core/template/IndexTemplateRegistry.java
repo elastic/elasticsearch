@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -136,7 +136,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(String templateName, Exception e) {
-        logger.error(new ParameterizedMessage("error adding index template [{}] for [{}]", templateName, getOrigin()), e);
+        logger.error(Message.createParameterizedMessage("error adding index template [{}] for [{}]", templateName, getOrigin()), e);
     }
 
     /**
@@ -145,7 +145,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
-        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]", policy.getName(), getOrigin()), e);
+        logger.error(Message.createParameterizedMessage("error adding lifecycle policy [{}] for [{}]", policy.getName(), getOrigin()), e);
     }
 
     @Override

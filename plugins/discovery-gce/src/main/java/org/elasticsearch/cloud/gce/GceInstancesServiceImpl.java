@@ -25,8 +25,7 @@ import com.google.api.services.compute.model.InstanceList;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
-import java.util.function.Supplier;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -83,7 +82,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                     return zoneInstances;
                 });
             } catch (IOException e) {
-                logger.warn((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
+                logger.warn((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -212,7 +212,7 @@ public class AutodetectCommunicator implements Closeable {
                 try {
                     autodetectResultProcessor.awaitCompletion();
                 } catch (TimeoutException e) {
-                    logger.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
+                    logger.warn(Message.createParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
                 }
             }
         } finally {
@@ -382,7 +382,7 @@ public class AutodetectCommunicator implements Closeable {
                         )
                     );
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                    logger.error(Message.createParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
                     handler.accept(null, e);
                 }
             }

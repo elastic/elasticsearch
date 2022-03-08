@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.frozen.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -131,7 +131,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
 
             @Override
             public void onFailure(final Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+                logger.debug(() -> Message.createParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }
         });

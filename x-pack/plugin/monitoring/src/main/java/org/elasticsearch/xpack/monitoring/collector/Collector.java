@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
@@ -97,7 +97,7 @@ public abstract class Collector {
         } catch (ElasticsearchTimeoutException e) {
             logger.error("collector [{}] timed out when collecting data: {}", name(), e.getMessage());
         } catch (Exception e) {
-            logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
+            logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("collector [{}] failed to collect data", name()), e);
         }
         return null;
     }

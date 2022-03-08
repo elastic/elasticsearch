@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -110,7 +110,7 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
                     );
                 }, e -> {
                     logger.debug(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "Delegated x509Token [{}] could not be authenticated",
                             x509DelegatedToken
                         ),

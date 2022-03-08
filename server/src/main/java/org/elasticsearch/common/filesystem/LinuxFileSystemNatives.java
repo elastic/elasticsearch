@@ -16,7 +16,7 @@ import com.sun.jna.Structure;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,7 +95,7 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
             return OptionalLong.of(stats.st_blocks * ST_BLOCKS_UNIT);
         } catch (LastErrorException e) {
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "error when executing native method __xstat(int vers, const char *name, struct stat *buf) for file [{}]",
                     path
                 ),

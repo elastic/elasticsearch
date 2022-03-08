@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
@@ -195,7 +195,7 @@ public class AnalyticsResultProcessor {
     }
 
     private void setAndReportFailure(Exception e) {
-        LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
+        LOGGER.error(Message.createParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
         failure = "error processing results; " + e.getMessage();
         auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
     }

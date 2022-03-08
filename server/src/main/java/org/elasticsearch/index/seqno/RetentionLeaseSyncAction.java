@@ -35,7 +35,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -138,7 +138,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
                             AlreadyClosedException.class,
                             IndexShardClosedException.class
                         ) == null) {
-                            getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
+                            getLogger().warn(Message.createParameterizedMessage("{} retention lease sync failed", shardId), e);
                         }
                         task.setPhase("finished");
                         taskManager.unregister(task);

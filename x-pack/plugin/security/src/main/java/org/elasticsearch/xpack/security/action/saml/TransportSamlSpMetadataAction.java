@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.saml;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -79,7 +79,7 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
             serializer.transform(new DOMSource(element), new StreamResult(writer));
             listener.onResponse(new SamlSpMetadataResponse(writer.toString()));
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
+            logger.error(Message.createParameterizedMessage("Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
             listener.onFailure(e);
         }
     }

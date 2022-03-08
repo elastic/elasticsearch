@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -88,7 +88,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(new ParameterizedMessage("failed to clean up task [{}]", persistentTask.getId()), e);
+                        logger.warn(Message.createParameterizedMessage("failed to clean up task [{}]", persistentTask.getId()), e);
                     }
                 });
             });

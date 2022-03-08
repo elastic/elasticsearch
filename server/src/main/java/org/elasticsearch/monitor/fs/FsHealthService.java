@@ -19,7 +19,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
@@ -182,7 +182,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                         }
                     }
                 } catch (Exception ex) {
-                    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+                    logger.error(Message.createParameterizedMessage("health check of [{}] failed", path), ex);
                     if (currentUnhealthyPaths == null) {
                         currentUnhealthyPaths = new HashSet<>(1);
                     }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -101,7 +101,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                     );
 
                     auditor.info(request.getJobId(), msg);
-                    logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
+                    logger.debug(() -> Message.createParameterizedMessage("[{}] {}", request.getJobId(), msg));
                     // We don't care about the bulk response, just that it succeeded
                     l.onResponse(AcknowledgedResponse.TRUE);
                 }));

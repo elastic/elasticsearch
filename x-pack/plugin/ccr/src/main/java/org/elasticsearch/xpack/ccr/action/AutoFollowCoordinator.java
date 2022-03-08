@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -208,10 +208,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 );
                 numberOfFailedRemoteClusterStateRequests++;
                 LOGGER.warn(
-                    new ParameterizedMessage(
-                        "failure occurred while fetching cluster state for auto follow pattern [{}]",
-                        result.autoFollowPatternName
-                    ),
+                        Message.createParameterizedMessage(
+                            "failure occurred while fetching cluster state for auto follow pattern [{}]",
+                            result.autoFollowPatternName
+                        ),
                     result.clusterStateFetchException
                 );
             } else {
@@ -225,11 +225,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue()))
                         );
                         LOGGER.warn(
-                            new ParameterizedMessage(
-                                "failure occurred while auto following index [{}] for auto follow pattern [{}]",
-                                entry.getKey(),
-                                result.autoFollowPatternName
-                            ),
+                                Message.createParameterizedMessage(
+                                    "failure occurred while auto following index [{}] for auto follow pattern [{}]",
+                                    entry.getKey(),
+                                    result.autoFollowPatternName
+                                ),
                             entry.getValue()
                         );
                     } else {

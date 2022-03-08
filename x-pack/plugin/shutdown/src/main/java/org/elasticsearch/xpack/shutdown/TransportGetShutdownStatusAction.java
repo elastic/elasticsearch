@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -289,7 +289,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
                 totalRemainingShards,
-                new ParameterizedMessage(
+                Message.createParameterizedMessage(
                     "shard [{}] [{}] of index [{}] cannot move, use the Cluster Allocation Explain API on this shard for details",
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",

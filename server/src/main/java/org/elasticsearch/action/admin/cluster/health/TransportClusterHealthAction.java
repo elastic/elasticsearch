@@ -34,7 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -128,7 +128,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> Message.createParameterizedMessage("unexpected failure during [{}]", source), e);
                     listener.onFailure(e);
                 }
             }.submit(clusterService.getMasterService(), source);
@@ -171,7 +171,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     if (e instanceof ProcessClusterEventTimeoutException) {
                         listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
                     } else {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        logger.error(() -> Message.createParameterizedMessage("unexpected failure during [{}]", source), e);
                         listener.onFailure(e);
                     }
                 }

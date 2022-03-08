@@ -20,7 +20,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.NodeValidationException;
@@ -452,11 +452,11 @@ final class BootstrapChecks {
                     try {
                         return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
                     } catch (final NumberFormatException e) {
-                        logger.warn(() -> new ParameterizedMessage("unable to parse vm.max_map_count [{}]", rawProcSysVmMaxMapCount), e);
+                        logger.warn(() -> Message.createParameterizedMessage("unable to parse vm.max_map_count [{}]", rawProcSysVmMaxMapCount), e);
                     }
                 }
             } catch (final IOException e) {
-                logger.warn(() -> new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
+                logger.warn(() -> Message.createParameterizedMessage("I/O exception while trying to read [{}]", path), e);
             }
             return -1;
         }

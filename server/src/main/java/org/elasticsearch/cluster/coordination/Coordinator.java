@@ -62,7 +62,6 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
@@ -466,7 +465,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         ensureTermAtLeast(getLocalNode(), maxTermSeen);
                         startElection();
                     } catch (Exception e) {
-                        logger.warn(new ParameterizedMessage("failed to bump term to {}", maxTermSeen), e);
+                        logger.warn(Message.createParameterizedMessage("failed to bump term to {}", maxTermSeen), e);
                         becomeCandidate("updateMaxTermSeen");
                     }
                 }
@@ -634,7 +633,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new ValidateJoinRequest(clusterState),
             TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
                 listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
             }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
@@ -648,7 +647,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             TransportRequestOptions.of(null, channelType),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                 logger.warn(
-                    () -> new ParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
+                    () -> Message.createParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
                     e
                 );
                 listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
@@ -1211,7 +1210,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         try {
             return coordinationState.get().handleJoin(join);
         } catch (CoordinationStateRejectedException e) {
-            logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
+            logger.debug(Message.createParameterizedMessage("failed to add {} - ignoring", join), e);
             return false;
         }
     }
@@ -1274,7 +1273,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             synchronized (mutex) {
                 if (mode != Mode.LEADER || getCurrentTerm() != clusterStatePublicationEvent.getNewState().term()) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}] failed publication as node is no longer master for term {}",
                             clusterStatePublicationEvent.getSummary(),
                             clusterStatePublicationEvent.getNewState().term()
@@ -1293,7 +1292,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 if (currentPublication.isPresent()) {
                     assert false : "[" + currentPublication.get() + "] in progress, cannot start new publication";
                     logger.warn(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}] failed publication as already publication in progress",
                             clusterStatePublicationEvent.getSummary()
                         )
@@ -1341,7 +1340,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
             }
         } catch (Exception e) {
-            logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);
+            logger.debug(() -> Message.createParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
     }

@@ -20,7 +20,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -703,7 +703,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
                                     logger.warn(
-                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names),
+                                            Message.createParameterizedMessage("unable to remove multiple composable index templates {}", names),
                                         e
                                     );
                                 }
@@ -712,7 +712,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
                                     } catch (ResponseException e) {
-                                        logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                        logger.warn(Message.createParameterizedMessage("unable to remove composable index template {}", name), e);
                                     }
                                 }
                             }
@@ -736,7 +736,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                    logger.warn(Message.createParameterizedMessage("unable to remove multiple component templates {}", names), e);
                                 }
                             } else {
                                 for (String componentTemplate : names) {
@@ -744,7 +744,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                         adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                                     } catch (ResponseException e) {
                                         logger.warn(
-                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate),
+                                                Message.createParameterizedMessage("unable to remove component template {}", componentTemplate),
                                             e
                                         );
                                     }
@@ -770,7 +770,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     try {
                         adminClient().performRequest(new Request("DELETE", "_template/" + name));
                     } catch (ResponseException e) {
-                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                        logger.debug(Message.createParameterizedMessage("unable to remove index template {}", name), e);
                     }
                 }
             } else {

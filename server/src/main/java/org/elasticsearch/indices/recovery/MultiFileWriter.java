@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.transport.Transports;
 
 import java.io.EOFException;
@@ -217,7 +217,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             try {
                 entry.getValue().close();
             } catch (Exception e) {
-                logger.debug(() -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                logger.debug(() -> Message.createParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
             }
             iterator.remove();
         }

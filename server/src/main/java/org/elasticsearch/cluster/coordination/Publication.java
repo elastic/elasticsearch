@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -370,7 +370,7 @@ public abstract class Publication {
             public void onFailure(Exception e) {
                 assert e instanceof TransportException;
                 final TransportException exp = (TransportException) e;
-                logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
+                logger.debug(() -> Message.createParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCommitFailure();
@@ -396,7 +396,7 @@ public abstract class Publication {
             public void onFailure(Exception e) {
                 assert e instanceof TransportException;
                 final TransportException exp = (TransportException) e;
-                logger.debug(() -> new ParameterizedMessage("ApplyCommitResponseHandler: [{}] failed", discoveryNode), exp);
+                logger.debug(() -> Message.createParameterizedMessage("ApplyCommitResponseHandler: [{}] failed", discoveryNode), exp);
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCompletion();

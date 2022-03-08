@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -150,7 +150,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     logger.info("[{}] [{}] finished upgrading snapshot", jobId, snapshotId);
                     task.markAsCompleted();
                 } else {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed upgrading snapshot [{}]", jobId, snapshotId), e);
+                    logger.warn(() -> Message.createParameterizedMessage("[{}] failed upgrading snapshot [{}]", jobId, snapshotId), e);
                     auditor.warning(
                         jobId,
                         "failed upgrading snapshot [" + snapshotId + "] with exception " + ExceptionsHelper.unwrapCause(e).getMessage()
@@ -160,7 +160,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             }),
             e -> {
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] failed upgrading snapshot [{}] as ml state alias creation failed",
                         jobId,
                         snapshotId
@@ -176,7 +176,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 task.updatePersistentTaskState(
                     new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, -1, e.getMessage()),
                     ActionListener.wrap(r -> task.markAsFailed(e), failure -> {
-                        logger.warn(new ParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), failure);
+                        logger.warn(Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), failure);
                         task.markAsFailed(e);
                     })
                 );
@@ -208,7 +208,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(Message.createParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,
@@ -297,7 +297,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 );
             }, failure -> {
                 logger.warn(
-                    () -> new ParameterizedMessage("[{}] [{}] failed to clean up potentially bad snapshot", jobId, snapshotId),
+                    () -> Message.createParameterizedMessage("[{}] [{}] failed to clean up potentially bad snapshot", jobId, snapshotId),
                     failure
                 );
                 task.markAsFailed(
@@ -323,7 +323,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 );
                 return;
             }
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to load bad snapshot for deletion", jobId, snapshotId), e);
+            logger.warn(() -> Message.createParameterizedMessage("[{}] [{}] failed to load bad snapshot for deletion", jobId, snapshotId), e);
             task.markAsFailed(
                 new ElasticsearchStatusException(
                     "Task to upgrade job [{}] snapshot [{}] got reassigned while running leaving an unknown snapshot state. "

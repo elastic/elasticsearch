@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -133,7 +133,7 @@ public class ElasticsearchMappings {
                         continue;
                     }
                 } catch (Exception e) {
-                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
+                    logger.error(Message.createParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
                     indicesToUpdate.add(index);
                     continue;
                 }

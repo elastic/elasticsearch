@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -100,7 +100,7 @@ public class DataFrameDataExtractor {
     }
 
     public void cancel() {
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor was cancelled", context.jobId));
+        LOGGER.debug(() -> Message.createParameterizedMessage("[{}] Data extractor was cancelled", context.jobId));
         isCancelled = true;
     }
 
@@ -173,7 +173,7 @@ public class DataFrameDataExtractor {
             // We've set allow_partial_search_results to false which means if something
             // goes wrong the request will throw.
             SearchResponse searchResponse = request.get();
-            LOGGER.trace(() -> new ParameterizedMessage("[{}] Search response was obtained", context.jobId));
+            LOGGER.trace(() -> Message.createParameterizedMessage("[{}] Search response was obtained", context.jobId));
 
             List<Row> rows = processSearchResponse(searchResponse);
 
@@ -185,7 +185,7 @@ public class DataFrameDataExtractor {
             if (hasPreviousSearchFailed) {
                 throw e;
             }
-            LOGGER.warn(new ParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
+            LOGGER.warn(Message.createParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
             markScrollAsErrored();
             return nextSearch();
         }
@@ -200,7 +200,7 @@ public class DataFrameDataExtractor {
         long to = from + context.scrollSize;
 
         LOGGER.trace(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "[{}] Searching docs with [{}] in [{}, {})",
                 context.jobId,
                 DestinationIndex.INCREMENTAL_ID,
@@ -326,7 +326,7 @@ public class DataFrameDataExtractor {
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
         Row row = new Row(extractedValues, hit, isTraining);
         LOGGER.trace(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
                 context.jobId,
                 row.getSortKey(),
@@ -377,7 +377,7 @@ public class DataFrameDataExtractor {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         long rows = searchResponse.getHits().getTotalHits().value;
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data summary rows [{}]", context.jobId, rows));
+        LOGGER.debug(() -> Message.createParameterizedMessage("[{}] Data summary rows [{}]", context.jobId, rows));
         return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
     }
 

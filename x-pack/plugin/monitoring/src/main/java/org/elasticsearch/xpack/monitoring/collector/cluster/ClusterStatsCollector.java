@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
@@ -141,7 +141,7 @@ public class ClusterStatsCollector extends Collector {
         } catch (ElasticsearchSecurityException e) {
             if (LicenseUtils.isLicenseExpiredException(e)) {
                 logger.trace(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "collector [{}] - " + "unable to collect data because of expired license",
                         name()
                     ),

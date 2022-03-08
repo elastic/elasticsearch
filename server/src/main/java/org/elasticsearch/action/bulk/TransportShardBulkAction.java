@@ -53,7 +53,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -338,7 +337,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
-                logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
+                logger.info(() -> Message.createParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
                 onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
                 return true;
             }
@@ -400,7 +399,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
-                final Supplier<Message> messageSupplier = () -> new ParameterizedMessage(
+                final Supplier<Message> messageSupplier = () -> Message.createParameterizedMessage(
                     "{} failed to execute bulk item ({}) {}",
                     context.getPrimary().shardId(),
                     opType.getLowercase(),

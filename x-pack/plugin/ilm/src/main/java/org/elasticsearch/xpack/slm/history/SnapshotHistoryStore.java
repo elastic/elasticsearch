@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -65,11 +65,11 @@ public class SnapshotHistoryStore {
         if (metadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
             && metadata.templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
             logger.error(
-                new ParameterizedMessage(
-                    "failed to index snapshot history item, data stream [{}] and template [{}] don't exist",
-                    SLM_HISTORY_DATA_STREAM,
-                    SLM_TEMPLATE_NAME
-                )
+                    Message.createParameterizedMessage(
+                        "failed to index snapshot history item, data stream [{}] and template [{}] don't exist",
+                        SLM_HISTORY_DATA_STREAM,
+                        SLM_TEMPLATE_NAME
+                    )
             );
             return;
         }
@@ -85,17 +85,17 @@ public class SnapshotHistoryStore {
                 );
             }, exception -> {
                 logger.error(
-                    new ParameterizedMessage(
-                        "failed to index snapshot history item in data stream [{}]: [{}]",
-                        SLM_HISTORY_DATA_STREAM,
-                        item
-                    ),
+                        Message.createParameterizedMessage(
+                            "failed to index snapshot history item in data stream [{}]: [{}]",
+                            SLM_HISTORY_DATA_STREAM,
+                            item
+                        ),
                     exception
                 );
             }));
         } catch (IOException exception) {
             logger.error(
-                new ParameterizedMessage("failed to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item),
+                    Message.createParameterizedMessage("failed to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item),
                 exception
             );
         }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.persistence;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -77,7 +77,7 @@ public class DataFrameAnalyticsDeleter {
             }
             deleteConfig(id, listener);
         }, failure -> {
-            logger.warn(new ParameterizedMessage("[{}] failed to remove stats", id), ExceptionsHelper.unwrapCause(failure));
+            logger.warn(Message.createParameterizedMessage("[{}] failed to remove stats", id), ExceptionsHelper.unwrapCause(failure));
             deleteConfig(id, listener);
         });
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ql.async;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -260,7 +260,7 @@ public class AsyncTaskManagementService<
                     // We should only unregister after the result is saved
                     resp -> {
                         logger.trace(
-                            () -> new ParameterizedMessage("stored eql search results for [{}]", searchTask.getExecutionId().getEncoded())
+                            () -> Message.createParameterizedMessage("stored eql search results for [{}]", searchTask.getExecutionId().getEncoded())
                         );
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
@@ -279,7 +279,7 @@ public class AsyncTaskManagementService<
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
                             logger.error(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "failed to store eql search results for [{}]",
                                     searchTask.getExecutionId().getEncoded()
                                 ),
@@ -296,7 +296,7 @@ public class AsyncTaskManagementService<
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
             logger.error(
-                () -> new ParameterizedMessage("failed to store eql search results for [{}]", searchTask.getExecutionId().getEncoded()),
+                () -> Message.createParameterizedMessage("failed to store eql search results for [{}]", searchTask.getExecutionId().getEncoded()),
                 exc
             );
         }

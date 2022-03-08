@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -91,7 +91,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                         RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                         if (status != RestStatus.NOT_FOUND) {
                             logger.error(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "failed to update expiration time for async-search [{}]",
                                     searchId.getEncoded()
                                 ),

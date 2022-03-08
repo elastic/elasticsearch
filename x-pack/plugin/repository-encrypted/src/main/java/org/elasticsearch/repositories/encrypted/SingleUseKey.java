@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -82,18 +82,18 @@ final class SingleUseKey {
                 if (nonceAndKey.nonce < MAX_NONCE) {
                     // this is the commonly used code path, where just the nonce is incremented
                     logger.trace(
-                        () -> new ParameterizedMessage("Key with id [{}] reused with nonce [{}]", nonceAndKey.keyId, nonceAndKey.nonce)
+                        () -> Message.createParameterizedMessage("Key with id [{}] reused with nonce [{}]", nonceAndKey.keyId, nonceAndKey.nonce)
                     );
                     return nonceAndKey;
                 } else {
                     // this is the infrequent code path, where a new key is generated and the nonce is reset back
                     logger.trace(
-                        () -> new ParameterizedMessage("Try to generate a new key to replace the key with id [{}]", nonceAndKey.keyId)
+                        () -> Message.createParameterizedMessage("Try to generate a new key to replace the key with id [{}]", nonceAndKey.keyId)
                     );
                     synchronized (lock) {
                         if (keyCurrentlyInUse.get().nonce == MAX_NONCE) {
                             final Tuple<BytesReference, SecretKey> newKey = keyGenerator.get();
-                            logger.debug(() -> new ParameterizedMessage("New key with id [{}] has been generated", newKey.v1()));
+                            logger.debug(() -> Message.createParameterizedMessage("New key with id [{}] has been generated", newKey.v1()));
                             keyCurrentlyInUse.set(new SingleUseKey(newKey.v1(), newKey.v2(), MIN_NONCE));
                         }
                     }

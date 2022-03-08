@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -170,20 +170,20 @@ public class TaskCancellationService {
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "cannot send ban for tasks with the parent [{}] on connection [{}]",
-                                    taskId,
-                                    connection
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "cannot send ban for tasks with the parent [{}] on connection [{}]",
+                                        taskId,
+                                        connection
+                                    ),
                                 exp
                             );
                         } else if (logger.isDebugEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "cannot send ban for tasks with the parent [{}] on connection [{}]",
-                                    taskId,
-                                    connection
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "cannot send ban for tasks with the parent [{}] on connection [{}]",
+                                        taskId,
+                                        connection
+                                    ),
                                 exp
                             );
                         } else {
@@ -219,20 +219,20 @@ public class TaskCancellationService {
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "failed to remove ban for tasks with the parent [{}] on connection [{}]",
-                                    request.parentTaskId,
-                                    connection
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "failed to remove ban for tasks with the parent [{}] on connection [{}]",
+                                        request.parentTaskId,
+                                        connection
+                                    ),
                                 exp
                             );
                         } else if (logger.isDebugEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "failed to remove ban for tasks with the parent [{}] on connection [{}]",
-                                    request.parentTaskId,
-                                    connection
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "failed to remove ban for tasks with the parent [{}] on connection [{}]",
+                                        request.parentTaskId,
+                                        connection
+                                    ),
                                 exp
                             );
                         } else {

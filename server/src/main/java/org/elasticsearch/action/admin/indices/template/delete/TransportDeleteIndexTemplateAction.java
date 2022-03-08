@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -78,7 +78,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
+                    logger.debug(() -> Message.createParameterizedMessage("failed to delete templates [{}]", request.name()), e);
                     listener.onFailure(e);
                 }
             }

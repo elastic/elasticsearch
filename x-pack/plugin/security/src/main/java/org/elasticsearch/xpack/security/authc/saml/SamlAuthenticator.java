@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -180,7 +180,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             return decrypter.decrypt(encrypted);
         } catch (DecryptionException e) {
             logger.debug(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Failed to decrypt SAML assertion [{}] with [{}]",
                     text(encrypted, 512),
                     describe(getSpConfiguration().getEncryptionCredentials())

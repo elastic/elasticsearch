@@ -62,7 +62,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
@@ -1143,14 +1143,14 @@ public class JobResultsProvider {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         //TODO PG I would prefer the original one
         LOGGER.trace(()->
-            new ParameterizedMessage(
-            "ES API CALL: search all of influencers from index {}{}  with filter from {} size {}",
-           indexName,
-            (query.getSortField() != null)
-                ? " with sort " + (query.isSortDescending() ? "descending" : "ascending") + " on field " + query.getSortField()
-                : "",
-            query.getFrom(),
-            query.getSize())
+                Message.createParameterizedMessage(
+                "ES API CALL: search all of influencers from index {}{}  with filter from {} size {}",
+               indexName,
+                (query.getSortField() != null)
+                    ? " with sort " + (query.isSortDescending() ? "descending" : "ascending") + " on field " + query.getSortField()
+                    : "",
+                query.getFrom(),
+                query.getSize())
         );
 
         QueryBuilder qb = new BoolQueryBuilder().filter(fb)

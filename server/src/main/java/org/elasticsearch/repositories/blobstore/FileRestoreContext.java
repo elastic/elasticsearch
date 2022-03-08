@@ -19,7 +19,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
@@ -87,11 +87,11 @@ public abstract class FileRestoreContext {
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
-                            shardId,
-                            snapshotId
-                        ),
+                            Message.createParameterizedMessage(
+                                "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                                shardId,
+                                snapshotId
+                            ),
                         e
                     );
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;

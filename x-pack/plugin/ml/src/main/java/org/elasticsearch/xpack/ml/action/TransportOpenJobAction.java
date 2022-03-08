@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -269,14 +269,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     ) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(job -> listener.onResponse(response), e -> {
-            logger.error(new ParameterizedMessage("[{}] Failed to clear finished_time", jobId), e);
+            logger.error(Message.createParameterizedMessage("[{}] Failed to clear finished_time", jobId), e);
             // Not a critical error so continue
             listener.onResponse(response);
         });
         ActionListener<Boolean> mappingsUpdatedListener = ActionListener.wrap(
             mappingUpdateResponse -> jobConfigProvider.updateJob(jobId, update, null, clearedTimeListener),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] Failed to update mapping; not clearing finished_time", jobId), e);
+                logger.error(Message.createParameterizedMessage("[{}] Failed to update mapping; not clearing finished_time", jobId), e);
                 // Not a critical error so continue without attempting to clear finish time
                 listener.onResponse(response);
             }
@@ -307,7 +307,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
                         persistentTask.getParams().getJobId(),
                         exception.getMessage()

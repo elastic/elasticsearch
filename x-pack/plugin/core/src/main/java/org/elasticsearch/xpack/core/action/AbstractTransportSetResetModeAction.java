@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -73,13 +73,13 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         final boolean isResetModeEnabled = isResetMode(state);
         // Noop, nothing for us to do, simply return fast to the caller
         if (request.isEnabled() == isResetModeEnabled) {
-            logger.debug(() -> new ParameterizedMessage("Reset mode noop for [{}]", featureName()));
+            logger.debug(() -> Message.createParameterizedMessage("Reset mode noop for [{}]", featureName()));
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "Starting to set [reset_mode] for [{}] to [{}] from [{}]",
                 featureName(),
                 request.isEnabled(),
@@ -88,10 +88,10 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         );
 
         ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
-            logger.debug(() -> new ParameterizedMessage("Completed reset mode request for [{}]", featureName()));
+            logger.debug(() -> Message.createParameterizedMessage("Completed reset mode request for [{}]", featureName()));
             listener.onResponse(r);
         }, e -> {
-            logger.debug(() -> new ParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()), e);
+            logger.debug(() -> Message.createParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()), e);
             listener.onFailure(e);
         });
 
@@ -109,13 +109,13 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
 
                 @Override
                 protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.trace(() -> new ParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
+                    logger.trace(() -> Message.createParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
                     return AcknowledgedResponse.of(acknowledged);
                 }
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    logger.trace(() -> new ParameterizedMessage("Executing cluster state update for [{}]", featureName()));
+                    logger.trace(() -> Message.createParameterizedMessage("Executing cluster state update for [{}]", featureName()));
                     return setState(currentState, request);
                 }
             },

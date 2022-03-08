@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -86,7 +86,7 @@ public class ExtractedFieldsDetectorFactory {
 
         // Step 3. Get cardinalities for fields with constraints
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Field capabilities response: {}", config.getId(), fieldCapabilitiesResponse));
+            LOGGER.debug(() -> Message.createParameterizedMessage("[{}] Field capabilities response: {}", config.getId(), fieldCapabilitiesResponse));
             fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
             getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
         }, listener::onFailure);
@@ -174,7 +174,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
         fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
+        LOGGER.debug(() -> Message.createParameterizedMessage("[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response

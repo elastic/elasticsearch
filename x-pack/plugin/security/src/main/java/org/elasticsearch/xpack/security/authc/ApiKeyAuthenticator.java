@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -56,7 +56,7 @@ class ApiKeyAuthenticator implements Authenticator {
                     ? authResult.getException()
                     : Exceptions.authenticationError(authResult.getMessage());
                 logger.debug(
-                    new ParameterizedMessage("API key service terminated authentication for request [{}]", context.getRequest()),
+                        Message.createParameterizedMessage("API key service terminated authentication for request [{}]", context.getRequest()),
                     e
                 );
                 listener.onFailure(e);
@@ -64,7 +64,7 @@ class ApiKeyAuthenticator implements Authenticator {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
                         logger.warn(
-                            new ParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
+                                Message.createParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
                             authResult.getException()
                         );
                     } else {

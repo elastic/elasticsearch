@@ -27,7 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -538,7 +538,7 @@ public class RecoverySettings {
             finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxBytesPerSec);
         }
         logger.info(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "using rate limit [{}] with [default={}, read={}, write={}, max={}]",
                 finalMaxBytesPerSec,
                 ByteSizeValue.ofBytes(defaultBytesPerSec),

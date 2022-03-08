@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -209,7 +209,7 @@ public class FollowersChecker {
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(new ParameterizedMessage("exception while responding to {}", request), e);
+                logger.debug(Message.createParameterizedMessage("exception while responding to {}", request), e);
             }
 
             @Override
@@ -322,7 +322,7 @@ public class FollowersChecker {
                     @Override
                     public void handleException(TransportException exp) {
                         if (running() == false) {
-                            logger.debug(new ParameterizedMessage("{} no longer running", FollowerChecker.this), exp);
+                            logger.debug(Message.createParameterizedMessage("{} no longer running", FollowerChecker.this), exp);
                             return;
                         }
 
@@ -334,20 +334,20 @@ public class FollowersChecker {
 
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
+                            logger.debug(() -> Message.createParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            logger.debug(() -> Message.createParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
                             reason = "health check failed";
                         } else if (failureCountSinceLastSuccess + timeoutCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            logger.debug(() -> Message.createParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
                             reason = "followers check retry count exceeded [timeouts="
                                 + timeoutCountSinceLastSuccess
                                 + ", failures="
                                 + failureCountSinceLastSuccess
                                 + "]";
                         } else {
-                            logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
+                            logger.debug(() -> Message.createParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
                             return;
                         }
@@ -363,7 +363,7 @@ public class FollowersChecker {
 
                 @Override
                 public void onRejection(Exception e) {
-                    logger.debug(new ParameterizedMessage("rejected task to fail node [{}] with reason [{}]", discoveryNode, reason), e);
+                    logger.debug(Message.createParameterizedMessage("rejected task to fail node [{}] with reason [{}]", discoveryNode, reason), e);
                     if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
                         assert esRejectedExecutionException.isExecutorShutdown();
                     } else {
@@ -389,7 +389,7 @@ public class FollowersChecker {
                 public void onFailure(Exception e) {
                     assert false : e;
                     logger.error(
-                        new ParameterizedMessage("unexpected failure when failing node [{}] with reason [{}]", discoveryNode, reason),
+                            Message.createParameterizedMessage("unexpected failure when failing node [{}] with reason [{}]", discoveryNode, reason),
                         e
                     );
                 }

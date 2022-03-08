@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -73,7 +74,7 @@ public class TrainTestSplitterFactory {
                 searchResponse.getHits().getTotalHits().value
             );
         } catch (Exception e) {
-            ParameterizedMessage msg = new ParameterizedMessage("[{}] Error searching total number of training docs", config.getId());
+            Message msg = Message.createParameterizedMessage("[{}] Error searching total number of training docs", config.getId());
             LOGGER.error(msg, e);
             throw new ElasticsearchException(msg.getFormattedMessage(), e);
         }
@@ -112,7 +113,7 @@ public class TrainTestSplitterFactory {
                 classification.getRandomizeSeed()
             );
         } catch (Exception e) {
-            ParameterizedMessage msg = new ParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());
+            Message msg = Message.createParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());
             LOGGER.error(msg, e);
             throw new ElasticsearchException(msg.getFormattedMessage(), e);
         }

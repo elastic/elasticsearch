@@ -14,8 +14,7 @@ import com.google.api.services.compute.model.NetworkInterface;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
-import java.util.function.Supplier;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -257,7 +256,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                     }
                 } catch (Exception e) {
                     final String finalIpPrivate = ip_private;
-                    logger.warn((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
+                    logger.warn((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
                 }
 
             }

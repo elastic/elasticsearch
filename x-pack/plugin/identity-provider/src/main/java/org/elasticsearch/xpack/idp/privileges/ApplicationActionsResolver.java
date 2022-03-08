@@ -24,7 +24,7 @@ package org.elasticsearch.xpack.idp.privileges;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -104,10 +104,10 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
                     defaults.applicationName
                 ),
                 ex -> logger.warn(
-                    new ParameterizedMessage(
-                        "Failed to load application privileges actions for application [{}]",
-                        defaults.applicationName
-                    ),
+                        Message.createParameterizedMessage(
+                            "Failed to load application privileges actions for application [{}]",
+                            defaults.applicationName
+                        ),
                     ex
                 )
             )

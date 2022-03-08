@@ -12,7 +12,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -333,7 +333,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         if (content == null) {
             final InputStream stream = fullRequestBody.streamInput();
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Failed to find multi-part upload in [{}]",
                     new BufferedReader(new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))
                 )

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -77,7 +77,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
                 listener.onFailure(
                     new ValidationException().addValidationError(
-                        new ParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
+                        Message.createParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
                     )
                 );
                 return;

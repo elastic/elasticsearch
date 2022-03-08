@@ -10,7 +10,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;
@@ -73,10 +73,10 @@ public final class BulkRequestHandler {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.info(() -> new ParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
+            logger.info(() -> Message.createParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
             listener.afterBulk(executionId, bulkRequest, e);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
+            logger.warn(() -> Message.createParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
             listener.afterBulk(executionId, bulkRequest, e);
         } finally {
             if (bulkRequestSetupSuccessful == false) {  // if we fail on client.bulk() release the semaphore

@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -101,7 +101,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(@Nullable Exception e) {
-        logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
+        logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
     }
 
     private ClusterState extendBasic(ClusterState currentState, LicensesMetadata currentLicenseMetadata) {

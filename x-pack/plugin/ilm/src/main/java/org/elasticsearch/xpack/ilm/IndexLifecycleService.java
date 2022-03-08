@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -209,25 +209,25 @@ public class IndexLifecycleService
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey,
-                                    lifecycleState.asMap()
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "async action execution failed during master election trigger"
+                                            + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                        idxMeta.getIndex().getName(),
+                                        policyName,
+                                        stepKey,
+                                        lifecycleState.asMap()
+                                    ),
                                 e
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey
-                                ),
+                                    Message.createParameterizedMessage(
+                                        "async action execution failed during master election trigger"
+                                            + " for index [{}] with policy [{}] in step [{}]",
+                                        idxMeta.getIndex().getName(),
+                                        policyName,
+                                        stepKey
+                                    ),
                                 e
                             );
 
@@ -424,24 +424,24 @@ public class IndexLifecycleService
                 } catch (Exception e) {
                     if (logger.isTraceEnabled()) {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "async action execution failed during policy trigger"
-                                    + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
-                                idxMeta.getIndex().getName(),
-                                policyName,
-                                stepKey,
-                                lifecycleState.asMap()
-                            ),
+                                Message.createParameterizedMessage(
+                                    "async action execution failed during policy trigger"
+                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                    idxMeta.getIndex().getName(),
+                                    policyName,
+                                    stepKey,
+                                    lifecycleState.asMap()
+                                ),
                             e
                         );
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "async action execution failed during policy trigger" + " for index [{}] with policy [{}] in step [{}]",
-                                idxMeta.getIndex().getName(),
-                                policyName,
-                                stepKey
-                            ),
+                                Message.createParameterizedMessage(
+                                    "async action execution failed during policy trigger" + " for index [{}] with policy [{}] in step [{}]",
+                                    idxMeta.getIndex().getName(),
+                                    policyName,
+                                    stepKey
+                                ),
                             e
                         );
 

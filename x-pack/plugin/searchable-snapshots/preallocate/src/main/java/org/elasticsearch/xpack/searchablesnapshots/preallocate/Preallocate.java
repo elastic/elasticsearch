@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.preallocate;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
@@ -65,7 +65,7 @@ public class Preallocate {
                         }
                     }
                 } catch (final Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using native methods", cacheFile), e);
+                    logger.warn(Message.createParameterizedMessage("failed to pre-allocate cache file [{}] using native methods", cacheFile), e);
                 }
             }
             // even if allocation was successful above, verify again here
@@ -77,7 +77,7 @@ public class Preallocate {
                     logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
                 }
             } catch (final Exception e) {
-                logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using setLength method", cacheFile), e);
+                logger.warn(Message.createParameterizedMessage("failed to pre-allocate cache file [{}] using setLength method", cacheFile), e);
                 throw e;
             }
         } finally {

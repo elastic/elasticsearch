@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -501,7 +501,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow(
                 () -> new AssertionError(
-                    new ParameterizedMessage(
+                    Message.createParameterizedMessage(
                         "could not find a primary shard of index [{}] in list of started shards [{}]",
                         indexName,
                         startedShards

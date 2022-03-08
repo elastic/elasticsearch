@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -136,7 +136,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
         if (nodesOfConcern.length == 0) {
             logger.debug(
-                () -> new ParameterizedMessage("Unable to find executor nodes for datafeed tasks {}", request.getDatafeedTaskIds())
+                () -> Message.createParameterizedMessage("Unable to find executor nodes for datafeed tasks {}", request.getDatafeedTaskIds())
             );
 
             taskResponseListener.onResponse(new Response(Collections.emptyMap()));

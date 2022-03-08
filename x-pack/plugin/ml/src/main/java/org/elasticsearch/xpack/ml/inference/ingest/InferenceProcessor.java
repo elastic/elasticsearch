@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -242,7 +242,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
                     logger.debug(
-                        () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
+                        () -> Message.createParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
                         ex
                     );
                 }

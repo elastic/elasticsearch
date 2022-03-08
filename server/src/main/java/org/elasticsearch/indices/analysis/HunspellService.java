@@ -19,7 +19,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -139,7 +139,7 @@ public class HunspellService {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
                                     logger.error(
-                                        () -> new ParameterizedMessage("exception while loading dictionary {}", file.getFileName()),
+                                        () -> Message.createParameterizedMessage("exception while loading dictionary {}", file.getFileName()),
                                         e
                                     );
                                 }
@@ -199,7 +199,7 @@ public class HunspellService {
             }
 
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
+            logger.error(() -> Message.createParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
             throw e;
         } finally {
             IOUtils.close(affixStream);

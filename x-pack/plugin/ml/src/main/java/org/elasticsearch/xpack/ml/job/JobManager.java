@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -436,17 +436,17 @@ public class JobManager {
                     }
                 }, e -> {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Updating autodetect failed with an exception, job update [{}] ",
-                            jobUpdate.getJobId(),
-                            jobUpdate
-                        ),
+                            Message.createParameterizedMessage(
+                                "[{}] Updating autodetect failed with an exception, job update [{}] ",
+                                jobUpdate.getJobId(),
+                                jobUpdate
+                            ),
                         e
                     );
                 }));
             }
         } else {
-            logger.debug(()-> new ParameterizedMessage("[{}] No process update required for job update: {}", jobUpdate.getJobId(), jobUpdate.toString()));
+            logger.debug(()-> Message.createParameterizedMessage("[{}] No process update required for job update: {}", jobUpdate.getJobId(), jobUpdate.toString()));
             auditJobUpdatedIfNotInternal(request);
         }
 

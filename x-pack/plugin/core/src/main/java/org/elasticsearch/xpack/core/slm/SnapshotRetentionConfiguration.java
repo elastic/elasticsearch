@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -253,7 +253,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 final long snapshotAge = nowSupplier.getAsLong() - si.startTime();
                 if (snapshotAge > this.expireAfter.getMillis()) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}]: ELIGIBLE as snapshot age of {} is older than {}",
                             snapName,
                             new TimeValue(snapshotAge).toHumanReadableString(3),
@@ -263,7 +263,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     return true;
                 } else {
                     logger.trace(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}]: INELIGIBLE as snapshot age of [{}ms] is newer than {}",
                             snapName,
                             new TimeValue(snapshotAge).toHumanReadableString(3),

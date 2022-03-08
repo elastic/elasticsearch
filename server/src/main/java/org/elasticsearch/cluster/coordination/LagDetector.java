@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -237,13 +237,13 @@ public class LagDetector {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(
-                            new ParameterizedMessage(
-                                "failed to get hot threads from node [{}] lagging at version {} "
-                                    + "despite commit of cluster state version [{}]",
-                                discoveryNode.descriptionWithoutAttributes(),
-                                appliedVersion,
-                                expectedVersion
-                            ),
+                                Message.createParameterizedMessage(
+                                    "failed to get hot threads from node [{}] lagging at version {} "
+                                        + "despite commit of cluster state version [{}]",
+                                    discoveryNode.descriptionWithoutAttributes(),
+                                    appliedVersion,
+                                    expectedVersion
+                                ),
                             e
                         );
                     }

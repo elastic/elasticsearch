@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
@@ -522,7 +522,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     logger.debug("{} file [{}] prewarmed", shardId, file.physicalName());
                     input.close();
                 }, e -> {
-                    logger.warn(() -> new ParameterizedMessage("{} prewarming failed for file [{}]", shardId, file.physicalName()), e);
+                    logger.warn(() -> Message.createParameterizedMessage("{} prewarming failed for file [{}]", shardId, file.physicalName()), e);
                     IOUtils.closeWhileHandlingException(input);
                 });
 
@@ -543,7 +543,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         }
 
                         logger.trace(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "{} part [{}/{}] of [{}] warmed in [{}] ms",
                                 shardId,
                                 part + 1,
@@ -555,7 +555,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     }));
                 }
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("{} unable to prewarm file [{}]", shardId, file.physicalName()), e);
+                logger.warn(() -> Message.createParameterizedMessage("{} unable to prewarm file [{}]", shardId, file.physicalName()), e);
                 if (submitted == false) {
                     completionListener.onFailure(e);
                 }
@@ -580,7 +580,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             executor.execute(ActionRunnable.run(ActionListener.runAfter(next.v1(), () -> prewarmNext(executor, queue)), next.v2()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.warn(() -> new ParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);
+            logger.warn(() -> Message.createParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);
         }
     }
 

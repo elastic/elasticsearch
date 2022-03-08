@@ -11,7 +11,7 @@ package org.elasticsearch.test.loggerusage;
 import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.message.Message;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.logging.log4j.util.MessageSupplier;
 import java.util.function.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
@@ -97,7 +97,7 @@ public class ESLoggerUsageTests extends ESTestCase {
             assertEquals(48, Stream.of(Logger.class.getMethods()).filter(m -> methodName.equals(m.getName())).count());
         }
 
-        for (Constructor<?> constructor : ParameterizedMessage.class.getConstructors()) {
+        for (Constructor<?> constructor : Message.class.getConstructors()) {
             assertThat(constructor.getParameterTypes().length, greaterThanOrEqualTo(2));
             assertEquals(String.class, constructor.getParameterTypes()[0]);
             assertThat(constructor.getParameterTypes()[1], is(oneOf(String[].class, Object[].class, Object.class)));
@@ -112,7 +112,7 @@ public class ESLoggerUsageTests extends ESTestCase {
             }
         }
 
-        assertEquals(5, ParameterizedMessage.class.getConstructors().length);
+        assertEquals(5, Message.class.getConstructors().length);
     }
 
     public void checkArgumentsProvidedInConstructor() {
@@ -138,7 +138,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
+        logger.debug(org.elasticsearch.logging.Message.createParameterizedMessage("text {}", (Object[]) arr));
     }
 
     public void checkNumberOfArguments1() {
@@ -171,27 +171,27 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+        logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+        logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
     }
 
     public void checkNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2));
+        logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}", "world", 2));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2));
+        logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2));
     }
 
     public void checkNumberOfArgumentsParameterizedMessage3() {
-        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+        logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage3() {
-        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+        logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
     }
 
     public void checkOrderOfExceptionArgument() {
@@ -199,7 +199,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument1() {
-        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
+        logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}", "world"), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument1() {
@@ -207,7 +207,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument2() {
-        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
+        logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument2() {
@@ -219,7 +219,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailNonConstantMessageWithArguments(boolean b) {
-        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
+        logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage(Boolean.toString(b), 42), new Exception());
     }
 
     public void checkComplexUsage(boolean b) {

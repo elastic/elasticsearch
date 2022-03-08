@@ -13,7 +13,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -121,7 +121,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 if (e instanceof ResponseException re) {
                     if (remoteVersion.before(Version.fromId(2000099)) && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug(
-                           () -> new ParameterizedMessage(
+                           () -> Message.createParameterizedMessage(
                                 "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
                                     + "normally as the scroll has already been cleared automatically.",
                                 scrollId

@@ -13,7 +13,7 @@ import com.github.mustachejava.MustacheFactory;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;

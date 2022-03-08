@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedFunction;
@@ -170,7 +170,7 @@ public class SamlObjectHandler {
                     try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
                         SignatureValidator.validate(signature, credential);
                         logger.debug(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "SAML Signature [{}] matches credentials [{}] [{}]",
                                 signatureText,
                                 credential.getEntityId(),
@@ -199,7 +199,7 @@ public class SamlObjectHandler {
                 return check.apply(credential);
             } catch (SignatureException | SecurityException e) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "SAML Signature [{}] does not match credentials [{}] [{}] -- {}",
                         signatureText,
                         credential.getEntityId(),
@@ -383,7 +383,7 @@ public class SamlObjectHandler {
         checkIdpSignature(credential -> {
             if (XMLSigningUtil.verifyWithURI(credential, signatureAlgorithm, sigBytes, inputBytes)) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "SAML Signature [{}] matches credentials [{}] [{}]",
                         signatureText,
                         credential.getEntityId(),
@@ -393,7 +393,7 @@ public class SamlObjectHandler {
                 return true;
             } else {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "SAML Signature [{}] failed against credentials [{}] [{}]",
                         signatureText,
                         credential.getEntityId(),

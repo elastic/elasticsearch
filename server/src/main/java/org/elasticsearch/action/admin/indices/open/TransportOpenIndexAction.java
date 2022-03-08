@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -101,7 +101,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to open indices [{}]", (Object) concreteIndices), t);
+                logger.debug(() -> Message.createParameterizedMessage("failed to open indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }
         });

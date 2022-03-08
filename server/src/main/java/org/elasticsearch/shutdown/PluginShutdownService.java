@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 
 import java.util.Arrays;
@@ -94,7 +94,7 @@ public class PluginShutdownService implements ClusterStateListener {
             try {
                 plugin.signalShutdown(shutdownNodes);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("uncaught exception when notifying plugins of nodes {} shutdown", shutdownNodes), e);
+                logger.warn(Message.createParameterizedMessage("uncaught exception when notifying plugins of nodes {} shutdown", shutdownNodes), e);
             }
         }
     }

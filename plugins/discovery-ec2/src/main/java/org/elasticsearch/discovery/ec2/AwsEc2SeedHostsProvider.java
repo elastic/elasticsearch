@@ -19,8 +19,7 @@ import com.amazonaws.services.ec2.model.Tag;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
-import java.util.function.Supplier;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
@@ -184,7 +183,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     } catch (final Exception e) {
                         final String finalAddress = address;
                         logger.warn(
-                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                                 "failed to add {}, address {}",
                                 instance.getInstanceId(),
                                 finalAddress

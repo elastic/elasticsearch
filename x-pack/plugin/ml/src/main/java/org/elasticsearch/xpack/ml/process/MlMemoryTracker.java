@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -514,7 +514,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (stopPhaser.register() != phase.get()) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
-            logger.info(() -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId));
+            logger.info(() -> Message.createParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId));
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }
@@ -538,7 +538,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             }, e -> {
                 logIfNecessary(
                     () -> logger.error(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "[{}] failed to calculate anomaly detector job established model memory requirement",
                             jobId
                         ),
@@ -550,7 +550,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         } catch (Exception e) {
             logIfNecessary(
                 () -> logger.error(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] failed to calculate anomaly detector job established model memory requirement",
                         jobId
                     ),
@@ -584,7 +584,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             } else {
                 logIfNecessary(
                     () -> logger.error(
-                        () -> new ParameterizedMessage("[{}] failed to get anomaly detector job during ML memory update", jobId),
+                        () -> Message.createParameterizedMessage("[{}] failed to get anomaly detector job during ML memory update", jobId),
                         e
                     )
                 );

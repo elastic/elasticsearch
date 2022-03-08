@@ -28,7 +28,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -152,7 +152,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 @Override
                 public void onFailure(Exception e) {
                     anyUpgradeFailed.set(true);
-                    logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
+                    logger.warn(Message.createParameterizedMessage("Error updating template [{}]", change.getKey()), e);
                     tryFinishUpgrade(anyUpgradeFailed);
                 }
             });
@@ -177,7 +177,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
-                        logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
+                        logger.warn(Message.createParameterizedMessage("Error deleting template [{}]", template), e);
                     }
                     tryFinishUpgrade(anyUpgradeFailed);
                 }

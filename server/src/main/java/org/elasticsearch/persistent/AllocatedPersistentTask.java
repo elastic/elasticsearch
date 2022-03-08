@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -186,7 +186,7 @@ public class AllocatedPersistentTask extends CancellableTask {
             }
         } else {
             if (failure != null) {
-                logger.warn(() -> new ParameterizedMessage("task [{}] failed with an exception", getPersistentTaskId()), failure);
+                logger.warn(() -> Message.createParameterizedMessage("task [{}] failed with an exception", getPersistentTaskId()), failure);
             } else if (localAbortReason != null) {
                 logger.debug("task [{}] aborted locally: [{}]", getPersistentTaskId(), localAbortReason);
             }
@@ -208,7 +208,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                             @Override
                             public void onFailure(Exception e) {
                                 logger.warn(
-                                    () -> new ParameterizedMessage(
+                                    () -> Message.createParameterizedMessage(
                                         "notification for task [{}] with id [{}] failed",
                                         getAction(),
                                         getPersistentTaskId()

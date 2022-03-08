@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -145,7 +145,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
+        logger.trace(() -> Message.createParameterizedMessage("[{}] received deploy request", request.getModelId()));
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -165,7 +165,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart = ActionListener.wrap(
             modelAllocation -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
-                logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
+                logger.warn(() -> Message.createParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
@@ -292,11 +292,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     ) {
         trainedModelAllocationService.deleteModelAllocation(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Failed to delete model allocation that had failed with the reason [{}]",
-                    modelId,
-                    exception.getMessage()
-                ),
+                    Message.createParameterizedMessage(
+                        "[{}] Failed to delete model allocation that had failed with the reason [{}]",
+                        modelId,
+                        exception.getMessage()
+                    ),
                 e
             );
             listener.onFailure(exception);
@@ -498,7 +498,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "[{}] tested with state [{}] and nodes {} still initializing",
                     modelId,
                     trainedModelAllocation.getAllocationState(),

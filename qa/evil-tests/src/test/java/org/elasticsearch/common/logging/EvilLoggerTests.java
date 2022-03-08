@@ -16,7 +16,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
@@ -241,7 +241,7 @@ public class EvilLoggerTests extends ESTestCase {
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
-        logger.info(new ParameterizedMessage("{}", "test"), e);
+        logger.info(Message.createParameterizedMessage("{}", "test"), e);
 
         final String path = System.getProperty("es.logs.base_path")
             + System.getProperty("file.separator")

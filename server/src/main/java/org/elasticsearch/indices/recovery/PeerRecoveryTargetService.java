@@ -48,7 +48,7 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -186,7 +186,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter, TimeValue activityTimeout) {
-        logger.trace(() -> new ParameterizedMessage("will retry recovery with id [{}] in [{}]", recoveryId, retryAfter), reason);
+        logger.trace(() -> Message.createParameterizedMessage("will retry recovery with id [{}] in [{}]", recoveryId, retryAfter), reason);
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
@@ -304,11 +304,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
             } catch (IOException | TranslogCorruptedException e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "error while reading global checkpoint from translog, "
-                            + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
-                        startingSeqNo
-                    ),
+                        Message.createParameterizedMessage(
+                            "error while reading global checkpoint from translog, "
+                                + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
+                            startingSeqNo
+                        ),
                     e
                 );
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
@@ -322,11 +322,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         } catch (final IOException e) {
             if (startingSeqNo != UNASSIGNED_SEQ_NO) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "error while listing local files, resetting the starting sequence number from {} "
-                            + "to unassigned and recovering as if there are none",
-                        startingSeqNo
-                    ),
+                        Message.createParameterizedMessage(
+                            "error while listing local files, resetting the starting sequence number from {} "
+                                + "to unassigned and recovering as if there are none",
+                            startingSeqNo
+                        ),
                     e
                 );
                 startingSeqNo = UNASSIGNED_SEQ_NO;
@@ -657,7 +657,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void onFailure(Exception e) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    logger.error(() -> Message.createParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
@@ -665,7 +665,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                 } else {
                     logger.debug(
-                        () -> new ParameterizedMessage("unexpected error during recovery, but recovery id [{}] is finished", recoveryId),
+                        () -> Message.createParameterizedMessage("unexpected error during recovery, but recovery id [{}] is finished", recoveryId),
                         e
                     );
                 }
@@ -740,7 +740,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void handleException(TransportException e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}][{}] Got exception on recovery",
                         request.shardId().getIndex().getName(),
                         request.shardId().id()

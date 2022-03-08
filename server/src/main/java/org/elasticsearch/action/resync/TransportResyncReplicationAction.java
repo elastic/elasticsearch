@@ -29,7 +29,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -203,11 +203,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                     for (int i = 0; i < failures.length; i++) {
                         final ReplicationResponse.ShardInfo.Failure f = failures[i];
                         logger.info(
-                            new ParameterizedMessage(
-                                "{} primary-replica resync to replica on node [{}] failed",
-                                f.fullShardId(),
-                                f.nodeId()
-                            ),
+                                Message.createParameterizedMessage(
+                                    "{} primary-replica resync to replica on node [{}] failed",
+                                    f.fullShardId(),
+                                    f.nodeId()
+                                ),
                             f.getCause()
                         );
                     }

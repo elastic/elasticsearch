@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
@@ -224,7 +224,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 }
             } catch (IOException ioe) {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to read roles file [{}]. skipping all roles...",
                         path.toAbsolutePath()
                     ),
@@ -265,7 +265,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 }
             } catch (IOException ioe) {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "failed to read roles file [{}]. skipping all roles...",
                         path.toAbsolutePath()
                     ),
@@ -328,7 +328,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             assert roleName != null;
             if (logger.isDebugEnabled()) {
                 final String finalRoleName = roleName;
-                logger.debug((java.util.function.Supplier<?>) () -> new ParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
+                logger.debug((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
@@ -336,7 +336,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             if (roleName != null) {
                 final String finalRoleName = roleName;
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                         "invalid role definition [{}] in roles file [{}]. skipping role...",
                         finalRoleName,
                         path
@@ -345,7 +345,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 );
             } else {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path),
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path),
                     e
                 );
             }
@@ -378,7 +378,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     DLSRoleQueryValidator.validateQueryField(descriptor.getIndicesPrivileges(), xContentRegistry);
                 } catch (ElasticsearchException | IllegalArgumentException e) {
                     logger.error(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "invalid role definition [{}] in roles file [{}]. failed to validate query field. skipping role...",
                             roleName,
                             path.toAbsolutePath()
@@ -435,7 +435,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
                 } catch (Exception e) {
                     logger.error(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "could not reload roles file [{}]. Current roles remain unmodified",
                             file.toAbsolutePath()
                         ),

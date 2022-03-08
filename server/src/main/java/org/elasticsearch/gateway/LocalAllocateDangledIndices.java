@@ -31,7 +31,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -179,7 +179,7 @@ public class LocalAllocateDangledIndices {
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "found dangled index [{}] on node [{}]. This index cannot be "
                                         + "upgraded to the latest version, adding as closed",
                                     indexMetadata.getIndex(),
@@ -220,7 +220,7 @@ public class LocalAllocateDangledIndices {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> Message.createParameterizedMessage("unexpected failure during [{}]", source), e);
                     try {
                         channel.sendResponse(e);
                     } catch (Exception inner) {

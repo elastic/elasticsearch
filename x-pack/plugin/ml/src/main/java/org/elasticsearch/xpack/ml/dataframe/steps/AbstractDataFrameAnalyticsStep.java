@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -61,9 +61,9 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
 
     @Override
     public final void execute(ActionListener<StepResponse> listener) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
+        logger.debug(() -> Message.createParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
         if (task.isStopping() && shouldSkipIfTaskIsStopping()) {
-            logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
+            logger.debug(() -> Message.createParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
         }

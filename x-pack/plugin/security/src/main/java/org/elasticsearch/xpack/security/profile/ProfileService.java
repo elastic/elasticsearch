@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -277,7 +277,7 @@ public class ProfileService {
                 }
             } else {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "searching existing profile document for user [{}] from any of the realms [{}] under domain [{}]",
                         subject.getUser().principal(),
                         Strings.collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
@@ -319,7 +319,7 @@ public class ProfileService {
                                 new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
                             );
                         } else {
-                            final ParameterizedMessage errorMessage = new ParameterizedMessage(
+                            final Message errorMessage = Message.createParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
                                 hits.length,
                                 Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),

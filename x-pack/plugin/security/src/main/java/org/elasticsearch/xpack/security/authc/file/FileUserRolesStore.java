@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc.file;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -94,7 +94,7 @@ public class FileUserRolesStore {
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
-                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                     "failed to parse users_roles file [{}]. skipping/removing all entries...",
                     path.toAbsolutePath()
                 ),

@@ -20,7 +20,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
@@ -141,12 +141,12 @@ public class BatchedRerouteService implements RerouteService {
                     final ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
                         logger.error(
-                            () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
+                            () -> Message.createParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
                             e
                         );
                     } else {
                         logger.error(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "unexpected failure during [{}], current state version [{}]",
                                 source,
                                 state.version()
@@ -170,7 +170,7 @@ public class BatchedRerouteService implements RerouteService {
                 }
             }
             ClusterState state = clusterService.state();
-            logger.warn(() -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
+            logger.warn(() -> Message.createParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
             ActionListener.onFailure(
                 currentListeners,
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)

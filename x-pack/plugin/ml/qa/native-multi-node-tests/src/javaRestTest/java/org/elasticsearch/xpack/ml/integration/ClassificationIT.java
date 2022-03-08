@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -796,7 +796,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
                 assertThat(analyticsStats.getNode(), is(nullValue()));
             } catch (ElasticsearchException e) {
-                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                logger.error(Message.createParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
                 fail(e.getDetailedMessage());
             }
         });
@@ -810,7 +810,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
                 assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
             } catch (ElasticsearchException e) {
-                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                logger.error(Message.createParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
                 fail(e.getDetailedMessage());
             }
         });

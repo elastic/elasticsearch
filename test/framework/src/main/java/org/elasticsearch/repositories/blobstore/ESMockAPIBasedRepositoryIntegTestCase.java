@@ -15,7 +15,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -414,7 +414,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                 handler.handle(exchange);
             } catch (Throwable t) {
                 logger.error(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "Exception when handling request {} {} {}",
                         exchange.getRemoteAddress(),
                         exchange.getRequestMethod(),

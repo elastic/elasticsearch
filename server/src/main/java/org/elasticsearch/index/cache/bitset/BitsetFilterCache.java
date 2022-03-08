@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -263,7 +263,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                         } catch (Exception e) {
                             indexShard.warmerService()
                                 .logger()
-                                .warn(() -> new ParameterizedMessage("failed to load " + "bitset for [{}]", filterToWarm), e);
+                                .warn(() -> Message.createParameterizedMessage("failed to load " + "bitset for [{}]", filterToWarm), e);
                         } finally {
                             latch.countDown();
                         }

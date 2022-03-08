@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -149,7 +149,7 @@ public class AnnotationIndex {
             IndexAbstraction currentIndexAbstraction = mlLookup.get(LATEST_INDEX_NAME);
             if (currentIndexAbstraction == null) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "Creating [{}] because [{}] exists; trace {}",
                         LATEST_INDEX_NAME,
                         mlLookup.firstKey(),

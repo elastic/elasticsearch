@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -234,7 +234,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                         if (response.getFailedShards() != 0) {
                             for (int i = 0; i < response.getShardFailures().length; ++i) {
                                 logger.warn(
-                                    new ParameterizedMessage(
+                                    Message.createParameterizedMessage(
                                         "Source has [{}] failed shards, shard failure [{}]",
                                         response.getFailedShards(),
                                         i
@@ -366,7 +366,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             listener.onResponse(checkpointingInfoBuilder);
         }, e -> {
             logger.debug(
-                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                     "[{}] failed to retrieve source checkpoint for transform",
                     transformConfig.getId()
                 ),
@@ -381,7 +381,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             getIndexCheckpoints(checkpointsByIndexListener);
         }, e -> {
             logger.debug(
-                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                     "[{}] failed to retrieve next checkpoint [{}]",
                     transformConfig.getId(),
                     lastCheckpointNumber + 1
@@ -399,7 +399,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
             logger.debug(
-                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                     "[{}] failed to retrieve last checkpoint [{}]",
                     transformConfig.getId(),
                     lastCheckpointNumber

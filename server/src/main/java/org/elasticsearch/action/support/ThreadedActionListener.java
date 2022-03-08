@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -69,7 +69,7 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
             }
         });
     }

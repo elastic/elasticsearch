@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -535,11 +535,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
                 if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "{} background management of retention lease [{}] failed while following",
-                            params.getFollowShardId(),
-                            retentionLeaseId
-                        ),
+                            Message.createParameterizedMessage(
+                                "{} background management of retention lease [{}] failed while following",
+                                params.getFollowShardId(),
+                                retentionLeaseId
+                            ),
                         cause
                     );
                 }
@@ -580,10 +580,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "failed to fetch follow shard global {} checkpoint and max sequence number",
-                        shardFollowNodeTask
-                    ),
+                        Message.createParameterizedMessage(
+                            "failed to fetch follow shard global {} checkpoint and max sequence number",
+                            shardFollowNodeTask
+                        ),
                     e
                 );
                 try {

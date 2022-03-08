@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -348,7 +348,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             @Override
                             public void onFailure(Exception e) {
                                 logger.debug(
-                                    () -> new ParameterizedMessage(
+                                    () -> Message.createParameterizedMessage(
                                         "exception when executing blob cache maintenance task after deletion of {} (snapshot:{}, index:{})",
                                         deletedIndex,
                                         snapshotId,
@@ -391,7 +391,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         @Override
         public void onFailure(Exception e) {
             logger.warn(
-                () -> new ParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
+                () -> Message.createParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
                 e
             );
         }
@@ -561,7 +561,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             }
                         } catch (Exception e) {
                             logger.warn(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "exception when parsing blob store cache entry with id [{}], skipping",
                                     searchHit.getId()
                                 ),
@@ -624,7 +624,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final Exception e = error.get();
                 if (e != null) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "periodic maintenance task completed with failure ({} deleted documents out of a total of {})",
                             deletes.get(),
                             total.get()
@@ -633,7 +633,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     );
                 } else {
                     logger.info(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "periodic maintenance task completed ({} deleted documents out of a total of {})",
                             deletes.get(),
                             total.get()
@@ -671,7 +671,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
+                            logger.warn(() -> Message.createParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
                         }
                     }, () -> Releasables.close(releasable)));
                     waitForRelease = true;

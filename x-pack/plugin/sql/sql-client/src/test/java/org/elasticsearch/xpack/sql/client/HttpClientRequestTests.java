@@ -13,7 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -240,7 +240,7 @@ public class HttpClientRequestTests extends ESTestCase {
                     }
                 } catch (Exception e) {
                     logger.error(
-                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                             "failed to respond to request [{} {}]",
                             s.getRequestMethod(),
                             s.getRequestURI()

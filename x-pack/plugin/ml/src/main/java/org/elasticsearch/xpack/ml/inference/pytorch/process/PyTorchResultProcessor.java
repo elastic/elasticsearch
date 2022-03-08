@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
@@ -75,7 +75,7 @@ public class PyTorchResultProcessor {
         } catch (Exception e) {
             // No need to report error as we're stopping
             if (isStopping == false) {
-                logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
+                logger.error(Message.createParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
             pendingResults.forEach(
                 (id, pendingResult) -> pendingResult.listener.onResponse(
@@ -98,15 +98,15 @@ public class PyTorchResultProcessor {
             );
             pendingResults.clear();
         }
-        logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
+        logger.debug(() -> Message.createParameterizedMessage("[{}] Results processing finished", deploymentId));
     }
 
     private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
-        logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
+        logger.trace(() -> Message.createParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
         processResult(inferenceResult);
         PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
         if (pendingResult == null) {
-            logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
+            logger.debug(() -> Message.createParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
         } else {
             pendingResult.listener.onResponse(inferenceResult);
         }

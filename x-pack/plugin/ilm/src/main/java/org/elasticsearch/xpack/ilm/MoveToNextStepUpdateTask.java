@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -88,13 +88,13 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     @Override
     public void handleFailure(Exception e) {
         logger.warn(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",
-                policy,
-                index,
-                currentStepKey,
-                nextStepKey
-            ),
+                Message.createParameterizedMessage(
+                    "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",
+                    policy,
+                    index,
+                    currentStepKey,
+                    nextStepKey
+                ),
             e
         );
     }

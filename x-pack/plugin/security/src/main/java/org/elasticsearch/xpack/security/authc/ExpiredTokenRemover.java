@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
@@ -91,7 +91,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                     QueryBuilders.rangeQuery("creation_time").lte(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS).toEpochMilli())
                 )
         );
-        logger.trace(() -> new ParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
+        logger.trace(() -> Message.createParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq, ActionListener.wrap(bulkResponse -> {
             debugDbqResponse(bulkResponse);
             // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
@@ -123,18 +123,18 @@ final class ExpiredTokenRemover extends AbstractRunnable {
             );
             for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
                 logger.debug(
-                    new ParameterizedMessage("deletion failed for index [{}], id [{}]", failure.getIndex(), failure.getId()),
+                        Message.createParameterizedMessage("deletion failed for index [{}], id [{}]", failure.getIndex(), failure.getId()),
                     failure.getCause()
                 );
             }
             for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "search failed for index [{}], shard [{}] on node [{}]",
-                        failure.getIndex(),
-                        failure.getShardId(),
-                        failure.getNodeId()
-                    ),
+                        Message.createParameterizedMessage(
+                            "search failed for index [{}], shard [{}] on node [{}]",
+                            failure.getIndex(),
+                            failure.getShardId(),
+                            failure.getNodeId()
+                        ),
                     failure.getReason()
                 );
             }

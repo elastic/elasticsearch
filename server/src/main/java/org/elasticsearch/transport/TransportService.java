@@ -33,7 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
@@ -304,7 +304,7 @@ public class TransportService extends AbstractLifecycleComponent
                 } catch (Exception e) {
                     assert false : e;
                     logger.warn(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "failed to notify response handler on exception, action: {}",
                             holderToNotify.action()
                         ),
@@ -863,7 +863,7 @@ public class TransportService extends AbstractLifecycleComponent
                     public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
                         logger.debug(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "failed to notify response handler on rejection, action: {}",
                                 contextToNotify.action()
                             ),
@@ -874,7 +874,7 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",
                                 contextToNotify.action()
                             ),
@@ -929,7 +929,7 @@ public class TransportService extends AbstractLifecycleComponent
                             } catch (Exception inner) {
                                 inner.addSuppressed(e);
                                 logger.warn(
-                                    () -> new ParameterizedMessage("failed to notify channel of error message for action [{}]", action),
+                                    () -> Message.createParameterizedMessage("failed to notify channel of error message for action [{}]", action),
                                     inner
                                 );
                             }
@@ -958,7 +958,7 @@ public class TransportService extends AbstractLifecycleComponent
                 channel.sendResponse(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.warn(() -> new ParameterizedMessage("failed to notify channel of error message for action [{}]", action), inner);
+                logger.warn(() -> Message.createParameterizedMessage("failed to notify channel of error message for action [{}]", action), inner);
             }
         }
     }
@@ -1134,7 +1134,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     public void onResponseSent(long requestId, String action, Exception e) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-            tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
+            tracerLog.trace(() -> Message.createParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
         }
         messageListener.onResponseSent(requestId, action, e);
     }
@@ -1208,7 +1208,7 @@ public class TransportService extends AbstractLifecycleComponent
             @Override
             public void onFailure(Exception e) {
                 assert false : e;
-                logger.warn(() -> new ParameterizedMessage("failed to notify response handler on connection close [{}]", connection), e);
+                logger.warn(() -> Message.createParameterizedMessage("failed to notify response handler on connection close [{}]", connection), e);
             }
 
             @Override
@@ -1458,7 +1458,7 @@ public class TransportService extends AbstractLifecycleComponent
                 handler.handleException(rtx);
             } catch (Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage("failed to handle exception for action [{}], handler [{}]", action, handler),
+                    () -> Message.createParameterizedMessage("failed to handle exception for action [{}], handler [{}]", action, handler),
                     e
                 );
             }

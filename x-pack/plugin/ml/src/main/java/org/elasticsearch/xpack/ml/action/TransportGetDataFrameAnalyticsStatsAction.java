@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -268,13 +268,13 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     if (itemResponse.isFailure()) {
                         SearchRequest itemRequest = multiSearchRequest.requests().get(i);
                         logger.error(
-                            new ParameterizedMessage(
-                                "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
-                                config.getId(),
-                                itemRequest.indices(),
-                                itemRequest.source(),
-                                itemResponse.getFailureMessage()
-                            ),
+                                Message.createParameterizedMessage(
+                                    "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
+                                    config.getId(),
+                                    itemRequest.indices(),
+                                    itemRequest.source(),
+                                    itemResponse.getFailureMessage()
+                                ),
                             itemResponse.getFailure()
                         );
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));

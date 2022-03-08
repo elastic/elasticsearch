@@ -36,7 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -178,7 +178,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
                         logger.warn(
-                            new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
+                                Message.createParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
                             failure.getCause()
                         );
                     }
@@ -222,28 +222,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                 if (failedNodeIds.add(failedNodeException.nodeId())) {
                                     logger.warn(
-                                        new ParameterizedMessage(
-                                            "failed to retrieve shard stats from node [{}]",
-                                            failedNodeException.nodeId()
-                                        ),
+                                            Message.createParameterizedMessage(
+                                                "failed to retrieve shard stats from node [{}]",
+                                                failedNodeException.nodeId()
+                                            ),
                                         failedNodeException.getCause()
                                     );
                                 }
                                 logger.trace(
-                                    new ParameterizedMessage(
-                                        "failed to retrieve stats for shard [{}][{}]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
+                                        Message.createParameterizedMessage(
+                                            "failed to retrieve stats for shard [{}][{}]",
+                                            shardFailure.index(),
+                                            shardFailure.shardId()
+                                        ),
                                     shardFailure.getCause()
                                 );
                             } else {
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "failed to retrieve stats for shard [{}][{}]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
+                                        Message.createParameterizedMessage(
+                                            "failed to retrieve stats for shard [{}][{}]",
+                                            shardFailure.index(),
+                                            shardFailure.shardId()
+                                        ),
                                     shardFailure.getCause()
                                 );
                             }
@@ -299,7 +299,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             logger.trace("notifying [{}] of new cluster info", listener);
                             listener.accept(clusterInfo);
                         } catch (Exception e) {
-                            logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                            logger.info(Message.createParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
                         }
                     }
                     assert anyListeners : "expected to notify at least one listener";

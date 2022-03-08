@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -127,7 +127,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] deleting job ", request.getJobId()));
+        logger.debug(() -> Message.createParameterizedMessage("[{}] deleting job ", request.getJobId()));
 
         if (request.isForce() == false) {
             checkJobIsNotOpen(request.getJobId(), state);
@@ -140,7 +140,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         synchronized (listenersByJobId) {
             if (listenersByJobId.containsKey(request.getJobId())) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] Deletion task [{}] will wait for existing deletion task to complete",
                         request.getJobId(),
                         task.getId()
@@ -245,7 +245,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     ) {
 
         final String jobId = request.getJobId();
-        logger.debug(() -> new ParameterizedMessage("[{}] force deleting job", jobId));
+        logger.debug(() -> Message.createParameterizedMessage("[{}] force deleting job", jobId));
 
         // 3. Delete the job
         ActionListener<Boolean> removeTaskListener = ActionListener.wrap(

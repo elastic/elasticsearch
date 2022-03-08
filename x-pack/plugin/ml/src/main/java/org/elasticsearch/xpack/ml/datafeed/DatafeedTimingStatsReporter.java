@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -107,7 +107,7 @@ public class DatafeedTimingStatsReporter {
             } catch (Exception ex) {
                 // Since persisting datafeed timing stats is not critical, we just log a warning here.
                 LOGGER.warn(
-                    () -> new ParameterizedMessage("[{}] failed to report datafeed timing stats", currentTimingStats.getJobId()),
+                    () -> Message.createParameterizedMessage("[{}] failed to report datafeed timing stats", currentTimingStats.getJobId()),
                     ex
                 );
             }

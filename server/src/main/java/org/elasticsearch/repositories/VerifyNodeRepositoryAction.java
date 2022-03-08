@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -80,7 +80,7 @@ public class VerifyNodeRepositoryAction {
                 try {
                     doVerify(repository, verificationToken, localNode);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
+                    logger.warn(() -> Message.createParameterizedMessage("[{}] failed to verify repository", repository), e);
                     errors.add(new VerificationFailure(node.getId(), e));
                 }
                 if (counter.decrementAndGet() == 0) {
@@ -165,7 +165,7 @@ public class VerifyNodeRepositoryAction {
             try {
                 doVerify(request.repository, request.verificationToken, localNode);
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", request.repository), ex);
+                logger.warn(() -> Message.createParameterizedMessage("[{}] failed to verify repository", request.repository), ex);
                 throw ex;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

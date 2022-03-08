@@ -70,7 +70,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -317,7 +317,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     explicitlyRequestedSystemIndices.retainAll(Arrays.asList(request.indices()));
                     if (explicitlyRequestedSystemIndices.isEmpty() == false) {
                         throw new IllegalArgumentException(
-                            new ParameterizedMessage(
+                            Message.createParameterizedMessage(
                                 "the [indices] parameter includes system indices {}; to include or exclude system indices from a "
                                     + "snapshot, use the [include_global_state] or [feature_states] parameters",
                                 explicitlyRequestedSystemIndices
@@ -424,7 +424,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
+                logger.warn(() -> Message.createParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
             }
 
@@ -529,7 +529,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 initializingClones.remove(snapshot);
-                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot", repositoryName, snapshotName), e);
+                logger.warn(() -> Message.createParameterizedMessage("[{}][{}] failed to clone snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
             }
 
@@ -594,7 +594,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Consumer<Exception> onFailure = e -> {
             endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
-            logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
+            logger.info(() -> Message.createParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null);
         };
 
@@ -690,7 +690,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 initializingClones.remove(targetSnapshot);
-                logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
+                logger.info(() -> Message.createParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
                 failAllListenersOnMasterFailOver(e);
             }
 
@@ -1231,7 +1231,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "failed to update snapshot state after shards started or nodes removed from [{}] ",
                         source
                     ),
@@ -1666,14 +1666,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
-            logger.debug(() -> new ParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
+            logger.debug(() -> Message.createParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
             failSnapshotCompletionListeners(
                 snapshot,
                 new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
             );
             failAllListenersOnMasterFailOver(e);
         } else {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
+            logger.warn(() -> Message.createParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
             removeFailedSnapshotFromClusterState(snapshot, e, repositoryData);
         }
     }
@@ -1984,7 +1984,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
+                logger.warn(() -> Message.createParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
                 failSnapshotCompletionListeners(
                     snapshot,
                     new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
@@ -2059,7 +2059,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
         logger.info(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
                 Strings.arrayToCommaDelimitedString(snapshotNames),
                 repositoryName
@@ -2557,7 +2557,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("{} failed to remove snapshot deletion metadata", deleteEntry), e);
+            logger.warn(() -> Message.createParameterizedMessage("{} failed to remove snapshot deletion metadata", deleteEntry), e);
             repositoryOperations.finishDeletion(deleteEntry.uuid());
             failAllListenersOnMasterFailOver(e);
         }
@@ -3564,7 +3564,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void onFailure(Exception e) {
             logger.info(
-                () -> new ParameterizedMessage("Failed to remove all snapshot tasks for repo [{}] from cluster state", repository),
+                () -> Message.createParameterizedMessage("Failed to remove all snapshot tasks for repo [{}] from cluster state", repository),
                 e
             );
             failAllListenersOnMasterFailOver(e);
@@ -3573,7 +3573,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners",
                     repository
                 ),

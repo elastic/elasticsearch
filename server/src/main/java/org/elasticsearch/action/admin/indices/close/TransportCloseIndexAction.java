@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -119,7 +119,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             request.timeout()
         ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+            logger.debug(() -> Message.createParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);
         }));
     }

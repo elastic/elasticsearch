@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
@@ -521,7 +521,7 @@ public class RBACEngine implements AuthorizationEngine {
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
-            () -> new ParameterizedMessage(
+            () -> Message.createParameterizedMessage(
                 "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
                 Strings.arrayToCommaDelimitedString(userRole.names()),
                 Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
@@ -597,7 +597,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
-        logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
+        logger.trace(() -> Message.createParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();

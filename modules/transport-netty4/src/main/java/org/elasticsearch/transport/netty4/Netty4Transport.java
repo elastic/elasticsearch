@@ -24,7 +24,7 @@ import io.netty.util.AttributeKey;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -378,7 +378,7 @@ public class Netty4Transport extends TcpTransport {
     private void addClosedExceptionLogger(Channel channel) {
         channel.closeFuture().addListener(f -> {
             if (f.isSuccess() == false) {
-                logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
+                logger.debug(() -> Message.createParameterizedMessage("exception while closing channel: {}", channel), f.cause());
             }
         });
     }

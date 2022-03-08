@@ -69,7 +69,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -356,7 +356,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+            logger.warn(() -> Message.createParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
         }
     }
 
@@ -368,7 +368,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+            logger.warn(() -> Message.createParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
         }
     }
 
@@ -554,7 +554,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> Message.createParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
                     }
                 }
@@ -570,7 +570,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),
+                    () -> Message.createParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),
                     e
                 );
             }
@@ -589,7 +589,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
+                    () -> Message.createParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
                     e
                 );
             }
@@ -803,7 +803,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     shard.onSettingsChanged();
                 } catch (Exception e) {
                     logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()),
+                        () -> Message.createParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()),
                         e
                     );
                 }
@@ -962,7 +962,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 if (e instanceof AlreadyClosedException == false
                                     && e instanceof IndexShardClosedException == false
                                     && e instanceof ShardNotInPrimaryModeException == false) {
-                                    logger.warn(new ParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
+                                    logger.warn(Message.createParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
                                 }
                             }, ThreadPool.Names.SAME, source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

@@ -11,7 +11,7 @@ import com.nimbusds.openid.connect.sdk.Nonce;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -109,7 +109,7 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                     }, listener::onFailure)
                 );
             }, e -> {
-                logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);
+                logger.debug(() -> Message.createParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);
                 listener.onFailure(e);
             }));
         }

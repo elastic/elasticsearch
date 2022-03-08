@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -96,7 +96,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
+                logger.error(Message.createParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
 
@@ -115,10 +115,10 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                             @Override
                             public void onFailure(Exception e) {
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "failed to start reroute after registering node [{}] for removal",
-                                        request.getNodeId()
-                                    ),
+                                        Message.createParameterizedMessage(
+                                            "failed to start reroute after registering node [{}] for removal",
+                                            request.getNodeId()
+                                        ),
                                     e
                                 );
                                 listener.onFailure(e);

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse.Result;
@@ -234,7 +234,7 @@ public class JobResultsPersister {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
+                logger.error(Message.createParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
             }
 
             if (bulkRequest.numberOfActions() >= JobRenormalizedResultsPersister.BULK_LIMIT) {
@@ -525,7 +525,7 @@ public class JobResultsPersister {
                     retryMessage -> logger.debug("[{}] {} {}", jobId, id, retryMessage)
                 );
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
+                logger.error(Message.createParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setResult(Result.NOOP);
                 return new BulkResponse(
@@ -545,7 +545,7 @@ public class JobResultsPersister {
                     .setRequireAlias(requireAlias);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
+                logger.error(Message.createParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setResult(Result.NOOP);
                 listener.onResponse(notCreatedResponse.build());

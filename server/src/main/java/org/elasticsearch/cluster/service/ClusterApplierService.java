@@ -34,7 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -399,7 +399,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             TimeValue executionTime = getTimeSince(startTimeMillis);
             logger.trace(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
                     executionTime,
                     previousClusterState.version(),
@@ -440,25 +440,25 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
-                            executionTime,
-                            newClusterState.version(),
-                            newClusterState.stateUUID(),
-                            source,
-                            newClusterState
-                        ),
+                            Message.createParameterizedMessage(
+                                "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
+                                executionTime,
+                                newClusterState.version(),
+                                newClusterState.stateUUID(),
+                                source,
+                                newClusterState
+                            ),
                         e
                     );
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
-                            executionTime,
-                            newClusterState.version(),
-                            newClusterState.stateUUID(),
-                            source
-                        ),
+                            Message.createParameterizedMessage(
+                                "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
+                                executionTime,
+                                newClusterState.version(),
+                                newClusterState.stateUUID(),
+                                source
+                            ),
                         e
                     );
                 }
@@ -591,7 +591,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 assert false : inner;
-                logger.error(new ParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error(Message.createParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
             }
         }
 
@@ -602,7 +602,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception e) {
                 assert false : e;
                 logger.error(
-                    new ParameterizedMessage("exception thrown by listener while notifying of cluster state processed from [{}]", source),
+                        Message.createParameterizedMessage("exception thrown by listener while notifying of cluster state processed from [{}]", source),
                     e
                 );
             }

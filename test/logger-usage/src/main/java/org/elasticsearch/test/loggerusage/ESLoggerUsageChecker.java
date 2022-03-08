@@ -59,7 +59,7 @@ public class ESLoggerUsageChecker {
 //    // make sure this functionality works
 //    public static final Set<Type> CUSTOM_MESSAGE_TYPE = Set.of(Type.getObjectType("org/elasticsearch/common/logging/ESLogMessage"));
 //
-//    public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(ParameterizedMessage.class);
+//    public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(Message.class);
 //
 //    @SuppressForbidden(reason = "command line tool")
 //    public static void main(String... args) throws Exception {

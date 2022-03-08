@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -221,11 +221,11 @@ public class NativeUsersStore {
                         public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
                                 logger.trace(
-                                    new ParameterizedMessage("could not retrieve user [{}] because security index does not exist", user),
+                                        Message.createParameterizedMessage("could not retrieve user [{}] because security index does not exist", user),
                                     t
                                 );
                             } else {
-                                logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
+                                logger.error(Message.createParameterizedMessage("failed to retrieve user [{}]", user), t);
                             }
                             // We don't invoke the onFailure listener here, instead
                             // we call the response with a null user
@@ -281,7 +281,7 @@ public class NativeUsersStore {
                                 );
                             } else {
                                 logger.debug(
-                                     () -> new ParameterizedMessage(
+                                     () -> Message.createParameterizedMessage(
                                         "failed to change password for user [{}]",
                                         request.username()
                                     ),
@@ -403,7 +403,7 @@ public class NativeUsersStore {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
                             logger.debug(
-                                 () -> new ParameterizedMessage(
+                                 () -> Message.createParameterizedMessage(
                                     "failed to update user document with username [{}]",
                                     putUserRequest.username()
                                 ),
@@ -505,7 +505,7 @@ public class NativeUsersStore {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
                             logger.debug(
-                                 () -> new ParameterizedMessage(
+                                 () -> Message.createParameterizedMessage(
                                     "failed to {} user [{}]",
                                     enabled ? "enable" : "disable",
                                     username
@@ -658,7 +658,7 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (TransportActions.isShardNotAvailableException(e)) {
                                 logger.trace(
-                                     () -> new ParameterizedMessage(
+                                     () -> Message.createParameterizedMessage(
                                         "could not retrieve built in user [{}] info since security index unavailable",
                                         username
                                     ),
@@ -745,7 +745,7 @@ public class NativeUsersStore {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
+                logger.error(Message.createParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + username + "] failed. please clear the realm cache manually",
                     e
@@ -777,7 +777,7 @@ public class NativeUsersStore {
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);
+            logger.error(Message.createParameterizedMessage("error in the format of data for user [{}]", username), e);
             return null;
         }
     }

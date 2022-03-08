@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -84,7 +84,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 .map(
                     transformId -> new Response.Error(
                         "dangling_task",
-                        new ParameterizedMessage(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId).getFormattedMessage()
+                        Message.createParameterizedMessage(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId).getFormattedMessage()
                     )
                 )
                 .collect(toList());

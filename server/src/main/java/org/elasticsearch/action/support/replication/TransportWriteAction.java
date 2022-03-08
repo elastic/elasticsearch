@@ -34,7 +34,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -493,7 +493,7 @@ public abstract class TransportWriteAction<
             ActionListener<Void> listener
         ) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
-                logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+                logger.warn(Message.createParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
             shardStateAction.remoteShardFailed(
                 replica.shardId(),

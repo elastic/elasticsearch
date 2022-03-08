@@ -28,7 +28,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -230,7 +230,7 @@ public class ReplicationOperation<
             @Override
             public void onFailure(Exception replicaException) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] failure while performing [{}] on replica {}, request [{}]",
                         shard.shardId(),
                         opType,
@@ -355,7 +355,7 @@ public class ReplicationOperation<
                 public void onFailure(Exception e) {
                     e.addSuppressed(failure);
                     assert false : e;
-                    logger.error(new ParameterizedMessage("unexpected failure while failing primary [{}]", primary.routingEntry()), e);
+                    logger.error(Message.createParameterizedMessage("unexpected failure while failing primary [{}]", primary.routingEntry()), e);
                     finishAsFailed(
                         new RetryOnPrimaryException(
                             primary.routingEntry().shardId(),

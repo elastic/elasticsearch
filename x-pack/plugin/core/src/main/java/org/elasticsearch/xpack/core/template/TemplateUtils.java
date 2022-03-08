@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -211,7 +211,7 @@ public class TemplateUtils {
                     return false;
                 }
             } catch (ElasticsearchParseException e) {
-                logger.error(new ParameterizedMessage("Cannot parse the template [{}]", templateName), e);
+                logger.error(Message.createParameterizedMessage("Cannot parse the template [{}]", templateName), e);
                 throw new IllegalStateException("Cannot parse the template " + templateName, e);
             }
         }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
@@ -191,9 +191,9 @@ public class AnalyticsProcessManager {
             writeHeaderRecord(dataExtractor, process, task);
             writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream", processContext.config.getId()));
+            LOGGER.debug(() -> Message.createParameterizedMessage("[{}] Flushing input stream", processContext.config.getId()));
             process.flushStream();
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream completed", processContext.config.getId()));
+            LOGGER.debug(() -> Message.createParameterizedMessage("[{}] Flushing input stream completed", processContext.config.getId()));
 
             restoreState(config, process, hasState);
 
@@ -207,15 +207,15 @@ public class AnalyticsProcessManager {
         } catch (Exception e) {
             if (task.isStopping()) {
                 // Errors during task stopping are expected but we still want to log them just in case.
-                String errorMsg = new ParameterizedMessage(
+                String errorMsg = Message.createParameterizedMessage(
                     "[{}] Error while processing data [{}]; task is stopping",
                     config.getId(),
                     e.getMessage()
                 ).getFormattedMessage();
                 LOGGER.debug(errorMsg, e);
             } else {
-                String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
-                    .getFormattedMessage();
+                String errorMsg = Message.createParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
+                        .getFormattedMessage();
                 LOGGER.error(errorMsg, e);
                 processContext.setFailureReason(errorMsg);
             }
@@ -281,7 +281,7 @@ public class AnalyticsProcessManager {
         DataFrameAnalyticsTask task
     ) throws IOException {
         List<String> fieldNames = dataExtractor.getFieldNames();
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
+        LOGGER.debug(() -> Message.createParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
 
         // We add 2 extra fields, both named dot:
         // - the document hash
@@ -313,7 +313,7 @@ public class AnalyticsProcessManager {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             process.restoreState(client, config.getAnalysis().getStateDocIdPrefix(config.getId()));
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
+            LOGGER.error(Message.createParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
             throw ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage());
         }
     }
@@ -358,7 +358,7 @@ public class AnalyticsProcessManager {
         } catch (Exception e) {
             if (task.isStopping()) {
                 LOGGER.debug(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] Process closing was interrupted by kill request due to the task being stopped",
                         configId
                     ),
@@ -367,8 +367,8 @@ public class AnalyticsProcessManager {
                 LOGGER.info("[{}] Closed process", configId);
             } else {
                 LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
-                String errorMsg = new ParameterizedMessage("[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage())
-                    .getFormattedMessage();
+                String errorMsg = Message.createParameterizedMessage("[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage())
+                        .getFormattedMessage();
                 processContext.setFailureReason(errorMsg);
             }
         }
@@ -428,7 +428,7 @@ public class AnalyticsProcessManager {
                 try {
                     process.get().kill(true);
                 } catch (IOException e) {
-                    LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", config.getId()), e);
+                    LOGGER.error(Message.createParameterizedMessage("[{}] Failed to kill process", config.getId()), e);
                 }
             }
         }

@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -312,10 +312,10 @@ public class SystemIndexManager implements ClusterStateListener {
             }
             return Version.fromString(versionString);
         } catch (ElasticsearchParseException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.error(Message.createParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
         } catch (IllegalArgumentException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.error(Message.createParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw e;
         }
     }

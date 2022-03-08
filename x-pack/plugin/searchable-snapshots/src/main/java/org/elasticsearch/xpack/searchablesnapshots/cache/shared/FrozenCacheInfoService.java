@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -122,7 +122,7 @@ public class FrozenCacheInfoService {
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("--> failed fetching frozen cache info from [{}]", discoveryNode), e);
+            logger.debug(Message.createParameterizedMessage("--> failed fetching frozen cache info from [{}]", discoveryNode), e);
             // Failed even to execute the nodes info action, just give up
             updateEntry(NodeState.FAILED);
         }
@@ -133,7 +133,7 @@ public class FrozenCacheInfoService {
                 shouldRetry = nodeStates.get(discoveryNode) == nodeStateHolder;
             }
             logger.debug(
-                new ParameterizedMessage("failed to retrieve node settings from node {}, shouldRetry={}", discoveryNode, shouldRetry),
+                    Message.createParameterizedMessage("failed to retrieve node settings from node {}, shouldRetry={}", discoveryNode, shouldRetry),
                 e
             );
             if (shouldRetry) {

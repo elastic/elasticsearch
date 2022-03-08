@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -96,7 +96,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 h.tailStream();
             } catch (IOException e) {
                 if (processKilled == false) {
-                    LOGGER.error(new ParameterizedMessage("[{}] Error tailing {} process logs", jobId, getName()), e);
+                    LOGGER.error(Message.createParameterizedMessage("[{}] Error tailing {} process logs", jobId, getName()), e);
                 }
             } finally {
                 detectCrash();
@@ -155,7 +155,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 }
             } catch (IOException e) {
                 if (processKilled == false) {
-                    LOGGER.error(new ParameterizedMessage("[{}] Error reading {} state output", jobId, getName()), e);
+                    LOGGER.error(Message.createParameterizedMessage("[{}] Error reading {} state output", jobId, getName()), e);
                 }
             }
         });
@@ -209,9 +209,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 LOGGER.debug("[{}] {} process exited", jobId, getName());
             }
         } catch (ExecutionException | TimeoutException e) {
-            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
+            LOGGER.warn(Message.createParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
         } catch (InterruptedException e) {
-            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
+            LOGGER.warn(Message.createParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
             Thread.currentThread().interrupt();
         } finally {
             deleteAssociatedFiles();

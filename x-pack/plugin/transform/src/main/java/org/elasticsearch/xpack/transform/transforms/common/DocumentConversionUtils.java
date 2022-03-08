@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 
@@ -74,7 +74,7 @@ public class DocumentConversionUtils {
         response.get().forEach((fieldName, capabilitiesMap) -> {
             // TODO: overwrites types, requires resolve if types are mixed
             capabilitiesMap.forEach((name, capability) -> {
-                logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
+                logger.trace(() -> Message.createParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
                 extractedTypes.put(fieldName, capability.getType());
             });
         });

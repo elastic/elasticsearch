@@ -88,7 +88,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
@@ -997,7 +997,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteFromContainer(blobContainer(), filesToDelete);
                 l.onResponse(null);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds), e);
+                logger.warn(() -> Message.createParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds), e);
                 throw e;
             }
         }));
@@ -1047,7 +1047,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             .getNumberOfShards();
                     } catch (Exception ex) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "[{}] [{}] failed to read metadata for index",
                                 indexMetaGeneration,
                                 indexId.getName()
@@ -1111,7 +1111,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         @Override
                         public void onFailure(Exception ex) {
                             logger.warn(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "{} failed to delete shard data for shard [{}][{}]",
                                     snapshotIds,
                                     indexId.getName(),
@@ -1311,7 +1311,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return blobsToDelete;
         } catch (Exception e) {
             logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
                     metadata.name(),
                     blobsToDelete
@@ -1334,7 +1334,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "[{}] index {} is no longer part of any snapshot in the repository, " + "but failed to clean up its index folder",
                         metadata.name(),
                         indexSnId
@@ -1772,10 +1772,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repoDataInitialized.addListener(listener);
                 final Consumer<Exception> onFailure = e -> {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Exception when initializing repository generation in cluster state",
-                            metadata.name()
-                        ),
+                            Message.createParameterizedMessage(
+                                "[{}] Exception when initializing repository generation in cluster state",
+                                metadata.name()
+                            ),
                         e
                     );
                     final ActionListener<RepositoryData> existingListener;
@@ -2376,7 +2376,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     .iterator()
                             );
                         } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen), e);
+                            logger.warn(() -> Message.createParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen), e);
                         }
                         return newRepositoryData;
                     }));
@@ -2425,7 +2425,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 writeAtomic(blobContainer(), INDEX_LATEST_BLOB, out -> out.write(Numbers.longToBytes(newGen)), false);
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "Failed to write index.latest blob. If you do not intend to use this "
                             + "repository as the basis for a URL repository you may turn off attempting to write the index.latest blob by "
                             + "setting repository setting [{}] to [false]",
@@ -2621,7 +2621,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         CheckedConsumer<OutputStream, IOException> writer,
         boolean failIfAlreadyExists
     ) throws IOException {
-        logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to {} atomically", metadata.name(), blobName, container.path()));
+        logger.trace(() -> Message.createParameterizedMessage("[{}] Writing [{}] to {} atomically", metadata.name(), blobName, container.path()));
         container.writeBlob(blobName, failIfAlreadyExists, true, writer);
     }
 
@@ -2844,7 +2844,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         deleteFromContainer(shardContainer, blobsToDelete.iterator());
                     } catch (IOException e) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
+                            () -> Message.createParameterizedMessage(
                                 "[{}][{}] failed to delete old index-N blobs during finalization",
                                 snapshotId,
                                 shardId
@@ -3058,7 +3058,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
                     ensureNotClosing(store);
-                    logger.trace(() -> new ParameterizedMessage("[{}] restoring [{}] to [{}]", metadata.name(), fileInfo, store));
+                    logger.trace(() -> Message.createParameterizedMessage("[{}] restoring [{}] to [{}]", metadata.name(), fileInfo, store));
                     boolean success = false;
                     try (
                         IndexOutput indexOutput = store.createVerifyingOutput(
@@ -3319,7 +3319,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) throws IOException {
         assert indexGeneration >= 0 : "Shard generation must not be negative but saw [" + indexGeneration + "]";
         logger.trace(
-            () -> new ParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(), indexGeneration, shardContainer.path())
+            () -> Message.createParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(), indexGeneration, shardContainer.path())
         );
         final String blobName = INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(String.valueOf(indexGeneration));
         writeAtomic(

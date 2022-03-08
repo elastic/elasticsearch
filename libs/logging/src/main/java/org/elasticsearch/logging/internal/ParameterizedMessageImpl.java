@@ -11,30 +11,9 @@ package org.elasticsearch.logging.internal;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.logging.Message;
 
-public class ParameterizedMessageImpl implements Message {
-    private final ParameterizedMessage pm;
+public class ParameterizedMessageImpl extends ParameterizedMessage implements Message {
 
     public ParameterizedMessageImpl(String format, Object[] params, Throwable throwable) {
-        this.pm = new ParameterizedMessage(format, params, throwable);
-    }
-
-    @Override
-    public String getFormattedMessage() {
-        return pm.getFormattedMessage();
-    }
-
-    @Override
-    public String getFormat() {
-        return pm.getFormat();
-    }
-
-    @Override
-    public Object[] getParameters() {
-        return pm.getParameters();
-    }
-
-    @Override
-    public Throwable getThrowable() {
-        return pm.getThrowable();
+        super(format, params, throwable);
     }
 }

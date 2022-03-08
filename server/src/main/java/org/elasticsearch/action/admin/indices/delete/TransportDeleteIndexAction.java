@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -94,7 +94,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
 
         deleteIndexService.deleteIndices(deleteRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), e);
+            logger.debug(() -> Message.createParameterizedMessage("failed to delete indices [{}]", concreteIndices), e);
             listener.onFailure(e);
         }));
     }

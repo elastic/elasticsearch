@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -78,7 +78,7 @@ public class JobRenormalizedResultsPersister {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
             bulkRequest.add(new IndexRequest(index).id(id).source(content));
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] Error serialising result", jobId), e);
+            logger.error(Message.createParameterizedMessage("[{}] Error serialising result", jobId), e);
         }
         if (bulkRequest.numberOfActions() >= BULK_LIMIT) {
             executeRequest();

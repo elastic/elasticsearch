@@ -24,10 +24,7 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchResultReference;
 import com.unboundid.ldap.sdk.SearchScope;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.*;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
@@ -659,7 +656,7 @@ public final class LdapUtils {
                         );
                     } catch (LDAPException e) {
                         LOGGER.warn(
-                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
                                 "caught exception while trying to follow referral [{}]",
                                 referralUrl
                             ),
@@ -744,10 +741,10 @@ public final class LdapUtils {
                 if (ignoreErrors) {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug(
-                            new ParameterizedMessage(
-                                "Failed to retrieve results from referral URL [{}]." + " Treating as 'no results'",
-                                referralURL
-                            ),
+                                Message.createParameterizedMessage(
+                                    "Failed to retrieve results from referral URL [{}]." + " Treating as 'no results'",
+                                    referralURL
+                                ),
                             e
                         );
                     }

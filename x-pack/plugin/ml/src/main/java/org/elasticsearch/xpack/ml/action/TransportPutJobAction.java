@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -104,7 +104,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                         state,
                         ActionListener.wrap(deleted -> listener.onFailure(failed), deleteFailed -> {
                             logger.warn(
-                                () -> new ParameterizedMessage(
+                                () -> Message.createParameterizedMessage(
                                     "[{}] failed to cleanup job after datafeed creation failure",
                                     request.getJobBuilder().getId()
                                 ),

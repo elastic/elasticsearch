@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -218,10 +218,10 @@ public class GlobalCheckpointListeners implements Closeable {
             } catch (final Exception caught) {
                 if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "error notifying global checkpoint listener of updated global checkpoint [{}]",
-                            globalCheckpoint
-                        ),
+                            Message.createParameterizedMessage(
+                                "error notifying global checkpoint listener of updated global checkpoint [{}]",
+                                globalCheckpoint
+                            ),
                         caught
                     );
                 } else if (e instanceof IndexShardClosedException) {

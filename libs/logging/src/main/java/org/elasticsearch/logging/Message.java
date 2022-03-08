@@ -8,10 +8,20 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.internal.ParameterizedMessageImpl;
+
 // TODO: This sucks ( to extends log4j type, but is temporary, until we replace new XXXMessage with factories )
 // TODO:
 // TODO PG: I wonder if we need this. I would prefer if logger users would use String as a message, possibly some parameters suppliers
-public interface Message { // } extends org.apache.logging.log4j.message.Message {
+public interface Message {
+
+    static Message createParameterizedMessage(String format, Object[] params, Throwable throwable) {
+        return new ParameterizedMessageImpl(format, params, throwable);
+    }
+
+    static Message createParameterizedMessage(String format, Object... params) {
+        return new ParameterizedMessageImpl(format, params, null);
+    }
 
     String getFormattedMessage();
 

@@ -9,7 +9,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -135,7 +135,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                 // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
                         toString()
                     ),

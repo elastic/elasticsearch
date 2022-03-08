@@ -16,7 +16,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -91,7 +91,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
                 .filter(item -> item.v1().failure != null)
                 .forEach(
                     item -> logger.debug(
-                        new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source),
+                            Message.createParameterizedMessage("failed to transfer a chunk request {}", item.v1().source),
                         item.v1().failure
                     )
                 );

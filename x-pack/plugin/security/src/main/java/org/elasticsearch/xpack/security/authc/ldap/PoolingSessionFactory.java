@@ -15,7 +15,7 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -187,12 +187,12 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     pool.setHealthCheckIntervalMillis(healthCheckInterval);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] and [{}} have not been specified or are not valid distinguished names,"
-                                + "so connection health checking is disabled",
-                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
-                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
-                        )
+                            Message.createParameterizedMessage(
+                                "[{}] and [{}} have not been specified or are not valid distinguished names,"
+                                    + "so connection health checking is disabled",
+                                RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                                RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
+                            )
                     );
                 }
             }

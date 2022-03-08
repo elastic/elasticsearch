@@ -25,7 +25,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -142,7 +142,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                     dataStream.validate(mBuilder::get);
                 } catch (Exception e) {
                     LOGGER.error(
-                        () -> new ParameterizedMessage(
+                        () -> Message.createParameterizedMessage(
                             "unable to update [{}] for data stream [{}] and backing index [{}]",
                             IndexSettings.TIME_SERIES_END_TIME.getKey(),
                             dataStream.getName(),

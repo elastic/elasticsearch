@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -165,7 +165,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (isWatchDocument(shardId.getIndexName())) {
-            logger.debug(() -> new ParameterizedMessage("failed to add watch [{}] to trigger service", index.id()), ex);
+            logger.debug(() -> Message.createParameterizedMessage("failed to add watch [{}] to trigger service", index.id()), ex);
         }
     }
 

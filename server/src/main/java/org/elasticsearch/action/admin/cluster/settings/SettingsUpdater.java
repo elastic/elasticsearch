@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 
 import java.util.Map;
 
@@ -168,12 +168,12 @@ final class SettingsUpdater {
         final Logger logger
     ) {
         logger.warn(
-            new ParameterizedMessage(
-                "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
-                settingType,
-                e.getKey(),
-                e.getValue()
-            ),
+                Message.createParameterizedMessage(
+                    "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
+                    settingType,
+                    e.getKey(),
+                    e.getValue()
+                ),
             ex
         );
     }

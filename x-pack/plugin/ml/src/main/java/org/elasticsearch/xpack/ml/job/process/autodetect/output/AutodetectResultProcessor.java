@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -181,7 +181,7 @@ public class AutodetectResultProcessor {
                     bulkAnnotationsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
+                LOGGER.warn(Message.createParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, currentRunBucketCount);
 
@@ -200,7 +200,7 @@ public class AutodetectResultProcessor {
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
+                LOGGER.error(Message.createParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
             }
         } finally {
             flushListener.clear();
@@ -224,7 +224,7 @@ public class AutodetectResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                    LOGGER.warn(Message.createParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
                 }
             }
         } finally {
@@ -252,7 +252,7 @@ public class AutodetectResultProcessor {
                 bulkResultsPersister.executeRequest();
             }
         } catch (Exception ex) {
-            LOGGER.warn(new ParameterizedMessage("[{}] failure setting running forecasts to failed.", jobId), ex);
+            LOGGER.warn(Message.createParameterizedMessage("[{}] failure setting running forecasts to failed.", jobId), ex);
         }
     }
 

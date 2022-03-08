@@ -18,7 +18,7 @@ import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -227,13 +227,13 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             throw addSuppressedExceptions(e);
         }
         logger.debug(
-            new ParameterizedMessage(
-                "failed reading [{}] at offset [{}], attempt [{}] of [{}], retrying",
-                blobId,
-                currentOffset,
-                attempt,
-                maxAttempts
-            ),
+                Message.createParameterizedMessage(
+                    "failed reading [{}] at offset [{}], attempt [{}] of [{}], retrying",
+                    blobId,
+                    currentOffset,
+                    attempt,
+                    maxAttempts
+                ),
             e
         );
         attempt += 1;

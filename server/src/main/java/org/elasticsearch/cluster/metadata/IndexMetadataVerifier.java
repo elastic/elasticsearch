@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -217,7 +217,7 @@ public class IndexMetadataVerifier {
                 e.getValue()
             ),
             (e, ex) -> logger.warn(
-                () -> new ParameterizedMessage(
+                () -> Message.createParameterizedMessage(
                     "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
                     indexMetadata.getIndex(),
                     e.getKey(),

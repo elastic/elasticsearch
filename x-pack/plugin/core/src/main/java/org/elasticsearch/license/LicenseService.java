@@ -30,7 +30,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -474,7 +474,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         if (currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
             if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
                 //TODO PG that usage was actually ok..
-                logger.debug(()-> new ParameterizedMessage(
+                logger.debug(()-> Message.createParameterizedMessage(
                     "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
                             XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState))
                 );

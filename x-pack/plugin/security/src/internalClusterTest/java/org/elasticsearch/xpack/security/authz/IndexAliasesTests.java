@@ -13,6 +13,10 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +27,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -60,6 +65,9 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             + "\n"
             + "aliases_only:"
             + usersPasswdHashed
+            + "\n"
+            + "all_on_aliases:"
+            + usersPasswdHashed
             + "\n";
     }
 
@@ -71,7 +79,8 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             + "create_test_aliases_test:create_test_aliases_test\n"
             + "create_test_aliases_alias:create_test_aliases_alias\n"
             + "create_test_aliases_test_alias:create_test_aliases_test_alias\n"
-            + "aliases_only:aliases_only\n";
+            + "aliases_only:aliases_only\n"
+            + "all_on_aliases:all_on_aliases\n";
     }
 
     @Override
@@ -111,6 +120,10 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
               indices:
                 - names: [ 'alias_*', 'test_*']
                   privileges: [ 'indices:admin/aliases*' ]
+            all_on_aliases:
+              indices:
+                - names: [ 'alias_*']
+                  privileges: [ 'all' ]
             """;
     }
 
@@ -876,6 +889,22 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // But we should get no results if we specify indices options that don't include hidden
         response = aliasesClient.admin().indices().prepareGetAliases("alias*").setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
         assertThat(response.getAliases().get(hiddenIndex), nullValue());
+    }
+
+    public void testRefreshFlushOnAliases() {
+        assertAcked(admin().indices().prepareCreate("test_1").addAlias(new Alias("alias_1")).get());
+        // Loop to ensure requests being handled by each node
+        for (int i = 0; i < 10; i++) {
+            final Client client = client(
+                Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("all_on_aliases", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING))
+            );
+
+            final FlushResponse flushResponse = client.admin().indices().flush(new FlushRequest("alias_1")).actionGet();
+            assertThat(Arrays.toString(flushResponse.getShardFailures()), flushResponse.getFailedShards(), equalTo(0));
+
+            final RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest("alias_1")).actionGet();
+            assertThat(Arrays.toString(refreshResponse.getShardFailures()), refreshResponse.getFailedShards(), equalTo(0));
+        }
     }
 
     private static Client client(final Map<String, String> headers) {

@@ -59,7 +59,7 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
 
     @Override
     protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
-        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId);
+        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId, request);
         replicationRequest.waitForActiveShards(ActiveShardCount.NONE);
         return replicationRequest;
     }

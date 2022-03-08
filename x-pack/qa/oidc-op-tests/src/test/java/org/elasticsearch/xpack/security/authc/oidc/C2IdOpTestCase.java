@@ -53,13 +53,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class C2IdOpTestCase extends ESRestTestCase {
     protected static final String TEST_SUBJECT_ID = "alice";
+
+    // URLs for accessing the C2id OP
     private static final String C2OP_PORT = getEphemeralTcpPortFromProperty("oidc-provider", "8080");
-    private static final String LOGIN_API = "http://127.0.0.1:" + C2OP_PORT + "/c2id-login/api/";
+    private static final String C2ID_LOGIN_API = "http://127.0.0.1:" + C2OP_PORT + "/c2id-login/api/";
+    private static final String C2ID_REGISTRATION_URL = "http://127.0.0.1:" + C2OP_PORT + "/c2id/clients";
+    protected static final String C2ID_AUTH_ENDPOINT = "http://127.0.0.1:" + C2OP_PORT + "/c2id-login";
 
     private static final String ES_PORT = getEphemeralTcpPortFromProperty("elasticsearch-node", "9200");
-    private static final String REGISTRATION_URL = "http://127.0.0.1:"
-        + getEphemeralTcpPortFromProperty("oidc-provider", "8080")
-        + "/c2id/clients";
     // SHA256 of this is defined in x-pack/test/idp-fixture/oidc/override.properties
     private static final String OP_API_BEARER_TOKEN = "811fa888f3e0fdc9e01d4201bfeee46a";
 
@@ -81,13 +82,17 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         return value;
     }
 
+    /**
+     * Register one or more OIDC clients on the C2id server. This should be done once (per client) only.
+     * C2id server only supports dynamic registration, so we can't pre-seed its config with our client data.
+     */
     protected static void registerClients(String... jsonBody) throws IOException {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             final BasicHttpContext context = new BasicHttpContext();
 
             final List<HttpPost> requests = new ArrayList<>(jsonBody.length);
             for (String body : jsonBody) {
-                HttpPost httpPost = new HttpPost(REGISTRATION_URL);
+                HttpPost httpPost = new HttpPost(C2ID_REGISTRATION_URL);
                 httpPost.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
                 httpPost.setHeader("Accept", "application/json");
                 httpPost.setHeader("Content-type", "application/json");
@@ -120,7 +125,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             final BasicHttpContext context = new BasicHttpContext();
             // Initiate the authentication process
-            HttpPost httpPost = new HttpPost(LOGIN_API + "initAuthRequest");
+            HttpPost httpPost = new HttpPost(C2ID_LOGIN_API + "initAuthRequest");
             String initJson = """
                 {"qs":"%s"}
                 """.formatted(opAuthUri.getRawQuery());
@@ -132,7 +137,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             assertThat(initResponse.getAsString("type"), equalTo("auth"));
             final String sid = initResponse.getAsString("sid");
             // Actually authenticate the user with ldapAuth
-            HttpPost loginHttpPost = new HttpPost(LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8));
+            HttpPost loginHttpPost = new HttpPost(C2ID_LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8));
             String loginJson = """
                 {"username":"alice","password":"secret"}""";
             configureJsonRequest(loginHttpPost, loginJson);
@@ -142,7 +147,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             });
             // Get the consent screen
             HttpPut consentFetchHttpPut = new HttpPut(
-                LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
+                C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
             );
             String consentFetchJson = """
                 {
@@ -166,7 +171,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             if (consentFetchResponse.getAsString("type").equals("consent")) {
                 // If needed, submit the consent
                 HttpPut consentHttpPut = new HttpPut(
-                    LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
+                    C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
                 );
                 String consentJson = """
                     {"claims":["name", "email"],"scope":["openid"]}""";
@@ -235,8 +240,12 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
     }
 
     protected Map<String, Object> callAuthenticateApiUsingBearerToken(String accessToken) throws Exception {
+        return callAuthenticateApiUsingBearerToken(accessToken, RequestOptions.DEFAULT);
+    }
+
+    protected Map<String, Object> callAuthenticateApiUsingBearerToken(String accessToken, RequestOptions baseOptions) throws IOException {
         Request request = new Request("GET", "/_security/_authenticate");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
+        RequestOptions.Builder options = baseOptions.toBuilder();
         options.addHeader("Authorization", "Bearer " + accessToken);
         request.setOptions(options);
         try (RestClient restClient = getElasticsearchClient()) {

@@ -15,6 +15,7 @@ import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
 import com.nimbusds.openid.connect.sdk.Nonce;
 import com.nimbusds.openid.connect.sdk.OIDCScopeValue;
 
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -45,19 +46,22 @@ import static org.hamcrest.Matchers.hasKey;
 public class JwtWithOidcAuthIT extends C2IdOpTestCase {
 
     // configured in the Elasticearch node test fixture
-    private static final String C2ID_AUTH_ENDPOINT = "http://oidc-provider:8080/c2id-login";
     private static final List<String> ALLOWED_AUDIENCES = List.of("elasticsearch-jwt1", "elasticsearch-jwt2");
     private static final String JWT_REALM_NAME = "op-jwt";
 
     // Constants for role mapping
     private static final String ROLE_NAME = "jwt_role";
+    private static final String SHARED_SECRET = "jwt-realm-shared-secret";
 
     // Randomised values
     private static String clientId;
     private static String redirectUri;
 
+    /**
+     * Register an OIDC client so we can generate a JWT in C2id (which only supports dynamic configuration).
+     */
     @BeforeClass
-    public static void registerClients() throws IOException {
+    public static void registerClient() throws IOException {
         clientId = randomFrom(ALLOWED_AUDIENCES);
         redirectUri = "https://" + randomAlphaOfLength(4) + ".rp.example.com/" + randomAlphaOfLength(6);
         String clientSecret = randomAlphaOfLength(24);
@@ -121,18 +125,35 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         assertThat("Hash value of URI [" + implicitFlowURI + "] should be a JWT with an id Token", hashParams, hasKey("id_token"));
         String idJwt = hashParams.get("id_token");
 
-        final Map<String, Object> authenticateResponse = super.callAuthenticateApiUsingBearerToken(idJwt);
+        final Map<String, Object> authenticateResponse = authenticateWithJwtAndSharedSecret(idJwt, SHARED_SECRET);
         assertThat(authenticateResponse, Matchers.hasEntry(User.Fields.USERNAME.getPreferredName(), TEST_SUBJECT_ID));
         assertThat(authenticateResponse, Matchers.hasKey(User.Fields.ROLES.getPreferredName()));
         assertThat((List<?>) authenticateResponse.get(User.Fields.ROLES.getPreferredName()), contains(ROLE_NAME));
+
+        // Use an incorrect shared secret and check it fails
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> authenticateWithJwtAndSharedSecret(idJwt, "not-" + SHARED_SECRET)
+        );
+        assertThat(ex.getResponse(), TestMatchers.hasStatusCode(RestStatus.UNAUTHORIZED));
 
         // Modify the JWT payload and check it fails
         final int dot = idJwt.indexOf('.');
         assertThat(dot, greaterThan(0));
         // change the first character of the payload section of the encoded JWT
         final String corruptToken = idJwt.substring(0, dot) + "." + transformChar(idJwt.charAt(dot + 1)) + idJwt.substring(dot + 2);
-        final ResponseException ex = expectThrows(ResponseException.class, () -> super.callAuthenticateApiUsingBearerToken(corruptToken));
+        ex = expectThrows(ResponseException.class, () -> authenticateWithJwtAndSharedSecret(corruptToken, SHARED_SECRET));
         assertThat(ex.getResponse(), TestMatchers.hasStatusCode(RestStatus.UNAUTHORIZED));
+    }
+
+    private Map<String, Object> authenticateWithJwtAndSharedSecret(String idJwt, String sharedSecret) throws IOException {
+        final Map<String, Object> authenticateResponse = super.callAuthenticateApiUsingBearerToken(
+            idJwt,
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader(JwtRealm.HEADER_CLIENT_AUTHENTICATION, JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret)
+                .build()
+        );
+        return authenticateResponse;
     }
 
     private char transformChar(char c) {

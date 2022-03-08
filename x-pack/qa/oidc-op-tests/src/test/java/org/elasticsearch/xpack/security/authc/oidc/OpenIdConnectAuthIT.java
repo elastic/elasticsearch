@@ -54,7 +54,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
     }
 
     /**
-     * C2id server only supports dynamic registration, so we can't pre-seed its config with our client data. Execute only once
+     * Register each of the clients that we want to test (C2id only supports dynamic configuration).
      */
     @BeforeClass
     public static void registerClients() throws Exception {

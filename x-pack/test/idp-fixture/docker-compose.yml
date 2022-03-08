@@ -98,7 +98,7 @@ services:
       - xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path=op-jwks.json
       - xpack.security.authc.realms.jwt.op-jwt.claims.principal=sub
       - xpack.security.authc.realms.jwt.op-jwt.claims.groups=groups
-      - xpack.security.authc.realms.jwt.op-jwt.client_authentication.type=none
+      - xpack.security.authc.realms.jwt.op-jwt.client_authentication.type=shared_secret
     volumes:
       - ./testfixtures_shared/logs/node1:/usr/share/elasticsearch/logs
       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks

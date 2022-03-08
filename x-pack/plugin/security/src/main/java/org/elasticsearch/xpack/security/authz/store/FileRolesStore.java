@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -332,7 +333,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
-        } catch (IOException e) {
+        } catch (IOException | XContentParseException e) {
             if (roleName != null) {
                 final String finalRoleName = roleName;
                 logger.error(

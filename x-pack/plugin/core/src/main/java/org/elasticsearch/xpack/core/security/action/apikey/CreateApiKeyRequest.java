@@ -185,7 +185,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeMap(metadata);
+            out.writeGenericMap(metadata);
         }
     }
 }

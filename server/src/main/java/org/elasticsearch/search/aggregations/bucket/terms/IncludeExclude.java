@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -69,15 +70,20 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             throw new IllegalArgumentException("Cannot specify any excludes when using a partition-based include");
         }
 
-        return new IncludeExclude(include.include, exclude.exclude, include.includeValues, exclude.excludeValues);
+        return new IncludeExclude(
+            include.include == null ? null : include.include.getOriginalString(),
+            exclude.exclude == null ? null : exclude.exclude.getOriginalString(),
+            include.includeValues,
+            exclude.excludeValues
+        );
     }
 
     public static IncludeExclude parseInclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
-            return new IncludeExclude(parser.text(), null);
+            return new IncludeExclude(parser.text(), null, null, null);
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return new IncludeExclude(new TreeSet<>(parseArrayToSet(parser)), null);
+            return new IncludeExclude(null, null, new TreeSet<>(parseArrayToSet(parser)), null);
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             Integer partition = null, numPartitions = null;
@@ -111,9 +117,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     public static IncludeExclude parseExclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
-            return new IncludeExclude(null, parser.text());
+            return new IncludeExclude(null, parser.text(), null, null);
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return new IncludeExclude(null, new TreeSet<>(parseArrayToSet(parser)));
+            return new IncludeExclude(null, null, null, new TreeSet<>(parseArrayToSet(parser)));
         } else {
             throw new IllegalArgumentException("Unrecognized token for an exclude [" + token + "]");
         }
@@ -311,11 +317,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @param include   The regular expression pattern for the terms to be included
      * @param exclude   The regular expression pattern for the terms to be excluded
      */
-    public IncludeExclude(RegExp include, RegExp exclude) {
-        this(include, exclude, null, null);
-    }
-
-    public IncludeExclude(RegExp include, RegExp exclude, SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+    public IncludeExclude(
+        @Nullable String include,
+        @Nullable String exclude,
+        @Nullable SortedSet<BytesRef> includeValues,
+        @Nullable SortedSet<BytesRef> excludeValues
+    ) {
         if (include == null && exclude == null && includeValues == null && excludeValues == null) {
             throw new IllegalArgumentException();
         }
@@ -325,45 +332,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-        this.include = include;
-        this.exclude = exclude;
+        this.include = include == null ? null : new RegExp(include);
+        this.exclude = exclude == null ? null : new RegExp(exclude);
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
         this.incNumPartitions = 0;
-    }
-
-    public IncludeExclude(String include, String exclude, String[] includeValues, String[] excludeValues) {
-        this(
-            include == null ? null : new RegExp(include),
-            exclude == null ? null : new RegExp(exclude),
-            convertToBytesRefSet(includeValues),
-            convertToBytesRefSet(excludeValues)
-        );
-    }
-
-    public IncludeExclude(String include, String exclude) {
-        this(include == null ? null : new RegExp(include), exclude == null ? null : new RegExp(exclude));
-    }
-
-    /**
-     * @param includeValues   The terms to be included
-     * @param excludeValues   The terms to be excluded
-     */
-    public IncludeExclude(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
-        this(null, null, includeValues, excludeValues);
-    }
-
-    public IncludeExclude(String[] includeValues, String[] excludeValues) {
-        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
-    }
-
-    public IncludeExclude(double[] includeValues, double[] excludeValues) {
-        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
-    }
-
-    public IncludeExclude(long[] includeValues, long[] excludeValues) {
-        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
     }
 
     public IncludeExclude(int partition, int numPartitions) {
@@ -450,39 +424,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
         out.writeVInt(incNumPartitions);
         out.writeVInt(incZeroBasedPartition);
-    }
-
-    private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
-        SortedSet<BytesRef> returnSet = null;
-        if (values != null) {
-            returnSet = new TreeSet<>();
-            for (String value : values) {
-                returnSet.add(new BytesRef(value));
-            }
-        }
-        return returnSet;
-    }
-
-    private static SortedSet<BytesRef> convertToBytesRefSet(double[] values) {
-        SortedSet<BytesRef> returnSet = null;
-        if (values != null) {
-            returnSet = new TreeSet<>();
-            for (double value : values) {
-                returnSet.add(new BytesRef(String.valueOf(value)));
-            }
-        }
-        return returnSet;
-    }
-
-    private static SortedSet<BytesRef> convertToBytesRefSet(long[] values) {
-        SortedSet<BytesRef> returnSet = null;
-        if (values != null) {
-            returnSet = new TreeSet<>();
-            for (long value : values) {
-                returnSet.add(new BytesRef(String.valueOf(value)));
-            }
-        }
-        return returnSet;
     }
 
     /**

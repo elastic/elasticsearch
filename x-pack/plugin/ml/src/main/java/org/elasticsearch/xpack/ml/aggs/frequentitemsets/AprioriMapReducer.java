@@ -175,10 +175,12 @@ public class AprioriMapReducer implements MapReducer {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
             for (Entry<String, List<String>> item : items.entrySet()) {
                 // TODO: flatten single lists?
                 builder.field(item.getKey(), item.getValue());
             }
+            builder.endObject();
 
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             builder.field("support", support);

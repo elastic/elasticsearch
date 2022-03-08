@@ -316,7 +316,7 @@ public class SSLConfigurationSettings {
     }
 
     public static Collection<Setting<?>> getProfileSettings() {
-        return settings().stream().map(SslSetting::transportProfile).toList();
+        return settings().stream().map(SslSetting::transportProfile).collect(Collectors.toUnmodifiableList());
     }
 
     public static Collection<Setting.AffixSetting<?>> getRealmSettings(String realmType) {

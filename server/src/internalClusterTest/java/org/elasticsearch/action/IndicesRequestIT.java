@@ -58,6 +58,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -642,8 +643,12 @@ public class IndicesRequestIT extends ESIntegTestCase {
             }
             for (TransportRequest internalRequest : requests) {
                 IndicesRequest indicesRequest = convertRequest(internalRequest);
-                for (String index : indicesRequest.indices()) {
-                    assertThat(indices, hasItem(index));
+                if (indicesRequest instanceof final ReplicationRequest replicationRequest) {
+                    assertThat(indices, hasItem(replicationRequest.shardId().getIndexName()));
+                } else {
+                    for (String index : indicesRequest.indices()) {
+                        assertThat(indices, hasItem(index));
+                    }
                 }
             }
         }

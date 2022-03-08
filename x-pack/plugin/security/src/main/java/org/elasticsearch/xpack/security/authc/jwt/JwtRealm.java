@@ -219,8 +219,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private void verifyAnyAvailableJwkAndAlgPair() {
         assert this.jwksAlgsHmac != null : "HMAC not initialized";
         assert this.jwksAlgsPkc != null : "PKC not initialized";
-        if (((this.jwksAlgsHmac.jwks.isEmpty()) && (this.jwksAlgsPkc.jwks.isEmpty()))
-            || ((this.jwksAlgsHmac.algs.isEmpty()) && (this.jwksAlgsPkc.algs.isEmpty()))) {
+        if (this.jwksAlgsHmac.isEmpty() && this.jwksAlgsPkc.isEmpty()) {
             final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
             throw new SettingsException(msg);
         }

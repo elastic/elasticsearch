@@ -122,7 +122,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         MinMax usersRange,
         MinMax rolesRange,
         MinMax jwtCacheSizeRange,
-        MinMax userCacheSizeRange
+        MinMax userCacheSizeRange,
+        boolean createHttpsServer
     ) throws Exception {
         assertThat(realmsRange.min(), is(greaterThanOrEqualTo(1)));
         assertThat(authzRange.min(), is(greaterThanOrEqualTo(0)));
@@ -146,7 +147,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final int jwtCacheSize = randomIntBetween(jwtCacheSizeRange.min(), jwtCacheSizeRange.max());
             final int usersCacheSize = randomIntBetween(userCacheSizeRange.min(), userCacheSizeRange.max());
 
-            final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount);
+            final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
                 final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, authzCount, jwtCacheSize, usersCacheSize);
@@ -171,7 +172,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final int algsCount,
         final int audiencesCount,
         final int userCount,
-        final int roleCount
+        final int roleCount,
+        final boolean createHttpsServer
     ) throws Exception {
         final String issuer = "iss" + (i + 1) + "_" + randomIntBetween(0, 9999);
 
@@ -203,15 +205,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
 
         // Decide if public PKC JWKSet will be hosted in a local file or an HTTPS URL. If HTTPS URL, tell issuer to set up an HTTPS server.
-        return new JwtIssuer(
-            issuer,
-            audiences,
-            algJwkPairsPkc,
-            algJwkPairsHmac,
-            algJwkPairHmacOidc,
-            users,
-            randomBoolean() // createHttpsServer
-        );
+        return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users, createHttpsServer);
     }
 
     protected JwtRealm createJwtRealm(

@@ -72,7 +72,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyList(), // algJwkPairsHmac
             algJwkPairHmac, // algJwkPairHmac
             Collections.singletonMap("security_test_user", new User("security_test_user", "security_test_role")), // users
-            false
+            false // createHttpsServer
         );
 
         // Create realm settings
@@ -155,7 +155,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyList(), // algJwkPairsHmac
             null, // algJwkPairHmac
             Collections.singletonMap("user1", new User("user1", "role1")), // users
-            false
+            false // createHttpsServer
         );
 
         // Create realm settings (no secure settings)
@@ -236,7 +236,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyList(), // algJwkPairsHmac
             algJwkPairHmac, // algJwkPairHmac
             Collections.singletonMap("user2", new User("user2", "role2")), // users
-            false
+            false // createHttpsServer
         );
 
         // Create realm settings
@@ -330,7 +330,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             hmacKeys, // algJwkPairsHmac
             null, // algJwkPairHmac
             Collections.singletonMap("user3", new User("user3", "role3")), // users
-            false
+            false // createHttpsServer
         );
 
         // Create realm settings

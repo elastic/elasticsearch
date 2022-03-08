@@ -51,10 +51,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
-import java.util.stream.Collectors;
 
 public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
@@ -237,9 +235,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.bigArrays(),
             fieldType,
             analyzer,
-            Arrays.stream(sourceFieldNames)
-                .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
-                .toArray(String[]::new),
+            Arrays.stream(sourceFieldNames).flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream()).toArray(String[]::new),
             context,
             filterDuplicateText
         );

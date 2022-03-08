@@ -608,7 +608,8 @@ public final class Settings implements ToXContentFragment {
                 final List<String> stringList = (List<String>) value;
                 streamOutput.writeGenericList(stringList, StreamOutput::writeGenericString);
             } else {
-                streamOutput.writeGenericValue(value);
+                assert value == null : "unexpected value [" + value + "]";
+                streamOutput.writeGenericNull();
             }
         });
     }

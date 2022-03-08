@@ -758,6 +758,10 @@ public abstract class StreamOutput extends OutputStream {
         writeString(value);
     }
 
+    public void writeGenericNull() throws IOException {
+        writeByte((byte) -1);
+    }
+
     private static Class<?> getGenericType(Object value) {
         if (value instanceof List) {
             return List.class;
@@ -782,7 +786,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeGenericValue(@Nullable Object value) throws IOException {
         if (value == null) {
-            writeByte((byte) -1);
+            writeGenericNull();
             return;
         }
         final Class<?> type = getGenericType(value);

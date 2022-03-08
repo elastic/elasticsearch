@@ -1,0 +1,5 @@
+pr: 81272
+summary: spelling mistake in edge_ngram tokenizer name
+area: Asia/China
+type: enhancement
+issues: []

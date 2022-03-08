@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;

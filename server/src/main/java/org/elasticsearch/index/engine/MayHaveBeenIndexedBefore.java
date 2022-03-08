@@ -29,7 +29,7 @@ public interface MayHaveBeenIndexedBefore {
     long getMaxSeenAutoIdTimestamp();
 
     /**
-     * 
+     *
      */
     boolean canOptimizeAddDocument(Index index);
 

@@ -75,7 +75,7 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
                 + response2.getCheckpoints()
                     .entrySet()
                     .stream()
-                    .map(e -> e.getKey() + ": {" + Strings.arrayToCommaDelimitedString(ArrayUtils.toObject(e.getValue())) + "}")
+                    .map(e -> e.getKey() + ": {" + Strings.arrayToCommaDelimitedString(Arrays.stream(e.getValue()).boxed().toArray()) + "}")
                     .collect(Collectors.joining(",")),
             (docsToCreatePerShard - 1) * shards * indices,
             checkpointSum

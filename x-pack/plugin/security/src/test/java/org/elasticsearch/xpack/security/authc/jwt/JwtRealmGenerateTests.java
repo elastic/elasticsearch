@@ -425,8 +425,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
     private static String printIssuerSettings(final JwtIssuer jwtIssuer) {
         final StringBuilder sb = new StringBuilder("\n===\nIssuer settings\n===\n");
         sb.append("Issuer: ").append(jwtIssuer.issuer).append('\n');
-        sb.append("Audiences: ").append(jwtIssuer.audiences).append('\n');
-        sb.append("Algorithms: ").append(jwtIssuer.algorithmsAll).append("\n");
+        sb.append("Audiences: ").append(String.join(",", jwtIssuer.audiences)).append('\n');
+        sb.append("Algorithms: ").append(String.join(",", jwtIssuer.algorithmsAll)).append("\n");
         if (jwtIssuer.algAndJwksPkc.isEmpty() == false) {
             sb.append("PKC JWKSet (Private): ").append(jwtIssuer.encodedJwkSetPkcPrivate).append("\n");
             sb.append("PKC JWKSet (Public): ").append(jwtIssuer.encodedJwkSetPkcPublic).append("\n");

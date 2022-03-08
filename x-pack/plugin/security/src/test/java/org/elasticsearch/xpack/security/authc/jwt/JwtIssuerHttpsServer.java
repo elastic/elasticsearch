@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 
@@ -35,7 +36,7 @@ import javax.net.ssl.SSLContext;
 public class JwtIssuerHttpsServer implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(JwtIssuerHttpsServer.class);
 
-    private static final String ADDRESS = "localhost"; // localhost, 127.0.0.1, ::1, hostname, FQDN, etc
+    private static final String ADDRESS = InetAddress.getLoopbackAddress().getHostAddress(); // localhost, 127.0.0.1, ::1, hostname, FQDN
     private static final int PORT = 0; // 443, 0 (ephemeral port)
     private static final int BACKLOG = 0; // max queued incoming connections
     private static final int STOP_DELAY_SECONDS = 0; // 0 no limit, >0 limited

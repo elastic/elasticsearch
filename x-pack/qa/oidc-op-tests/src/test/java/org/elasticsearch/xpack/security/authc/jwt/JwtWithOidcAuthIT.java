@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 
 /**
- * Tests that the Elasticsearch "jwt" realm ({@link JwtRealm}) can be used to authenticate using a JWT that is actially an ID Token
+ * Tests that the Elasticsearch "jwt" realm ({@link JwtRealm}) can be used to authenticate using a JWT that is actually an ID Token
  * from a real OIDC Originating Party (OP).
  * This test is intentionally minimal - the bulk of the JWT functionality is tested elsewhere - the purpose of this test is purely to
  * verify successful integration an OIDC OP.

@@ -49,6 +49,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -230,7 +232,7 @@ public class JwtUtil {
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
         try {
             SpecialPermission.check();
-            return java.security.AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
                 final ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
                 final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
                 final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
@@ -269,7 +271,7 @@ public class JwtUtil {
      */
     public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri) {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
-        java.security.AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
                 @Override
                 public void completed(final HttpResponse result) {

@@ -36,6 +36,7 @@ import javax.net.ssl.SSLContext;
 public class JwtIssuerHttpsServer implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(JwtIssuerHttpsServer.class);
 
+    @SuppressForbidden(reason = "This is recommended instead of hardcoded localhost.")
     private static final String ADDRESS = InetAddress.getLoopbackAddress().getHostAddress(); // localhost, 127.0.0.1, ::1, hostname, FQDN
     private static final int PORT = 0; // 443, 0 (ephemeral port)
     private static final int BACKLOG = 0; // max queued incoming connections

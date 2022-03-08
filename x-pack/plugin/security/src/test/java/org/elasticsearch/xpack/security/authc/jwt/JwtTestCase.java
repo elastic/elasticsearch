@@ -591,7 +591,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 return PathUtils.get(url.toURI()).toAbsolutePath().normalize();
             }
         } catch (Exception e) {
-            LOGGER.error("resource not found: " + relativePath, e);
+            throw new IllegalArgumentException("resource not found: " + relativePath, e);
         }
         return null;
     }

@@ -10,8 +10,8 @@ package org.elasticsearch.logging;
 
 import org.elasticsearch.logging.internal.DeprecatedMessage;
 import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.HeaderWarningAppender; // TODO: remove from the API docs.
-import org.elasticsearch.logging.internal.RateLimitingFilter; // TODO: remove from the API docs.
+import org.elasticsearch.logging.internal.HeaderWarningAppender;
+import org.elasticsearch.logging.internal.RateLimitingFilter;
 import org.elasticsearch.logging.internal.ServerSupportImpl;
 
 import java.security.AccessController;
@@ -71,9 +71,8 @@ public final class DeprecationLogger {
      * @param nodeSkipDeprecatedSetting The settings for this node  // TODO: typy this up
      */
     public static void initialize(List<String> nodeSkipDeprecatedSetting) {
-        skipTheseDeprecations = nodeSkipDeprecatedSetting == null
-            ? Collections.emptyList()
-            : nodeSkipDeprecatedSetting; //nodeSettings.getAsList("deprecation.skip_deprecated_settings");
+        skipTheseDeprecations = nodeSkipDeprecatedSetting == null ? Collections.emptyList() : nodeSkipDeprecatedSetting;
+        // nodeSettings.getAsList("deprecation.skip_deprecated_settings");
     }
 
     private DeprecationLogger(String parentLoggerName) {

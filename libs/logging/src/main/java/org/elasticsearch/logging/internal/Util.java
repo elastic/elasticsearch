@@ -12,7 +12,7 @@ public final class Util {
 
     private Util() {}
 
-    //TODO PG  make sure we don't create too many levels..
+    // TODO PG make sure we don't create too many levels..
 
     static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
         return switch (level.getSeverity()) {
@@ -28,17 +28,17 @@ public final class Util {
         };
     }
 
-    //TODO PG  make sure we don't create too many levels..
-    static  org.elasticsearch.logging.Level elasticsearchLevel(final org.apache.logging.log4j.Level level) {
+    // TODO PG make sure we don't create too many levels..
+    static org.elasticsearch.logging.Level elasticsearchLevel(final org.apache.logging.log4j.Level level) {
         return switch (level.getStandardLevel().intLevel()) {
-            case StandardLevels.OFF ->   org.elasticsearch.logging.Level.OFF;
+            case StandardLevels.OFF -> org.elasticsearch.logging.Level.OFF;
             case StandardLevels.FATAL -> org.elasticsearch.logging.Level.FATAL;
             case StandardLevels.ERROR -> org.elasticsearch.logging.Level.ERROR;
-            case StandardLevels.WARN ->  org.elasticsearch.logging.Level.WARN;
-            case StandardLevels.INFO ->  org.elasticsearch.logging.Level.INFO;
+            case StandardLevels.WARN -> org.elasticsearch.logging.Level.WARN;
+            case StandardLevels.INFO -> org.elasticsearch.logging.Level.INFO;
             case StandardLevels.DEBUG -> org.elasticsearch.logging.Level.DEBUG;
             case StandardLevels.TRACE -> org.elasticsearch.logging.Level.TRACE;
-            case StandardLevels.ALL ->   org.elasticsearch.logging.Level.ALL;
+            case StandardLevels.ALL -> org.elasticsearch.logging.Level.ALL;
             default -> org.elasticsearch.logging.Level.of(level.name(), level.getStandardLevel().intLevel());
         };
     }
@@ -48,7 +48,7 @@ public final class Util {
             return log4jLogger;
         }
         if (logger instanceof org.elasticsearch.logging.internal.LoggerImpl) {
-            return ((org.elasticsearch.logging.internal.LoggerImpl)logger).log4jLogger();
+            return ((org.elasticsearch.logging.internal.LoggerImpl) logger).log4jLogger();
         }
         throw new IllegalArgumentException("unknown logger: " + logger);
     }

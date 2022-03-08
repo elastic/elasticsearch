@@ -850,7 +850,10 @@ public abstract class Engine implements Closeable {
                         logger.warn(() -> Message.createParameterizedMessage("Error when retrieving file length for [{}]", fileName), ioe);
                     } catch (AlreadyClosedException ace) {
                         logger.warn(
-                            () -> Message.createParameterizedMessage("Error when retrieving file length for [{}], directory is closed", fileName),
+                            () -> Message.createParameterizedMessage(
+                                "Error when retrieving file length for [{}], directory is closed",
+                                fileName
+                            ),
                             ace
                         );
                         return ImmutableOpenMap.of();
@@ -1108,7 +1111,10 @@ public abstract class Engine implements Closeable {
             try {
                 if (failedEngine.get() != null) {
                     logger.warn(
-                        () -> Message.createParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason),
+                        () -> Message.createParameterizedMessage(
+                            "tried to fail engine but engine is already failed. ignoring. [{}]",
+                            reason
+                        ),
                         failure
                     );
                     return;

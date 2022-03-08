@@ -97,7 +97,10 @@ final class DfsQueryPhase extends SearchPhase {
                         try {
                             context.getLogger()
                                 .debug(
-                                    () -> Message.createParameterizedMessage("[{}] Failed to execute query phase", querySearchRequest.contextId()),
+                                    () -> Message.createParameterizedMessage(
+                                        "[{}] Failed to execute query phase",
+                                        querySearchRequest.contextId()
+                                    ),
                                     exception
                                 );
                             progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);

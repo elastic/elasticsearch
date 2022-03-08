@@ -194,7 +194,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> Message.createParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()),
+                    e
+                );
             }
         });
     }
@@ -421,7 +424,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         try {
             shard.flushOnIdle(inactiveTimeNS);
         } catch (AlreadyClosedException e) {
-            logger.trace(() -> Message.createParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
+            logger.trace(
+                () -> Message.createParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()),
+                e
+            );
         }
     }
 }

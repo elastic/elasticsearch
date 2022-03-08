@@ -31,7 +31,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     @Override
     public void log(Level level, Object message, Object... params) {
-//        log4jLogger.log(log4jLevel(level), message, params);
+        // log4jLogger.log(log4jLevel(level), message, params);
     }
 
     @Override
@@ -41,7 +41,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     @Override
     public void log(Level level, Message message, Throwable thrown) {
-        log4jLogger.log(log4jLevel(level),  (org.apache.logging.log4j.message.Message) message, thrown);
+        log4jLogger.log(log4jLevel(level), (org.apache.logging.log4j.message.Message) message, thrown);
     }
 
     @Override
@@ -56,7 +56,6 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     public String getName() {
         return log4jLogger.getName();
     }
-
 
     @Override
     public boolean isLoggable(Level level) {
@@ -89,11 +88,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void debug(Message message) {
-        log4jLogger.debug((org.apache.logging.log4j.message.Message)message);
+        log4jLogger.debug((org.apache.logging.log4j.message.Message) message);
     }
 
     public void debug(Message message, Throwable thrown) {
-        log4jLogger.debug( (org.apache.logging.log4j.message.Message) message, thrown);
+        log4jLogger.debug((org.apache.logging.log4j.message.Message) message, thrown);
     }
 
     public void debug(Supplier<?> msgSupplier, Throwable thrown) {
@@ -141,11 +140,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void error(Message message) {
-        log4jLogger.error( (org.apache.logging.log4j.message.Message) message);
+        log4jLogger.error((org.apache.logging.log4j.message.Message) message);
     }
 
     public void error(Message message, Throwable thrown) {
-        log4jLogger.error( (org.apache.logging.log4j.message.Message) message, thrown);
+        log4jLogger.error((org.apache.logging.log4j.message.Message) message, thrown);
     }
 
     public void error(Supplier<?> msgSupplier) {
@@ -189,11 +188,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void info(Message message) {
-        log4jLogger.info( (org.apache.logging.log4j.message.Message) message);
+        log4jLogger.info((org.apache.logging.log4j.message.Message) message);
     }
 
     public void info(Message message, Throwable thrown) {
-        log4jLogger.info( (org.apache.logging.log4j.message.Message) message, thrown);
+        log4jLogger.info((org.apache.logging.log4j.message.Message) message, thrown);
     }
 
     public void info(Supplier<?> msgSupplier) {
@@ -237,11 +236,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void trace(Message message) {
-        log4jLogger.trace( (org.apache.logging.log4j.message.Message) message);
+        log4jLogger.trace((org.apache.logging.log4j.message.Message) message);
     }
 
     public void trace(Message message, Throwable thrown) {
-        log4jLogger.trace( (org.apache.logging.log4j.message.Message) message, thrown);
+        log4jLogger.trace((org.apache.logging.log4j.message.Message) message, thrown);
     }
 
     public void trace(Supplier<?> msgSupplier) {
@@ -285,11 +284,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void warn(Message message) {
-        log4jLogger.warn( (org.apache.logging.log4j.message.Message) message);
+        log4jLogger.warn((org.apache.logging.log4j.message.Message) message);
     }
 
     public void warn(Message message, Throwable thrown) {
-        log4jLogger.warn( (org.apache.logging.log4j.message.Message) message, thrown);
+        log4jLogger.warn((org.apache.logging.log4j.message.Message) message, thrown);
     }
 
     public void warn(Supplier<?> msgSupplier) {
@@ -335,7 +334,5 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     public void fatal(String message, Throwable thrown) {
         log4jLogger.fatal(message, thrown);
     }
-
-
 
 }

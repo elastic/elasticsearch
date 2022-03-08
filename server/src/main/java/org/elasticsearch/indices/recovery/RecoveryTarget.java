@@ -575,7 +575,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.debug(Message.createParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e);
+            logger.debug(
+                Message.createParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository),
+                e
+            );
             listener.onFailure(e);
         }
     }

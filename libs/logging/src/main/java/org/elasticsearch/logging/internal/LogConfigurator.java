@@ -59,8 +59,7 @@ import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
-    public LogConfigurator() {
-    }
+    public LogConfigurator() {}
 
     /*
      * We want to detect situations where we touch logging before the configuration is loaded. If we do this, Log4j will status log an error

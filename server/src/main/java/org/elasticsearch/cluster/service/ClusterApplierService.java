@@ -440,25 +440,25 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
-                                executionTime,
-                                newClusterState.version(),
-                                newClusterState.stateUUID(),
-                                source,
-                                newClusterState
-                            ),
+                        Message.createParameterizedMessage(
+                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
+                            executionTime,
+                            newClusterState.version(),
+                            newClusterState.stateUUID(),
+                            source,
+                            newClusterState
+                        ),
                         e
                     );
                 } else {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
-                                executionTime,
-                                newClusterState.version(),
-                                newClusterState.stateUUID(),
-                                source
-                            ),
+                        Message.createParameterizedMessage(
+                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
+                            executionTime,
+                            newClusterState.version(),
+                            newClusterState.stateUUID(),
+                            source
+                        ),
                         e
                     );
                 }
@@ -591,7 +591,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 assert false : inner;
-                logger.error(Message.createParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error(
+                    Message.createParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source),
+                    inner
+                );
             }
         }
 
@@ -602,7 +605,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception e) {
                 assert false : e;
                 logger.error(
-                        Message.createParameterizedMessage("exception thrown by listener while notifying of cluster state processed from [{}]", source),
+                    Message.createParameterizedMessage(
+                        "exception thrown by listener while notifying of cluster state processed from [{}]",
+                        source
+                    ),
                     e
                 );
             }

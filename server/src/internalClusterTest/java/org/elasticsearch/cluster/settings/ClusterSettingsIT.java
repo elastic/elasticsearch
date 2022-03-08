@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -22,6 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,7 +106,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
-                    logger.error(() -> Message.createParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
+                    logger.error(
+                        () -> Message.createParameterizedMessage("failed to random change state. last good state: \n{}", finalState),
+                        error
+                    );
                     throw error;
                 }
             }
@@ -121,12 +124,12 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     indicesClusterStateService.applyClusterState(event);
                 } catch (AssertionError error) {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
-                                node,
-                                event.previousState(),
-                                event.state()
-                            ),
+                        Message.createParameterizedMessage(
+                            "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
+                            node,
+                            event.previousState(),
+                            event.state()
+                        ),
                         error
                     );
                     throw error;

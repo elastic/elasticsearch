@@ -449,7 +449,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(Message.createParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                    logger.debug(
+                        Message.createParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()),
+                        e
+                    );
                 }
                 onPhaseFailure("start", e);
             }

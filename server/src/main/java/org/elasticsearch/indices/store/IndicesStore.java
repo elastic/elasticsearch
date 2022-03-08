@@ -306,7 +306,10 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                     try {
                         indicesService.deleteShardStore("no longer used", shardId, currentState);
                     } catch (Exception ex) {
-                        logger.debug(() -> Message.createParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
+                        logger.debug(
+                            () -> Message.createParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId),
+                            ex
+                        );
                     }
                 }, new ActionListener<>() {
                     @Override

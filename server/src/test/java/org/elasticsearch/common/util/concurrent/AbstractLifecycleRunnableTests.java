@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.InOrder;
 

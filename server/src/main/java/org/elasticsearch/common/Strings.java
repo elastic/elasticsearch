@@ -976,7 +976,7 @@ public class Strings {
         return out.toString();
     }
 
-    //TODO PG methods from import org.apache.logging.log4j.util.Strings
+    // TODO PG methods from import org.apache.logging.log4j.util.Strings
     public static boolean isBlank(String s) {
         if (s == null || s.isEmpty()) {
             return true;
@@ -987,7 +987,8 @@ public class Strings {
                 return false;
             }
         }
-        return true;    }
+        return true;
+    }
 
     public static String join(List<String> fields, char c) {
         return fields.stream().collect(Collectors.joining(String.valueOf(c)));

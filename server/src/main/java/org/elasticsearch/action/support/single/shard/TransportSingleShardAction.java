@@ -197,7 +197,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (e != null) {
-                logger.trace(() -> Message.createParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
+                logger.trace(
+                    () -> Message.createParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()),
+                    e
+                );
             }
             perform(e);
         }
@@ -218,7 +221,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         failure
                     );
                 } else {
-                    logger.debug(() -> Message.createParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()), failure);
+                    logger.debug(
+                        () -> Message.createParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()),
+                        failure
+                    );
                 }
                 listener.onFailure(failure);
                 return;

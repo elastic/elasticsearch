@@ -304,11 +304,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
             } catch (IOException | TranslogCorruptedException e) {
                 logger.warn(
-                        Message.createParameterizedMessage(
-                            "error while reading global checkpoint from translog, "
-                                + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
-                            startingSeqNo
-                        ),
+                    Message.createParameterizedMessage(
+                        "error while reading global checkpoint from translog, "
+                            + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
+                        startingSeqNo
+                    ),
                     e
                 );
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
@@ -322,11 +322,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         } catch (final IOException e) {
             if (startingSeqNo != UNASSIGNED_SEQ_NO) {
                 logger.warn(
-                        Message.createParameterizedMessage(
-                            "error while listing local files, resetting the starting sequence number from {} "
-                                + "to unassigned and recovering as if there are none",
-                            startingSeqNo
-                        ),
+                    Message.createParameterizedMessage(
+                        "error while listing local files, resetting the starting sequence number from {} "
+                            + "to unassigned and recovering as if there are none",
+                        startingSeqNo
+                    ),
                     e
                 );
                 startingSeqNo = UNASSIGNED_SEQ_NO;
@@ -657,7 +657,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void onFailure(Exception e) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error(() -> Message.createParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    logger.error(
+                        () -> Message.createParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId),
+                        e
+                    );
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
@@ -665,7 +668,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                 } else {
                     logger.debug(
-                        () -> Message.createParameterizedMessage("unexpected error during recovery, but recovery id [{}] is finished", recoveryId),
+                        () -> Message.createParameterizedMessage(
+                            "unexpected error during recovery, but recovery id [{}] is finished",
+                            recoveryId
+                        ),
                         e
                     );
                 }

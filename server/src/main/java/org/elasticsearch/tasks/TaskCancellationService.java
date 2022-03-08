@@ -170,20 +170,20 @@ public class TaskCancellationService {
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
-                                    Message.createParameterizedMessage(
-                                        "cannot send ban for tasks with the parent [{}] on connection [{}]",
-                                        taskId,
-                                        connection
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "cannot send ban for tasks with the parent [{}] on connection [{}]",
+                                    taskId,
+                                    connection
+                                ),
                                 exp
                             );
                         } else if (logger.isDebugEnabled()) {
                             logger.warn(
-                                    Message.createParameterizedMessage(
-                                        "cannot send ban for tasks with the parent [{}] on connection [{}]",
-                                        taskId,
-                                        connection
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "cannot send ban for tasks with the parent [{}] on connection [{}]",
+                                    taskId,
+                                    connection
+                                ),
                                 exp
                             );
                         } else {
@@ -219,20 +219,20 @@ public class TaskCancellationService {
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
-                                    Message.createParameterizedMessage(
-                                        "failed to remove ban for tasks with the parent [{}] on connection [{}]",
-                                        request.parentTaskId,
-                                        connection
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "failed to remove ban for tasks with the parent [{}] on connection [{}]",
+                                    request.parentTaskId,
+                                    connection
+                                ),
                                 exp
                             );
                         } else if (logger.isDebugEnabled()) {
                             logger.warn(
-                                    Message.createParameterizedMessage(
-                                        "failed to remove ban for tasks with the parent [{}] on connection [{}]",
-                                        request.parentTaskId,
-                                        connection
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "failed to remove ban for tasks with the parent [{}] on connection [{}]",
+                                    request.parentTaskId,
+                                    connection
+                                ),
                                 exp
                             );
                         } else {

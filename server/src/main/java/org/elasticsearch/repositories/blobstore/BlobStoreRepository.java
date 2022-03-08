@@ -997,7 +997,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteFromContainer(blobContainer(), filesToDelete);
                 l.onResponse(null);
             } catch (Exception e) {
-                logger.warn(() -> Message.createParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds),
+                    e
+                );
                 throw e;
             }
         }));
@@ -1772,10 +1775,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repoDataInitialized.addListener(listener);
                 final Consumer<Exception> onFailure = e -> {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "[{}] Exception when initializing repository generation in cluster state",
-                                metadata.name()
-                            ),
+                        Message.createParameterizedMessage(
+                            "[{}] Exception when initializing repository generation in cluster state",
+                            metadata.name()
+                        ),
                         e
                     );
                     final ActionListener<RepositoryData> existingListener;
@@ -2376,7 +2379,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     .iterator()
                             );
                         } catch (IOException e) {
-                            logger.warn(() -> Message.createParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen), e);
+                            logger.warn(
+                                () -> Message.createParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen),
+                                e
+                            );
                         }
                         return newRepositoryData;
                     }));
@@ -2621,7 +2627,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         CheckedConsumer<OutputStream, IOException> writer,
         boolean failIfAlreadyExists
     ) throws IOException {
-        logger.trace(() -> Message.createParameterizedMessage("[{}] Writing [{}] to {} atomically", metadata.name(), blobName, container.path()));
+        logger.trace(
+            () -> Message.createParameterizedMessage("[{}] Writing [{}] to {} atomically", metadata.name(), blobName, container.path())
+        );
         container.writeBlob(blobName, failIfAlreadyExists, true, writer);
     }
 
@@ -3319,7 +3327,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) throws IOException {
         assert indexGeneration >= 0 : "Shard generation must not be negative but saw [" + indexGeneration + "]";
         logger.trace(
-            () -> Message.createParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(), indexGeneration, shardContainer.path())
+            () -> Message.createParameterizedMessage(
+                "[{}] Writing shard index [{}] to [{}]",
+                metadata.name(),
+                indexGeneration,
+                shardContainer.path()
+            )
         );
         final String blobName = INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(String.valueOf(indexGeneration));
         writeAtomic(

@@ -478,10 +478,10 @@ public abstract class TransportReplicationAction<
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
-                                            Message.createParameterizedMessage(
-                                                "{} failed to execute post-operation global checkpoint sync",
-                                                primaryShardReference.indexShard.shardId()
-                                            ),
+                                        Message.createParameterizedMessage(
+                                            "{} failed to execute post-operation global checkpoint sync",
+                                            primaryShardReference.indexShard.shardId()
+                                        ),
                                         e
                                     );
                                 }
@@ -1036,7 +1036,10 @@ public abstract class TransportReplicationAction<
         void finishAsFailed(Exception failure) {
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");
-                logger.trace(() -> Message.createParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request), failure);
+                logger.trace(
+                    () -> Message.createParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request),
+                    failure
+                );
                 listener.onFailure(failure);
             } else {
                 assert false : new AssertionError("finishAsFailed called but operation is already finished", failure);

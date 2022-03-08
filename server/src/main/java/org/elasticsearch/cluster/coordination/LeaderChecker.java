@@ -286,15 +286,15 @@ public class LeaderChecker {
                         long failureCount = rejectedCountSinceLastSuccess + timeoutCountSinceLastSuccess;
                         if (failureCount >= leaderCheckRetryCount) {
                             logger.debug(
-                                    Message.createParameterizedMessage(
-                                        "leader [{}] failed {} consecutive checks (rejected [{}], timed out [{}], limit [{}] is {})",
-                                        leader,
-                                        failureCount,
-                                        rejectedCountSinceLastSuccess,
-                                        timeoutCountSinceLastSuccess,
-                                        LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
-                                        leaderCheckRetryCount
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "leader [{}] failed {} consecutive checks (rejected [{}], timed out [{}], limit [{}] is {})",
+                                    leader,
+                                    failureCount,
+                                    rejectedCountSinceLastSuccess,
+                                    timeoutCountSinceLastSuccess,
+                                    LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
+                                    leaderCheckRetryCount
+                                ),
                                 exp
                             );
                             leaderFailed(
@@ -314,13 +314,13 @@ public class LeaderChecker {
                         }
 
                         logger.debug(
-                                Message.createParameterizedMessage(
-                                    "{} consecutive failures (limit [{}] is {}) with leader [{}]",
-                                    failureCount,
-                                    LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
-                                    leaderCheckRetryCount,
-                                    leader
-                                ),
+                            Message.createParameterizedMessage(
+                                "{} consecutive failures (limit [{}] is {}) with leader [{}]",
+                                failureCount,
+                                LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
+                                leaderCheckRetryCount,
+                                leader
+                            ),
                             exp
                         );
                         scheduleNextWakeUp();

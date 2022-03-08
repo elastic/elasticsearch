@@ -290,7 +290,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             logger.debug(() -> Message.createParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
                         } else {
                             failure = summarizeFailure(e);
-                            logger.warn(() -> Message.createParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                            logger.warn(
+                                () -> Message.createParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot),
+                                e
+                            );
                         }
                         snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
                         notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
@@ -490,7 +493,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn(
-                        () -> Message.createParameterizedMessage("[{}][{}] failed to update snapshot state to [{}]", shardId, snapshot, status),
+                        () -> Message.createParameterizedMessage(
+                            "[{}][{}] failed to update snapshot state to [{}]",
+                            shardId,
+                            snapshot,
+                            status
+                        ),
                         e
                     );
                 }

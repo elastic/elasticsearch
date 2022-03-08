@@ -56,8 +56,11 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
      * @param clusterService The cluster service to which this task should be submitted.
      */
     public void submit(ClusterService clusterService) {
-        String source = Message.createParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
-                .getFormattedMessage();
+        String source = Message.createParameterizedMessage(
+            "record [{}] migration [{}]",
+            featureName,
+            status.succeeded() ? "success" : "failure"
+        ).getFormattedMessage();
         clusterService.submitStateUpdateTask(source, this, newExecutor());
     }
 
@@ -87,7 +90,10 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(Exception clusterStateUpdateException) {
         if (status.succeeded()) {
             logger.warn(
-                    Message.createParameterizedMessage("failed to update cluster state after successful migration of feature [{}]", featureName),
+                Message.createParameterizedMessage(
+                    "failed to update cluster state after successful migration of feature [{}]",
+                    featureName
+                ),
                 clusterStateUpdateException
             );
         } else {

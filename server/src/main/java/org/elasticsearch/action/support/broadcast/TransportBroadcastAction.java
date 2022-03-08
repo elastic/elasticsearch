@@ -217,11 +217,11 @@ public abstract class TransportBroadcastAction<
                     if (logger.isTraceEnabled()) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.trace(
-                                    Message.createParameterizedMessage(
-                                        "{}: failed to execute [{}]",
-                                        shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                        request
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "{}: failed to execute [{}]",
+                                    shard != null ? shard.shortSummary() : shardIt.shardId(),
+                                    request
+                                ),
                                 e
                             );
                         }
@@ -233,11 +233,11 @@ public abstract class TransportBroadcastAction<
                     if (e != null) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.debug(
-                                    Message.createParameterizedMessage(
-                                        "{}: failed to execute [{}]",
-                                        shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                        request
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "{}: failed to execute [{}]",
+                                    shard != null ? shard.shortSummary() : shardIt.shardId(),
+                                    request
+                                ),
                                 e
                             );
                         }

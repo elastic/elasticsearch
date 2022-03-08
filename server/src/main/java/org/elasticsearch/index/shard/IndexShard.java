@@ -1056,15 +1056,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                        Message.createParameterizedMessage(
-                            "index-fail [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                            index.id(),
-                            index.seqNo(),
-                            routingEntry().allocationId(),
-                            index.primaryTerm(),
-                            getOperationPrimaryTerm(),
-                            index.origin()
-                        ),
+                    Message.createParameterizedMessage(
+                        "index-fail [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
+                        index.id(),
+                        index.seqNo(),
+                        routingEntry().allocationId(),
+                        index.primaryTerm(),
+                        getOperationPrimaryTerm(),
+                        index.origin()
+                    ),
                     e
                 );
             }
@@ -1727,7 +1727,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         } catch (Exception e) {
-            logger.debug(Message.createParameterizedMessage("failed to recover shard locally up to global checkpoint {}", globalCheckpoint), e);
+            logger.debug(
+                Message.createParameterizedMessage("failed to recover shard locally up to global checkpoint {}", globalCheckpoint),
+                e
+            );
             return UNASSIGNED_SEQ_NO;
         }
         try {
@@ -1737,10 +1740,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return newSafeCommit.get().localCheckpoint + 1;
         } catch (Exception e) {
             logger.debug(
-                    Message.createParameterizedMessage(
-                        "failed to find the safe commit after recovering shard locally up to global checkpoint {}",
-                        globalCheckpoint
-                    ),
+                Message.createParameterizedMessage(
+                    "failed to find the safe commit after recovering shard locally up to global checkpoint {}",
+                    globalCheckpoint
+                ),
                 e
             );
             return UNASSIGNED_SEQ_NO;
@@ -2926,7 +2929,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
                     }
                     checkedFiles.clear();
-                    logger.warn(Message.createParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()), ioException);
+                    logger.warn(
+                        Message.createParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()),
+                        ioException
+                    );
                     corrupt = ioException;
                 }
             }

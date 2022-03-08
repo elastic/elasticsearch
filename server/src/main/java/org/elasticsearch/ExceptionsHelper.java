@@ -187,7 +187,7 @@ public final class ExceptionsHelper {
         return null;
     }
 
-//TODO PG - moved from org.apache.logging.log4j.core.util.Throwables
+    // TODO PG - moved from org.apache.logging.log4j.core.util.Throwables
     public static Throwable getRootCause(final Throwable throwable) {
 
         // Keep a second pointer that slowly walks the causal chain. If the fast

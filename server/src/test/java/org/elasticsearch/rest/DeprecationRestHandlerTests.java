@@ -9,10 +9,10 @@ package org.elasticsearch.rest;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
-import org.elasticsearch.logging.Level;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.InOrder;

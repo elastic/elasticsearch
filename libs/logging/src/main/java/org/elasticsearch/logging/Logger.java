@@ -8,19 +8,15 @@
 
 package org.elasticsearch.logging;
 
-import java.io.IOException;
-import java.util.Objects;
-
 public interface Logger {
 
     void log(Level level, Object message, Object... params);
 
-     void log(Level level, Object message);
+    void log(Level level, Object message);
 
-     void log(Level level, Message message, Throwable thrown);
+    void log(Level level, Message message, Throwable thrown);
 
-     void log(Level level, java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
+    void log(Level level, java.util.function.Supplier<?> msgSupplier, Throwable thrown);
 
     Level getLevel();
 
@@ -169,7 +165,6 @@ public interface Logger {
     void fatal(String message, Throwable thrown);
 
     boolean isLoggable(Level level);
-
 
     // TODO:
 }

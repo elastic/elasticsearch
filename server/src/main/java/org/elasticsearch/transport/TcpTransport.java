@@ -703,10 +703,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     logger.log(
                         closeConnectionExceptionLevel,
-                            Message.createParameterizedMessage(
-                                "close connection exception caught on transport layer [{}], disconnecting from relevant node",
-                                channel
-                            ),
+                        Message.createParameterizedMessage(
+                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                            channel
+                        ),
                         e
                     );
                 }
@@ -737,7 +737,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             } else if (e instanceof TransportNotReadyException) {
                 logger.debug(() -> Message.createParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
             } else {
-                logger.warn(() -> Message.createParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("exception caught on transport layer [{}], closing connection", channel),
+                    e
+                );
             }
         } finally {
             if (closeChannel) {
@@ -748,7 +751,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
-            logger.debug(() -> Message.createParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+            logger.debug(
+                () -> Message.createParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel),
+                e
+            );
         } else {
             logger.error(Message.createParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
         }

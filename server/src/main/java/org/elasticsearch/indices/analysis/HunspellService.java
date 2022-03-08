@@ -139,7 +139,10 @@ public class HunspellService {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
                                     logger.error(
-                                        () -> Message.createParameterizedMessage("exception while loading dictionary {}", file.getFileName()),
+                                        () -> Message.createParameterizedMessage(
+                                            "exception while loading dictionary {}",
+                                            file.getFileName()
+                                        ),
                                         e
                                     );
                                 }

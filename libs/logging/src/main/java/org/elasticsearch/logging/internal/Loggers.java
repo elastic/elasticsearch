@@ -26,8 +26,7 @@ import java.util.stream.Stream;
  * A set of utilities around Logging.
  */
 public class Loggers {
-    public Loggers() {
-    }
+    public Loggers() {}
 
     private static final String SPACE = " ";
 
@@ -57,11 +56,11 @@ public class Loggers {
     }
 
     public static org.elasticsearch.logging.Logger getLogger(org.elasticsearch.logging.Logger parentLogger, String s) {
-        org.elasticsearch.logging.Logger inner =  org.elasticsearch.logging.LogManager.getLogger(parentLogger.getName() + s);
+        org.elasticsearch.logging.Logger inner = org.elasticsearch.logging.LogManager.getLogger(parentLogger.getName() + s);
         if (parentLogger instanceof PrefixLogger) {
             return new LoggerImpl(new PrefixLogger(Util.log4jLogger(inner), ((PrefixLogger) parentLogger).prefix()));
         }
-        return  inner;
+        return inner;
     }
 
     public static org.elasticsearch.logging.Logger getLoggerImpl(Logger parentLogger, String s) {
@@ -141,11 +140,11 @@ public class Loggers {
             }
         }
     }
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender  appender) {
-    }
 
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {
-    }
+    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender appender) {}
+
+    public static void addAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {}
+
     public static void addAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();

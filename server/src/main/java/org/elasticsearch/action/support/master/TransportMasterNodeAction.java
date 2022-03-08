@@ -242,11 +242,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         retryOnMasterChange(clusterState, cause);
                                     } else {
                                         logger.trace(
-                                                Message.createParameterizedMessage(
-                                                    "failure when forwarding request [{}] to master [{}]",
-                                                    actionName,
-                                                    masterNode
-                                                ),
+                                            Message.createParameterizedMessage(
+                                                "failure when forwarding request [{}] to master [{}]",
+                                                actionName,
+                                                masterNode
+                                            ),
                                             exp
                                         );
                                         listener.onFailure(exp);
@@ -270,7 +270,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             if (observer == null) {
                 final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
                 if (remainingTimeoutMS <= 0) {
-                    logger.debug(() -> Message.createParameterizedMessage("timed out before retrying [{}] after failure", actionName), failure);
+                    logger.debug(
+                        () -> Message.createParameterizedMessage("timed out before retrying [{}] after failure", actionName),
+                        failure
+                    );
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                     return;
                 }
@@ -297,7 +300,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.debug(
-                        () -> Message.createParameterizedMessage("timed out while retrying [{}] after failure (timeout [{}])", actionName, timeout),
+                        () -> Message.createParameterizedMessage(
+                            "timed out while retrying [{}] after failure (timeout [{}])",
+                            actionName,
+                            timeout
+                        ),
                         failure
                     );
                     listener.onFailure(new MasterNotDiscoveredException(failure));

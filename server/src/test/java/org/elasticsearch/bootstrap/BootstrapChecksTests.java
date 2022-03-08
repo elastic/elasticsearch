@@ -8,7 +8,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.logging.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;

@@ -7,27 +7,23 @@
  */
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.Level;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
-
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender /*extends AbstractAppender */{
+public class MockLogAppender /*extends AbstractAppender */ {
 
     private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     private List<LoggingExpectation> expectations;
 
     public MockLogAppender() throws IllegalAccessException {
-//        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
+        // super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -41,11 +37,13 @@ public class MockLogAppender /*extends AbstractAppender */{
     }
 
     public void start() {
-//        super.start();
+        // super.start();
     }
+
     public void stop() {
-//        super.stop();
+        // super.stop();
     }
+
     public void append(LogEvent event) {
         for (LoggingExpectation expectation : expectations) {
             expectation.match(event);
@@ -82,15 +80,15 @@ public class MockLogAppender /*extends AbstractAppender */{
         @Override
         public void match(LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
-//                if (Regex.isSimpleMatchPattern(message)) {
-//                    if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
-//                        saw = true;
-//                    }
-//                } else {
-//                    if (event.getMessage().getFormattedMessage().contains(message)) {
-//                        saw = true;
-//                    }
-//                }
+                // if (Regex.isSimpleMatchPattern(message)) {
+                // if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
+                // saw = true;
+                // }
+                // } else {
+                // if (event.getMessage().getFormattedMessage().contains(message)) {
+                // saw = true;
+                // }
+                // }
             }
         }
 
@@ -108,7 +106,7 @@ public class MockLogAppender /*extends AbstractAppender */{
 
         @Override
         public void assertMatched() {
-//            MatcherAssert.assertThat("expected not to see " + name + " but did", saw, CoreMatchers.equalTo(false));
+            // MatcherAssert.assertThat("expected not to see " + name + " but did", saw, CoreMatchers.equalTo(false));
         }
     }
 
@@ -120,7 +118,7 @@ public class MockLogAppender /*extends AbstractAppender */{
 
         @Override
         public void assertMatched() {
-//            MatcherAssert.assertThat("expected to see " + name + " but did not", saw, CoreMatchers.equalTo(true));
+            // MatcherAssert.assertThat("expected to see " + name + " but did not", saw, CoreMatchers.equalTo(true));
         }
     }
 
@@ -141,7 +139,7 @@ public class MockLogAppender /*extends AbstractAppender */{
             if (expectSeen) {
                 super.assertMatched();
             } else {
-//                MatcherAssert.assertThat("expected not to see " + name + " yet but did", saw, CoreMatchers.equalTo(false));
+                // MatcherAssert.assertThat("expected not to see " + name + " yet but did", saw, CoreMatchers.equalTo(false));
             }
         }
     }
@@ -199,7 +197,7 @@ public class MockLogAppender /*extends AbstractAppender */{
 
         @Override
         public void assertMatched() {
-//            MatcherAssert.assertThat(name, saw, CoreMatchers.equalTo(true));
+            // MatcherAssert.assertThat(name, saw, CoreMatchers.equalTo(true));
         }
 
     }

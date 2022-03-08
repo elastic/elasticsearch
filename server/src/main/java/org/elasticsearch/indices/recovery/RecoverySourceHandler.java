@@ -828,10 +828,10 @@ public class RecoverySourceHandler {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(
-                                Message.createParameterizedMessage(
-                                    "failed to recover file [{}] from snapshot, " + "will recover from primary instead",
-                                    snapshotFileToRecover.metadata()
-                                ),
+                            Message.createParameterizedMessage(
+                                "failed to recover file [{}] from snapshot, " + "will recover from primary instead",
+                                snapshotFileToRecover.metadata()
+                            ),
                             e
                         );
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode()) {

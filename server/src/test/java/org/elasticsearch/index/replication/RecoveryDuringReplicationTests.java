@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.replication;
 
-import org.elasticsearch.logging.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -46,6 +45,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;

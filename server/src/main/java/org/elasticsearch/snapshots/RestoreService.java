@@ -264,7 +264,10 @@ public class RestoreService implements ClusterStateApplier {
             }, listener::onFailure), listener::onFailure);
         } catch (Exception e) {
             logger.warn(
-                () -> Message.createParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
+                () -> Message.createParameterizedMessage(
+                    "[{}] failed to restore snapshot",
+                    request.repository() + ":" + request.snapshot()
+                ),
                 e
             );
             listener.onFailure(e);

@@ -424,7 +424,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> Message.createParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName),
+                    e
+                );
                 listener.onFailure(e);
             }
 
@@ -1666,7 +1669,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
-            logger.debug(() -> Message.createParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
+            logger.debug(
+                () -> Message.createParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot),
+                e
+            );
             failSnapshotCompletionListeners(
                 snapshot,
                 new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
@@ -3564,7 +3570,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void onFailure(Exception e) {
             logger.info(
-                () -> Message.createParameterizedMessage("Failed to remove all snapshot tasks for repo [{}] from cluster state", repository),
+                () -> Message.createParameterizedMessage(
+                    "Failed to remove all snapshot tasks for repo [{}] from cluster state",
+                    repository
+                ),
                 e
             );
             failAllListenersOnMasterFailOver(e);

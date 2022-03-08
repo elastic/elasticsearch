@@ -17,14 +17,14 @@ import java.util.concurrent.ConcurrentMap;
 
 public final class Level {
 
-    public static final Level OFF   = new Level("OFF"  , StandardLevels.OFF);
+    public static final Level OFF = new Level("OFF", StandardLevels.OFF);
     public static final Level FATAL = new Level("FATAL", StandardLevels.FATAL);
     public static final Level ERROR = new Level("ERROR", StandardLevels.ERROR);
-    public static final Level WARN  = new Level("WARN" , StandardLevels.WARN);
-    public static final Level INFO  = new Level("INFO" , StandardLevels.INFO);
+    public static final Level WARN = new Level("WARN", StandardLevels.WARN);
+    public static final Level INFO = new Level("INFO", StandardLevels.INFO);
     public static final Level DEBUG = new Level("DEBUG", StandardLevels.DEBUG);
     public static final Level TRACE = new Level("TRACE", StandardLevels.TRACE);
-    public static final Level ALL   = new Level("ALL"  , StandardLevels.ALL);
+    public static final Level ALL = new Level("ALL", StandardLevels.ALL);
 
     private static final ConcurrentMap<String, Level> LEVELS = new ConcurrentHashMap<>();
 
@@ -42,11 +42,11 @@ public final class Level {
 
     private final int severity;
 
-    //TODO PG  make sure we don't create too many levels..
+    // TODO PG make sure we don't create too many levels..
     /*package*/ public static Level of(String name, int severity) {
         var level = new Level(name, severity);
         if (LEVELS.putIfAbsent(name, level) != null) {
-//            throw new IllegalStateException("Level " + name + " is already been defined.");
+            // throw new IllegalStateException("Level " + name + " is already been defined.");
         }
         return level;
     }
@@ -83,9 +83,6 @@ public final class Level {
 
     @Override
     public String toString() {
-        return "Level{" +
-            "name='" + name + '\'' +
-            ", severity=" + severity +
-            '}';
+        return "Level{" + "name='" + name + '\'' + ", severity=" + severity + '}';
     }
 }

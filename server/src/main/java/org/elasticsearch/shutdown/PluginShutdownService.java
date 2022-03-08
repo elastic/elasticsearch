@@ -94,7 +94,10 @@ public class PluginShutdownService implements ClusterStateListener {
             try {
                 plugin.signalShutdown(shutdownNodes);
             } catch (Exception e) {
-                logger.warn(Message.createParameterizedMessage("uncaught exception when notifying plugins of nodes {} shutdown", shutdownNodes), e);
+                logger.warn(
+                    Message.createParameterizedMessage("uncaught exception when notifying plugins of nodes {} shutdown", shutdownNodes),
+                    e
+                );
             }
         }
     }

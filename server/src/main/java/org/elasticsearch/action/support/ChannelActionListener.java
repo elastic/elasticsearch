@@ -48,7 +48,11 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
         } catch (Exception sendException) {
             sendException.addSuppressed(e);
             logger.warn(
-                () -> Message.createParameterizedMessage("Failed to send error response for action [{}] and request [{}]", actionName, request),
+                () -> Message.createParameterizedMessage(
+                    "Failed to send error response for action [{}] and request [{}]",
+                    actionName,
+                    request
+                ),
                 sendException
             );
         }

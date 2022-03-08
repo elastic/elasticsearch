@@ -143,7 +143,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         logger.trace(Message.createParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
                         return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
-                        logger.warn(Message.createParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
+                        logger.warn(
+                            Message.createParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId),
+                            e
+                        );
                         return StoreFilesMetadata.EMPTY;
                     }
                 }

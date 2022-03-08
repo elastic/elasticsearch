@@ -61,9 +61,9 @@ public class ESLoggerUsageChecker {
 //
 //    public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(Message.class);
 //
-//    @SuppressForbidden(reason = "command line tool")
-//    public static void main(String... args) throws Exception {
-//        System.out.println("checking for wrong usages of ESLogger...");
+    @SuppressForbidden(reason = "command line tool")
+    public static void main(String... args) throws Exception {
+        System.out.println("checking for wrong usages of ESLogger...");
 //        boolean[] wrongUsageFound = new boolean[1];
 //        checkLoggerUsage(wrongLoggerUsage -> {
 //            System.err.println(wrongLoggerUsage.getErrorLines());
@@ -72,9 +72,9 @@ public class ESLoggerUsageChecker {
 //        if (wrongUsageFound[0]) {
 //            throw new Exception("Wrong logger usages found");
 //        } else {
-//            System.out.println("No wrong usages found");
+            System.out.println("No wrong usages found");
 //        }
-//    }
+    }
 //
 //    private static void checkLoggerUsage(Consumer<WrongLoggerUsage> wrongUsageCallback, String... classDirectories) throws IOException {
 //        for (String classDirectory : classDirectories) {

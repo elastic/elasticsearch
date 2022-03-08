@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -113,7 +112,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         }
         this.allocationDelay = allocationDelay;
         if (targetNodeName != null && type != Type.REPLACE) {
-            //TODO PG possibly we could just use String.format?
+            // TODO PG possibly we could just use String.format?
             Message msg = Message.createParameterizedMessage(
                 "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
                 type,

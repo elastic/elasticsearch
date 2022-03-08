@@ -633,7 +633,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new ValidateJoinRequest(clusterState),
             TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(() -> Message.createParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode),
+                    e
+                );
                 listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
             }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
@@ -647,7 +650,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             TransportRequestOptions.of(null, channelType),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                 logger.warn(
-                    () -> Message.createParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
+                    () -> Message.createParameterizedMessage(
+                        "failed to ping joining node [{}] on channel type [{}]",
+                        discoveryNode,
+                        channelType
+                    ),
                     e
                 );
                 listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));

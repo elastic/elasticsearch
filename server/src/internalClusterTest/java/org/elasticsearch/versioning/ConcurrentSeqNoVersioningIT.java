@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.versioning;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.threadpool.Scheduler;
@@ -264,7 +264,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                                 historyResponse.accept(new FailureHistoryOutput());
                             }
                             logger.info(
-                                    Message.createParameterizedMessage("Received failure for request [{}], version [{}]", indexRequest, version),
+                                Message.createParameterizedMessage(
+                                    "Received failure for request [{}], version [{}]",
+                                    indexRequest,
+                                    version
+                                ),
                                 e
                             );
                             if (stop) {

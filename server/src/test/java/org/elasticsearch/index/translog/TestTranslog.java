@@ -11,9 +11,9 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.elasticsearch.logging.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

@@ -168,12 +168,12 @@ final class SettingsUpdater {
         final Logger logger
     ) {
         logger.warn(
-                Message.createParameterizedMessage(
-                    "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
-                    settingType,
-                    e.getKey(),
-                    e.getValue()
-                ),
+            Message.createParameterizedMessage(
+                "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
+                settingType,
+                e.getKey(),
+                e.getValue()
+            ),
             ex
         );
     }

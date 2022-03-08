@@ -87,11 +87,11 @@ public abstract class FileRestoreContext {
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
-                                shardId,
-                                snapshotId
-                            ),
+                        Message.createParameterizedMessage(
+                            "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                            shardId,
+                            snapshotId
+                        ),
                         e
                     );
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;

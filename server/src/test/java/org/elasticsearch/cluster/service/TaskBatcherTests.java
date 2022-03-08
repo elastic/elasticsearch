@@ -8,12 +8,12 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Logger;
 import org.junit.Before;
 
 import java.util.ArrayList;

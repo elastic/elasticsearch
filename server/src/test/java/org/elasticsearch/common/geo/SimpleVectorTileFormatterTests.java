@@ -9,39 +9,35 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleVectorTileFormatterTests extends ESTestCase {
-    @Rule
-    public final ExpectedException exception = ExpectedException.none();
 
     public void testEmptyString() {
-        exception.expect(IllegalArgumentException.class);
-        SimpleVectorTileFormatter.parse("");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse(""));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
     }
 
     public void testInvalid() {
-        exception.expectMessage(Matchers.containsString("Invalid mvt formatter parameter"));
-        SimpleVectorTileFormatter.parse("invalid");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("invalid"));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
     }
 
     public void testInvalidCombination() {
-        exception.expectMessage(Matchers.containsString("combination is not valid"));
-        SimpleVectorTileFormatter.parse("1/2/3");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("1/2/3"));
+        assertThat(exception.getMessage(), containsString("Zoom/X/Y combination is not valid"));
     }
 
     public void testLeadingWhitespace() {
-        exception.expectMessage(Matchers.containsString("Invalid mvt formatter parameter"));
-        SimpleVectorTileFormatter.parse(" 2/1/0");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse(" 2/1/0"));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
     }
 
     public void testTrailingWhitespace() {
-        exception.expectMessage(Matchers.containsString("Invalid mvt formatter parameter"));
-        SimpleVectorTileFormatter.parse("2/1/0 ");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("2/1/0 "));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
     }
 
     public void testValidSimple() {
@@ -65,8 +61,13 @@ public class SimpleVectorTileFormatterTests extends ESTestCase {
     }
 
     public void testInvalidExtent() {
-        exception.expectMessage(Matchers.containsString("Invalid mvt formatter parameter"));
-        SimpleVectorTileFormatter.parse("2/1/0@invalid");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("2/1/0@invalid"));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
+    }
+
+    public void testInvalidExtentValue() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("2/1/0@0"));
+        assertThat(exception.getMessage(), containsString("Extent is not valid"));
     }
 
     public void testValidWithExtentAndBuffer() {
@@ -90,7 +91,12 @@ public class SimpleVectorTileFormatterTests extends ESTestCase {
     }
 
     public void testInvalidBuffer() {
-        exception.expectMessage(Matchers.containsString("Invalid mvt formatter parameter"));
-        SimpleVectorTileFormatter.parse("2/1/0:invalid");
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("2/1/0:invalid"));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
+    }
+
+    public void testInvalidBufferValue() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> SimpleVectorTileFormatter.parse("2/1/0:-1"));
+        assertThat(exception.getMessage(), containsString("Invalid mvt formatter parameter"));
     }
 }

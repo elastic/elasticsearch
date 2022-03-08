@@ -64,7 +64,9 @@ public class SimpleVectorTileFormatter implements GeoFormatterFactory.FormatterF
         Matcher matcher = pattern.matcher(param);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException(
-                "Invalid mvt formatter parameter [" + param + "]. Must have the form \"zoom/x/y\" or \"zoom/x/y@extent\"."
+                "Invalid mvt formatter parameter ["
+                    + param
+                    + "]. Must have the form \"zoom/x/y\" or \"zoom/x/y@extent\" or \"zoom/x/y@extent:buffer\" or \"zoom/x/y:buffer\"."
             );
         }
         final int z = GeoTileUtils.checkPrecisionRange(Integer.parseInt(matcher.group(1)));
@@ -75,6 +77,9 @@ public class SimpleVectorTileFormatter implements GeoFormatterFactory.FormatterF
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Zoom/X/Y combination is not valid: %d/%d/%d", z, x, y));
         }
         final int extent = matcher.group(4) == null ? DEFAULT_EXTENT : Integer.parseInt(matcher.group(4).substring(1));
+        if (extent <= 0) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Extent is not valid: %d is not > 0", extent));
+        }
         final int bufferPixels = matcher.group(5) == null ? DEFAULT_BUFFER_PIXELS : Integer.parseInt(matcher.group(5).substring(1));
         return new int[] { z, x, y, extent, bufferPixels };
     }

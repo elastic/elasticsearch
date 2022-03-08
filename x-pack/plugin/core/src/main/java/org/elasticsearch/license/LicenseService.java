@@ -76,7 +76,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting(
         "xpack.license.upload.types",
-        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList()),
+        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).toList(),
         License.LicenseType::parse,
         LicenseService::validateUploadTypesSetting,
         Setting.Property.NodeScope
@@ -642,7 +642,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private static List<License.LicenseType> getAllowableUploadTypes() {
-        return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).collect(Collectors.toUnmodifiableList());
+        return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).toList();
     }
 
     private static void validateUploadTypesSetting(List<License.LicenseType> value) {

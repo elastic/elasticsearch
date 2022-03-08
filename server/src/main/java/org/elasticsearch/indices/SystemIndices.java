@@ -50,7 +50,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -513,7 +512,7 @@ public class SystemIndices {
             .stream()
             .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = sourceToFeature.entrySet()
             .stream()
             .filter(entry -> entry.getValue().getDataStreamDescriptors().isEmpty() == false)
@@ -521,7 +520,7 @@ public class SystemIndices {
                 entry -> entry.getValue().getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor))
             )
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
         // automaton, but the absolute number of system index descriptors should be quite small (~10s at most), and the number of states
@@ -533,7 +532,7 @@ public class SystemIndices {
                     d -> overlaps(descriptorToCheck.v2(), d.v2())
                         || (d.v2().getAliasName() != null && descriptorToCheck.v2().matchesIndexPattern(d.v2().getAliasName()))
                 )
-                .collect(toUnmodifiableList());
+                .toList();
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
                 throw new IllegalStateException(
                     "a system index descriptor ["
@@ -552,7 +551,7 @@ public class SystemIndices {
                     dsTuple -> descriptorToCheck.v2().matchesIndexPattern(dsTuple.v2().getDataStreamName())
                         || overlaps(descriptorToCheck.v2().getIndexPattern(), dsTuple.v2().getBackingIndexPattern())
                 )
-                .collect(toUnmodifiableList());
+                .toList();
             if (dataStreamsMatching.isEmpty() == false) {
                 throw new IllegalStateException(
                     "a system index descriptor ["

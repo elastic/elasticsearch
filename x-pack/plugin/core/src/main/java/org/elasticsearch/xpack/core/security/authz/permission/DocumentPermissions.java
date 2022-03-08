@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -151,10 +150,10 @@ public final class DocumentPermissions implements CacheKey {
 
     private void evaluateQueries(DlsQueryEvaluationContext context) {
         if (queries != null && evaluatedQueries == null) {
-            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedQueries = queries.stream().map(context::evaluate).toList();
         }
         if (limitedByQueries != null && evaluatedLimitedByQueries == null) {
-            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).toList();
         }
     }
 

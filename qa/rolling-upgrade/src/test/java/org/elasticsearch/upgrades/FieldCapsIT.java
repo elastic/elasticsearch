@@ -21,12 +21,17 @@ import java.util.List;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Ensures field-caps requests with different parameters are handled properly by a mixed cluster.
+ */
 public class FieldCapsIT extends AbstractRollingTestCase {
+
     public void testFieldCaps() throws Exception {
         final String redMapping = """
              "properties": {
                "red_field": { "type": "keyword" },
                "yellow_field": { "type": "integer" },
+               "blue_field": { "type": "keyword" },
                "timestamp": {"type": "date"}
              }
             """;
@@ -34,6 +39,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
              "properties": {
                "green_field": { "type": "keyword" },
                "yellow_field": { "type": "long" },
+               "blue_field": { "type": "keyword" },
                "timestamp": {"type": "date"}
              }
             """;
@@ -70,7 +76,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
         }
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
 
-        // old red indices without filter
+        // old red indices without index_filter
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), null);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2", "old_red_empty" }));
@@ -78,8 +84,10 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
             assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
-        // old red indices with filter
+        // old red indices with index_filter
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2" }));
@@ -87,12 +95,14 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
             assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // below tests for mixed and upgraded clusters.
             return;
         }
-        // all red indices without filter
+        // all red indices without index_filter
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*", "new_red_*"), List.of("*"), null);
             assertThat(
@@ -103,8 +113,10 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
             assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
-        // all red indices with filter
+        // all red indices with index_filter
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*", "new_red_*"), List.of("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "old_red_1", "old_red_2" }));
@@ -112,8 +124,10 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
             assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
-        // all indices without filter
+        // all indices without index_filter
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null);
             assertThat(
@@ -141,8 +155,10 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
             assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
-        // all indices with filter
+        // all indices with index_filter
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter);
             assertThat(
@@ -166,6 +182,8 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
             assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
     }
 

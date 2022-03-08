@@ -643,7 +643,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
             }
             for (TransportRequest internalRequest : requests) {
                 IndicesRequest indicesRequest = convertRequest(internalRequest);
-                if (indicesRequest instanceof final ReplicationRequest replicationRequest) {
+                if (indicesRequest instanceof final ReplicationRequest<?> replicationRequest) {
                     assertThat(indices, hasItem(replicationRequest.shardId().getIndexName()));
                 } else {
                     for (String index : indicesRequest.indices()) {

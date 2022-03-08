@@ -3,7 +3,6 @@
   - skip:
       version: " - 7.8.99"
       reason: "simulate index template API format changed in 7.9 to drop _doc"
-(#84675))
       features: ["default_shards"]
 
   - do:
@@ -34,7 +33,6 @@
   - skip:
       version: " - 7.8.99"
       reason: "simulate index template API format changed in 7.9 to drop _doc"
-(#84675))
       features: ["default_shards"]
 
   - do:
@@ -90,7 +88,6 @@
   - skip:
       version: " - 7.8.99"
       reason: "simulate index template API format changed in 7.9 to drop _doc"
-(#84675))
       features: allowed_warnings
 
   - do:
@@ -121,7 +118,6 @@
   - skip:
       version: " - 7.8.99"
       reason: "simulate index template API format changed in 7.9 to drop _doc"
-(#84675))
       features: ["allowed_warnings", "default_shards"]
 
   - do:

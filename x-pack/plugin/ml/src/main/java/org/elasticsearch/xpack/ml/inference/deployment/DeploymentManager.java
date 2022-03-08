@@ -145,9 +145,7 @@ public class DeploymentManager {
         });
 
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(success -> {
-            executorServiceForProcess.execute(
-                () -> processContext.getResultProcessor().process(processContext.process.get().readResults())
-            );
+            executorServiceForProcess.execute(() -> processContext.getResultProcessor().process(processContext.process.get()));
             listener.onResponse(task);
         }, listener::onFailure);
 

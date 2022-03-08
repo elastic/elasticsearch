@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -25,6 +26,8 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PyTorchResultProcessorTests extends ESTestCase {
 
@@ -33,7 +36,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         var processor = new PyTorchResultProcessor("foo", settingsHolder::set);
 
         var settings = new ThreadSettings(1, 1);
-        processor.process(List.of(new PyTorchResult(null, settings)).iterator());
+        processor.process(mockNativeProcess(List.of(new PyTorchResult(null, settings)).iterator()));
 
         assertEquals(settings, settingsHolder.get());
     }
@@ -52,7 +55,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
 
         var inferenceResult = new PyTorchInferenceResult("a", null, 1000L, null);
 
-        processor.process(List.of(new PyTorchResult(inferenceResult, null)).iterator());
+        processor.process(mockNativeProcess(List.of(new PyTorchResult(inferenceResult, null)).iterator()));
         assertSame(inferenceResult, resultHolder.get());
         assertTrue(calledOnShutdown.hasResponse);
     }
@@ -65,7 +68,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         processor.ignoreResponseWithoutNotifying("a");
 
         var inferenceResult = new PyTorchInferenceResult("a", null, 1000L, null);
-        processor.process(List.of(new PyTorchResult(inferenceResult, null)).iterator());
+        processor.process(mockNativeProcess(List.of(new PyTorchResult(inferenceResult, null)).iterator()));
     }
 
     public void testPendingRequestAreCalledAtShutdown() {
@@ -83,7 +86,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
             processor.registerRequest(Integer.toString(i++), l);
         }
 
-        processor.process(Collections.emptyIterator());
+        processor.process(mockNativeProcess(Collections.emptyIterator()));
 
         for (var l : listeners) {
             assertTrue(l.hasResponse);
@@ -271,5 +274,11 @@ public class PyTorchResultProcessorTests extends ESTestCase {
             }
             return times[index++];
         }
+    }
+
+    private NativePyTorchProcess mockNativeProcess(Iterator<PyTorchResult> results) {
+        var process = mock(NativePyTorchProcess.class);
+        when(process.readResults()).thenReturn(results);
+        return process;
     }
 }

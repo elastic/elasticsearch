@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
@@ -39,7 +40,7 @@ public class PyTorchResultProcessor {
     ) {}
 
     private static final Logger logger = LogManager.getLogger(PyTorchResultProcessor.class);
-    static int REPORTING_PERIOD_MS = 60 * 1000;
+    static long REPORTING_PERIOD_MS = TimeValue.timeValueMinutes(1).millis();
 
     private final ConcurrentMap<String, PendingResult> pendingResults = new ConcurrentHashMap<>();
     private final String deploymentId;
@@ -86,8 +87,9 @@ public class PyTorchResultProcessor {
         pendingResults.remove(requestId);
     }
 
-    public void process(Iterator<PyTorchResult> iterator) {
+    public void process(NativePyTorchProcess process) {
         try {
+            Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {
                 PyTorchResult result = iterator.next();
                 PyTorchInferenceResult inferenceResult = result.inferenceResult();

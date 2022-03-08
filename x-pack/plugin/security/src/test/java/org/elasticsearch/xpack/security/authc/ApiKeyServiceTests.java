@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -260,6 +261,77 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(searchRequest.get().source().query(), is(boolQuery));
         GetApiKeyResponse getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
         assertThat(getApiKeyResponse.getApiKeyInfos(), emptyArray());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInvalidateApiKeys() throws Exception {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        when(client.threadPool()).thenReturn(threadPool);
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
+        final ApiKeyService service = createApiKeyService(settings);
+        final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.invalidateApiKeys(
+            randomFrom(new String[0], null),
+            randomFrom("", null),
+            randomFrom("", null),
+            randomFrom(new String[0], null),
+            listener
+        );
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString("One of [api key id, api key name, username, realm name] must be specified"));
+        String[] realmNames = generateRandomStringArray(4, 4, true, true);
+        String username = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
+        String apiKeyName = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
+        String[] apiKeyIds = generateRandomStringArray(4, 4, true, true);
+        if ((realmNames == null || realmNames.length == 0)
+            && Strings.hasText(username) == false
+            && Strings.hasText(apiKeyName) == false
+            && (apiKeyIds == null || apiKeyIds.length == 0)) {
+            return;
+        }
+        PlainActionFuture<InvalidateApiKeyResponse> invalidateApiKeyResponseListener = new PlainActionFuture<>();
+        service.invalidateApiKeys(realmNames, username, apiKeyName, apiKeyIds, invalidateApiKeyResponseListener);
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
+        if (realmNames != null && realmNames.length > 0) {
+            if (realmNames.length == 1) {
+                boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmNames[0]));
+            } else {
+                final BoolQueryBuilder realmsQuery = QueryBuilders.boolQuery();
+                for (String realmName : realmNames) {
+                    realmsQuery.should(QueryBuilders.termQuery("creator.realm", realmName));
+                }
+                realmsQuery.minimumShouldMatch(1);
+                boolQuery.filter(realmsQuery);
+            }
+        }
+        if (Strings.hasText(username)) {
+            boolQuery.filter(QueryBuilders.termQuery("creator.principal", username));
+        }
+        if (Strings.hasText(apiKeyName) && "*".equals(apiKeyName) == false) {
+            if (apiKeyName.endsWith("*")) {
+                boolQuery.filter(QueryBuilders.prefixQuery("name", apiKeyName.substring(0, apiKeyName.length() - 1)));
+            } else {
+                boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
+            }
+        }
+        if (apiKeyIds != null && apiKeyIds.length > 0) {
+            boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
+        }
+        boolQuery.filter(QueryBuilders.termQuery("api_key_invalidated", false));
+        verify(searchRequestBuilder).setQuery(eq(boolQuery));
+        verify(searchRequestBuilder).setFetchSource(eq(true));
+        assertThat(searchRequest.get().source().query(), is(boolQuery));
+        InvalidateApiKeyResponse invalidateApiKeyResponse = invalidateApiKeyResponseListener.get();
+        assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys(), emptyIterable());
     }
 
     public void testCreateApiKeyWillCacheOnCreation() {

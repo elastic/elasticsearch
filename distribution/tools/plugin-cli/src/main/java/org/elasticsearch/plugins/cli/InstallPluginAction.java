@@ -80,6 +80,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -650,6 +652,7 @@ public class InstallPluginAction implements Closeable {
     void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
         final URL ascUrl = openUrl(ascUrlString);
+        final Timer timer = new Timer();
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
@@ -667,20 +670,47 @@ public class InstallPluginAction implements Closeable {
                 throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    terminal.println(
+                        "Downloaded plugin signature verification is taking too long. "
+                            + "This is typically caused by environmental issues on your system related to speed "
+                            + "of random number generation. If you are running on a Linux based system, your "
+                            + "random number generation might be configured to use"
+                            + "/dev/random which blocks until sufficient entropy is achieved on the system. Consider switching to "
+                            + "/dev/urandom instead for faster random number generation."
+                    );
+
+                }
+            }, acceptableSignatureVerificationDelay());
+
             // compute the signature of the downloaded plugin zip
-            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
-            final byte[] buffer = new byte[1024];
-            int read;
-            while ((read = fin.read(buffer)) != -1) {
-                signature.update(buffer, 0, read);
-            }
+            computeSignatureForDownloadedPlugin(fin, ain, signature);
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
             if (signature.verify() == false) {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
+        } finally {
+            timer.cancel();
+        }
+    }
+
+    // package private for testing
+    long acceptableSignatureVerificationDelay() {
+        return 5_000;
+    }
+
+    // package private for testing
+    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
+        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+        signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
+        final byte[] buffer = new byte[1024];
+        int read;
+        while ((read = fin.read(buffer)) != -1) {
+            signature.update(buffer, 0, read);
         }
     }
 

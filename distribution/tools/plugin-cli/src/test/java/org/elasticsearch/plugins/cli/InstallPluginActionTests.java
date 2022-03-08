@@ -105,6 +105,10 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginActionTests extends ESTestCase {
@@ -402,6 +406,60 @@ public class InstallPluginActionTests extends ESTestCase {
         PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testSlowSignatureVerificationMessage() throws Exception {
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
+            + Build.CURRENT.qualifiedVersion()
+            + ".zip";
+        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
+
+        InstallPluginAction action = makeActionPluginThatDownloads(
+            "analysis-icu",
+            url,
+            null,
+            false,
+            ".sha512",
+            checksumAndFilename(digest, url),
+            newSecretKey(),
+            this::signature
+        );
+
+        final InstallPluginAction spied = spy(action);
+
+        // make the slow verification acceptable delay artificially low for testing
+        doReturn(100L).when(spied).acceptableSignatureVerificationDelay();
+
+        doAnswer(i -> {
+            Thread.sleep(200); // sleep 100ms more than acceptable delay
+            return null;
+        }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
+
+        // NullPointerException expected because we are mocking the signature verification
+        expectThrows(NullPointerException.class, () -> installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied));
+        assertThat(terminal.getOutput(), containsString("Downloaded plugin signature verification is taking too long"));
+
+        // make the slow verification acceptable delay artificially low for testing
+        doReturn(1_000L).when(spied).acceptableSignatureVerificationDelay();
+
+        // make sure we don't see any slow error messages when verification is fast
+        doAnswer(i -> {
+            Thread.sleep(2);
+            return null;
+        }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
+
+        // Clean-up the test directory so we can retry download again
+        Path downloadedPath = env.v2().tmpFile().resolve("downloaded.zip");
+        Files.delete(downloadedPath);
+
+        int terminalLen = terminal.getOutput().length();
+
+        // NullPointerException expected because we are mocking the signature verification
+        expectThrows(NullPointerException.class, () -> installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied));
+        assertThat(
+            terminal.getOutput().substring(terminalLen),
+            not(containsString("Downloaded plugin signature verification is taking too long"))
+        );
     }
 
     public void testMultipleWorks() throws Exception {
@@ -875,10 +933,34 @@ public class InstallPluginActionTests extends ESTestCase {
         );
     }
 
-    @SuppressForbidden(reason = "Path.of() is OK in this context")
     void assertInstallPluginFromUrl(
         final String pluginId,
         final String pluginUrl,
+        final String url,
+        final String stagingHash,
+        final boolean isSnapshot,
+        final String shaExtension,
+        final Function<byte[], String> shaCalculator,
+        final PGPSecretKey secretKey,
+        final BiFunction<byte[], PGPSecretKey, String> signature
+    ) throws Exception {
+        InstallPluginAction action = makeActionPluginThatDownloads(
+            pluginId,
+            url,
+            stagingHash,
+            isSnapshot,
+            shaExtension,
+            shaCalculator,
+            secretKey,
+            signature
+        );
+        installPlugin(new PluginDescriptor(pluginId, pluginUrl), env.v1(), action);
+        assertPlugin(pluginId, pluginDir, env.v2());
+    }
+
+    @SuppressForbidden(reason = "Path.of() is OK in this context")
+    private InstallPluginAction makeActionPluginThatDownloads(
+        final String pluginId,
         final String url,
         final String stagingHash,
         final boolean isSnapshot,
@@ -969,8 +1051,8 @@ public class InstallPluginActionTests extends ESTestCase {
                 // no jarhell check
             }
         };
-        installPlugin(new PluginDescriptor(pluginId, pluginUrl), env.v1(), action);
-        assertPlugin(pluginId, pluginDir, env.v2());
+
+        return action;
     }
 
     public void testOfficialPlugin() throws Exception {

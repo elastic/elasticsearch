@@ -56,7 +56,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -80,7 +79,6 @@ import static org.mockito.Mockito.mock;
 public abstract class JwtTestCase extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtTestCase.class);
-    protected static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     protected String pathHome;
     protected Settings globalSettings;

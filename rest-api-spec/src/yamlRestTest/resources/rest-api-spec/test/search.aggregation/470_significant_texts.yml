@@ -40,7 +40,7 @@ setup:
 
 
 ---
-"significant_texts all terms english":
+"significant_texts all terms":
   - skip:
       version: " - 8.1.99"
       reason: bug fixed in 8.2.0

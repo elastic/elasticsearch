@@ -62,7 +62,7 @@ public class JwtIssuerHttpsServer implements Closeable {
         this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);
         this.url = "https://" + ADDRESS + ":" + this.httpsServer.getAddress().getPort() + PATH; // get ephemeral port
         this.httpsServer.setHttpsConfigurator(new HttpsConfigurator(this.createSslContext()));
-        this.httpsServer.createContext("/", new JwtIssuerHttpHandler(encodedJwkSetPkcPublicBytes));
+        this.httpsServer.createContext(PATH, new JwtIssuerHttpHandler(encodedJwkSetPkcPublicBytes));
         LOGGER.trace("Starting [{}]", this.url);
         this.httpsServer.start();
         LOGGER.debug("Started [{}]", this.url);

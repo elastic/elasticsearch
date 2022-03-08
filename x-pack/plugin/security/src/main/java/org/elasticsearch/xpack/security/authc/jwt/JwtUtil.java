@@ -15,6 +15,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.concurrent.FutureCallback;
@@ -271,14 +272,25 @@ public class JwtUtil {
     public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri) {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
+            httpClient.execute(new HttpGet(uri), new FutureCallback<HttpResponse>() {
                 @Override
                 public void completed(final HttpResponse result) {
-                    final HttpEntity entity = result.getEntity();
-                    try (InputStream inputStream = entity.getContent()) {
-                        plainActionFuture.onResponse(inputStream.readAllBytes());
-                    } catch (Exception e) {
-                        plainActionFuture.onFailure(e);
+                    final StatusLine statusLine = result.getStatusLine();
+                    final int statusCode = statusLine.getStatusCode();
+                    final String reasonPhrase = statusLine.getReasonPhrase();
+                    if (statusCode == 200) {
+                        final HttpEntity entity = result.getEntity();
+                        try (InputStream inputStream = entity.getContent()) {
+                            plainActionFuture.onResponse(inputStream.readAllBytes());
+                        } catch (Exception e) {
+                            plainActionFuture.onFailure(e);
+                        }
+                    } else {
+                        plainActionFuture.onFailure(
+                            new ElasticsearchSecurityException(
+                                "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + reasonPhrase + "]."
+                            )
+                        );
                     }
                 }
 

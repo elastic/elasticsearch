@@ -652,7 +652,6 @@ public class InstallPluginAction implements Closeable {
     void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
         final URL ascUrl = openUrl(ascUrlString);
-        final Timer timer = new Timer();
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
@@ -670,36 +669,32 @@ public class InstallPluginAction implements Closeable {
                 throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    terminal.println(
-                        "Downloaded plugin signature verification is taking too long. "
-                            + "This is typically caused by environmental issues on your system related to speed "
-                            + "of random number generation. If you are running on a Linux based system, your "
-                            + "random number generation might be configured to use"
-                            + "/dev/random which blocks until sufficient entropy is achieved on the system. Consider switching to "
-                            + "/dev/urandom instead for faster random number generation."
-                    );
-
-                }
-            }, acceptableSignatureVerificationDelay());
-
-            // compute the signature of the downloaded plugin zip
-            computeSignatureForDownloadedPlugin(fin, ain, signature);
+            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
+            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
             if (signature.verify() == false) {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
-        } finally {
-            timer.cancel();
         }
     }
 
-    // package private for testing
-    long acceptableSignatureVerificationDelay() {
-        return 5_000;
+    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
+        IOException {
+        final Timer timer = new Timer();
+
+        try {
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    reportLongSignatureVerification();
+                }
+            }, acceptableSignatureVerificationDelay());
+
+            computeSignatureForDownloadedPlugin(fin, ain, signature);
+        } finally {
+            timer.cancel();
+        }
     }
 
     // package private for testing
@@ -712,6 +707,23 @@ public class InstallPluginAction implements Closeable {
         while ((read = fin.read(buffer)) != -1) {
             signature.update(buffer, 0, read);
         }
+    }
+
+    // package private for testing
+    void reportLongSignatureVerification() {
+        terminal.println(
+            "The plugin installer is trying to verify the signature of the downloaded plugin "
+                + "but this verification is taking longer than expected. This is often because the "
+                + "plugin installer is waiting for your system to supply it with random numbers. "
+                + ((System.getProperty("os.name").startsWith("Windows") == false)
+                    ? "Ensure that your system has sufficient entropy so that reads from /dev/random do not block."
+                    : "")
+        );
+    }
+
+    // package private for testing
+    long acceptableSignatureVerificationDelay() {
+        return 5_000;
     }
 
     /**

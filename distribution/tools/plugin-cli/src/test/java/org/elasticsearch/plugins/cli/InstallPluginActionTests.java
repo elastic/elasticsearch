@@ -88,6 +88,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -107,6 +108,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -427,38 +429,45 @@ public class InstallPluginActionTests extends ESTestCase {
 
         final InstallPluginAction spied = spy(action);
 
-        // make the slow verification acceptable delay artificially low for testing
+        // Control for timeout on waiting for signature verification to complete
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        doAnswer(i -> {
+            i.callRealMethod();
+            countDownLatch.countDown();
+            return null;
+        }).when(spied).reportLongSignatureVerification();
+
+        // Make the slow verification acceptable delay artificially low for testing
         doReturn(100L).when(spied).acceptableSignatureVerificationDelay();
 
         doAnswer(i -> {
-            Thread.sleep(200); // sleep 100ms more than acceptable delay
+            countDownLatch.await(); // wait until we trip the timer
+            i.callRealMethod();
             return null;
         }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
-        // NullPointerException expected because we are mocking the signature verification
-        expectThrows(NullPointerException.class, () -> installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied));
-        assertThat(terminal.getOutput(), containsString("Downloaded plugin signature verification is taking too long"));
+        installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied);
+        assertThat(terminal.getOutput(), containsString("The plugin installer is trying to verify the signature "));
 
-        // make the slow verification acceptable delay artificially low for testing
-        doReturn(1_000L).when(spied).acceptableSignatureVerificationDelay();
+        // Clean-up the exiting plugin, let's try to reinstall with 'fast' random numbers
+        final List<PluginDescriptor> plugins = List.of(new PluginDescriptor("analysis-icu", null));
+        new RemovePluginAction(terminal, env.v2(), true).execute(plugins);
 
-        // make sure we don't see any slow error messages when verification is fast
-        doAnswer(i -> {
-            Thread.sleep(2);
-            return null;
-        }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
+        // Make the timer wait practically indefinitely, probably an overkill, but avoid flaky tests.
+        // Divide by two to meet the limitation of the Timer.schedule API.
+        doReturn(Long.MAX_VALUE / 2).when(spied).acceptableSignatureVerificationDelay();
 
-        // Clean-up the test directory so we can retry download again
-        Path downloadedPath = env.v2().tmpFile().resolve("downloaded.zip");
-        Files.delete(downloadedPath);
+        // Make sure we don't see any slow error messages when the signature verification is fast
+        doCallRealMethod().when(spied)
+            .computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
         int terminalLen = terminal.getOutput().length();
 
-        // NullPointerException expected because we are mocking the signature verification
-        expectThrows(NullPointerException.class, () -> installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied));
+        installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied);
         assertThat(
             terminal.getOutput().substring(terminalLen),
-            not(containsString("Downloaded plugin signature verification is taking too long"))
+            not(containsString("The plugin installer is trying to verify the signature "))
         );
     }
 

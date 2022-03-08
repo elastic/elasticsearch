@@ -243,7 +243,7 @@ public class User implements ToXContentObject {
         output.writeBoolean(false); // not a system user
         output.writeString(user.username);
         output.writeStringArray(user.roles);
-        output.writeMap(user.metadata);
+        output.writeGenericMap(user.metadata);
         output.writeOptionalString(user.fullName);
         output.writeOptionalString(user.email);
         output.writeBoolean(user.enabled);

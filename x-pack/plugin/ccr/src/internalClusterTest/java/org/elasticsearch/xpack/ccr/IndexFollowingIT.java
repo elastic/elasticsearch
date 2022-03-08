@@ -486,8 +486,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .indices()
             .getAliases(new GetAliasesRequest("follower_alias"))
             .actionGet();
-        assertThat(response.getAliases().keys().size(), equalTo(1));
-        assertThat(response.getAliases().keys().iterator().next().value, equalTo("follower"));
+        assertThat(response.getAliases().keySet().size(), equalTo(1));
+        assertThat(response.getAliases().keySet().iterator().next(), equalTo("follower"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("follower");
         assertThat(aliasMetadata, hasSize(1));
         assertThat(aliasMetadata.get(0).alias(), equalTo("follower_alias"));

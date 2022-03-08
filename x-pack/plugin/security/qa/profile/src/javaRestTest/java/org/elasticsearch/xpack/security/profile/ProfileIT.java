@@ -158,6 +158,16 @@ public class ProfileIT extends ESRestTestCase {
         assertThat(users.get(0).get("uid"), equalTo(uid));
     }
 
+    public void testSetEnabled() throws IOException {
+        final Map<String, Object> profileMap = doActivateProfile();
+        final String uid = (String) profileMap.get("uid");
+        doSetEnabled(uid, randomBoolean());
+
+        // 404 for non-existing uid
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> doSetEnabled("not-" + uid, randomBoolean()));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
     private Map<String, Object> doActivateProfile() throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
         activateProfileRequest.setJsonEntity("""
@@ -186,6 +196,14 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> getProfileMap1 = responseAsMap(getProfileResponse1);
         assertThat(getProfileMap1.keySet(), contains(uid));
         return castToMap(getProfileMap1.get(uid));
+    }
+
+    private void doSetEnabled(String uid, boolean enabled) throws IOException {
+        final Request setEnabledRequest = new Request(
+            randomFrom("PUT", "POST"),
+            "_security/profile/" + uid + "/_" + (enabled ? "enable" : "disable")
+        );
+        adminClient().performRequest(setEnabledRequest);
     }
 
     @SuppressWarnings("unchecked")

@@ -26,8 +26,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     protected final double value;
 
     public InternalSimpleValue(String name, double value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
-        this.format = formatter;
+        super(name, formatter, metadata);
         this.value = value;
     }
 
@@ -36,7 +35,6 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
      */
     public InternalSimpleValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
     }
 

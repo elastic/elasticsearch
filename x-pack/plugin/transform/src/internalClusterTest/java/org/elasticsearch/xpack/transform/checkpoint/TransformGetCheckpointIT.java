@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;

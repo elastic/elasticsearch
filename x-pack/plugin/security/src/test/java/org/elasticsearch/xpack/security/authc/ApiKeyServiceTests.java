@@ -96,6 +96,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -126,6 +127,7 @@ import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_P
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -1382,6 +1384,108 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getSourceRealm().getName()));
         assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getSourceRealm().getType()));
+    }
+
+    public void testGetOwnersRealmNames() {
+        // realm, no domain
+        RealmRef realmRef = AuthenticationTests.randomRealmRef(false);
+        Authentication authentication = Authentication.newRealmAuthentication(AuthenticationTests.randomUser(), realmRef);
+        assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(realmRef.getName()));
+        assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(realmRef.getName()));
+        // realm run-as, no domain
+        authentication = Authentication.newRealmAuthentication(
+            AuthenticationTests.randomUser(),
+            AuthenticationTests.randomRealmRef(randomBoolean())
+        );
+        if (randomBoolean()) {
+            authentication.token();
+        }
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), realmRef))),
+            contains(realmRef.getName())
+        );
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), realmRef).token())),
+            contains(realmRef.getName())
+        );
+        // realm under domain
+        realmRef = AuthenticationTests.randomRealmRef(true);
+        authentication = Authentication.newRealmAuthentication(AuthenticationTests.randomUser(), realmRef);
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)),
+            containsInAnyOrder(
+                realmRef.getDomain().realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new)
+            )
+        );
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())),
+            containsInAnyOrder(
+                realmRef.getDomain().realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new)
+            )
+        );
+        // realm under domain run-as
+        authentication = Authentication.newRealmAuthentication(
+            AuthenticationTests.randomUser(),
+            AuthenticationTests.randomRealmRef(randomBoolean())
+        );
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), realmRef))),
+            containsInAnyOrder(
+                realmRef.getDomain().realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new)
+            )
+        );
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), realmRef).token())),
+            containsInAnyOrder(
+                realmRef.getDomain().realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new)
+            )
+        );
+        // API key authentication
+        final String apiKeyCreatorRealm = randomAlphaOfLengthBetween(2, 8);
+        authentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(
+                AuthenticationTests.randomUser(),
+                Map.of(
+                    AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+                    apiKeyCreatorRealm,
+                    AuthenticationField.API_KEY_ID_KEY,
+                    randomAlphaOfLength(20)
+                )
+            ),
+            randomAlphaOfLength(4)
+        );
+        assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(apiKeyCreatorRealm));
+        assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(apiKeyCreatorRealm));
+
+        // API key run-as, no domain
+        RealmRef lookupRealmRef = AuthenticationTests.randomRealmRef(false);
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), lookupRealmRef))),
+            contains(lookupRealmRef.getName())
+        );
+        assertThat(
+            Arrays.asList(
+                ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), lookupRealmRef).token())
+            ),
+            contains(lookupRealmRef.getName())
+        );
+
+        // API key run-as under domain
+        lookupRealmRef = AuthenticationTests.randomRealmRef(true);
+        assertThat(
+            Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), lookupRealmRef))),
+            containsInAnyOrder(
+                lookupRealmRef.getDomain().realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new)
+            )
+        );
+        assertThat(
+            Arrays.asList(
+                ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), lookupRealmRef).token())
+            ),
+            containsInAnyOrder(
+                lookupRealmRef.getDomain().realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new)
+            )
+        );
     }
 
     public void testAuthWillTerminateIfGetThreadPoolIsSaturated() throws ExecutionException, InterruptedException {

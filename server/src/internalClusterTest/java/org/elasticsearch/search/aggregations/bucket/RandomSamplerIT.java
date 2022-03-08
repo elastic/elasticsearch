@@ -105,6 +105,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         assertThat(Math.abs(sampleRandomValue - trueRandom), lessThan(trueRandom * 0.1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84595")
     public void testRandomSamplerHistogram() {
         Map<String, Double> sampleMonotonicValue = new HashMap<>();
         Map<String, Double> sampleRandomValue = new HashMap<>();

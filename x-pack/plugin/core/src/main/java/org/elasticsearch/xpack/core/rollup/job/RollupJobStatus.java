@@ -120,7 +120,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         state.writeTo(out);
         out.writeBoolean(currentPosition != null);
         if (currentPosition != null) {
-            out.writeMap(currentPosition);
+            out.writeGenericMap(currentPosition);
         }
         if (out.getVersion().before(Version.V_8_0_0)) {
             // 7.x nodes expect a boolean `upgradedDocumentID` flag. We don't have it anymore,

@@ -29,14 +29,6 @@ You can configure <<index-lifecycle-management, {ilm}>> ({ilm-init}) policies
 to automatically transition your time series data through the hot, warm, and cold tiers
 according to your performance, resiliency and data retention requirements.
 
-A node's <<data-node, data role>> is configured in `elasticsearch.yml`.
-For example, the highest-performance nodes in a cluster might be assigned to both the hot and content tiers:
-
-[source,yaml]
---------------------------------------------------
-node.roles: ["data_hot", "data_content"]
---------------------------------------------------
-
 [discrete]
 [[content-tier]]
 === Content tier
@@ -113,6 +105,53 @@ and load data from a snapshot repository. This reduces local storage and
 operating costs while still letting you search frozen data. Because {es} must
 sometimes fetch frozen data from the snapshot repository, searches on the frozen
 tier are typically slower than on the cold tier.
+
+[discrete]
+[[configure-data-tiers-cloud]]
+=== Configure data tiers on {ess} or {ece}
+
+The default configuration for an {ecloud} deployment includes a shared tier for
+hot and content data. This tier is required and can't be removed.
+
+To add a warm, cold, or frozen tier when you create a deployment:
+
+. On the **Create deployment** page, click **Advanced Settings**.
+
+. Click **+ Add capacity** for any data tiers to add.
+
+. Click **Create deployment** at the bottom of the page to save your changes.
+
+[role="screenshot"]
+image::images/data-tiers/ess-advanced-config-data-tiers.png[{ecloud}'s deployment Advanced configuration page,align=center]
+
+To add a data tier to an existing deployment:
+
+. Log in to the {ess-console}[{ecloud} console].
+
+. On the **Deployments** page, select your deployment.
+
+. In your deployment menu, select **Edit**.
+
+. Click **+ Add capacity** for any data tiers to add.
+
+. Click **Save** at the bottom of the page to save your changes.
+
+
+To remove a data tier, refer to {cloud}/ec-disable-data-tier.html[Disable a data
+tier].
+
+[discrete]
+[[configure-data-tiers-on-premise]]
+=== Configure data tiers for self-managed deployments
+
+For self-managed deployments, each node's <<data-node,data role>> is configured
+in `elasticsearch.yml`. For example, the highest-performance nodes in a cluster
+might be assigned to both the hot and content tiers:
+
+[source,yaml]
+----
+node.roles: ["data_hot", "data_content"]
+----
 
 NOTE: We recommend you use <<data-frozen-node,dedicated nodes>> in the frozen
 tier.

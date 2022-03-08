@@ -42,7 +42,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException(
                 "The number of provided percents and percentiles didn't match. percents: "
@@ -51,7 +51,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
                     + Arrays.toString(percentiles)
             );
         }
-        this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
         this.keyed = keyed;
@@ -69,7 +68,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
      */
     public InternalPercentilesBucket(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
         keyed = in.readBoolean();

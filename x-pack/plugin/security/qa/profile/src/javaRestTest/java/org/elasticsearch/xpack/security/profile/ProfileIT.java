@@ -26,7 +26,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -178,9 +177,19 @@ public class ProfileIT extends ESRestTestCase {
         getSettingsRequest.addParameter("filter_path", "**.security.authc.domains");
         final Response getSettingsResponse = adminClient().performRequest(getSettingsRequest);
         assertOK(getSettingsResponse);
-        final String responseString = new String(getSettingsResponse.getEntity().getContent().readAllBytes());
-        assertThat(responseString, containsString("""
-            {"domains":{"my_domain":{"realms":["default_file"]}}}"""));
+        final XContentTestUtils.JsonMapView settingsView = XContentTestUtils.createJsonMapView(
+            getSettingsResponse.getEntity().getContent()
+        );
+
+        final Map<String, Object> domainSettings1 = castToMap(settingsView.get("defaults.xpack.security.authc.domains.my_domain"));
+        @SuppressWarnings("unchecked")
+        final List<String> myDomainRealms = (List<String>) domainSettings1.get("realms");
+        assertThat(myDomainRealms, containsInAnyOrder("default_file", "ldap1"));
+
+        final Map<String, Object> domainSettings2 = castToMap(settingsView.get("defaults.xpack.security.authc.domains.other_domain"));
+        @SuppressWarnings("unchecked")
+        final List<String> otherDomainRealms = (List<String>) domainSettings2.get("realms");
+        assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
     }
 
     public void testXpackUsageOutput() throws IOException {
@@ -193,11 +202,12 @@ public class ProfileIT extends ESRestTestCase {
         );
         final Map<String, Object> domainsUsage = castToMap(xpackUsageView.get("security.domains"));
         assertThat(domainsUsage.keySet(), equalTo(Set.of("my_domain", "other_domain")));
+
         @SuppressWarnings("unchecked")
-        final List<String> myDomainRealms = (List<String>) domainsUsage.get("my_domain");
+        final List<String> myDomainRealms = (List<String>) castToMap(domainsUsage.get("my_domain")).get("realms");
         assertThat(myDomainRealms, containsInAnyOrder("default_file", "ldap1"));
         @SuppressWarnings("unchecked")
-        final List<String> otherDomainRealms = (List<String>) domainsUsage.get("other_domain");
+        final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
     }
 

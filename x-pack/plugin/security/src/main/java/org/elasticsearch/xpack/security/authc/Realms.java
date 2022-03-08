@@ -337,7 +337,7 @@ public class Realms implements Iterable<Realm> {
                 .collect(Collectors.groupingBy(Entry::getValue, Collectors.mapping(Entry::getKey, Collectors.toList())))
                 .entrySet()
                 .stream()
-                .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+                .collect(Collectors.toMap(Entry::getKey, entry -> Map.of("realms", entry.getValue())));
         }
     }
 

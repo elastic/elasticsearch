@@ -765,7 +765,7 @@ public class Node implements Closeable {
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            final ReadinessService readinessService = new ReadinessService(clusterService, environment, httpServerTransport);
+            final ReadinessService readinessService = new ReadinessService(clusterService, environment);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());

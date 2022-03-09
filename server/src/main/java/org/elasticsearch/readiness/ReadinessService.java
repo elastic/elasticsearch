@@ -49,17 +49,12 @@ import java.util.function.Function;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
-    private static final int RESPONSE_TIMEOUT_MILLIS = 1_000;
 
     private final Environment environment;
-    private final ExecutorService workerExecutor;
 
+    private volatile boolean active = false;
     private volatile ServerSocketChannel serverChannel;
-
-    private volatile boolean ready = false;
-    private volatile BoundTransportAddress boundAddress;
-
-    private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
+    final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
 
     public static final Setting<String> PORT = new Setting<>(
         "readiness.port",
@@ -68,42 +63,41 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope
     );
 
-    private final HttpServerTransport httpTransport;
-
-    public ReadinessService(ClusterService clusterService, Environment environment, HttpServerTransport httpTransport) {
-        this.httpTransport = httpTransport;
+    public ReadinessService(ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
         this.environment = environment;
         clusterService.addListener(this);
-
-        this.workerExecutor = EsExecutors.newScaling(
-            "readiness-worker",
-            0,
-            EsExecutors.allocatedProcessors(environment.settings()) * 2,
-            60,
-            TimeUnit.SECONDS,
-            false,
-            EsExecutors.daemonThreadFactory("elasticsearch[readiness-worker]"),
-            new ThreadContext(environment.settings())
-        );
     }
 
+    // package private for testing
     boolean ready() {
-        return ready;
+        return this.serverChannel != null;
     }
 
+    // package private for testing
     ServerSocketChannel serverChannel() {
         return serverChannel;
     }
 
     public BoundTransportAddress boundAddress() {
-        return boundAddress;
+        TransportAddress publishAddress = new TransportAddress(boundSocket.get());
+        return new BoundTransportAddress(new TransportAddress[] { publishAddress }, publishAddress);
     }
 
     ServerSocketChannel setupSocket() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            if (boundSocket.get() != null) {
+                try {
+                    serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
+                    serverChannel.bind(boundSocket.get());
+                } catch (Exception e) {
+                    throw new BindTransportException("Failed to re-bind to " + boundSocket.get(), e);
+                }
+
+                return null;
+            }
+
             final AtomicReference<Exception> lastException = new AtomicReference<>();
-            final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
 
             PortsRange portsRange = new PortsRange(PORT.get(environment.settings()));
             InetAddress localhost = InetAddress.getLoopbackAddress();
@@ -121,12 +115,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
                 return true;
             });
+
             if (success == false) {
                 throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portsRange), lastException.get());
             }
-
-            TransportAddress publishAddress = new TransportAddress(boundSocket.get());
-            boundAddress = new BoundTransportAddress(new TransportAddress[] { publishAddress }, publishAddress);
 
             return null;
         });
@@ -136,27 +128,23 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doStart() {
-        if (closeLock.writeLock().tryLock() == false) {
-            assert false; // can't be concurrently stopping otherwise we may not close the socket properly
-            throw new IllegalStateException("failed to acquire close-write-lock");
+        // Mark the service as active, we'll start the listener when ES is ready
+        this.active = true;
+    }
+
+    // package private for testing
+    synchronized void startListener() {
+        if (this.serverChannel != null || this.active == false) {
+            return;
         }
 
-        try {
-            this.serverChannel = setupSocket();
-        } finally {
-            closeLock.writeLock().unlock();
-        }
+        this.serverChannel = setupSocket();
 
         new Thread(() -> {
-            while (serverChannel.isOpen()) {
+            while (serverChannel != null && serverChannel.isOpen()) {
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     try (SocketChannel channel = serverChannel.accept()) {
-                        List<Callable<Void>> responders = List.of(() -> {
-                            sendStatus(channel);
-                            return null;
-                        });
-                        workerExecutor.invokeAll(responders, RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-                    } catch (IOException | InterruptedException e) {
+                    } catch (IOException e) {
                         logger.debug("encountered exception while responding to readiness check request", e);
                     } catch (Exception other) {
                         logger.warn("encountered unknown exception while responding to readiness check request", other);
@@ -166,12 +154,17 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             }
         }, "elasticsearch[readiness-service]").start();
 
-        logger.info("readiness service up and running on localhost:{}", boundAddress.publishAddress().getPort());
+        logger.info("readiness service up and running on {}", boundAddress().publishAddress());
     }
 
     @Override
     protected void doStop() {
-        closeLock.writeLock().lock();
+        this.active = false;
+        stopListener();
+    }
+
+    // package private for testing
+    synchronized void stopListener() {
         try {
             if (this.serverChannel != null) {
                 this.serverChannel.close();
@@ -179,37 +172,13 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         } catch (IOException e) {
             logger.warn("error closing readiness service channel", e);
         } finally {
-            this.ready = false;
-            this.boundAddress = null;
-            try {
-                if (workerExecutor != null) {
-                    workerExecutor.shutdown();
-                }
-            } catch (Exception other) {
-                logger.info("error shutting down readiness service executor", other);
-            }
+            this.serverChannel = null;
             logger.info("readiness service stopped");
-            closeLock.writeLock().unlock();
         }
     }
 
     @Override
     protected void doClose() {}
-
-    void sendStatus(SocketChannel channel) {
-        try {
-            BoundTransportAddress boundAddress = httpTransport.boundAddress();
-            StringBuilder sb = new StringBuilder(Boolean.toString(ready));
-
-            if (boundAddress != null && boundAddress.publishAddress() != null) {
-                sb.append(',').append(boundAddress.publishAddress().getPort());
-            }
-
-            Channels.writeToChannel(sb.toString().getBytes(StandardCharsets.UTF_8), channel);
-        } catch (IOException e) {
-            logger.warn("encountered I/O exception while responding to readiness client", e);
-        }
-    }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -217,11 +186,19 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
         if (shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId())) {
-            this.ready = false;
+            setReady(false);
             logger.info("marking node as not ready because it's shutting down");
             logger.info("port: " + boundAddress().publishAddress().getPort());
         } else {
-            this.ready = clusterState.nodes().getMasterNodeId() != null;
+            setReady(clusterState.nodes().getMasterNodeId() != null);
+        }
+    }
+
+    private void setReady(boolean ready) {
+        if (ready) {
+            startListener();
+        } else {
+            stopListener();
         }
     }
 }

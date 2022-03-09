@@ -9,7 +9,6 @@
 package org.elasticsearch.readiness;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,17 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.StandardProtocolFamily;
-import java.nio.channels.Channels;
 import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Set;
 
@@ -109,7 +98,7 @@ public class ReadinessServiceTests extends ESTestCase {
         env = newEnvironment(Settings.EMPTY);
 
         httpTransport = new FakeHttpTransport();
-        readinessService = new ReadinessService(clusterService, env, httpTransport);
+        readinessService = new ReadinessService(clusterService, env);
     }
 
     @After
@@ -126,69 +115,60 @@ public class ReadinessServiceTests extends ESTestCase {
 
     public void testStartStop() {
         readinessService.start();
+        readinessService.startListener();
         assertNotNull(readinessService.serverChannel());
         readinessService.stop();
         assertFalse(readinessService.ready());
         readinessService.close();
     }
 
-    @SuppressForbidden(reason = "Intentional socket open")
-    public void testSendStatus() throws Exception {
+    public void testTCPProbe() throws Exception {
         readinessService.start();
+        // manually starting the listener, no Elasticsearch booted
+        readinessService.startListener();
 
-        InetSocketAddress socketAddress = new InetSocketAddress(
-            InetAddress.getLoopbackAddress(),
-            readinessService.boundAddress().publishAddress().getPort()
-        );
+        // try to see if TCP probe succeeds
+        tcpReadinessProbeTrue(readinessService);
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    channel.connect(socketAddress);
-                    BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
-                    String message = reader.readLine();
-                    assertNotNull(message);
-                    assertEquals("false," + httpTransport.boundAddress().publishAddress().getPort(), message);
-
-                    ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
-                        .nodes(
-                            DiscoveryNodes.builder()
-                                .add(
-                                    DiscoveryNode.createLocal(
-                                        Settings.EMPTY,
-                                        new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                                        "node2"
-                                    )
-                                )
+        // mocking a cluster change event, with a master down
+        ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.EMPTY,
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                            "node2"
                         )
-                        .build();
+                    )
+            )
+            .build();
 
-                    ClusterState newState = ClusterState.builder(previousState)
-                        .nodes(
-                            DiscoveryNodes.builder(previousState.nodes())
-                                .add(httpTransport.node)
-                                .masterNodeId(httpTransport.node.getId())
-                                .localNodeId(httpTransport.node.getId())
-                        )
-                        .build();
-                    ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
-                    readinessService.clusterChanged(event);
-                    assertTrue(readinessService.ready());
-                } catch (IOException e) {
-                    fail("Shouldn't reach here");
-                }
+        ClusterState newState = ClusterState.builder(previousState)
+            .nodes(
+                DiscoveryNodes.builder(previousState.nodes())
+                    .add(httpTransport.node)
+                    .masterNodeId(null) // No master node should cause the readiness service to kill the socket listener
+                    .localNodeId(httpTransport.node.getId())
+            )
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
+        readinessService.clusterChanged(event);
 
-                return null;
-            });
-        }
+        // without master the service is not ready
+        assertFalse(readinessService.ready());
+
+        // test that we cannot connect to the socket anymore
+        tcpReadinessProbeFalse(readinessService);
+
         readinessService.stop();
         readinessService.close();
     }
 
-    @SuppressForbidden(reason = "Intentional socket open")
     public void testStatusChange() throws Exception {
         readinessService.start();
 
+        // initially the service isn't ready
         assertFalse(readinessService.ready());
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
@@ -208,31 +188,12 @@ public class ReadinessServiceTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
         readinessService.clusterChanged(event);
+
+        // sending a cluster state with active master should bring up the service
         assertTrue(readinessService.ready());
 
         previousState = newState;
-
-        InetSocketAddress socketAddress = new InetSocketAddress(
-            InetAddress.getLoopbackAddress(),
-            readinessService.boundAddress().publishAddress().getPort()
-        );
-
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
-
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    channel.connect(socketAddress);
-                    BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
-                    String message = reader.readLine();
-                    assertNotNull(message);
-                    assertEquals("true," + httpTransport.boundAddress().publishAddress().getPort(), message);
-                } catch (IOException e) {
-                    fail("Shouldn't reach here");
-                }
-
-                return null;
-            });
-        }
+        tcpReadinessProbeTrue(readinessService);
 
         ClusterState noMasterState = ClusterState.builder(previousState)
             .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId(null))
@@ -240,10 +201,12 @@ public class ReadinessServiceTests extends ESTestCase {
         event = new ClusterChangedEvent("test", noMasterState, previousState);
         readinessService.clusterChanged(event);
         assertFalse(readinessService.ready());
+        tcpReadinessProbeFalse(readinessService);
 
         event = new ClusterChangedEvent("test", previousState, noMasterState);
         readinessService.clusterChanged(event);
         assertTrue(readinessService.ready());
+        tcpReadinessProbeTrue(readinessService);
 
         newState = ClusterState.builder(previousState)
             .metadata(
@@ -269,6 +232,7 @@ public class ReadinessServiceTests extends ESTestCase {
         event = new ClusterChangedEvent("test", newState, previousState);
         readinessService.clusterChanged(event);
         assertFalse(readinessService.ready());
+        tcpReadinessProbeFalse(readinessService);
 
         readinessService.stop();
         readinessService.close();

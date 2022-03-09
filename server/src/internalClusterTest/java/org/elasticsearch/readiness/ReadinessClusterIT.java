@@ -7,22 +7,12 @@
  */
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.channels.Channels;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
@@ -61,7 +51,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
-        assertFalse(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
+        assertFalse(internalCluster().getInstance(ReadinessService.class, dataNode).ready());
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -78,8 +68,8 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                 .getName(),
             equalTo(masterNode)
         );
-        assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
-        assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
         Integer masterPort = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName())
             .boundAddress()
@@ -104,7 +94,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
-        assertFalse(getStatus(masterPort));
+        tcpReadinessProbeFalse(masterPort);
 
         try {
             assertThat(
@@ -180,21 +170,21 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         internalCluster().validateClusterFormed();
 
-        assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
         for (String dataNode : dataNodes) {
             ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-            assertTrue(getStatus(s));
+            tcpReadinessProbeTrue(s);
         }
 
         logger.info("--> restart data node 1");
         internalCluster().restartNode(dataNodes.get(0), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
-                assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, dataNodes.get(1))));
+            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
+            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNodes.get(1)));
 
-                return super.onNodeStopped(nodeName);
+            return super.onNodeStopped(nodeName);
             }
         });
 
@@ -203,62 +193,37 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
+            try {
+                assertThat(
+                    client().admin()
+                        .cluster()
+                        .prepareState()
+                        .setMasterNodeTimeout("100ms")
+                        .execute()
+                        .actionGet()
+                        .getState()
+                        .nodes()
+                        .getMasterNodeId(),
+                    nullValue()
+                );
+                fail("should not be able to find master");
+            } catch (MasterNotDiscoveredException e) {
+                // all is well, no master elected
+            }
 
-                try {
-                    assertThat(
-                        client().admin()
-                            .cluster()
-                            .prepareState()
-                            .setMasterNodeTimeout("100ms")
-                            .execute()
-                            .actionGet()
-                            .getState()
-                            .nodes()
-                            .getMasterNodeId(),
-                        nullValue()
-                    );
-                    fail("should not be able to find master");
-                } catch (MasterNotDiscoveredException e) {
-                    // all is well, no master elected
-                }
+            for (String dataNode : dataNodes) {
+                ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
+                tcpReadinessProbeFalse(s);
+            }
 
-                for (String dataNode : dataNodes) {
-                    ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-                    assertFalse(getStatus(s));
-                }
-
-                return super.onNodeStopped(nodeName);
+            return super.onNodeStopped(nodeName);
             }
         });
 
         ensureGreen();
         for (String dataNode : dataNodes) {
             ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-            assertTrue(getStatus(s));
+            tcpReadinessProbeTrue(s);
         }
-    }
-
-    private boolean getStatus(ReadinessService readinessService) {
-        return getStatus(readinessService.boundAddress().publishAddress().getPort());
-    }
-
-    @SuppressForbidden(reason = "Intentional socket open")
-    private boolean getStatus(Integer port) {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
-
-        return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
-            try (SocketChannel channel = SocketChannel.open(socketAddress)) {
-                try {
-                    BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
-                    String message = reader.readLine();
-                    assertNotNull(message);
-                    return message.startsWith("true,");
-                } catch (IOException ignored) {}
-
-                return false;
-            } catch (IOException expectedSometimes) {
-                return false;
-            }
-        });
     }
 }

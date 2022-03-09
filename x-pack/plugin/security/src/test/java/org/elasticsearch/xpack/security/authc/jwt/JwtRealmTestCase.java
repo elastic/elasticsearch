@@ -117,8 +117,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         MinMax audiencesRange,
         MinMax usersRange,
         MinMax rolesRange,
-        MinMax jwtCacheSizeRange,
-        MinMax userCacheSizeRange
+        MinMax jwtCacheSizeRange
     ) throws Exception {
         assertThat(realmsRange.min(), is(greaterThanOrEqualTo(1)));
         assertThat(authzRange.min(), is(greaterThanOrEqualTo(0)));
@@ -127,7 +126,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(usersRange.min(), is(greaterThanOrEqualTo(1)));
         assertThat(rolesRange.min(), is(greaterThanOrEqualTo(0)));
         assertThat(jwtCacheSizeRange.min(), is(greaterThanOrEqualTo(0)));
-        assertThat(userCacheSizeRange.min(), is(greaterThanOrEqualTo(0)));
 
         // Create JWT authc realms and mocked authz realms. Initialize each JWT realm, and test ensureInitialized() before and after.
         final int realmsCount = randomIntBetween(realmsRange.min(), realmsRange.max());
@@ -140,10 +138,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final int usersCount = randomIntBetween(usersRange.min(), usersRange.max());
             final int rolesCount = randomIntBetween(rolesRange.min(), rolesRange.max());
             final int jwtCacheSize = randomIntBetween(jwtCacheSizeRange.min(), jwtCacheSizeRange.max());
-            final int usersCacheSize = randomIntBetween(userCacheSizeRange.min(), userCacheSizeRange.max());
 
             final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount);
-            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, authzCount, jwtCacheSize, usersCacheSize);
+            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, authzCount, jwtCacheSize);
             this.jwtIssuerAndRealms.add(new JwtIssuerAndRealm(jwtIssuer, jwtRealm));
 
             // verify exception before initialize()
@@ -197,8 +194,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final List<Realm> allRealms, // JWT realms and authz realms
         final JwtIssuer jwtIssuer,
         final int authzCount,
-        final int jwtCacheSize,
-        final int usersCacheSize
+        final int jwtCacheSize
     ) throws Exception {
         final String authcRealmName = "realm_" + jwtIssuer.issuer;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
@@ -260,27 +256,16 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 String.join(",", authzRealmNames)
             );
         }
+
+        // JWT cache (on/off controlled by jwtCacheSize)
         if (randomBoolean()) {
-            // enable JWT cache
-            authcSettings.put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_HASH_ALGO),
-                randomBoolean() ? null : randomFrom("noop", "ssha256", "pbkdf2_100000", "pbkdf2_stretch_100000")
-            );
             authcSettings.put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_TTL),
                 randomIntBetween(10, 120) + randomFrom("s", "m", "h")
             );
-            authcSettings.put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_MAX_USERS),
-                randomIntBetween(1, 10)
-            );
-        } else if (randomBoolean()) {
-            // disable JWT cache via JWT_CACHE_TTL setting
-            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_TTL), "0");
-        } else {
-            // disable JWT cache via JWT_CACHE_MAX_USERS setting
-            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_MAX_USERS), "0");
         }
+        authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_MAX_USERS), jwtCacheSize);
+
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {

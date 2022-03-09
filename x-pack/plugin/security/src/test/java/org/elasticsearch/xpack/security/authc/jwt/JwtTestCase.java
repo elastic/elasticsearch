@@ -165,10 +165,6 @@ public abstract class JwtTestCase extends ESTestCase {
             )
             // Cache settings
             .put(
-                RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_HASH_ALGO),
-                randomBoolean() ? null : randomFrom("noop", "ssha256", "pbkdf2_100000", "pbkdf2_stretch_100000")
-            )
-            .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_TTL),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(10, 120) + randomFrom("s", "m", "h")
             )

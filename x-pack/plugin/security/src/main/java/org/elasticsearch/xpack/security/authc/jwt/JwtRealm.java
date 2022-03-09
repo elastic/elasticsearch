@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -32,16 +33,17 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -94,8 +96,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-    final Hasher jwtCacheHasher;
-    final Cache<char[], User> jwtCache;
+    final Cache<BytesKey, User> jwtCache;
 
     public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
         throws SettingsException {
@@ -111,7 +112,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
         this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
-        this.jwtCacheHasher = Hasher.resolve(realmConfig.getSetting(JwtRealmSettings.JWT_CACHE_HASH_ALGO));
         this.jwtCache = this.buildJwtCache();
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
@@ -154,11 +154,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.verifyAnyAvailableJwkAndAlgPair();
     }
 
-    private Cache<char[], User> buildJwtCache() {
+    private Cache<BytesKey, User> buildJwtCache() {
         final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
         final int jwtCacheMaxUsers = super.config.getSetting(JwtRealmSettings.JWT_CACHE_MAX_USERS);
         if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheMaxUsers > 0)) {
-            return CacheBuilder.<char[], User>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheMaxUsers).build();
+            return CacheBuilder.<BytesKey, User>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheMaxUsers).build();
         }
         return null;
     }
@@ -275,7 +275,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     /**
      * Clean up JWT cache (if enabled).
-     * Clean up user cache (if enabled).
      * Clean up HTTPS client cache (if enabled).
      */
     @Override
@@ -371,13 +370,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // JWT cache
             final SecureString serializedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-            final char[] jwtCacheKey = (this.jwtCache == null) ? null : this.jwtCacheHasher.hash(serializedJwt);
+            final BytesKey jwtCacheKey = (this.jwtCache == null) ? null : computeBytesKey(serializedJwt);
             if (jwtCacheKey != null) {
                 final User user = this.jwtCache.get(jwtCacheKey);
                 if (user == null) {
-                    LOGGER.trace("Realm [" + super.name() + "] JWT cache miss for token=[" + tokenPrincipal + "].");
+                    LOGGER.trace("Realm [" + super.name() + "] JWT cache miss token=[" + tokenPrincipal + "] key=[" + jwtCacheKey + "].");
                 } else {
-                    LOGGER.trace("Realm [" + super.name() + "] JWT cache hit for token=[" + tokenPrincipal + "].");
+                    LOGGER.trace("Realm [" + super.name() + "] JWT cache hit token=[" + tokenPrincipal + "] key=[" + jwtCacheKey + "].");
                     if (this.delegatedAuthorizationSupport.hasDelegation()) {
                         this.delegatedAuthorizationSupport.resolve(user.principal(), listener);
                     } else {
@@ -482,5 +481,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             stats.put("jwt.cache", Collections.singletonMap("size", this.jwtCache == null ? -1 : this.jwtCache.count()));
             listener.onResponse(stats);
         }, listener::onFailure));
+    }
+
+    static BytesKey computeBytesKey(final CharSequence charSequence) {
+        final MessageDigest messageDigest = MessageDigests.sha256();
+        messageDigest.update(charSequence.toString().getBytes(StandardCharsets.UTF_8));
+        return new BytesKey(messageDigest.digest());
     }
 }

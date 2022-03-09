@@ -2059,12 +2059,6 @@ If this setting is used, then the JWT realm does not perform role
 mapping and instead loads the user from the listed realms.
 See <<authorization_realms>>.
 
-`jwt.cache.hash_algo`::
-(<<static-cluster-setting,Static>>)
-The hashing algorithm that is used for JWT cache entries.
-Defaults to `ssha256`.
-For possible values, see <<cache-hash-algo>>.
-
 `jwt.cache.ttl`::
 (<<static-cluster-setting,Static>>)
 Specifies the time-to-live for JWT cache entries.

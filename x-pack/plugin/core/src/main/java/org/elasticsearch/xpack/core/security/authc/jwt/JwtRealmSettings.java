@@ -82,7 +82,6 @@ public class JwtRealmSettings {
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
-    private static final String DEFAULT_JWT_CACHE_HASH_ALGO = "ssha256";
     private static final TimeValue DEFAULT_JWT_CACHE_TTL = TimeValue.timeValueMinutes(20);
     private static final int DEFAULT_JWT_CACHE_MAX_USERS = 100_000;
     private static final int MIN_JWT_CACHE_MAX_USERS = 0;
@@ -132,7 +131,7 @@ public class JwtRealmSettings {
         // JWT Client settings
         set.addAll(List.of(CLIENT_AUTHENTICATION_TYPE));
         // JWT Cache settings
-        set.addAll(List.of(JWT_CACHE_HASH_ALGO, JWT_CACHE_TTL, JWT_CACHE_MAX_USERS));
+        set.addAll(List.of(JWT_CACHE_TTL, JWT_CACHE_MAX_USERS));
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(
             List.of(
@@ -229,12 +228,6 @@ public class JwtRealmSettings {
     );
 
     // Individual Cache settings
-
-    public static final Setting.AffixSetting<String> JWT_CACHE_HASH_ALGO = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "jwt.cache.hash_algo",
-        key -> Setting.simpleString(key, DEFAULT_JWT_CACHE_HASH_ALGO, Setting.Property.NodeScope)
-    );
 
     public static final Setting.AffixSetting<TimeValue> JWT_CACHE_TTL = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),

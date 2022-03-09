@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import com.carrotsearch.hppc.CharObjectHashMap;
 import com.carrotsearch.hppc.CharObjectMap;
-import com.carrotsearch.hppc.IntCharMap;
-import com.carrotsearch.hppc.IntCharScatterMap;
 
 import org.apache.lucene.analysis.CharArrayMap;
 import org.apache.lucene.analysis.CharArraySet;
@@ -25,8 +23,10 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -41,7 +41,7 @@ public class BpeTokenizer extends Tokenizer {
         "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+"
     );
 
-    static IntCharMap byteEncoder() {
+    static Map<Integer, Character> byteEncoder() {
         List<Integer> bytes = IntStream.concat(
             IntStream.range(Character.codePointAt("!", 0), Character.codePointAt("~", 0) + 1),
             IntStream.concat(
@@ -64,10 +64,14 @@ public class BpeTokenizer extends Tokenizer {
         for (Integer c : chars) {
             charArray[i++] = Character.toChars(c)[0];
         }
-        return IntCharScatterMap.from(bytes.stream().mapToInt(Integer::intValue).toArray(), charArray);
+        Map<Integer, Character> map = new HashMap<>(charArray.length, 1.0f);
+        for (int j = 0; j < bytes.size(); j++) {
+            map.put(bytes.get(j), charArray[j]);
+        }
+        return map;
     }
 
-    private static final IntCharMap BYTES_CHAR = byteEncoder();
+    private static final Map<Integer, Character> BYTES_CHAR = byteEncoder();
 
     // NOTE: 32 is " " utf-8 encoded byte
     private static final char ENCODED_SPACE_CHAR = BYTES_CHAR.get(32);

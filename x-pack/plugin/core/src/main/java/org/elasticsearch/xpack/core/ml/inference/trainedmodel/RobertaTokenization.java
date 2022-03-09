@@ -33,14 +33,12 @@ public class RobertaTokenization extends Tokenization {
                 (Boolean) a[1],
                 (Integer) a[2],
                 a[3] == null ? null : Truncate.fromString((String) a[3]),
-                (Integer) a[4]
+                (Integer) a[4],
+                (Boolean) a[5]
             )
         );
-        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), WITH_SPECIAL_TOKENS);
+        declareCommonFields(parser);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ADD_PREFIX_SPACE);
-        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_SEQUENCE_LENGTH);
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TRUNCATE);
-        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), SPAN);
         return parser;
     }
 
@@ -52,6 +50,20 @@ public class RobertaTokenization extends Tokenization {
     }
 
     private final boolean addPrefixSpace;
+
+    private RobertaTokenization(
+        @Nullable Boolean doLowerCase,
+        @Nullable Boolean withSpecialTokens,
+        @Nullable Integer maxSequenceLength,
+        @Nullable Truncate truncate,
+        @Nullable Integer span,
+        @Nullable Boolean addPrefixSpace
+    ) {
+        this(withSpecialTokens, addPrefixSpace, maxSequenceLength, truncate, span);
+        if (doLowerCase != null && doLowerCase) {
+            throw new IllegalArgumentException("unable to set [do_lower_case] to [true] for roberta tokenizer");
+        }
+    }
 
     public RobertaTokenization(
         @Nullable Boolean withSpecialTokens,

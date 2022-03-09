@@ -7,12 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import com.carrotsearch.hppc.CharContainer;
-import com.carrotsearch.hppc.CharIntMap;
-import com.carrotsearch.hppc.CharIntScatterMap;
-import com.carrotsearch.hppc.IntCharMap;
-import com.carrotsearch.hppc.IntCollection;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -21,7 +15,9 @@ import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -33,12 +29,12 @@ public class RobertaTokenizationResult extends TokenizationResult {
     static final String TOKENS = "tokens";
     static final String ARG1 = "arg_1";
 
-    private static final CharIntMap CHAR_BYTES;
+    private static final Map<Character, Integer> CHAR_BYTES;
     static {
-        IntCharMap encoder = byteEncoder();
-        IntCollection bytes = encoder.keys();
-        CharContainer chars = encoder.values();
-        CHAR_BYTES = CharIntScatterMap.from(chars.toArray(), bytes.toArray());
+        Map<Integer, Character> encoder = byteEncoder();
+        Map<Character, Integer> decoder = new HashMap<>(encoder.size(), 1.0f);
+        encoder.forEach((b, c) -> decoder.put(c, b));
+        CHAR_BYTES = decoder;
     }
 
     protected RobertaTokenizationResult(List<String> vocab, List<Tokens> tokenizations, int padTokenId) {
@@ -50,7 +46,7 @@ public class RobertaTokenizationResult extends TokenizationResult {
         char[] chars = token.toCharArray();
         byte[] bytes = new byte[chars.length];
         for (int i = 0; i < chars.length; i++) {
-            bytes[i] = (byte) CHAR_BYTES.get(chars[i]);
+            bytes[i] = CHAR_BYTES.get(chars[i]).byteValue();
         }
         String decoded = new String(bytes, StandardCharsets.UTF_8);
         // Right now, this is only really used by fill_mask, so trimming is best as the <mask> token never accounts for spaces

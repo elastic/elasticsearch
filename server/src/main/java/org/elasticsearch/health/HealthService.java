@@ -52,11 +52,11 @@ public class HealthService {
         Set<String> duplicateIndicatorNames = findDuplicatesByName(indicators);
         assert duplicateIndicatorNames.isEmpty()
             : String.format(
-            Locale.ROOT,
-            "Found multiple indicators with the same name within the %s component: %s",
-            indicators.get(0).component(),
-            duplicateIndicatorNames
-        );
+                Locale.ROOT,
+                "Found multiple indicators with the same name within the %s component: %s",
+                indicators.get(0).component(),
+                duplicateIndicatorNames
+            );
         return new HealthComponentResult(
             indicators.get(0).component(),
             HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),

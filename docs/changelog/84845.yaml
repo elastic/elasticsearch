@@ -1,0 +1,5 @@
+pr: 84845
+summary: Remove JWT realm feature flag
+area: Authentication
+type: feature
+issues: []

@@ -321,7 +321,7 @@ public abstract class TransportNodesAction<
 
         @Override
         public String toString() {
-            return "AsyncAction{" + "request=" + request + ", listener=" + listener + '}';
+            return "AsyncAction{request=" + request + ", listener=" + listener + '}';
         }
     }
 

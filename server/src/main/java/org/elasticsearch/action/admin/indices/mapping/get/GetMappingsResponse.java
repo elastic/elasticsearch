@@ -74,7 +74,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 builder.startObject(MAPPINGS.getPreferredName());
 
                 if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
-                    indexEntry.getValue().source().copyTo(builder.field(MapperService.SINGLE_MAPPING_NAME));
+                    builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue().sourceAsMap());
                 }
                 builder.endObject();
 

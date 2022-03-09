@@ -260,6 +260,27 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 String.join(",", authzRealmNames)
             );
         }
+        if (randomBoolean()) {
+            // enable JWT cache
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_HASH_ALGO),
+                randomBoolean() ? null : randomFrom("noop", "ssha256", "pbkdf2_100000", "pbkdf2_stretch_100000")
+            );
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_TTL),
+                randomIntBetween(10, 120) + randomFrom("s", "m", "h")
+            );
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_MAX_USERS),
+                randomIntBetween(1, 10)
+            );
+        } else if (randomBoolean()) {
+            // disable JWT cache via JWT_CACHE_TTL setting
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_TTL), "0");
+        } else {
+            // disable JWT cache via JWT_CACHE_MAX_USERS setting
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_MAX_USERS), "0");
+        }
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {

@@ -1,5 +1,5 @@
 pr: 84263
-summary: Capture client's effective realm for token creation
+summary: Ensure tokens represent effective user's identity in all cases
 area: Security
 type: bug
 issues: []

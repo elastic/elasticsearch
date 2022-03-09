@@ -1541,7 +1541,7 @@ public final class TokenService {
                 "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
                 refreshToken.getAssociatedUser(),
                 refreshToken.getAssociatedRealm(),
-                clientAuthentication.getSourceRealm().getName()
+                clientAuthentication.getAuthenticatedBy().getName()
             );
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
         } else {

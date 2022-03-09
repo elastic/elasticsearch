@@ -16,24 +16,27 @@ In 8.1.0, a bug {es-issue}84784[#84784] prevents APIs using requests with filter
 when request body auditing is enabled. Using these APIs can result into a `401` HTTP
 error with a `null_pointer_exception` being the underlying cause.
 
-Audit logging can be configured to print the request body of incoming requests.
-Certain requests can contain sensitive information, e.g. a password, that must not
+When `xpack.security.audit.logfile.events.emit_request_body` is `true`, audit
+logs include the request body of incoming requests for certain events.
+These requests can contain sensitive information, such as passwords, that must not
 be logged. Fields containing such information are filtered out before logging.
 The REST APIs that use requests with filtered fields are:
 
-* <<security-api-change-password>>
-* <<cluster-nodes-reload-secure-settings>>
-* <<security-api-put-user>>
-* <<security-api-get-token>>
-* <<security-api-invalidate-token>>
-* <<security-api-grant-api-key>>
-* <<watcher-api-put-watch>>
-* <<watcher-api-execute-watch>>
-* <<security-api-saml-authenticate>>
-* <<security-api-oidc-authenticate>>
+* <<security-api-change-password,Change passwords API>>
+* <<cluster-nodes-reload-secure-settings,Node reload settings API>>
+* <<security-api-put-user,Create or updates users API>>
+* <<security-api-get-token,Get token API>>
+* <<security-api-invalidate-token,Invalidate token API>>
+* <<security-api-grant-api-key,Grant API key API>>
+* <<watcher-api-put-watch,Create or update watch API>>
+* <<watcher-api-execute-watch,Execute watch API>>
+* <<security-api-saml-authenticate,SAML authenticate API>>
+* <<security-api-oidc-authenticate,OpenID Connect authenticate API>>
 * <<docs-reindex,Reindex API>>
 
-Please note `emit_request_body` defaults to `false`. Also note request body is only logged for
+Please note the `xpack.security.audit.logfile.events.emit_request_body` cluster
+setting defaults to `false`. If the setting is `true`, audit logs only include
+the request body for the
 following events (not all of these events are enabled by default):
 
 * `authentication_success`

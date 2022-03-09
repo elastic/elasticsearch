@@ -88,7 +88,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
         Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
         SharedResource resource = serviceRegistry.forService(throttleProvider);
 
-        int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
+        int nodeCount = Math.min(clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum(), 2);
         if (nodeCount > 0) {
             locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
         }

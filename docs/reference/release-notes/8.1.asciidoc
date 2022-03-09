@@ -9,12 +9,11 @@ Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
 [float]
 === Known issues
 
-* If audit logging is configured to `emit_request_body`, it can result into `NullPointerException` for
-requests that have filtered fields.
+* If audit logging is configured to `emit_request_body`, it can prevent some APIs from working.
 +
 --
 Audit logging can be configured to print the request body of incoming requests.
-Certain requests can contain sensitive information, e.g. password, that must not
+Certain requests can contain sensitive information, e.g. a password, that must not
 be logged. Fields containing such information are filtered out before logging.
 The REST APIs that use requests with filtered fields are:
 
@@ -30,12 +29,12 @@ The REST APIs that use requests with filtered fields are:
 * <<security-api-oidc-authenticate>>
 * <<docs-reindex,Reindex API>>
 
-In 8.1, a bug {es-issue}84784[#84784] prevents request with filtered fields work
+In 8.1, a bug {es-issue}84784[#84784] prevents request with filtered fields from working
 correctly with auditing request body. Using above APIs can result into a `401` HTTP
 error with a `null_pointer_exception` being the underlying cause.
 
 Please note `emit_request_body` defaults to `false`. Also note request body is only logged for
-following events (most of them are not enabled by default either):
+following events (not all of these events are enabled by default):
 
 * `authentication_success`
 * `authentication_failed`

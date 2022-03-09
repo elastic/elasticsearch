@@ -77,10 +77,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         logger.info("--> stop master node");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
+        expectMasterNotFound();
 
         tcpReadinessProbeFalse(masterPort);
-
-        expectMasterNotFound();
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
@@ -89,6 +88,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         assertMasterNode(internalCluster().nonMasterClient(), nextMasterEligibleNodeName);
         assertMasterNode(internalCluster().masterClient(), nextMasterEligibleNodeName);
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, nextMasterEligibleNodeName));
     }
 
     public void testReadinessDuringRestartsNormalOrder() throws Exception {

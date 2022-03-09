@@ -183,7 +183,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         if (shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId())) {
             setReady(false);
             logger.info("marking node as not ready because it's shutting down");
-            logger.info("port: " + boundAddress().publishAddress().getPort());
         } else {
             setReady(clusterState.nodes().getMasterNodeId() != null);
         }

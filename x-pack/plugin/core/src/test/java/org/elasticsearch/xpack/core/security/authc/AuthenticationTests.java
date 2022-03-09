@@ -601,15 +601,27 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
-        return randomApiKeyAuthentication(user, apiKeyId, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT));
+        return randomApiKeyAuthentication(
+            user,
+            apiKeyId,
+            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+            AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT)
+        );
     }
 
-    public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, Version version) {
+    public static Authentication randomApiKeyAuthentication(
+        User user,
+        String apiKeyId,
+        String creatorRealmName,
+        String creatorRealmType,
+        Version version
+    ) {
         final HashMap<String, Object> metadata = new HashMap<>();
         metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
-        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, creatorRealmName);
+        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, creatorRealmType);
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{}"));
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
             {"x":{"cluster":["all"],"indices":[{"names":["index*"],"privileges":["all"]}]}}"""));

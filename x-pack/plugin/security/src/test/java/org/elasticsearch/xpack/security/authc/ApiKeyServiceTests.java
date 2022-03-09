@@ -298,7 +298,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             && Strings.hasText(username) == false
             && Strings.hasText(apiKeyName) == false
             && (apiKeyIds == null || apiKeyIds.length == 0)) {
-            return;
+            username = randomAlphaOfLengthBetween(3, 8);
         }
         PlainActionFuture<InvalidateApiKeyResponse> invalidateApiKeyResponseListener = new PlainActionFuture<>();
         service.invalidateApiKeys(realmNames, username, apiKeyName, apiKeyIds, invalidateApiKeyResponseListener);
@@ -1397,9 +1397,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             AuthenticationTests.randomUser(),
             AuthenticationTests.randomRealmRef(randomBoolean())
         );
-        if (randomBoolean()) {
-            authentication.token();
-        }
         assertThat(
             Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), realmRef))),
             contains(realmRef.getName())
@@ -1442,17 +1439,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         // API key authentication
         final String apiKeyCreatorRealm = randomAlphaOfLengthBetween(2, 8);
-        authentication = Authentication.newApiKeyAuthentication(
-            AuthenticationResult.success(
-                AuthenticationTests.randomUser(),
-                Map.of(
-                    AuthenticationField.API_KEY_CREATOR_REALM_NAME,
-                    apiKeyCreatorRealm,
-                    AuthenticationField.API_KEY_ID_KEY,
-                    randomAlphaOfLength(20)
-                )
-            ),
-            randomAlphaOfLength(4)
+        authentication = AuthenticationTests.randomApiKeyAuthentication(
+            AuthenticationTests.randomUser(),
+            randomAlphaOfLength(8),
+            apiKeyCreatorRealm,
+            "file",
+            Version.CURRENT
         );
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(apiKeyCreatorRealm));
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(apiKeyCreatorRealm));

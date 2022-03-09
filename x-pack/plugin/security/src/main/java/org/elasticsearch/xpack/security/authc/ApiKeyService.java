@@ -902,10 +902,10 @@ public class ApiKeyService {
 
     /**
      * Invalidate API keys for given realm, user name, API key name and id.
-     * @param realmNames realm name
+     * @param realmNames realm names
      * @param username user name
      * @param apiKeyName API key name
-     * @param apiKeyIds API key id
+     * @param apiKeyIds API key ids
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
     public void invalidateApiKeys(

@@ -41,9 +41,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *
      * Note that this method will be executed using system context.
      *
-     * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
+     * @param newClusterState the new state which was published
      */
-    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {}
+    default void clusterStatePublished(ClusterState newClusterState) {}
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).

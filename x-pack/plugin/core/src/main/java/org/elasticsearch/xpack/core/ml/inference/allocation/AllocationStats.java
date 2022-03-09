@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +39,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
         private final Instant startTime;
         private final Integer inferenceThreads;
         private final Integer modelThreads;
+        private final long peakThroughput;
+        private final long throughputLastPeriod;
+        private final Double avgInferenceTimeLastPeriod;
 
         public static AllocationStats.NodeStats forStartedState(
             DiscoveryNode node,
@@ -50,7 +54,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
             Instant lastAccess,
             Instant startTime,
             Integer inferenceThreads,
-            Integer modelThreads
+            Integer modelThreads,
+            long peakThroughput,
+            long throughputLastPeriod,
+            Double avgInferenceTimeLastPeriod
         ) {
             return new AllocationStats.NodeStats(
                 node,
@@ -64,7 +71,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 new RoutingStateAndReason(RoutingState.STARTED, null),
                 Objects.requireNonNull(startTime),
                 inferenceThreads,
-                modelThreads
+                modelThreads,
+                peakThroughput,
+                throughputLastPeriod,
+                avgInferenceTimeLastPeriod
             );
         }
 
@@ -81,6 +91,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 new RoutingStateAndReason(state, reason),
                 null,
                 null,
+                null,
+                0,
+                0,
                 null
             );
         }
@@ -97,7 +110,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
             RoutingStateAndReason routingState,
             @Nullable Instant startTime,
             @Nullable Integer inferenceThreads,
-            @Nullable Integer modelThreads
+            @Nullable Integer modelThreads,
+            long peakThroughput,
+            long throughputLastPeriod,
+            Double avgInferenceTimeLastPeriod
         ) {
             this.node = node;
             this.inferenceCount = inferenceCount;
@@ -111,6 +127,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
             this.startTime = startTime;
             this.inferenceThreads = inferenceThreads;
             this.modelThreads = modelThreads;
+            this.peakThroughput = peakThroughput;
+            this.throughputLastPeriod = throughputLastPeriod;
+            this.avgInferenceTimeLastPeriod = avgInferenceTimeLastPeriod;
 
             // if lastAccess time is null there have been no inferences
             assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
@@ -136,6 +155,15 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 this.errorCount = 0;
                 this.rejectedExecutionCount = 0;
                 this.timeoutCount = 0;
+            }
+            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+                this.peakThroughput = in.readVLong();
+                this.throughputLastPeriod = in.readVLong();
+                this.avgInferenceTimeLastPeriod = in.readOptionalDouble();
+            } else {
+                this.peakThroughput = 0;
+                this.throughputLastPeriod = 0;
+                this.avgInferenceTimeLastPeriod = null;
             }
         }
 
@@ -179,6 +207,26 @@ public class AllocationStats implements ToXContentObject, Writeable {
             return startTime;
         }
 
+        public Integer getInferenceThreads() {
+            return inferenceThreads;
+        }
+
+        public Integer getModelThreads() {
+            return modelThreads;
+        }
+
+        public long getPeakThroughput() {
+            return peakThroughput;
+        }
+
+        public long getThroughputLastPeriod() {
+            return throughputLastPeriod;
+        }
+
+        public Double getAvgInferenceTimeLastPeriod() {
+            return avgInferenceTimeLastPeriod;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -219,6 +267,12 @@ public class AllocationStats implements ToXContentObject, Writeable {
             if (modelThreads != null) {
                 builder.field("model_threads", modelThreads);
             }
+            builder.field("peak_throughput_per_minute", peakThroughput);
+            builder.field("throughput_last_minute", throughputLastPeriod);
+            if (avgInferenceTimeLastPeriod != null) {
+                builder.field("average_inference_time_ms_last_minute", avgInferenceTimeLastPeriod);
+            }
+
             builder.endObject();
             return builder;
         }
@@ -239,6 +293,11 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 out.writeVInt(rejectedExecutionCount);
                 out.writeVInt(timeoutCount);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+                out.writeVLong(peakThroughput);
+                out.writeVLong(throughputLastPeriod);
+                out.writeOptionalDouble(avgInferenceTimeLastPeriod);
+            }
         }
 
         @Override
@@ -257,7 +316,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 && Objects.equals(routingState, that.routingState)
                 && Objects.equals(startTime, that.startTime)
                 && Objects.equals(inferenceThreads, that.inferenceThreads)
-                && Objects.equals(modelThreads, that.modelThreads);
+                && Objects.equals(modelThreads, that.modelThreads)
+                && Objects.equals(peakThroughput, that.peakThroughput)
+                && Objects.equals(throughputLastPeriod, that.throughputLastPeriod)
+                && Objects.equals(avgInferenceTimeLastPeriod, that.avgInferenceTimeLastPeriod);
         }
 
         @Override
@@ -274,7 +336,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 routingState,
                 startTime,
                 inferenceThreads,
-                modelThreads
+                modelThreads,
+                peakThroughput,
+                throughputLastPeriod,
+                avgInferenceTimeLastPeriod
             );
         }
     }
@@ -403,6 +468,7 @@ public class AllocationStats implements ToXContentObject, Writeable {
             .filter(n -> n.getInferenceCount().isPresent())
             .mapToLong(n -> n.getInferenceCount().get())
             .sum();
+        long peakThroughput = nodeStats.stream().mapToLong(NodeStats::getPeakThroughput).sum();
 
         if (totalErrorCount > 0) {
             builder.field("error_count", totalErrorCount);
@@ -416,6 +482,7 @@ public class AllocationStats implements ToXContentObject, Writeable {
         if (totalInferenceCount > 0) {
             builder.field("inference_count", totalInferenceCount);
         }
+        builder.field("peak_throughput_per_minute", peakThroughput);
 
         builder.startArray("nodes");
         for (AllocationStats.NodeStats nodeStat : nodeStats) {
@@ -458,5 +525,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(modelId, inferenceThreads, modelThreads, queueCapacity, startTime, nodeStats, state, reason, allocationStatus);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

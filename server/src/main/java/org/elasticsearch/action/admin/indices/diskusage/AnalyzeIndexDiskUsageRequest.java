@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexDiskUsageRequest> {
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, true);
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
     final boolean flush;
 
     public AnalyzeIndexDiskUsageRequest(String[] indices, IndicesOptions indicesOptions, boolean flush) {

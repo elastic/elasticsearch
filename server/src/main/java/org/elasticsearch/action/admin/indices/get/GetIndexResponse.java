@@ -200,10 +200,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         if (builder.getRestApiVersion() == RestApiVersion.V_7
                             && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
                             builder.startObject("mappings");
-                            builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
+                            indexMappings.source().copyTo(builder.field(MapperService.SINGLE_MAPPING_NAME));
                             builder.endObject();
                         } else {
-                            builder.field("mappings", indexMappings.sourceAsMap());
+                            indexMappings.source().copyTo(builder.field("mappings"));
                         }
                     }
 

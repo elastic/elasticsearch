@@ -44,7 +44,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // audiencesRange
             new MinMax(1, 3), // usersRange
             new MinMax(0, 0), // rolesRange
-            new MinMax(1, 1) // jwtCacheSizeRange
+            new MinMax(0, 1) // jwtCacheSizeRange
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
@@ -66,7 +66,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // audiencesRange
             new MinMax(1, 3), // usersRange
             new MinMax(0, 3), // rolesRange
-            new MinMax(1, 1) // jwtCacheSizeRange
+            new MinMax(0, 1) // jwtCacheSizeRange
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
@@ -90,7 +90,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // audiencesRange
             new MinMax(1, 3), // usersRange
             new MinMax(0, 3), // rolesRange
-            new MinMax(1, 1) // jwtCacheSizeRange
+            new MinMax(0, 1) // jwtCacheSizeRange
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(true));
@@ -132,7 +132,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 1), // audiencesRange
             new MinMax(1, 1), // usersRange
             new MinMax(1, 1), // rolesRange
-            new MinMax(1, 1) // jwtCacheSizeRange
+            new MinMax(0, 1) // jwtCacheSizeRange
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());

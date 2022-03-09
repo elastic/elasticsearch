@@ -36,7 +36,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
@@ -256,7 +255,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            List<Releasable> toRelease = new ArrayList<>(buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(Collectors.toList()));
+            List<Releasable> toRelease = new ArrayList<>(buffer.stream().<Releasable>map(b -> b::releaseAggs).toList());
             toRelease.add(() -> {
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;

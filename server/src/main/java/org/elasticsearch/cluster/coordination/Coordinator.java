@@ -275,8 +275,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             settings,
             getStateForMasterService(),
             peerFinder.getLastResolvedAddresses(),
-            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                .collect(Collectors.toList()),
+            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
             electionStrategy,
             nodeHealthService.getHealth()
@@ -1039,7 +1038,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);
 
-            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).toList()) == false) {
                 logger.debug(
                     "skip setting initial configuration as not enough nodes discovered to form a quorum in the "
                         + "initial configuration [knownNodes={}, {}]",
@@ -1696,7 +1695,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                                         futureVoteCollection
                                                     );
                                                 })
-                                                .collect(Collectors.toList());
+                                                .toList();
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
                                                 attemptReconfiguration = false;

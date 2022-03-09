@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
@@ -91,7 +90,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             // check that closed indices are effectively closed
             final List<String> notClosedIndices = indicesToClose.stream()
                 .filter(index -> clusterState.metadata().index(index).getState() != State.CLOSE)
-                .collect(Collectors.toList());
+                .toList();
             assertThat("Some indices not closed", notClosedIndices, empty());
 
             // verify that we have all the primaries on node3

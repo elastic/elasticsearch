@@ -36,7 +36,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;
@@ -332,10 +331,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         logger.debug("--> starting another data node with data paths [{}]", dataPaths);
         dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .putList(
-                    Environment.PATH_DATA_SETTING.getKey(),
-                    dataPaths.stream().map(p -> p.toAbsolutePath().toString()).collect(Collectors.toList())
-                )
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths.stream().map(p -> p.toAbsolutePath().toString()).toList())
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build()
         );

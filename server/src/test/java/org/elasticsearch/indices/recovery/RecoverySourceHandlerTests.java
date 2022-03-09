@@ -312,9 +312,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.sentOperations, equalTo(expectedOps));
-        List<Translog.Operation> sortedShippedOps = shippedOps.stream()
-            .sorted(Comparator.comparing(Translog.Operation::seqNo))
-            .collect(Collectors.toList());
+        List<Translog.Operation> sortedShippedOps = shippedOps.stream().sorted(Comparator.comparing(Translog.Operation::seqNo)).toList();
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(sortedShippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
@@ -1138,12 +1136,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.getSnapshotFiles()
                 .stream()
                 .map(fileInfo -> fileInfo.metadata().name())
-                .collect(Collectors.toList());
+                .toList();
 
             final List<String> sourceFilesToRecover = shardRecoveryPlan.getSourceFilesToRecover()
                 .stream()
                 .map(StoreFileMetadata::name)
-                .collect(Collectors.toList());
+                .toList();
 
             Set<String> filesFailedToDownload = Collections.synchronizedSet(new HashSet<>());
             Set<String> filesRecoveredFromSource = Collections.synchronizedSet(new HashSet<>());
@@ -1481,7 +1479,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 .getSnapshotFiles()
                 .stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                .collect(Collectors.toList());
+                .toList();
 
             int maxConcurrentSnapshotFileDownloads = randomIntBetween(2, 4);
             CountDownLatch downloadSnapshotFileReceived = new CountDownLatch(maxConcurrentSnapshotFileDownloads);
@@ -1516,7 +1514,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             .getSnapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                            .collect(Collectors.toList());
+                            .toList();
                         assertThat(receiveFileInfoFromSnapshotCalls.incrementAndGet(), is(equalTo(1)));
                         assertThat(receiveFileInfoFromSourceCalls.get(), is(equalTo(0)));
                     }

@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +59,7 @@ public class HotThreadsTests extends ESTestCase {
         return names.stream().map(e -> {
             // Cannot mock StackTraceElement because it's final
             return new StackTraceElement(e[0], e[1], "Some_File", 1);
-        }).collect(Collectors.toList());
+        }).toList();
     }
 
     public void testIdleThreadsDetection() {

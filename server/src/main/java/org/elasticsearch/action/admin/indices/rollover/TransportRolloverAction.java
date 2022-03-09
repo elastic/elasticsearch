@@ -291,7 +291,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .values()
                 .stream()
                 .filter(condition -> postConditionResults.get(condition.toString()))
-                .collect(Collectors.toList());
+                .toList();
             // Update the final condition results so they can be used when returning the response
             conditionResults.set(postConditionResults);
 

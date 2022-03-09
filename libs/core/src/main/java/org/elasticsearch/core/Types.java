@@ -13,6 +13,8 @@ package org.elasticsearch.core;
  */
 public abstract class Types {
 
+    private Types() {}
+
     /**
      * There are some situations where we cannot appease javac's type checking, and we
      * need to forcibly cast an object's type. Please don't use this method unless you

@@ -143,6 +143,13 @@ tasks.named("thirdPartyAudit").configure {
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.core.JsonGenerator',
+            'com.fasterxml.jackson.core.JsonParser',
+            'com.fasterxml.jackson.core.JsonParser$Feature',
+            'com.fasterxml.jackson.core.JsonToken',
+            'com.fasterxml.jackson.core.PrettyPrinter',
+            'com.fasterxml.jackson.core.type.TypeReference',
+            'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
             'com.fasterxml.jackson.databind.SerializationFeature',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
@@ -237,11 +244,4 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-    // These are tricky because Lucene itself splits the index package,
-    // but this should be fixed in Lucene 9
-  ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
 }

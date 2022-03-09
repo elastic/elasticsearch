@@ -1349,6 +1349,8 @@ public class ApiKeyService {
         }
     }
 
+    /** Returns the realm names that the username can access resources across.
+     */
     public static String[] getOwnersRealmNames(Authentication authentication) {
         if (authentication.isApiKey()) {
             return new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };

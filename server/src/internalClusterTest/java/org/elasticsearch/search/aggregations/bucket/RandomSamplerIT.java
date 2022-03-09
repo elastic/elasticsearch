@@ -105,7 +105,6 @@ public class RandomSamplerIT extends ESIntegTestCase {
         assertThat(Math.abs(sampleRandomValue - trueRandom), lessThan(trueRandom * 0.1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84595")
     public void testRandomSamplerHistogram() {
         Map<String, Double> sampleMonotonicValue = new HashMap<>();
         Map<String, Double> sampleRandomValue = new HashMap<>();
@@ -154,7 +153,8 @@ public class RandomSamplerIT extends ESIntegTestCase {
         Histogram histogram = trueValueResponse.getAggregations().get("histo");
         for (Histogram.Bucket bucket : histogram.getBuckets()) {
             long numDocs = bucket.getDocCount();
-            double countError = (numDocs * 0.5) * 0.1;
+            double errorRate = Math.pow(1.0/(0.5*numDocs), 0.5);
+            double countError = errorRate * numDocs;
             assertThat(Math.abs(sampledDocCount.get(bucket.getKeyAsString()) - numDocs), lessThan(countError));
             double trueMonotonic = ((Avg) bucket.getAggregations().get("mean_monotonic")).getValue();
             double trueRandom = ((Avg) bucket.getAggregations().get("mean_numeric")).getValue();

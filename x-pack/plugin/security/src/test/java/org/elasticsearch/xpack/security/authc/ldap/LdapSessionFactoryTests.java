@@ -327,10 +327,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             // Force the modified file to have a different modified time
             // Depending on the granularity of the filesystem it could otherwise be possible the newly copied file looks identical to the
             // old file (certificates commonly have the same file size)
-            final FileTime newModifiedTime = Files.getLastModifiedTime(ldapCaPath);
-            if (oldModifiedTime.equals(newModifiedTime)) {
-                Files.setLastModifiedTime(ldapCaPath, FileTime.fromMillis(oldModifiedTime.toMillis() + 5_000));
-            }
+            Files.setLastModifiedTime(ldapCaPath, FileTime.fromMillis(oldModifiedTime.toMillis() + 5_000));
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
             UncategorizedExecutionException e = expectThrows(

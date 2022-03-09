@@ -109,6 +109,9 @@ include projects.toArray(new String[0])
 
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"
+  libsProject.children.each { lp ->
+    lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
+  }
 }
 
 project(":test:external-modules").children.each { testProject ->

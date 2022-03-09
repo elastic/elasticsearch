@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.support.filtering;
+package org.elasticsearch.xcontent.provider.filtering;
 
 import com.fasterxml.jackson.core.filter.TokenFilter;
+
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.util.ArrayList;
 import java.util.List;

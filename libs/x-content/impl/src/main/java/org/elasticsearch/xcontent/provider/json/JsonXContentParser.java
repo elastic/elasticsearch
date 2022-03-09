@@ -6,16 +6,23 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.json;
+package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
@@ -27,7 +34,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config.registry(), config.deprecationHandler(), config.restApiVersion());
-        this.parser = config.filter(parser);
+        this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
     }
 
     @Override
@@ -40,9 +47,20 @@ public class JsonXContentParser extends AbstractXContentParser {
         parser.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, allowDuplicateKeys == false);
     }
 
+    private static XContentParseException newXContentParseException(JsonProcessingException e) {
+        JsonLocation loc = e.getLocation();
+        throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+    }
+
     @Override
     public Token nextToken() throws IOException {
-        return convertToken(parser.nextToken());
+        try {
+            return convertToken(parser.nextToken());
+        } catch (JsonEOFException e) {
+            throw new XContentEOFException(e);
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
@@ -67,7 +85,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        return parser.getBooleanValue();
+        try {
+            return parser.getBooleanValue();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
@@ -80,7 +102,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public CharBuffer charBuffer() throws IOException {
-        return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+        try {
+            return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
@@ -126,52 +152,92 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public char[] textCharacters() throws IOException {
-        return parser.getTextCharacters();
+        try {
+            return parser.getTextCharacters();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public int textLength() throws IOException {
-        return parser.getTextLength();
+        try {
+            return parser.getTextLength();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public int textOffset() throws IOException {
-        return parser.getTextOffset();
+        try {
+            return parser.getTextOffset();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public Number numberValue() throws IOException {
-        return parser.getNumberValue();
+        try {
+            return parser.getNumberValue();
+        } catch (InputCoercionException | JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public short doShortValue() throws IOException {
-        return parser.getShortValue();
+        try {
+            return parser.getShortValue();
+        } catch (InputCoercionException | JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public int doIntValue() throws IOException {
-        return parser.getIntValue();
+        try {
+            return parser.getIntValue();
+        } catch (InputCoercionException | JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public long doLongValue() throws IOException {
-        return parser.getLongValue();
+        try {
+            return parser.getLongValue();
+        } catch (InputCoercionException | JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public float doFloatValue() throws IOException {
-        return parser.getFloatValue();
+        try {
+            return parser.getFloatValue();
+        } catch (InputCoercionException | JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public double doDoubleValue() throws IOException {
-        return parser.getDoubleValue();
+        try {
+            return parser.getDoubleValue();
+        } catch (InputCoercionException | JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
-        return parser.getBinaryValue();
+        try {
+            return parser.getBinaryValue();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override

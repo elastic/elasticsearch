@@ -1,6 +1,6 @@
 [role="xpack"]
 [[index-mgmt]]
-== Index management
+== Index management in {kib}
 
 {kib}'s *Index Management* features are an easy, convenient way to manage your
 cluster's indices, <<data-streams,data streams>>, and <<index-templates,index

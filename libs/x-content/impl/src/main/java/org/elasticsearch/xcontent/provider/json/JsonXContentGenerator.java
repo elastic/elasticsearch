@@ -6,8 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.json;
+package org.elasticsearch.xcontent.provider.json;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.base.GeneratorBase;
@@ -24,10 +25,11 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentGenerationException;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPathBasedFilter;
+import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -149,156 +151,272 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void writeEndObject() throws IOException {
-        if (inRoot()) {
-            // Use the low level generator to write the startObject so that the root
-            // start object is always written even if a filtered generator is used
-            getLowLevelGenerator().writeEndObject();
-            return;
+        try {
+            if (inRoot()) {
+                // Use the low level generator to write the startObject so that the root
+                // start object is always written even if a filtered generator is used
+                getLowLevelGenerator().writeEndObject();
+                return;
+            }
+            generator.writeEndObject();
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
         }
-        generator.writeEndObject();
     }
 
     @Override
     public void writeStartArray() throws IOException {
-        generator.writeStartArray();
+        try {
+            generator.writeStartArray();
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeEndArray() throws IOException {
-        generator.writeEndArray();
+        try {
+            generator.writeEndArray();
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeFieldName(String name) throws IOException {
-        generator.writeFieldName(name);
+        try {
+            generator.writeFieldName(name);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNull() throws IOException {
-        generator.writeNull();
+        try {
+            generator.writeNull();
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNullField(String name) throws IOException {
-        generator.writeNullField(name);
+        try {
+            generator.writeNullField(name);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeBooleanField(String name, boolean value) throws IOException {
-        generator.writeBooleanField(name, value);
+        try {
+            generator.writeBooleanField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeBoolean(boolean value) throws IOException {
-        generator.writeBoolean(value);
+        try {
+            generator.writeBoolean(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumberField(String name, double value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(double value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumberField(String name, float value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(float value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumberField(String name, int value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumberField(String name, BigInteger value) throws IOException {
         // as jackson's JsonGenerator doesn't have this method for BigInteger
         // we have to implement it ourselves
-        generator.writeFieldName(name);
-        generator.writeNumber(value);
+        try {
+            generator.writeFieldName(name);
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumberField(String name, BigDecimal value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(int value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumberField(String name, long value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(long value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(short value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(BigInteger value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeNumber(BigDecimal value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeStringField(String name, String value) throws IOException {
-        generator.writeStringField(name, value);
+        try {
+            generator.writeStringField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeString(String value) throws IOException {
-        generator.writeString(value);
+        try {
+            generator.writeString(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeString(char[] value, int offset, int len) throws IOException {
-        generator.writeString(value, offset, len);
+        try {
+            generator.writeString(value, offset, len);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeUTF8String(byte[] value, int offset, int length) throws IOException {
-        generator.writeUTF8String(value, offset, length);
+        try {
+            generator.writeUTF8String(value, offset, length);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeBinaryField(String name, byte[] value) throws IOException {
-        generator.writeBinaryField(name, value);
+        try {
+            generator.writeBinaryField(name, value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeBinary(byte[] value) throws IOException {
-        generator.writeBinary(value);
+        try {
+            generator.writeBinary(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     @Override
     public void writeBinary(byte[] value, int offset, int len) throws IOException {
-        generator.writeBinary(value, offset, len);
+        try {
+            generator.writeBinary(value, offset, len);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     private void writeStartRaw(String name) throws IOException {
-        writeFieldName(name);
-        generator.writeRaw(':');
+        try {
+            writeFieldName(name);
+            generator.writeRaw(':');
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
     }
 
     public void writeEndRaw() {

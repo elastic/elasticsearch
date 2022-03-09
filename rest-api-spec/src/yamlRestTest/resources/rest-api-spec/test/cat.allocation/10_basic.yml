@@ -194,7 +194,7 @@
   - match:
       $body: |
             /^
-              ( \d                  \s+    #usually 0, unless some system index has been recreated before this runs
+              ( 0                   \s+
                 0                   \s+
                 \d+                 \s+
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default

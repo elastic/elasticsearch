@@ -292,19 +292,23 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         List<AllocationStats.NodeStats> nodeStats = new ArrayList<>();
 
         if (stats.isPresent()) {
+            var presentValue = stats.get();
             nodeStats.add(
                 AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
-                    stats.get().timingStats().getCount(),
-                    stats.get().timingStats().getAverage(),
-                    stats.get().pendingCount(),
-                    stats.get().errorCount(),
-                    stats.get().rejectedExecutionCount(),
-                    stats.get().timeoutCount(),
-                    stats.get().lastUsed(),
-                    stats.get().startTime(),
-                    stats.get().inferenceThreads(),
-                    stats.get().modelThreads()
+                    presentValue.timingStats().getCount(),
+                    presentValue.timingStats().getAverage(),
+                    presentValue.pendingCount(),
+                    presentValue.errorCount(),
+                    presentValue.rejectedExecutionCount(),
+                    presentValue.timeoutCount(),
+                    presentValue.lastUsed(),
+                    presentValue.startTime(),
+                    presentValue.inferenceThreads(),
+                    presentValue.modelThreads(),
+                    presentValue.peakThroughput(),
+                    presentValue.throughputLastPeriod(),
+                    presentValue.avgInferenceTimeLastPeriod()
                 )
             );
         } else {

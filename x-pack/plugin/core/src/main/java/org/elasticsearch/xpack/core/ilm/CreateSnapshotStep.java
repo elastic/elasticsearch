@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Locale;
@@ -61,7 +62,17 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (snapshotAlreadyCreated(e)) {
+                    logger.warn(e.getMessage());
+                    // we treat a snapshot that was already created before this step as an incomplete snapshot. This means that the
+                    // execution will be successful from ILM's perspective and it will go to the next step, which is cleaning the incomplete
+                    // snapshot and try again. This scenario is triggered by a master restart or a failover which can result in a double
+                    // invocation of this step.
+                    onResponseResult.set(false);
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
             }
         });
     }
@@ -122,6 +133,12 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                 listener.onResponse(false);
             }
         }, listener::onFailure));
+    }
+
+    private boolean snapshotAlreadyCreated(Exception exception) {
+        return (exception instanceof InvalidSnapshotNameException invalidSnapshotNameException)
+            && (invalidSnapshotNameException.getReason() == InvalidSnapshotNameException.Reason.ALREADY_EXISTS
+                || invalidSnapshotNameException.getReason() == InvalidSnapshotNameException.Reason.ALREADY_IN_PROGRESS);
     }
 
     @Override

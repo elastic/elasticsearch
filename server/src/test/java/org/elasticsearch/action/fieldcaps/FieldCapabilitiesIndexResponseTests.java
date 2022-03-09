@@ -63,7 +63,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         return mappingHashToIndices;
     }
 
-    private List<FieldCapabilitiesIndexResponse> randomIndexResponses(Map<String, List<String>> mappingHashToIndices) {
+    private List<FieldCapabilitiesIndexResponse> randomIndexResponsesWithMappingHash(Map<String, List<String>> mappingHashToIndices) {
         final List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         for (Map.Entry<String, List<String>> e : mappingHashToIndices.entrySet()) {
             Map<String, IndexFieldCapabilities> fieldCaps = randomFieldCaps();
@@ -88,7 +88,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
     public void testWriteResponsesBetweenNewNodes() throws Exception {
         Map<String, List<String>> mappingHashToIndices = randomMappingHashToIndices();
         List<FieldCapabilitiesIndexResponse> responseList = CollectionUtils.concatLists(
-            randomIndexResponses(mappingHashToIndices),
+            randomIndexResponsesWithMappingHash(mappingHashToIndices),
             randomIndexResponsesWithoutMappingHash()
         );
         assertSerializeOnNewNodes(responseList, mappingHashToIndices);
@@ -101,48 +101,63 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
     public void testWriteResponsesBetweenOldNodes() throws IOException {
         final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
         assumeTrue("Write list with mapping hash is introduced in 8.2", minCompactVersion.before(Version.V_8_2_0));
-        Map<String, List<String>> mappingHashToIndices = randomMappingHashToIndices();
         List<FieldCapabilitiesIndexResponse> responseList = CollectionUtils.concatLists(
-            randomIndexResponses(mappingHashToIndices),
+            randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
             randomIndexResponsesWithoutMappingHash()
         );
         assertSerializeOnOldNodes(responseList, minCompactVersion);
     }
 
-    public void testReadResponsesFromOldNode() throws Exception {
-        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
-        assumeTrue("Write list with mapping hash is introduced in 8.2", minCompactVersion.before(Version.V_8_2_0));
-        String base64FromES80 =
-            "AwhpbmRleF8wMQIJcmVkX2ZpZWxkCXJlZF9maWVsZAR0ZXh0AAEAAAAACmJsdWVfZmllbGQJcmVkX2ZpZWxkBGxvbmcAAQEAAAABCGluZGV4XzAyAAAIaW5kZXhfMDMCB19zZXFfbm8HX3NlcV9ubwRsb25nAQEBAAAADHllbGxvd19maWVsZAx5ZWxsb3dfZmllbGQHa2V5d29yZAABAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
-        StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64FromES80));
-        in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, VersionUtils.getPreviousVersion(Version.V_8_2_0)));
-        List<FieldCapabilitiesIndexResponse> responses = FieldCapabilitiesIndexResponse.readList(in);
-        List<FieldCapabilitiesIndexResponse> expectedResponses = List.of(
-            new FieldCapabilitiesIndexResponse(
-                "index_01",
-                null,
-                Map.of(
-                    "red_field",
-                    new IndexFieldCapabilities("red_field", "text", false, true, false, false, null, Map.of()),
-                    "blue_field",
-                    new IndexFieldCapabilities("red_field", "long", false, true, true, false, null, Map.of())
-                ),
-                true
+    private static final List<FieldCapabilitiesIndexResponse> expectedResponseFromBase64 = List.of(
+        new FieldCapabilitiesIndexResponse(
+            "index_01",
+            null,
+            Map.of(
+                "red_field",
+                new IndexFieldCapabilities("red_field", "text", false, true, false, false, null, Map.of()),
+                "blue_field",
+                new IndexFieldCapabilities("red_field", "long", false, true, true, false, null, Map.of())
             ),
-            new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false),
-            new FieldCapabilitiesIndexResponse(
-                "index_03",
-                null,
-                Map.of(
-                    "yellow_field",
-                    new IndexFieldCapabilities("yellow_field", "keyword", false, true, true, false, null, Map.of()),
-                    "_seq_no",
-                    new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
-                ),
-                true
-            )
-        );
-        assertThat(responses, equalTo(expectedResponses));
+            true
+        ),
+        new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false),
+        new FieldCapabilitiesIndexResponse(
+            "index_03",
+            null,
+            Map.of(
+                "yellow_field",
+                new IndexFieldCapabilities("yellow_field", "keyword", false, true, true, false, null, Map.of()),
+                "_seq_no",
+                new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
+            ),
+            true
+        )
+    );
+
+    public void testReadResponseFrom7_17() throws Exception {
+        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
+        assumeTrue("Write list with mapping hash is introduced in 8.2", minCompactVersion.before(Version.V_8_0_0));
+        String base64 = "AwhpbmRleF8wMQIKYmx1ZV9maWVsZAlyZWRfZmllbGQEbG9uZwABAQAJcmVkX2ZpZWxkCXJlZF9maWVsZAR0ZXh0AAEAAAEIaW5kZXhfMDI"
+            + "AAAhpbmRleF8wMwIMeWVsbG93X2ZpZWxkDHllbGxvd19maWVsZAdrZXl3b3JkAAEBAAdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQABAAAAAAAAAAAAAAAA";
+        StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
+        in.setVersion(Version.V_7_17_2);
+        List<FieldCapabilitiesIndexResponse> responses = FieldCapabilitiesIndexResponse.readList(in);
+        assertThat(responses, equalTo(expectedResponseFromBase64));
+        assertSerializeOnNewNodes(new ArrayList<>(responses), Map.of());
+        assertSerializeOnOldNodes(new ArrayList<>(responses), minCompactVersion);
+    }
+
+    public void testReadResponseFrom8_0() throws Exception {
+        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
+        assumeTrue("Write list with mapping hash is introduced in 8.2", minCompactVersion.onOrBefore(Version.V_8_0_0));
+        String base64 = "AwhpbmRleF8wMQIJcmVkX2ZpZWxkCXJlZF9maWVsZAR0ZXh0AAEAAAAACmJsdWVfZmllbGQJcmVkX2ZpZWxkBGxvbmcAAQEAAAABCGluZGV4"
+            + "XzAyAAAIaW5kZXhfMDMCB19zZXFfbm8HX3NlcV9ubwRsb25nAQEBAAAADHllbGxvd19maWVsZAx5ZWxsb3dfZmllbGQHa2V5d29yZAABAQAAAAEAAAAAAAAA"
+            + "AAAAAAAAAAAAAAAAAA==";
+        StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, VersionUtils.getPreviousVersion(Version.V_8_2_0));
+        in.setVersion(version);
+        List<FieldCapabilitiesIndexResponse> responses = FieldCapabilitiesIndexResponse.readList(in);
+        assertThat(responses, equalTo(expectedResponseFromBase64));
         assertSerializeOnNewNodes(new ArrayList<>(responses), Map.of());
         assertSerializeOnOldNodes(new ArrayList<>(responses), minCompactVersion);
     }

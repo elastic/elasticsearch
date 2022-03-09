@@ -72,15 +72,15 @@ token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`.
 
+The following commands start a single-node {es} cluster for development or
+testing.
+
 . Create an `elastic` network for your containers.
 +
 [source,sh]
 ----
 docker network create elastic
 ----
-
-The following command starts a single-node {es} cluster for development or
-testing.
 
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.

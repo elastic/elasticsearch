@@ -13,13 +13,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
-
-import java.util.Locale;
 
 public class IdFieldTypeTests extends ESTestCase {
 
@@ -36,17 +33,20 @@ public class IdFieldTypeTests extends ESTestCase {
 
     public void testTermsQuery() {
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
-        Settings indexSettings = Settings.builder()
+        
+        Settings.Builder indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.values()).toString().toLowerCase(Locale.ROOT))
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        if (randomBoolean()) {
+            indexSettings.put(IndexSettings.MODE.getKey(), "time_series");
+            indexSettings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+        }
         IndexMetadata indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
-        Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetadata.SETTING_VERSION_CREATED, null));
+        Mockito.when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);

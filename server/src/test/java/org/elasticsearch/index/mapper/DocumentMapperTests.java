@@ -300,10 +300,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(IgnoredFieldMapper.class)
                 .item(IndexFieldMapper.class)
                 .item(NestedPathFieldMapper.class)
+                .item(ProvidedIdFieldMapper.class)
                 .item(RoutingFieldMapper.class)
                 .item(SeqNoFieldMapper.class)
                 .item(SourceFieldMapper.class)
-                .item(ProvidedIdFieldMapper.class)
                 .item(VersionFieldMapper.class)
         );
         List<String> matching = new ArrayList<>(documentMapper.mappers().getMatchingFieldNames("*"));

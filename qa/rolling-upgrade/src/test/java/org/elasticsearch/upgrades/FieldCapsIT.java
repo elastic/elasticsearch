@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -22,11 +23,20 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Ensures field-caps requests with different parameters are handled properly by a mixed cluster.
+ * Since ES 8.2, field-caps internal responses are shared between indices that have the same index mapping hash to
+ * reduce the transport message size between nodes and clusters, and the memory usage to hold these internal responses.
+ * As the optimization is applied for only field-caps requests without index-filter and nodes on 8.2 or later,
+ * these BWC tests verify these combinations of field-caps requests: (old|new|mixed indices) and (with|without index filter)
  */
 public class FieldCapsIT extends AbstractRollingTestCase {
+    private static boolean indicesCreated = false;
 
-    public void testFieldCaps() throws Exception {
+    @Before
+    public void setupIndices() throws Exception {
+        if (indicesCreated) {
+            return;
+        }
+        indicesCreated = true;
         final String redMapping = """
              "properties": {
                "red_field": { "type": "keyword" },
@@ -74,9 +84,9 @@ public class FieldCapsIT extends AbstractRollingTestCase {
                 assertOK(client().performRequest(indexRequest));
             }
         }
-        final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
+    }
 
-        // old red indices without index_filter
+    public void testOldIndicesOnly() throws Exception {
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), null);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2", "old_red_empty" }));
@@ -87,7 +97,24 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
-        // old red indices with index_filter
+        {
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null);
+            assertThat(
+                resp.getIndices(),
+                equalTo(new String[] { "old_green_1", "old_green_2", "old_green_empty", "old_red_1", "old_red_2", "old_red_empty" })
+            );
+            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+            assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
+            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+        }
+    }
+
+    public void testOldIndicesWithIndexFilter() throws Exception {
+        final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2" }));
@@ -98,87 +125,11 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            // below tests for mixed and upgraded clusters.
-            return;
-        }
-        // all red indices without index_filter
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*", "new_red_*"), List.of("*"), null);
-            assertThat(
-                resp.getIndices(),
-                equalTo(new String[] { "new_red_1", "new_red_2", "new_red_empty", "old_red_1", "old_red_2", "old_red_empty" })
-            );
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), indexFilter);
+            assertThat(resp.getIndices(), equalTo(new String[] { "old_green_1", "old_green_2", "old_red_1", "old_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
-            assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
-            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
-            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
-        }
-        // all red indices with index_filter
-        {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*", "new_red_*"), List.of("*"), indexFilter);
-            assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "old_red_1", "old_red_2" }));
-            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
-            assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
-            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
-            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
-        }
-        // all indices without index_filter
-        {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null);
-            assertThat(
-                resp.getIndices(),
-                equalTo(
-                    new String[] {
-                        "new_green_1",
-                        "new_green_2",
-                        "new_green_empty",
-                        "new_red_1",
-                        "new_red_2",
-                        "new_red_empty",
-                        "old_green_1",
-                        "old_green_2",
-                        "old_green_empty",
-                        "old_red_1",
-                        "old_red_2",
-                        "old_red_empty" }
-                )
-            );
-            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
-            assertThat(resp.getField("green_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("green_field").get("keyword").isSearchable());
-            assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
-            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
-            assertTrue(resp.getField("yellow_field").get("long").isSearchable());
-            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
-        }
-        // all indices with index_filter
-        {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter);
-            assertThat(
-                resp.getIndices(),
-                equalTo(
-                    new String[] {
-                        "new_green_1",
-                        "new_green_2",
-                        "new_red_1",
-                        "new_red_2",
-                        "old_green_1",
-                        "old_green_2",
-                        "old_red_1",
-                        "old_red_2" }
-                )
-            );
-            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
-            assertThat(resp.getField("green_field").keySet(), contains("keyword"));
-            assertTrue(resp.getField("green_field").get("keyword").isSearchable());
             assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
             assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
             assertTrue(resp.getField("yellow_field").get("long").isSearchable());
@@ -187,4 +138,118 @@ public class FieldCapsIT extends AbstractRollingTestCase {
         }
     }
 
+    public void testNewIndicesOnly() throws Exception {
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        {
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), null);
+            assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "new_red_empty" }));
+            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+            assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
+            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+        }
+        {
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), null);
+            assertThat(
+                resp.getIndices(),
+                equalTo(new String[] { "new_green_1", "new_green_2", "new_green_empty", "new_red_1", "new_red_2", "new_red_empty" })
+            );
+            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+            assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
+            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+        }
+    }
+
+    public void testNewIndicesOnlyWithIndexFilter() throws Exception {
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
+        {
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), indexFilter);
+            assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2" }));
+            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+            assertThat(resp.getField("yellow_field").keySet(), contains("integer"));
+            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+        }
+        {
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), indexFilter);
+            assertThat(resp.getIndices(), equalTo(new String[] { "new_green_1", "new_green_2", "new_red_1", "new_red_2" }));
+            assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+            assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
+            assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+            assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+            assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+            assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+        }
+    }
+
+    public void testAllIndices() throws Exception {
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null);
+        assertThat(
+            resp.getIndices(),
+            equalTo(
+                new String[] {
+                    "new_green_1",
+                    "new_green_2",
+                    "new_green_empty",
+                    "new_red_1",
+                    "new_red_2",
+                    "new_red_empty",
+                    "old_green_1",
+                    "old_green_2",
+                    "old_green_empty",
+                    "old_red_1",
+                    "old_red_2",
+                    "old_red_empty" }
+            )
+        );
+        assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+        assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+        assertThat(resp.getField("green_field").keySet(), contains("keyword"));
+        assertTrue(resp.getField("green_field").get("keyword").isSearchable());
+        assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
+        assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+        assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+        assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+        assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+    }
+
+    public void testAllIndicesWithIndexFilter() throws Exception {
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
+        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter);
+        assertThat(
+            resp.getIndices(),
+            equalTo(
+                new String[] {
+                    "new_green_1",
+                    "new_green_2",
+                    "new_red_1",
+                    "new_red_2",
+                    "old_green_1",
+                    "old_green_2",
+                    "old_red_1",
+                    "old_red_2" }
+            )
+        );
+        assertThat(resp.getField("red_field").keySet(), contains("keyword"));
+        assertTrue(resp.getField("red_field").get("keyword").isSearchable());
+        assertThat(resp.getField("green_field").keySet(), contains("keyword"));
+        assertTrue(resp.getField("green_field").get("keyword").isSearchable());
+        assertThat(resp.getField("yellow_field").keySet(), contains("integer", "long"));
+        assertTrue(resp.getField("yellow_field").get("integer").isSearchable());
+        assertTrue(resp.getField("yellow_field").get("long").isSearchable());
+        assertThat(resp.getField("blue_field").keySet(), contains("keyword"));
+        assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
+    }
 }

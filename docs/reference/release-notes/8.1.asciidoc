@@ -5,6 +5,46 @@ coming[8.1.0]
 
 Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
 
+[[known-issues-8.1.0]]
+[float]
+=== Known issues
+
+* If audit logging is configured to `emit_request_body`, it can result into `NullPointerException` for
+requests that have filtered fields.
++
+--
+Audit logging can be configured to print the request body of incoming requests.
+Certain requests can contain sensitive information, e.g. password, that must not
+be logged. Fields containing such information are filtered out before logging.
+The REST APIs that use requests with filtered fields are:
+
+* <<security-api-change-password>>
+* <<cluster-nodes-reload-secure-settings>>
+* <<security-api-put-user>>
+* <<security-api-get-token>>
+* <<security-api-invalidate-token>>
+* <<security-api-grant-api-key>>
+* <<watcher-api-put-watch>>
+* <<watcher-api-execute-watch>>
+* <<security-api-saml-authenticate>>
+* <<security-api-oidc-authenticate>>
+* <<docs-reindex,Reindex API>>
+
+In 8.1, a bug {es-issue}84784[#84784] prevents request with filtered fields work
+correctly with auditing request body. Using above APIs can result into a `401` HTTP
+error with a `null_pointer_exception` being the underlying cause.
+
+Please note `emit_request_body` defaults to `false`. Also note request body is only logged for
+following events (most of them are not enabled by default either):
+
+* `authentication_success`
+* `authentication_failed`
+* `realm_authentication_failed`
+* `tampered_request`
+* `run_as_denied`
+* `anonymous_access_denied`
+--
+
 [[breaking-8.1.0]]
 [float]
 === Breaking changes

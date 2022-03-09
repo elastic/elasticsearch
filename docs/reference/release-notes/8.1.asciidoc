@@ -12,7 +12,7 @@ Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
 * If audit logging is configured to `emit_request_body`, it can prevent some APIs from working.
 +
 --
-In 8.1, a bug {es-issue}84784[#84784] prevents APIs using requests with filtered fields from working
+In 8.1.0, a bug {es-issue}84784[#84784] prevents APIs using requests with filtered fields from working
 when request body auditing is enabled. Using these APIs can result into a `401` HTTP
 error with a `null_pointer_exception` being the underlying cause.
 

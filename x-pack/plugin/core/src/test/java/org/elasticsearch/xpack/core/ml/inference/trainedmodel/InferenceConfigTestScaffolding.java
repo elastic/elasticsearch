@@ -15,18 +15,22 @@ public final class InferenceConfigTestScaffolding {
                 tokenization.doLowerCase(),
                 tokenization.withSpecialTokens(),
                 tokenization.maxSequenceLength(),
-                truncate
+                truncate,
+                tokenization.getSpan()
             )
             : new BertTokenization(
                 tokenization.doLowerCase(),
                 tokenization.withSpecialTokens(),
                 tokenization.maxSequenceLength(),
-                truncate
+                truncate,
+                tokenization.getSpan()
             );
     }
 
-    static TokenizationUpdate createTokenizationUpdate(Tokenization tokenization, Tokenization.Truncate truncate) {
-        return tokenization instanceof MPNetTokenization ? new MPNetTokenizationUpdate(truncate) : new BertTokenizationUpdate(truncate);
+    static TokenizationUpdate createTokenizationUpdate(Tokenization tokenization, Tokenization.Truncate truncate, Integer span) {
+        return tokenization instanceof MPNetTokenization
+            ? new MPNetTokenizationUpdate(truncate, span)
+            : new BertTokenizationUpdate(truncate, span);
     }
 
 }

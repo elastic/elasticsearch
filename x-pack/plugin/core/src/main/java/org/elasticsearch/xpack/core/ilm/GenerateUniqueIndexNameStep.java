@@ -98,7 +98,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false));
+        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
         return newClusterStateBuilder.build();
     }
 

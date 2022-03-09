@@ -1,0 +1,5 @@
+pr: 84794
+summary: Only one of `inference_threads` and `model_threads` may be greater than one
+area: Machine Learning
+type: bug
+issues: []

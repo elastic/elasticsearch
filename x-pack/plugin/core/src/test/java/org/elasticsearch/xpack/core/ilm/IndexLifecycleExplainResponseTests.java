@@ -37,11 +37,16 @@ import static org.hamcrest.Matchers.startsWith;
 public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
 
     static IndexLifecycleExplainResponse randomIndexExplainResponse() {
+        final IndexLifecycleExplainResponse indexLifecycleExplainResponse;
         if (frequently()) {
-            return randomManagedIndexExplainResponse();
+            indexLifecycleExplainResponse = randomManagedIndexExplainResponse();
         } else {
-            return randomUnmanagedIndexExplainResponse();
+            indexLifecycleExplainResponse = randomUnmanagedIndexExplainResponse();
         }
+        long now = System.currentTimeMillis();
+        // So that now is the same for the duration of the test. See #84352
+        indexLifecycleExplainResponse.nowSupplier = () -> now;
+        return indexLifecycleExplainResponse;
     }
 
     private static IndexLifecycleExplainResponse randomUnmanagedIndexExplainResponse() {

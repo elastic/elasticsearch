@@ -17,7 +17,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
             "text" : "The quick brown fox is brown."
   - do:

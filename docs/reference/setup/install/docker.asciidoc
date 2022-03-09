@@ -72,8 +72,15 @@ token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`.
 
-The following command starts a single-node {es} cluster for development or
+The following commands start a single-node {es} cluster for development or
 testing.
+
+. Create a new docker network for {es} and {kib}
++
+[source,sh]
+----
+docker network create elastic
+----
 
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.
@@ -249,7 +256,7 @@ Settings (Windows).
 
 Create the following configuration files in a new, empty directory. These files
 are also available from the
-https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install[elasticsearch]
+https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install/docker[elasticsearch]
 repository on GitHub.
 
 --
@@ -276,7 +283,7 @@ referenced by the `docker-compose.yml` file.
 
 ["source","txt",subs="attributes"]
 ----
-include::.env[]
+include::docker/.env[]
 ----
 
 [discrete]
@@ -297,7 +304,7 @@ then only be accessible from the host machine itself.
 
 [source,yaml,subs="attributes"]
 ----
-include::docker-compose.yml[]
+include::docker/docker-compose.yml[]
 ----
 
 endif::[]
@@ -514,7 +521,7 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in 
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 

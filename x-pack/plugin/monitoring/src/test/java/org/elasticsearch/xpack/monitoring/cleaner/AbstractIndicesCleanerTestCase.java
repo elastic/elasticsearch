@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.Before;
 
@@ -23,7 +22,6 @@ import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
@@ -40,7 +38,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         cleanerService.setGlobalRetention(TimeValue.MAX_VALUE);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78737")
     public void testNothingToDelete() throws Exception {
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
@@ -107,7 +104,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78862")
     public void testDeleteIndices() throws Exception {
         CleanerService.Listener listener = getListener();
 
@@ -167,10 +163,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         Exporters exporters = internalCluster().getInstance(Exporters.class, internalCluster().getMasterName());
         for (Exporter exporter : exporters.getEnabledExporters()) {
             if (exporter instanceof CleanerService.Listener) {
-                // Ensure that the exporter is initialized.
-                if (exporter instanceof LocalExporter) {
-                    assertBusy(() -> assertThat(((LocalExporter) exporter).isExporterReady(), is(true)));
-                }
                 return (CleanerService.Listener) exporter;
             }
         }

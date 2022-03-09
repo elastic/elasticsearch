@@ -19,11 +19,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 
 public final class WordPieceTokenFilter extends TokenFilter {
-    protected final LinkedList<WordPieceToken> tokens;
+    private final LinkedList<WordPieceToken> tokens;
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-    protected final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+    private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     private final PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
     private static final CharSequence CONTINUATION = "##";
 
@@ -105,15 +106,14 @@ public final class WordPieceTokenFilter extends TokenFilter {
         if (input.incrementToken()) {
             if (neverSplit.contains(termAtt)) {
                 Integer maybeTokenized = vocabulary.get(termAtt);
-                if (maybeTokenized == null) {
-                    tokenizedValues.add(
-                        new WordPieceToken(termAtt.toString(), tokenizedUnknown, offsetAtt.startOffset(), offsetAtt.endOffset())
-                    );
-                } else {
-                    tokenizedValues.add(
-                        new WordPieceToken(termAtt.toString(), maybeTokenized, offsetAtt.startOffset(), offsetAtt.endOffset())
-                    );
-                }
+                tokenizedValues.add(
+                    new WordPieceToken(
+                        termAtt.toString(),
+                        Objects.requireNonNullElse(maybeTokenized, tokenizedUnknown),
+                        offsetAtt.startOffset(),
+                        offsetAtt.endOffset()
+                    )
+                );
                 return true;
             }
             if (termAtt.length() > maxInputCharsPerWord) {

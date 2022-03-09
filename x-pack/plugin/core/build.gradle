@@ -49,6 +49,7 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(":client:rest-high-level")
+  testImplementation project(":test:x-content")
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
 
@@ -77,7 +78,7 @@ tasks.named("processResources").configure {
     inputs.properties(expansions)
     filter("tokens" : expansions, ReplaceTokens.class)
   }
-  String licenseKey = providers.systemProperty("license.key").forUseAtConfigurationTime().getOrNull()
+  String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (BuildParams.isSnapshotBuild()) {

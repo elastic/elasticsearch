@@ -15,13 +15,11 @@ dependencies {
 }
 
 File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
-  .forUseAtConfigurationTime()
   .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
   .map { s -> new File(s)}
   .getOrNull()
 
 Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
-  .forUseAtConfigurationTime()
   .map { s -> Boolean.parseBoolean(s) }
   .getOrElse(false)
 

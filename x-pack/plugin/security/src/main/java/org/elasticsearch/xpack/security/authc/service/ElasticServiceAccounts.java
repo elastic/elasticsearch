@@ -22,6 +22,35 @@ final class ElasticServiceAccounts {
 
     static final String NAMESPACE = "elastic";
 
+    private static final ServiceAccount ENTERPRISE_SEARCH_ACCOUNT = new ElasticServiceAccount(
+        "enterprise-search-server",
+        new RoleDescriptor(
+            NAMESPACE + "/enterprise-search-server",
+            new String[] { "manage", "manage_security" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        ".ent-search-*",
+                        ".monitoring-ent-search-*",
+                        "metricbeat-ent-search-*",
+                        "enterprise-search-*",
+                        "logs-app_search.analytics-default",
+                        "logs-enterprise_search.api-default",
+                        "logs-app_search.search_relevance_suggestions-default",
+                        "logs-crawler-default",
+                        "logs-workplace_search.analytics-default",
+                        "logs-workplace_search.content_events-default"
+                    )
+                    .privileges("manage", "read", "write")
+                    .build() },
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+    );
+
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
         "fleet-server",
         new RoleDescriptor(
@@ -71,7 +100,7 @@ final class ElasticServiceAccounts {
         ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana")
     );
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
+    static final Map<String, ServiceAccount> ACCOUNTS = List.of(ENTERPRISE_SEARCH_ACCOUNT, FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
         .stream()
         .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -43,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -56,8 +56,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final FieldCapabilitiesFetcher fieldCapabilitiesFetcher;
     private final Predicate<String> metadataFieldPred;
+    private final IndicesService indicesService;
     private final boolean ccsCheckCompatibility;
 
     @Inject
@@ -74,7 +74,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
+        this.indicesService = indicesService;
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
         transportService.registerRequestHandler(
@@ -113,6 +113,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         checkIndexBlocks(clusterState, concreteIndices);
 
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
+        // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
+        final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
+            if (resp.canMatch() && resp.getIndexMappingHash() != null) {
+                Map<String, IndexFieldCapabilities> curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp.get());
+                if (curr != null) {
+                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), resp.getIndexMappingHash(), curr, true);
+                }
+            }
+            indexResponses.putIfAbsent(resp.getIndexName(), resp);
+        };
         final FailureCollector indexFailures = new FailureCollector();
         // One for each cluster including the local cluster
         final CountDown completionCounter = new CountDown(1 + remoteClusterIndices.size());
@@ -126,7 +137,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             nowInMillis,
             concreteIndices,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            indexResponse -> indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse),
+            handleIndexResponse,
             indexFailures::collect,
             countDown
         );
@@ -142,7 +153,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                     String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                    indexResponses.putIfAbsent(indexName, new FieldCapabilitiesIndexResponse(indexName, resp.get(), resp.canMatch()));
+                    handleIndexResponse.accept(
+                        new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                    );
                 }
                 for (FieldCapabilitiesFailure failure : response.getFailures()) {
                     Exception ex = failure.getException();
@@ -178,12 +191,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
                         // on a transport thread in case of large numbers of indices and/or fields
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                            .submit(
-                                ActionRunnable.supply(
-                                    listener,
-                                    () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures))
-                                )
-                            );
+                            .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, request, new ArrayList<>(failures))));
                     } else {
                         listener.onResponse(
                             new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures))
@@ -212,6 +220,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indicesOptions(originalIndices.indicesOptions());
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());
+        remoteRequest.filters(request.filters());
+        remoteRequest.allowedTypes(request.allowedTypes());
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
@@ -220,7 +230,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
-        boolean includeUnmapped,
+        FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
         final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
@@ -230,12 +240,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
-            innerMerge(responseMapBuilder, response);
+            innerMerge(responseMapBuilder, request, response);
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
             final Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
-            if (includeUnmapped) {
+            if (request.includeUnmapped()) {
                 addUnmappedFields(indices, entry.getKey(), typeMapBuilder);
             }
             boolean multiTypes = typeMapBuilder.size() > 1;
@@ -264,14 +274,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private void innerMerge(
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
+        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
+            response.getOriginVersion(),
+            response.get(),
+            request.filters(),
+            request.allowedTypes(),
+            metadataFieldPred
+        );
+        for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
-            // best effort to detect metadata field coming from older nodes
-            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0)
-                ? entry.getValue().isMetadatafield()
-                : metadataFieldPred.test(field);
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
@@ -280,7 +294,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             );
             builder.add(
                 response.getIndexName(),
-                isMetadataField,
+                fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
@@ -347,14 +361,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
-                            final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(
+                            final FieldCapabilitiesIndexResponse response = fetcher.fetch(
                                 shardId,
                                 request.fields(),
+                                request.filters(),
+                                request.allowedTypes(),
                                 request.indexFilter(),
                                 request.nowInMillis(),
                                 request.runtimeFields()

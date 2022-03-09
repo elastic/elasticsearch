@@ -7,12 +7,18 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
@@ -25,6 +31,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
@@ -87,12 +95,15 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -287,6 +298,74 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                     + "]"
             )
         );
+    }
+
+    public void testElasticEnterpriseSearchServerAccount() {
+        final Role role = Role.builder(
+            ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
+            null,
+            RESTRICTED_INDICES_AUTOMATON
+        ).build();
+
+        final Authentication authentication = mock(Authentication.class);
+        final TransportRequest request = mock(TransportRequest.class);
+
+        // manage
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(true));
+
+        // manage_security
+        assertThat(
+            role.cluster()
+                .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
+            is(true)
+        );
+        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+
+        assertThat(role.cluster().check(PutUserAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutRoleAction.NAME, request, authentication), is(true));
+
+        // manage_index_templates
+        assertThat(role.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(true));
+
+        // monitoring
+        assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
+
+        // manage_ilm
+        assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
+
+        List.of(
+            ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
+            ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
+            "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
+            "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
+            "logs-app_search.analytics-default",
+            "logs-enterprise_search.api-default",
+            "logs-app_search.search_relevance_suggestions-default",
+            "logs-crawler-default",
+            "logs-workplace_search.analytics-default",
+            "logs-workplace_search.content_events-default"
+        ).forEach(index -> {
+            final IndexAbstraction enterpriseSearchIndex = mockIndexAbstraction(index);
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
+        });
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

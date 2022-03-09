@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -67,6 +68,13 @@ public class NodeClient extends AbstractClient {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
+    /**
+     * Return the names of all available actions registered with this client.
+     */
+    public List<String> getActionNames() {
+        return actions.keySet().stream().map(ActionType::name).toList();
+    }
+
     @Override
     public void close() {
         // nothing really to do
@@ -102,22 +110,13 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, (t, r) -> {
-            try {
-                listener.onResponse(r);
-            } catch (Exception e) {
-                assert false : new AssertionError("callback must handle its own exceptions", e);
-                throw e;
-            }
-        }, (t, e) -> {
-            try {
-                listener.onFailure(e);
-            } catch (Exception ex) {
-                ex.addSuppressed(e);
-                assert false : new AssertionError("callback must handle its own exceptions", ex);
-                throw ex;
-            }
-        });
+        return taskManager.registerAndExecute(
+            "transport",
+            transportAction(action),
+            request,
+            localConnection,
+            new ActionResponseTaskListener<>(listener)
+        );
     }
 
     /**
@@ -131,14 +130,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         TaskListener<Response> listener
     ) {
-        return taskManager.registerAndExecute(
-            "transport",
-            transportAction(action),
-            request,
-            localConnection,
-            listener::onResponse,
-            listener::onFailure
-        );
+        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, listener);
     }
 
     /**
@@ -173,5 +165,29 @@ public class NodeClient extends AbstractClient {
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    private record ActionResponseTaskListener<Response> (ActionListener<Response> listener) implements TaskListener<Response> {
+
+        @Override
+        public void onResponse(Task task, Response response) {
+            try {
+                listener.onResponse(response);
+            } catch (Exception e) {
+                assert false : new AssertionError("callback must handle its own exceptions", e);
+                throw e;
+            }
+        }
+
+        @Override
+        public void onFailure(Task task, Exception e) {
+            try {
+                listener.onFailure(e);
+            } catch (Exception ex) {
+                ex.addSuppressed(e);
+                assert false : new AssertionError("callback must handle its own exceptions", ex);
+                throw ex;
+            }
+        }
     }
 }

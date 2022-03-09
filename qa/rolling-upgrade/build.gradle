@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -36,6 +38,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     setting 'xpack.security.enabled', 'false'
+    requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   }
 
   String oldVersion = bwcVersion.toString()
@@ -93,11 +96,5 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#upgradedClusterTest")
-  }
-}
-
-testClusters.configureEach {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

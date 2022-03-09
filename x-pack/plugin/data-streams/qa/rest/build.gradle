@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -21,9 +22,7 @@ testClusters.configureEach {
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.security.enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 if (BuildParams.inFipsJvm){
   // These fail in CI but only when run as part of checkPart2 and not individually.

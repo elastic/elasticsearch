@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -60,9 +61,8 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
         setting 'xpack.security.authc.api_key.enabled', 'true'
-        if (BuildParams.isSnapshotBuild() == false) {
-            systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        }
+
+        requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
     }
 
     tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {

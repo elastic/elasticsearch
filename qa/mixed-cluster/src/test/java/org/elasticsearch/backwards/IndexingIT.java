@@ -285,7 +285,7 @@ public class IndexingIT extends ESRestTestCase {
 
     public void testSyncedFlushTransition() throws Exception {
         Nodes nodes = buildNodeAndVersions();
-        assertTrue("bwc version is on 7.x", nodes.getBWCVersion().before(Version.V_8_0_0));
+        assumeTrue("bwc version is on 7.x", nodes.getBWCVersion().before(Version.V_8_0_0));
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes

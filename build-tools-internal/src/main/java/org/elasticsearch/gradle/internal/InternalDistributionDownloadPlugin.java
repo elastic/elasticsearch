@@ -65,7 +65,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
      */
     private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
+            if (isCurrentVersion(distribution)) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
                     config -> projectDependency(project, distributionProjectPath(distribution), config)
@@ -93,6 +93,12 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
             }
             return null;
         }));
+    }
+
+    private boolean isCurrentVersion(ElasticsearchDistribution distribution) {
+        Version currentVersionNumber = Version.fromString(VersionProperties.getElasticsearch());
+        Version parsedDistVersionNumber = Version.fromString(distribution.getVersion());
+        return currentVersionNumber.equals(parsedDistVersionNumber);
     }
 
     /**

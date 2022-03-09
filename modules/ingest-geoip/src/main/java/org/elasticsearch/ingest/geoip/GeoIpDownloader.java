@@ -66,9 +66,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // for overriding in tests
+    private static final String DEFAULT_ENDPOINT = System.getProperty(
+        "ingest.geoip.downloader.endpoint.default",
+        "https://geoip.elastic.co/v1/database"
+    );
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString(
         "ingest.geoip.downloader.endpoint",
-        "https://geoip.elastic.co/v1/database",
+        DEFAULT_ENDPOINT,
         Property.NodeScope
     );
 
@@ -258,6 +264,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("exception during geoip databases update", e);
         }
         try {

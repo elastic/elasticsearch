@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,6 +28,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
@@ -92,6 +94,29 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
+    }
+
+    public void testNegativeAge() {
+        IndexLifecycleExplainResponse response = IndexLifecycleExplainResponse.newManagedIndexResponse(
+            "index",
+            "policy",
+            System.currentTimeMillis() + 25000000, // date in the future
+            "phase",
+            "action",
+            "step",
+            null,
+            false,
+            null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            "repo",
+            "snapshot",
+            "shrink",
+            null,
+            null
+        );
+        assertThat(response.getAge(), equalTo(TimeValue.ZERO));
     }
 
     @Override

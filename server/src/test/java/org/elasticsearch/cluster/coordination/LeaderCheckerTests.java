@@ -63,7 +63,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class LeaderCheckerTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83924")
     public void testFollowerBehaviour() {
         final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode leader2 = randomBoolean()
@@ -206,7 +205,9 @@ public class LeaderCheckerTests extends ESTestCase {
         leaderChecker.updateLeader(leader2);
         {
             checkCount.set(0);
-            final long maxCheckCount = randomLongBetween(2, 1000);
+            // run at least leaderCheckRetryCount iterations to ensure at least one success so that we reset the counters and clear out
+            // anything left over from the previous run
+            final long maxCheckCount = randomLongBetween(leaderCheckRetryCount, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
                 deterministicTaskQueue.runAllRunnableTasks();

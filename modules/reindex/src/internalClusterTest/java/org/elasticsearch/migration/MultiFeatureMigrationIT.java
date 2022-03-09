@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiFeatureMigrationIT extends FeatureMigrationIT {
+public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -68,7 +68,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(FeatureMigrationIT.TestPlugin.class);
+        plugins.add(TestPlugin.class);
         plugins.add(SecondPlugin.class);
         plugins.add(ReindexPlugin.class);
         return plugins;
@@ -80,6 +80,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
     private static final String VERSION_META_KEY = "version";
     static final int SECOND_FEATURE_IDX_FLAG_VALUE = 0;
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83953")
     public void testMultipleFeatureMigration() throws Exception {
         // All the indices from FeatureMigrationIT
         createSystemIndexForDescriptor(INTERNAL_MANAGED);

@@ -342,7 +342,7 @@ public final class XContentTestUtils {
                 } else if (context instanceof List) {
                     context = ((List<Object>) context).get(Integer.parseInt(key));
                 } else {
-                    throw new IllegalStateException("neither list nor map");
+                    return null; // node does not exist
                 }
             }
             return (T) context;

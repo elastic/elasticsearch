@@ -225,7 +225,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 context.bigArrays(),
                 fieldType,
                 analyzer,
-                sourceFieldNames,
+                Arrays.stream(sourceFieldNames)
+                    .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
+                    .toArray(String[]::new),
                 context,
                 filterDuplicateText
             );
@@ -288,8 +290,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
-            CollectConsumer consumer,
-            AggregationContext aggregationContext
+            CollectConsumer consumer
         ) throws IOException {
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
@@ -428,17 +429,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             AggregationContext context,
             boolean filterDuplicateText
         ) {
-            super(
-                sourceLookup,
-                bigArrays,
-                fieldType,
-                analyzer,
-                Arrays.stream(sourceFieldNames)
-                    .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
-                    .toArray(String[]::new),
-                context,
-                filterDuplicateText
-            );
+            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, context, filterDuplicateText);
         }
 
         @Override

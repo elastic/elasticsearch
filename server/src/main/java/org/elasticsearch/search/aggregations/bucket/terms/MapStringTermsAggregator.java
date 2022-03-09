@@ -100,8 +100,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                     } else {
                         collectBucket(s, doc, bucketOrdinal);
                     }
-                },
-                context
+                }
             )
         );
     }
@@ -160,8 +159,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
-            CollectConsumer consumer,
-            AggregationContext aggregationContext
+            CollectConsumer consumer
         ) throws IOException;
     }
 
@@ -199,8 +197,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
-            CollectConsumer consumer,
-            AggregationContext context
+            CollectConsumer consumer
         ) throws IOException {
             SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {

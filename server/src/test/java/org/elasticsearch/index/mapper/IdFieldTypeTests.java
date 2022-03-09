@@ -33,7 +33,7 @@ public class IdFieldTypeTests extends ESTestCase {
 
     public void testTermsQuery() {
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
-        
+
         Settings.Builder indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

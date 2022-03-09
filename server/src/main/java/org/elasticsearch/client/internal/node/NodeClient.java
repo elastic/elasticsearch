@@ -189,10 +189,5 @@ public class NodeClient extends AbstractClient {
                 throw ex;
             }
         }
-
-        @Override
-        public String toString() {
-            return this.getClass().getName() + "{" + listener + "}";
-        }
     }
 }

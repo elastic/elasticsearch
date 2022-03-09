@@ -36,7 +36,7 @@ import java.util.function.Supplier;
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
  */
-public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
+public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final FieldType FIELD_TYPE = new FieldType();
     static {
         FIELD_TYPE.setTokenized(false);
@@ -46,7 +46,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         FIELD_TYPE.freeze();
     }
 
-    public static final TimeSeriesModeIdFieldMapper INSTANCE = new TimeSeriesModeIdFieldMapper();
+    public static final TsidExtractingIdFieldMapper INSTANCE = new TsidExtractingIdFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
@@ -100,7 +100,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         }
     }
 
-    private TimeSeriesModeIdFieldMapper() {
+    private TsidExtractingIdFieldMapper() {
         super(new IdFieldType(), Lucene.KEYWORD_ANALYZER);
     }
 

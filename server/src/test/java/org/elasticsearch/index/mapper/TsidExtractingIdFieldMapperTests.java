@@ -28,7 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
+public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     private static class TestCase {
         private final String name;
         private final String expectedId;
@@ -376,7 +376,7 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
 
     private final TestCase testCase;
 
-    public TimeSeriesModeIdFieldMapperTests(@Named("testCase") TestCase testCase) throws IOException {
+    public TsidExtractingIdFieldMapperTests(@Named("testCase") TestCase testCase) throws IOException {
         this.testCase = testCase;
     }
 

@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesModeIdFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -172,13 +172,13 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper buildNoFieldDataIdFieldMapper() {
-            return TimeSeriesModeIdFieldMapper.INSTANCE;
+            return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
             // We don't support field data on TSDB's _id
-            return TimeSeriesModeIdFieldMapper.INSTANCE;
+            return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override

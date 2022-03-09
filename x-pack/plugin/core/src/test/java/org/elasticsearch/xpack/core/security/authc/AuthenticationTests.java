@@ -601,12 +601,16 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
+        return randomApiKeyAuthentication(user, apiKeyId, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT));
+    }
+
+    public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, Version version) {
         return randomApiKeyAuthentication(
             user,
             apiKeyId,
             AuthenticationField.API_KEY_CREATOR_REALM_NAME,
             AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT)
+            version
         );
     }
 

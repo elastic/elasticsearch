@@ -219,15 +219,16 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
      */
     private CollectorSource createCollectorSource() {
         Analyzer analyzer = context.getIndexAnalyzer(f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); });
+        String[] fieldNames = Arrays.stream(this.sourceFieldNames)
+            .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
+            .toArray(String[]::new);
         if (context.profiling()) {
             return new ProfilingSignificantTextCollectorSource(
                 context.lookup().source(),
                 context.bigArrays(),
                 fieldType,
                 analyzer,
-                Arrays.stream(sourceFieldNames)
-                    .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
-                    .toArray(String[]::new),
+                fieldNames,
                 context,
                 filterDuplicateText
             );
@@ -237,7 +238,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.bigArrays(),
             fieldType,
             analyzer,
-            Arrays.stream(sourceFieldNames).flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream()).toArray(String[]::new),
+            fieldNames,
             context,
             filterDuplicateText
         );

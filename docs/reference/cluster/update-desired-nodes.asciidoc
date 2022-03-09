@@ -27,7 +27,7 @@ PUT /_internal/desired_nodes/<history_id>/<version>
             "processors" : 8,
             "memory" : "58gb",
             "storage" : "1700gb",
-            "node_version" : "8.1.0"
+            "node_version" : "{version}"
         }
     ]
 }
@@ -80,7 +80,7 @@ PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/100
             "processors" : 8,
             "memory" : "58gb",
             "storage" : "1700gb",
-            "node_version" : "8.1.0"
+            "node_version" : "{version}"
         }
     ]
 }

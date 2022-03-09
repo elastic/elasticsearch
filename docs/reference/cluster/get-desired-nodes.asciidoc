@@ -28,7 +28,7 @@ PUT /_internal/desired_nodes/my_history/1
             "processors" : 8,
             "memory" : "59gb",
             "storage" : "1700gb",
-            "node_version" : "8.1.0"
+            "node_version" : "{version}"
         }
     ]
 }

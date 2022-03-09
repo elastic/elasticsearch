@@ -72,7 +72,7 @@ token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`.
 
-The following command starts a single-node {es} cluster for development or
+The following commands start a single-node {es} cluster for development or
 testing.
 
 . Create a new docker network for {es} and {kib}

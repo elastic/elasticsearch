@@ -19,6 +19,8 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     private final AtomicInteger refCount = new AtomicInteger(1);
 
+    protected AbstractRefCounted() {}
+
     @Override
     public final void incRef() {
         if (tryIncRef() == false) {

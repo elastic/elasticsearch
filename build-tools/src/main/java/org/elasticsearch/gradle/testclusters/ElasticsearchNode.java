@@ -1575,9 +1575,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean checkPortsFilesExistWithDelay(TestClusterConfiguration node) {
-        if (Files.exists(httpPortsFile)
-            && Files.exists(transportPortFile)
-            && (getVersion().before("8.2.0") || Files.exists(readinessPortsFile))) {
+        if (Files.exists(httpPortsFile) && Files.exists(transportPortFile)) {
             return true;
         }
         try {
@@ -1586,9 +1584,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             Thread.currentThread().interrupt();
             throw new TestClustersException("Interrupted while waiting for ports files", e);
         }
-        return Files.exists(httpPortsFile)
-            && Files.exists(transportPortFile)
-            && (getVersion().before("8.2.0") || Files.exists(readinessPortsFile));
+        return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
     }
 
     @Internal

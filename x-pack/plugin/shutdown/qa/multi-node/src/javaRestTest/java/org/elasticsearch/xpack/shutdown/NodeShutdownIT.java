@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -21,15 +20,7 @@ import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.channels.Channels;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -134,18 +125,18 @@ public class NodeShutdownIT extends ESRestTestCase {
         Integer port = Integer.parseInt(portStr);
 
         // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
-        assertTrue(getReadinessStatus(port));
+        tcpReadinessProbeTrue(port);
 
         // Mark the node for shutdown and check that it's not ready
         checkCRUD(nodeId, randomFrom("restart", "RESTART"), "1ms", null, false);
-        assertFalse(getReadinessStatus(port));
+        tcpReadinessProbeFalse(port);
 
         // Delete the shutdown request and verify that the node is ready again
         Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
         assertOK(client().performRequest(deleteRequest));
         assertNoShuttingDownNodes(nodeId);
 
-        assertTrue(getReadinessStatus(port));
+        tcpReadinessProbeTrue(port);
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
@@ -514,11 +505,6 @@ public class NodeShutdownIT extends ESRestTestCase {
         Map<String, Object> nodesResponse = responseAsMap(client().performRequest(nodesRequest));
         Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
 
-        for (Map.Entry<String, Object> node : nodesObject.entrySet()) {
-            System.out.println("Node -> " + node.getKey());
-            System.out.println("\tValue -> " + node.getValue());
-        }
-
         return randomFrom(nodesObject.keySet());
     }
 
@@ -529,25 +515,5 @@ public class NodeShutdownIT extends ESRestTestCase {
             new SecureString(System.getProperty("tests.rest.cluster.password").toCharArray())
         );
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @SuppressForbidden(reason = "Intentional socket open")
-    private boolean getReadinessStatus(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
-
-        return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
-            try (SocketChannel channel = SocketChannel.open(socketAddress)) {
-                try {
-                    BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
-                    String message = reader.readLine();
-                    assertNotNull(message);
-                    return message.startsWith("true,");
-                } catch (IOException ignored) {}
-
-                return false;
-            } catch (IOException expectedSometimes) {
-                return false;
-            }
-        });
     }
 }

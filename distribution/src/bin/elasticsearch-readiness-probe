@@ -1,6 +1,0 @@
-#!/bin/bash
-
-ES_MAIN_CLASS=org.elasticsearch.cli.readiness.ReadinessProbeCli \
-  ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/readiness-probe-cli \
-  "`dirname "$0"`"/elasticsearch-cli \
-  "$@"

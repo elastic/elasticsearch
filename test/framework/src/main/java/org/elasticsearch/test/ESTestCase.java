@@ -1747,17 +1747,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }
 
-    @SuppressForbidden(reason = "Intentional socket open")
     protected void tcpReadinessProbeTrue(ReadinessService readinessService) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(
-            InetAddress.getLoopbackAddress(),
-            readinessService.boundAddress().publishAddress().getPort()
-        );
+        tcpReadinessProbeTrue(readinessService.boundAddress().publishAddress().getPort());
+    }
+
+    // extracted because suppress forbidden checks have issues with lambdas
+    @SuppressForbidden(reason = "Intentional socket open")
+    private void channelConnect(SocketChannel channel, InetSocketAddress socketAddress) throws IOException {
+        channel.connect(socketAddress);
+    }
+
+    @SuppressForbidden(reason = "Intentional socket open")
+    protected void tcpReadinessProbeTrue(Integer port) throws Exception {
+        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
-                    channel.connect(socketAddress);
+                    channelConnect(channel, socketAddress);
                     // if we succeeded to connect the server is ready
                 } catch (IOException e) {
                     fail("Shouldn't reach here");
@@ -1773,14 +1780,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @SuppressForbidden(reason = "Intentional socket open")
     protected void tcpReadinessProbeFalse(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(
-            InetAddress.getLoopbackAddress(),
-            port
-        );
+        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                String message = expectThrows(IOException.class, () -> channel.connect(socketAddress)).getMessage();
+                String message = expectThrows(IOException.class, () -> channelConnect(channel, socketAddress)).getMessage();
                 assertEquals("Connection refused", message);
                 return null;
             });

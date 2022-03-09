@@ -134,13 +134,7 @@ public class ReadinessServiceTests extends ESTestCase {
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.EMPTY,
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            "node2"
-                        )
-                    )
+                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
             )
             .build();
 

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.readiness;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,7 +20,6 @@ import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class ReadinessClusterIT extends ESIntegTestCase {
@@ -30,44 +30,40 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         return settings.build();
     }
 
-    public void testReadinessDuringRestarts() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
-        logger.info("--> start data node / non master node");
-        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
-        try {
-            assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            );
-            fail("should not be able to find master");
-        } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
-        }
-        assertFalse(internalCluster().getInstance(ReadinessService.class, dataNode).ready());
-
-        logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
+    private void assertMasterNode(Client client, String node) {
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
+            client.admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
+    }
+
+    private void expectMasterNotFound() {
+        expectThrows(
+            MasterNotDiscoveredException.class,
+            () -> client().admin()
                 .cluster()
                 .prepareState()
+                .setMasterNodeTimeout("100ms")
                 .execute()
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(masterNode)
+                .getMasterNodeId()
         );
+    }
+
+    public void testReadinessDuringRestarts() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+
+        expectMasterNotFound();
+        assertFalse(internalCluster().getInstance(ReadinessService.class, dataNode).ready());
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode();
+
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
@@ -76,19 +72,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
             .publishAddress()
             .getPort();
 
-        assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(masterNode)
-        );
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
 
         logger.info("--> stop master node");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
@@ -96,54 +80,15 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         tcpReadinessProbeFalse(masterPort);
 
-        try {
-            assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            );
-            fail("should not be able to find master");
-        } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
-        }
+        expectMasterNotFound();
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
             Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings)
         );
-        assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(nextMasterEligibleNodeName)
-        );
-        assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(nextMasterEligibleNodeName)
-        );
+
+        assertMasterNode(internalCluster().nonMasterClient(), nextMasterEligibleNodeName);
+        assertMasterNode(internalCluster().masterClient(), nextMasterEligibleNodeName);
     }
 
     public void testReadinessDuringRestartsNormalOrder() throws Exception {
@@ -152,19 +97,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().validateClusterFormed();
 
-        assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(masterNode)
-        );
+        assertMasterNode(internalCluster().masterClient(), masterNode);
 
         logger.info("--> start 2 data nodes");
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
@@ -181,10 +114,10 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().restartNode(dataNodes.get(0), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
-            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNodes.get(1)));
+                tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
+                tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNodes.get(1)));
 
-            return super.onNodeStopped(nodeName);
+                return super.onNodeStopped(nodeName);
             }
         });
 
@@ -193,30 +126,14 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-            try {
-                assertThat(
-                    client().admin()
-                        .cluster()
-                        .prepareState()
-                        .setMasterNodeTimeout("100ms")
-                        .execute()
-                        .actionGet()
-                        .getState()
-                        .nodes()
-                        .getMasterNodeId(),
-                    nullValue()
-                );
-                fail("should not be able to find master");
-            } catch (MasterNotDiscoveredException e) {
-                // all is well, no master elected
-            }
+                expectMasterNotFound();
 
-            for (String dataNode : dataNodes) {
-                ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-                tcpReadinessProbeFalse(s);
-            }
+                for (String dataNode : dataNodes) {
+                    ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
+                    tcpReadinessProbeFalse(s);
+                }
 
-            return super.onNodeStopped(nodeName);
+                return super.onNodeStopped(nodeName);
             }
         });
 

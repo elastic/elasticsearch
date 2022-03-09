@@ -15,16 +15,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -34,18 +30,14 @@ import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+
+import static org.elasticsearch.node.Node.WRITE_PORTS_FILE_SETTING;
+import static org.elasticsearch.node.Node.writePortsFile;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -143,8 +135,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         new Thread(() -> {
             while (serverChannel != null && serverChannel.isOpen()) {
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    try (SocketChannel channel = serverChannel.accept()) {
-                    } catch (IOException e) {
+                    try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
                         logger.debug("encountered exception while responding to readiness check request", e);
                     } catch (Exception other) {
                         logger.warn("encountered unknown exception while responding to readiness check request", other);
@@ -155,6 +146,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }, "elasticsearch[readiness-service]").start();
 
         logger.info("readiness service up and running on {}", boundAddress().publishAddress());
+
+        if (WRITE_PORTS_FILE_SETTING.get(environment.settings())) {
+            writePortsFile(environment, "readiness", boundAddress());
+        }
     }
 
     @Override

@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.logging.api.core.Filter;
+import org.elasticsearch.logging.api.core.RateLimitingFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -108,21 +110,21 @@ public class Deprecation extends Plugin implements ActionPlugin {
         );
         templateRegistry.initialize();
 
-//        final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
+        final RateLimitingFilter rateLimitingFilterForIndexing = RateLimitingFilter.createRateLimitingFilter();
         // enable on start.
-//        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
-//        clusterService.getClusterSettings()
-//            .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
+        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
 //
-//        final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
-//            client,
-//            environment.settings(),
-//            rateLimitingFilterForIndexing,
-//            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()), // pass the default on startup
-//            clusterService
-//        );
+        final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
+            client,
+            environment.settings(),
+            rateLimitingFilterForIndexing,
+            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()), // pass the default on startup
+            clusterService
+        );
 
-        return Collections.emptyList();//List.of(component, rateLimitingFilterForIndexing);
+        return List.of(component, rateLimitingFilterForIndexing);
     }
 
     @Override

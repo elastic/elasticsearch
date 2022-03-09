@@ -24,12 +24,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 //import org.elasticsearch.logging.internal.ECSJsonLayout;
 //import org.elasticsearch.logging.internal.Loggers;
-//import org.elasticsearch.logging.internal.RateLimitingFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Utils;
+import org.elasticsearch.logging.api.core.Layout;
+import org.elasticsearch.logging.api.core.RateLimitingFilter;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
@@ -50,7 +53,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private  DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
-//    private final RateLimitingFilter rateLimitingFilterForIndexing;
+    private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
 
     private final AtomicBoolean flushEnabled = new AtomicBoolean(false);
@@ -58,11 +61,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     private DeprecationIndexingComponent(
         Client client,
         Settings settings,
-        Object rateLimitingFilterForIndexing,
+        RateLimitingFilter rateLimitingFilterForIndexing,
         boolean enableDeprecationLogIndexingDefault,
         ClusterService clusterService
     ) {
-//        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
         this.clusterService = clusterService;
 
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
@@ -76,12 +79,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 //            .setConfiguration(configuration)
 //            .build();
 //
-//        this.appender = new DeprecationIndexingAppender(
-//            "deprecation_indexing_appender",
-//            rateLimitingFilterForIndexing,
-//            ecsLayout,
-//            consumer
-//        );
+        Layout ecsLayout = Layout.createECSLayout("deprecation.elasticsearch");
+
+        this.appender = new DeprecationIndexingAppender(
+            "deprecation_indexing_appender",
+            rateLimitingFilterForIndexing,
+            ecsLayout,
+            consumer
+        );
         enableDeprecationLogIndexing(enableDeprecationLogIndexingDefault);
 
     }
@@ -89,14 +94,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     public static DeprecationIndexingComponent createDeprecationIndexingComponent(
         Client client,
         Settings settings,
-        Object rateLimitingFilterForIndexing,
+        RateLimitingFilter rateLimitingFilterForIndexing,
         boolean enableDeprecationLogIndexingDefault,
         ClusterService clusterService
     ) {
         final DeprecationIndexingComponent deprecationIndexingComponent = new DeprecationIndexingComponent(
             client,
             settings,
-            null,
+            rateLimitingFilterForIndexing,
             enableDeprecationLogIndexingDefault,
             clusterService
         );
@@ -131,13 +136,13 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     protected void doStart() {
         logger.info("deprecation component started");
 //        this.appender.start();
-//        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        Utils.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
     }
 
     @Override
     protected void doStop() {
-//        Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
-//        flushEnabled.set(false);
+        Utils.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        flushEnabled.set(false);
 //        this.appender.stop();
     }
 
@@ -147,18 +152,18 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     }
 
     public void enableDeprecationLogIndexing(boolean newEnabled) {
-//        if (appender.isEnabled() != newEnabled) {
-//            appender.setEnabled(newEnabled);
-//
-//            // We've flipped from disabled to enabled. Make sure we start with a clean cache of
-//            // previously-seen keys, otherwise we won't index anything.
-//            if (newEnabled) {
-//                this.rateLimitingFilterForIndexing.reset();
-//            } else {
-//                // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
-//                this.processor.flush();
-//            }
-//        }
+        if (appender.isEnabled() != newEnabled) {
+            appender.setEnabled(newEnabled);
+
+            // We've flipped from disabled to enabled. Make sure we start with a clean cache of
+            // previously-seen keys, otherwise we won't index anything.
+            if (newEnabled) {
+                this.rateLimitingFilterForIndexing.reset();
+            } else {
+                // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
+                this.processor.flush();
+            }
+        }
     }
 
     /**

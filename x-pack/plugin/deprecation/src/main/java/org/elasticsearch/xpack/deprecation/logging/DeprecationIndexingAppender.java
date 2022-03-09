@@ -16,8 +16,13 @@ package org.elasticsearch.xpack.deprecation.logging;
 //import org.elasticsearch.logging.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.logging.api.core.Appender;
+import org.elasticsearch.logging.api.core.Filter;
+import org.elasticsearch.logging.api.core.Layout;
+import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -27,9 +32,12 @@ import java.util.function.Consumer;
  * to a callback.
  */
 //@Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
-public class DeprecationIndexingAppender /*extends AbstractAppender*/ {
+public class DeprecationIndexingAppender implements Appender/*extends AbstractAppender*/ {
     public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
+    private String name;
+    private Filter filter;
+    private Layout layout;
     private  Consumer<IndexRequest> requestConsumer = null;
 
     /**
@@ -45,28 +53,45 @@ public class DeprecationIndexingAppender /*extends AbstractAppender*/ {
      * @param layout the layout to use for formatting message. It must return a JSON string.
      * @param requestConsumer a callback to handle the actual indexing of the log message.
 //     */
-//    public DeprecationIndexingAppender(String name, Filter filter, Layout<String> layout, Consumer<IndexRequest> requestConsumer) {
+    public DeprecationIndexingAppender(String name, Filter filter, Layout layout, Consumer<IndexRequest> requestConsumer) {
 //        super(name, filter, layout);
-//        this.requestConsumer = Objects.requireNonNull(requestConsumer, "requestConsumer cannot be null");
-//    }
+        this.name = name;
+        this.filter = filter;
+        this.layout = layout;
+        this.requestConsumer = Objects.requireNonNull(requestConsumer, "requestConsumer cannot be null");
+    }
 
     /**
      * Constructs an index request for a deprecation message, and passes it to the callback that was
      * supplied to {@link #DeprecationIndexingAppender(String, Filter, Layout, Consumer)}.
      */
-//    @Override
-//    public void append(LogEvent event) {
-//        if (this.isEnabled == false) {
-//            return;
-//        }
-//
-//        final byte[] payload = this.getLayout().toByteArray(event);
-//
-//        final IndexRequest request = new IndexRequest(DEPRECATION_MESSAGES_DATA_STREAM).source(payload, XContentType.JSON)
-//            .opType(DocWriteRequest.OpType.CREATE);
-//
-//        this.requestConsumer.accept(request);
-//    }
+    @Override
+    public void append(LogEvent event) {
+        if (this.isEnabled == false) {
+            return;
+        }
+        final byte[] payload = this.layout.toByteArray(event);
+
+        final IndexRequest request = new IndexRequest(DEPRECATION_MESSAGES_DATA_STREAM).source(payload, XContentType.JSON)
+            .opType(DocWriteRequest.OpType.CREATE);
+
+        this.requestConsumer.accept(request);
+    }
+
+    @Override
+    public Filter filter() {
+        return filter;
+    }
+
+    @Override
+    public Layout layout() {
+        return layout;
+    }
+
+    @Override
+    public String name() {
+        return name;
+    }
 
     /**
      * Sets whether this appender is enabled or disabled. When disabled, the appender will
@@ -83,4 +108,5 @@ public class DeprecationIndexingAppender /*extends AbstractAppender*/ {
     public boolean isEnabled() {
         return isEnabled;
     }
+
 }

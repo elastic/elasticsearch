@@ -59,7 +59,7 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
 
         assertBusy(() -> {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
-            logger.warn(documents);
+            logger.warn(documents.toString());
             assertThat(
                 documents,
                 containsInAnyOrder(

@@ -141,6 +141,8 @@ public interface Logger {
     void trace(String message, Object... params);
 
     // -- warn
+//    void warn(Object message); vs .toString?
+
     void warn(Message message);
 
     void warn(Message message, Throwable thrown);

@@ -14,7 +14,7 @@ public final class Util {
 
     //TODO PG  make sure we don't create too many levels..
 
-    static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
+    public static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
         return switch (level.getSeverity()) {
             case StandardLevels.OFF -> org.apache.logging.log4j.Level.OFF;
             case StandardLevels.FATAL -> org.apache.logging.log4j.Level.FATAL;

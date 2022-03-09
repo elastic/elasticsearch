@@ -10,7 +10,6 @@ package org.elasticsearch.logging.internal;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.config.Node;
@@ -38,8 +37,8 @@ import static org.elasticsearch.logging.internal.Util.isNullOrEmpty;
  *
  * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
  */
-@Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
-public class RateLimitingFilter extends AbstractFilter {
+@Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = org.apache.logging.log4j.core.Filter.ELEMENT_TYPE)
+public class RateLimitingFilter extends AbstractFilter  implements org.elasticsearch.logging.api.core.RateLimitingFilter {
     // a flag to disable/enable use of xOpaqueId controlled by changing cluster setting
     private volatile boolean useXOpaqueId = true;
 

@@ -16,7 +16,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class FloatDocValuesField implements Field<Float>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<Double> {
+public class FloatDocValuesField extends AbstractScriptFieldSource<Float>
+    implements
+        Field<Float>,
+        DocValuesScriptFieldSource,
+        ScriptDocValues.Supplier<Double> {
 
     protected final SortedNumericDoubleValues input;
     protected final String name;
@@ -29,11 +33,6 @@ public class FloatDocValuesField implements Field<Float>, DocValuesScriptFieldSo
     public FloatDocValuesField(SortedNumericDoubleValues input, String name) {
         this.input = input;
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     @Override

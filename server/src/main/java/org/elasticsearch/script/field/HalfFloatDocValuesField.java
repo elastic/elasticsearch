@@ -19,7 +19,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class HalfFloatDocValuesField implements Field<Float>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<Double> {
+public class HalfFloatDocValuesField extends AbstractScriptFieldSource<Float>
+    implements
+        Field<Float>,
+        DocValuesScriptFieldSource,
+        ScriptDocValues.Supplier<Double> {
 
     protected final SortedNumericDoubleValues input;
     protected final String name;
@@ -32,11 +36,6 @@ public class HalfFloatDocValuesField implements Field<Float>, DocValuesScriptFie
     public HalfFloatDocValuesField(SortedNumericDoubleValues input, String name) {
         this.input = input;
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     @Override

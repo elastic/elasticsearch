@@ -21,7 +21,8 @@ import java.io.IOException;
 public interface LeafFieldData extends Accountable, Releasable {
 
     /**
-     * Returns an {@code Field} for use in accessing field values in scripting.
+     * Returns an {@link DocValuesScriptFieldSource} to access either
+     * {@link ScriptDocValues} or {@link org.elasticsearch.script.field.Field}.
      */
     DocValuesScriptFieldSource getScriptFieldSource(String name);
 

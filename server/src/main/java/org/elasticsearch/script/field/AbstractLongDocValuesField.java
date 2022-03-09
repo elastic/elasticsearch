@@ -16,7 +16,11 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public abstract class AbstractLongDocValuesField implements Field<Long>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<Long> {
+public abstract class AbstractLongDocValuesField extends AbstractScriptFieldSource<Long>
+    implements
+        Field<Long>,
+        DocValuesScriptFieldSource,
+        ScriptDocValues.Supplier<Long> {
 
     protected final String name;
     // used for backwards compatibility for old-style "doc" access
@@ -30,11 +34,6 @@ public abstract class AbstractLongDocValuesField implements Field<Long>, DocValu
     public AbstractLongDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     /**

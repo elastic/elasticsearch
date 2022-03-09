@@ -17,7 +17,11 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BooleanDocValuesField implements Field<Boolean>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<Boolean> {
+public class BooleanDocValuesField extends AbstractScriptFieldSource<Boolean>
+    implements
+        Field<Boolean>,
+        DocValuesScriptFieldSource,
+        ScriptDocValues.Supplier<Boolean> {
 
     private final SortedNumericDocValues input;
     private final String name;
@@ -32,11 +36,6 @@ public class BooleanDocValuesField implements Field<Boolean>, DocValuesScriptFie
     public BooleanDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     @Override

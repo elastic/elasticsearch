@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.script.field.AbstractScriptFieldSource;
 import org.elasticsearch.script.field.DocValuesScriptFieldSource;
 import org.elasticsearch.script.field.Field;
 
 import java.util.Iterator;
 
-public abstract class DenseVectorDocValuesField
+public abstract class DenseVectorDocValuesField extends AbstractScriptFieldSource<DenseVector>
     implements
         Field<DenseVector>,
         DocValuesScriptFieldSource,
@@ -22,11 +23,6 @@ public abstract class DenseVectorDocValuesField
 
     public DenseVectorDocValuesField(String name) {
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     @Override

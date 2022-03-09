@@ -19,7 +19,11 @@ import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DateNanosDocValuesField implements Field<ZonedDateTime>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<ZonedDateTime> {
+public class DateNanosDocValuesField extends AbstractScriptFieldSource<ZonedDateTime>
+    implements
+        Field<ZonedDateTime>,
+        DocValuesScriptFieldSource,
+        ScriptDocValues.Supplier<ZonedDateTime> {
 
     protected final SortedNumericDocValues input;
     protected final String name;
@@ -32,11 +36,6 @@ public class DateNanosDocValuesField implements Field<ZonedDateTime>, DocValuesS
     public DateNanosDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     @Override

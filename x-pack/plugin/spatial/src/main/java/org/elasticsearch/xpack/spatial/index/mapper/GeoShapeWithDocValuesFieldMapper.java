@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.script.field.AbstractScriptFieldSource;
 import org.elasticsearch.script.field.DocValuesScriptFieldSource;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -343,7 +344,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         super.checkIncomingMergeType(mergeWith);
     }
 
-    public static class GeoShapeDocValuesField
+    public static class GeoShapeDocValuesField extends AbstractScriptFieldSource<GeoShapeValues.GeoShapeValue>
         implements
             Field<GeoShapeValues.GeoShapeValue>,
             DocValuesScriptFieldSource,
@@ -362,11 +363,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public GeoShapeDocValuesField(GeoShapeValues in, String name) {
             this.in = in;
             this.name = name;
-        }
-
-        @Override
-        public Field<?> toScriptField() {
-            return this;
         }
 
         @Override

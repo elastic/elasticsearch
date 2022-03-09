@@ -16,7 +16,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class ByteDocValuesField implements Field<Byte>, DocValuesScriptFieldSource, ScriptDocValues.Supplier<Long> {
+public class ByteDocValuesField extends AbstractScriptFieldSource<Byte>
+    implements
+        Field<Byte>,
+        DocValuesScriptFieldSource,
+        ScriptDocValues.Supplier<Long> {
 
     protected final SortedNumericDocValues input;
     protected final String name;
@@ -29,11 +33,6 @@ public class ByteDocValuesField implements Field<Byte>, DocValuesScriptFieldSour
     public ByteDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
         this.name = name;
-    }
-
-    @Override
-    public Field<?> toScriptField() {
-        return this;
     }
 
     @Override

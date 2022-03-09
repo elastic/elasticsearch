@@ -1591,8 +1591,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81409")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
+        assumeTrue(".tasks became a system index in 7.10.0", getOldClusterVersion().onOrAfter(Version.V_7_10_0));
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {

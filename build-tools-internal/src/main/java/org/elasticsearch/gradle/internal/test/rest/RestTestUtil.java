@@ -48,7 +48,7 @@ public class RestTestUtil {
      * Setup the dependencies needed for the REST tests.
      */
     public static void setupTestDependenciesDefaults(Project project, SourceSet sourceSet) {
-        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:rest-runner"));
     }
 
 }

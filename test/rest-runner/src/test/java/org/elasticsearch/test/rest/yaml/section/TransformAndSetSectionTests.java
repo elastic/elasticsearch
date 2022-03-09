@@ -10,7 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.Stash;
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.nio.charset.StandardCharsets;

@@ -195,19 +195,15 @@ public class Task {
 
     @Override
     public String toString() {
-        return "Task{"
-            + "id="
+        return "Task{id="
             + id
             + ", type='"
             + type
-            + '\''
-            + ", action='"
+            + "', action='"
             + action
-            + '\''
-            + ", description='"
+            + "', description='"
             + description
-            + '\''
-            + ", parentTask="
+            + "', parentTask="
             + parentTask
             + ", startTime="
             + startTime

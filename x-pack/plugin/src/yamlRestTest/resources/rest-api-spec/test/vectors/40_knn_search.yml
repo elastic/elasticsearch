@@ -54,8 +54,6 @@ setup:
             k: 2
             num_candidates: 3
 
-  - match: {hits.total.value: 2}
-
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
 

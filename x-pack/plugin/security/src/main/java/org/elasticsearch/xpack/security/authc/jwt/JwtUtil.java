@@ -272,12 +272,11 @@ public class JwtUtil {
     public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri) {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            httpClient.execute(new HttpGet(uri), new FutureCallback<HttpResponse>() {
+            httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
                 @Override
                 public void completed(final HttpResponse result) {
                     final StatusLine statusLine = result.getStatusLine();
                     final int statusCode = statusLine.getStatusCode();
-                    final String reasonPhrase = statusLine.getReasonPhrase();
                     if (statusCode == 200) {
                         final HttpEntity entity = result.getEntity();
                         try (InputStream inputStream = entity.getContent()) {
@@ -288,7 +287,7 @@ public class JwtUtil {
                     } else {
                         plainActionFuture.onFailure(
                             new ElasticsearchSecurityException(
-                                "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + reasonPhrase + "]."
+                                "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + statusLine.getReasonPhrase() + "]."
                             )
                         );
                     }

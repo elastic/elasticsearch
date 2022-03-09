@@ -54,8 +54,8 @@ import java.util.function.Supplier;
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
  */
-public class StandardIdFieldMapper extends IdFieldMapper {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StandardIdFieldMapper.class);
+public class ProvidedIdFieldMapper extends IdFieldMapper {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
             + "If you require sorting or aggregating on this field you should also include the id in the "
@@ -82,7 +82,7 @@ public class StandardIdFieldMapper extends IdFieldMapper {
         }
     }
 
-    public static final StandardIdFieldMapper NO_FIELD_DATA = new StandardIdFieldMapper(() -> false);
+    public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false);
 
     static final class IdFieldType extends TermBasedFieldType {
 
@@ -257,7 +257,7 @@ public class StandardIdFieldMapper extends IdFieldMapper {
         };
     }
 
-    public StandardIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+    public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 

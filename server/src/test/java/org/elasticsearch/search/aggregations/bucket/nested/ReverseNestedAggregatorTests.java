@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.StandardIdFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -100,7 +100,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                             new Field(
                                 IdFieldMapper.NAME,
                                 Uid.encodeId(Integer.toString(i)),
-                                StandardIdFieldMapper.Defaults.NESTED_FIELD_TYPE
+                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
                             )
                         );
                         document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
@@ -109,7 +109,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     }
                     Document document = new Document();
                     document.add(
-                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), StandardIdFieldMapper.Defaults.FIELD_TYPE)
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
                     );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
@@ -167,7 +167,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                             new Field(
                                 IdFieldMapper.NAME,
                                 Uid.encodeId(Integer.toString(i)),
-                                StandardIdFieldMapper.Defaults.NESTED_FIELD_TYPE
+                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
                             )
                         );
                         document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
@@ -175,7 +175,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     }
                     Document document = new Document();
                     document.add(
-                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), StandardIdFieldMapper.Defaults.FIELD_TYPE)
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
                     );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
 

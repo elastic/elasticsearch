@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.StandardIdFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
@@ -92,12 +92,12 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper buildNoFieldDataIdFieldMapper() {
-            return StandardIdFieldMapper.NO_FIELD_DATA;
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
         }
 
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new StandardIdFieldMapper(fieldDataEnabled);
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
         }
 
         @Override

@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.StandardIdFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -184,7 +184,7 @@ public class QueryParserHelperBenchmark {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            new StandardIdFieldMapper(() -> true),
+            new ProvidedIdFieldMapper(() -> true),
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {

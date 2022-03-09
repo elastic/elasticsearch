@@ -36,6 +36,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * the {@code _id} so it can be fetched easily from the index.
      */
     public static Field standardIdField(String id) {
-        return new Field(NAME, Uid.encodeId(id), StandardIdFieldMapper.Defaults.FIELD_TYPE);
+        return new Field(NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
     }
 }

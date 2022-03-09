@@ -340,7 +340,7 @@ public final class DocumentParser {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
-            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), StandardIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

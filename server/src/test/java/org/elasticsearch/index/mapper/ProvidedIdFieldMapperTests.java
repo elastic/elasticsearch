@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class StandardIdFieldMapperTests extends MapperServiceTestCase {
+public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
@@ -49,7 +49,7 @@ public class StandardIdFieldMapperTests extends MapperServiceTestCase {
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
-        StandardIdFieldMapper.IdFieldType ft = (StandardIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+        ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
@@ -60,7 +60,7 @@ public class StandardIdFieldMapperTests extends MapperServiceTestCase {
 
         enabled[0] = true;
         ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
-        assertWarnings(StandardIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
+        assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
     }
 
@@ -74,7 +74,7 @@ public class StandardIdFieldMapperTests extends MapperServiceTestCase {
                 SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
-                StandardIdFieldMapper.IdFieldType ft = (StandardIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+                ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
                 ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

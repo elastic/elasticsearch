@@ -49,7 +49,7 @@ public class HealthService {
         assert indicators.size() > 0 : "Component should not be non empty";
         assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
-        Set<String> duplicateIndicatorNames = findDuplicateByName(indicators);
+        Set<String> duplicateIndicatorNames = findDuplicatesByName(indicators);
         assert duplicateIndicatorNames.isEmpty()
             : String.format(
                 Locale.ROOT,
@@ -64,7 +64,7 @@ public class HealthService {
         );
     }
 
-    private static Set<String> findDuplicateByName(List<HealthIndicatorResult> indicators) {
+    private static Set<String> findDuplicatesByName(List<HealthIndicatorResult> indicators) {
         Set<String> items = new HashSet<>();
         return indicators.stream().map(HealthIndicatorResult::name).filter(name -> items.add(name) == false).collect(Collectors.toSet());
     }

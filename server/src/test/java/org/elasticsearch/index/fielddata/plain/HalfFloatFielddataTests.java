@@ -15,7 +15,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;

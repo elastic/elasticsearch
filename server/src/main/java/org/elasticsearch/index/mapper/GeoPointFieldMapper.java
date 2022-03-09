@@ -17,6 +17,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
@@ -42,9 +43,9 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -82,8 +83,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault) {
+        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
             super(name);
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.nullValue = nullValueParam(
@@ -93,6 +95,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 XContentBuilder::field
             ).acceptsNull();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.script.precludesParameters(nullValue, ignoreMalformed, ignoreZValue);
             addScriptValidation(script, indexed, hasDocValues);
         }
@@ -146,7 +149,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(name),
-                indexed.get(),
+                indexed.get() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.get(),
                 hasDocValues.get(),
                 geoParser,
@@ -162,11 +165,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()))
+        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 
     private final Builder builder;
     private final FieldValues<GeoPoint> scriptValues;
+    private final Version indexCreatedVersion;
 
     public GeoPointFieldMapper(
         String simpleName,
@@ -188,17 +192,20 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         );
         this.builder = builder;
         this.scriptValues = null;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType, Parser<GeoPoint> parser, Builder builder) {
         super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.scriptCompiler, builder.ignoreMalformed.getDefaultValue().value()).init(this);
+        return new Builder(simpleName(), builder.scriptCompiler, builder.ignoreMalformed.getDefaultValue().value(), indexCreatedVersion)
+            .init(this);
     }
 
     @Override
@@ -215,7 +222,38 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
         }
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
-        multiFields.parse(this, context.switchParser(MapXContentParser.wrapObject(geometry.geohash())));
+        // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
+        DocumentParserContext parserContext = context.switchParser(new GeoHashMultiFieldParser(context.parser(), geometry.geohash()));
+        multiFields.parse(this, context, () -> parserContext);
+    }
+
+    /**
+     * Parser that pretends to be the main document parser, but exposes the provided geohash regardless of how the geopoint was provided
+     * in the incoming document. We rely on the fact that consumers are only ever call {@link XContentParser#textOrNull()} and never
+     * advance tokens, which is explicitly disallowed by this parser.
+     */
+    static class GeoHashMultiFieldParser extends FilterXContentParserWrapper {
+        private final String value;
+
+        GeoHashMultiFieldParser(XContentParser innerParser, String value) {
+            super(innerParser);
+            this.value = value;
+        }
+
+        @Override
+        public String textOrNull() throws IOException {
+            return value;
+        }
+
+        @Override
+        public Token currentToken() {
+            return Token.VALUE_STRING;
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override

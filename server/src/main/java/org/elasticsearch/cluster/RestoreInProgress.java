@@ -61,7 +61,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("RestoreInProgress[");
-        entries.forEach(entry -> builder.append("{").append(entry.key).append("}{").append(entry.value.snapshot).append("},"));
+        entries.entrySet()
+            .forEach(entry -> builder.append("{").append(entry.getKey()).append("}{").append(entry.getValue().snapshot).append("},"));
         builder.setCharAt(builder.length() - 1, ']');
         return builder.toString();
     }
@@ -76,7 +77,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public Iterator<Entry> iterator() {
-        return entries.valuesIt();
+        return entries.values().iterator();
     }
 
     public static final class Builder {
@@ -86,7 +87,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
-            entries.putAll(restoreInProgress.entries);
+            entries.putAllFromMap(restoreInProgress.entries);
         }
 
         public Builder add(Entry entry) {

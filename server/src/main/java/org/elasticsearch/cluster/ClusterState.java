@@ -631,6 +631,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return nodes;
         }
 
+        public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
+            return routingTable(routingTableBuilder.build());
+        }
+
         public Builder routingTable(RoutingTable routingTable) {
             this.routingTable = routingTable;
             return this;
@@ -681,8 +685,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
-            this.customs.putAll(customs);
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.customs.putAllFromMap(customs);
             return this;
         }
 

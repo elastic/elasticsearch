@@ -281,6 +281,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * If the realm's CA path is monitored for changes and the underlying SSL context is reloaded, then we will get two different outcomes
      * (one failure, one success) depending on which file content is in place.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83560")
     public void testSslTrustIsReloaded() throws Exception {
         assumeFalse(
             "NPE thrown in BCFIPS JSSE - addressed in https://github.com/bcgit/bc-java/commit/"

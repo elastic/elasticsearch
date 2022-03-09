@@ -35,13 +35,24 @@ Autoscaling::
 
 Geo::
 * Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
+* `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
 
 Infra/Core::
+* Always re-run Feature migrations which have encountered errors {es-pull}83918[#83918] (issue: {es-issue}83917[#83917])
 * Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]
+* Preserve context in `ResultDeduplicator` {es-pull}84038[#84038] (issue: {es-issue}84036[#84036])
+* Update system index mappings if `_meta` is null {es-pull}83896[#83896] (issue: {es-issue}83890[#83890])
+
+Infra/REST API::
+* Do not allow safelisted media types on Content-Type {es-pull}83448[#83448]
 
 Infra/Scripting::
 * Fix duplicated allow lists upon script engine creation {es-pull}82820[#82820] (issue: {es-issue}82778[#82778])
 * Fix plumbing in double and keyword runtime fields for the scripting fields API {es-pull}83392[#83392]
+
+Ingest::
+* Fix `GeoIpDownloader` startup during rolling upgrade {es-pull}84000[#84000]
+* Short circuit date patterns after first match {es-pull}83764[#83764]
 
 Machine Learning::
 * Correctly capture min stats for `inference.ingest_processors` in ML usage {es-pull}82352[#82352]
@@ -51,6 +62,13 @@ Machine Learning::
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
+* Wait for model process to stop in stop deployment {es-pull}83644[#83644]
+* Fix a bug in the tuning of the hyperparameters when training regression classification models {ml-pull}2128[#2128]
+* Improve training stability for regression and classification models {ml-pull}2144[#2144], {ml-pull}2147[#2147], {ml-pull}2150[#2150]
+* Avoid edge cases in the classification weights calculation to maximize minimum recall which could lead to only a single class being predicted {ml-pull}2194[#2194]
+* Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
+* Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
+* Fix bug restoring data gatherer state for time of day and week anomaly detection functions. This could lead to "No queue item for time" and "Time is out of range. Returning earliest bucket index" log errors {ml-pull}2213[#2213]
 
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
@@ -76,6 +94,7 @@ Snapshot/Restore::
 * Adjust `LinuxFileSystemNatives.allocatedSizeInBytes` for aarch64 architectures {es-pull}81376[#81376] (issues: {es-issue}80437[#80437], {es-issue}81362[#81362])
 * Distinguish "missing repository" from "missing repository plugin" {es-pull}82457[#82457] (issue: {es-issue}81758[#81758])
 * Move get snapshots serialization to management pool {es-pull}83215[#83215]
+* Preserve context in `snapshotDeletionListeners` {es-pull}84089[#84089] (issue: {es-issue}84036[#84036])
 
 TSDB::
 * Fix time series timestamp meta missing {es-pull}80695[#80695]
@@ -152,6 +171,7 @@ Infra/Core::
 
 Infra/REST API::
 * Allow for customised content-type validation {es-pull}80906[#80906] (issue: {es-issue}80482[#80482])
+* Update YAML REST tests to check for product header on all responses {es-pull}83290[#83290]
 
 Infra/Scripting::
 * Add '$' syntax as a shortcut for 'field' in Painless {es-pull}80518[#80518]
@@ -187,6 +207,8 @@ Machine Learning::
 * Set default value of 30 days for model prune window {es-pull}81377[#81377]
 * Track token positions and use source string to tag NER entities {es-pull}81275[#81275]
 * Warn when creating job with an unusual bucket span {es-pull}82145[#82145] (issue: {es-issue}81645[#81645])
+* Improve skip_model_update rule behavior {ml-pull}2096[#2096]
+* Prevent over-subscription of threads in pytorch_inference {ml-pull}2141[#2141]
 
 Mapping::
 * Allow doc-values only search on geo_point fields {es-pull}83395[#83395]
@@ -273,6 +295,11 @@ Transform::
 
 Geo::
 * Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
+
+Machine Learning::
+* Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
+* Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
+* Upgrade Eigen library to version 3.4.0 {ml-pull}2137[#2137]
 
 Network::
 * Upgrade to Netty 4.1.73 {es-pull}82844[#82844]

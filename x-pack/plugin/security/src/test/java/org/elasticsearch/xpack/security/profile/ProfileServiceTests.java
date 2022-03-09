@@ -78,7 +78,6 @@ public class ProfileServiceTests extends ESTestCase {
               },
               "email": "foo@example.com",
               "full_name": "User Foo",
-              "display_name": "Curious Foo",
               "active": true
             },
             "last_synchronized": %s,
@@ -137,7 +136,7 @@ public class ProfileServiceTests extends ESTestCase {
 
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
 
-        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of(), null);
+        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
 
         profileService.getProfile(uid, dataKeys, future);
         final Profile profile = future.actionGet();
@@ -163,10 +162,9 @@ public class ProfileServiceTests extends ESTestCase {
                         "foo",
                         List.of("role1", "role2"),
                         "realm_name_1",
-                        null,
+                        "domainA",
                         "foo@example.com",
                         "User Foo",
-                        "Curious Foo",
                         true
                     ),
                     Map.of(),

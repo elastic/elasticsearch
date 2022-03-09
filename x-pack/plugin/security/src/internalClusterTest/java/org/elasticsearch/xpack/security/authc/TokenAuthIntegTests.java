@@ -19,8 +19,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -34,10 +34,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,6 +60,7 @@ import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 
 @SuppressWarnings("removal")
@@ -749,10 +752,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertNotEquals(refreshResponse.getAccessToken(), createTokenResponse.getAccessToken());
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
 
-        AuthenticateResponse response = restClient.security().authenticate(superuserOptions);
+        final Map<String, Object> authenticateResponse = getSecurityClient(superuserOptions).authenticate();
 
-        assertEquals(SecuritySettingsSource.ES_TEST_ROOT_USER, response.getUser().getUsername());
-        assertEquals("realm", response.getAuthenticationType());
+        assertThat(authenticateResponse, hasEntry(User.Fields.USERNAME.getPreferredName(), SecuritySettingsSource.ES_TEST_ROOT_USER));
+        assertThat(authenticateResponse, hasEntry(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), "realm"));
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
@@ -838,31 +841,28 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private void assertAuthenticateWithToken(String accessToken, String expectedUser) throws IOException {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AuthenticateResponse authResponse = restClient.security()
-            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken).build());
-        assertThat(authResponse.getUser().getUsername(), equalTo(expectedUser));
-        assertThat(authResponse.getAuthenticationType(), equalTo("token"));
+        final TestSecurityClient securityClient = getSecurityClient(accessToken);
+        final Map<String, Object> authResponse = securityClient.authenticate();
+        assertThat(authResponse, hasEntry(User.Fields.USERNAME.getPreferredName(), expectedUser));
+        assertThat(authResponse, hasEntry(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
     }
 
     private void assertUnauthorizedToken(String accessToken) {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> restClient.security()
-                .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken).build())
-        );
-        assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+        final TestSecurityClient securityClient = getSecurityClient(accessToken);
+        ResponseException e = expectThrows(ResponseException.class, securityClient::authenticate);
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
+    }
+
+    private TestSecurityClient getSecurityClient(String accessToken) {
+        return getSecurityClient(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken).build());
     }
 
     private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         try {
-            restClient.security()
-                .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken).build());
+            getSecurityClient(accessToken).authenticate();
             return RestStatus.OK;
-        } catch (ElasticsearchStatusException esse) {
-            return esse.status();
+        } catch (ResponseException esse) {
+            return RestStatus.fromCode(esse.getResponse().getStatusLine().getStatusCode());
         }
     }
 }

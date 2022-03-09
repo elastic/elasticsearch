@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -95,7 +97,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
@@ -109,7 +114,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
                             }
                         },
-                        ClusterStateTaskExecutor.unbatched()
+                        newExecutor()
                     );
                 } else {
                     listener.onFailure(e);
@@ -129,6 +134,11 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             consumer
         );
 
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     static ClusterState innerPut(

@@ -278,7 +278,9 @@ public class MetadataRolloverService {
             currentState,
             createIndexClusterStateRequest,
             silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), newGeneration))
+            (builder, indexMetadata) -> builder.put(
+                ds.rollover(indexMetadata.getIndex(), newGeneration, templateV2.getDataStreamTemplate().getIndexMode())
+            )
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
@@ -416,7 +418,7 @@ public class MetadataRolloverService {
                         Locale.ROOT,
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias,
-                        template.aliases().keys(),
+                        template.aliases().keySet(),
                         template.name()
                     )
                 );

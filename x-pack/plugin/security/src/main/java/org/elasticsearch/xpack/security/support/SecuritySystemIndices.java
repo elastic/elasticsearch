@@ -44,7 +44,7 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -295,6 +295,27 @@ public class SecuritySystemIndices {
                                 builder.endObject();
                             }
                             builder.endObject();
+                            builder.startObject("profile");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("write");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("applications");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
                         }
                         builder.endObject();
                     }
@@ -384,6 +405,8 @@ public class SecuritySystemIndices {
                             builder.startObject("realm_type");
                             builder.field("type", "keyword");
                             builder.endObject();
+
+                            defineRealmDomain(builder, "realm_domain");
                         }
                         builder.endObject();
                     }
@@ -631,6 +654,8 @@ public class SecuritySystemIndices {
                                     builder.startObject("realm");
                                     builder.field("type", "keyword");
                                     builder.endObject();
+
+                                    defineRealmDomain(builder, "realm_domain");
                                 }
                                 builder.endObject();
                             }
@@ -683,6 +708,8 @@ public class SecuritySystemIndices {
                             builder.startObject("realm");
                             builder.field("type", "keyword");
                             builder.endObject();
+
+                            defineRealmDomain(builder, "realm_domain");
                         }
                         builder.endObject();
                     }
@@ -783,35 +810,7 @@ public class SecuritySystemIndices {
                                             builder.field("type", "keyword");
                                             builder.endObject();
 
-                                            builder.startObject("domain");
-                                            {
-                                                builder.field("type", "object");
-                                                builder.startObject("properties");
-                                                {
-                                                    builder.startObject("name");
-                                                    builder.field("type", "keyword");
-                                                    builder.endObject();
-
-                                                    builder.startObject("realms");
-                                                    {
-                                                        builder.field("type", "nested");
-                                                        builder.startObject("properties");
-                                                        {
-                                                            builder.startObject("name");
-                                                            builder.field("type", "keyword");
-                                                            builder.endObject();
-
-                                                            builder.startObject("type");
-                                                            builder.field("type", "keyword");
-                                                            builder.endObject();
-                                                        }
-                                                        builder.endObject();
-                                                    }
-                                                    builder.endObject();
-                                                }
-                                                builder.endObject();
-                                            }
-                                            builder.endObject();
+                                            defineRealmDomain(builder, "domain");
 
                                             builder.startObject("node_name");
                                             builder.field("type", "keyword");
@@ -827,10 +826,6 @@ public class SecuritySystemIndices {
                                     builder.endObject();
 
                                     builder.startObject("full_name");
-                                    builder.field("type", "search_as_you_type");
-                                    builder.endObject();
-
-                                    builder.startObject("display_name");
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 
@@ -873,4 +868,37 @@ public class SecuritySystemIndices {
             throw new UncheckedIOException("Failed to build profile index mappings", e);
         }
     }
+
+    private void defineRealmDomain(XContentBuilder builder, String realm_domain) throws IOException {
+        builder.startObject(realm_domain);
+        {
+            builder.field("type", "object");
+            builder.startObject("properties");
+            {
+                builder.startObject("name");
+                builder.field("type", "keyword");
+                builder.endObject();
+
+                builder.startObject("realms");
+                {
+                    builder.field("type", "nested");
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("name");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+
+                        builder.startObject("type");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
 }

@@ -21,25 +21,22 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -58,16 +55,10 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         // adds a dummy user to the native realm to force .security index creation
-        new TestRestHighLevelClient().security()
-            .putUser(
-                PutUserRequest.withPassword(
-                    new User("dummy_user", List.of("missing_role")),
-                    "password".toCharArray(),
-                    true,
-                    RefreshPolicy.IMMEDIATE
-                ),
-                SECURITY_REQUEST_OPTIONS
-            );
+        new TestSecurityClient(getRestClient(), SecuritySettingsSource.SECURITY_REQUEST_OPTIONS).putUser(
+            new User("dummy_user", "missing_role"),
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+        );
         assertSecurityIndexActive();
     }
 

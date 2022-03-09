@@ -14,12 +14,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -414,7 +418,18 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {
-        return DiscoveryNodes.builder().localNodeId(localNodeId).build();
+        return DiscoveryNodes.builder()
+            .add(
+                new DiscoveryNode(
+                    localNodeId,
+                    ESTestCase.buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(DiscoveryNodeRole.roles()),
+                    Version.CURRENT
+                )
+            )
+            .localNodeId(localNodeId)
+            .build();
     }
 
     private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsMap(
@@ -491,7 +506,11 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.ShardSnapshotUpdate... updates) throws Exception {
-        return SnapshotsService.SHARD_STATE_EXECUTOR.execute(state, Arrays.asList(updates)).resultingState();
+        return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            state,
+            SnapshotsService.SHARD_STATE_EXECUTOR,
+            Arrays.asList(updates)
+        );
     }
 
     private static SnapshotsInProgress.Entry snapshotEntry(
@@ -519,8 +538,8 @@ public class SnapshotsServiceTests extends ESTestCase {
         SnapshotId source,
         ImmutableOpenMap<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clones
     ) {
-        final Map<String, IndexId> indexIds = StreamSupport.stream(clones.keys().spliterator(), false)
-            .map(k -> k.value.index())
+        final Map<String, IndexId> indexIds = StreamSupport.stream(clones.keySet().spliterator(), false)
+            .map(k -> k.index())
             .distinct()
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));
         return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), Version.CURRENT).withClones(clones);

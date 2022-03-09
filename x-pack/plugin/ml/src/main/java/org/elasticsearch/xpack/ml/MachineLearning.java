@@ -136,6 +136,7 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
+import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
@@ -161,6 +162,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -231,6 +233,7 @@ import org.elasticsearch.xpack.ml.action.TransportInternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportMlInfoAction;
+import org.elasticsearch.xpack.ml.action.TransportMlMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPersistJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
@@ -256,6 +259,7 @@ import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAct
 import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.TransportTrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
@@ -269,6 +273,8 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -342,6 +348,7 @@ import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
+import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
 import org.elasticsearch.xpack.ml.rest.RestSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
@@ -628,6 +635,14 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    /**
+     * Each model deployment results in one or more entries in the cluster state
+     * for the model allocations. In order to prevent the cluster state from
+     * potentially growing uncontrollably we impose a limit on the number of
+     * trained model deployments.
+     */
+    public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 100;
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -786,7 +801,7 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor
         );
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry, clusterService);
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
@@ -969,7 +984,8 @@ public class MachineLearning extends Plugin
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(
             client,
             xContentRegistry,
-            dataFrameAnalyticsAuditor
+            dataFrameAnalyticsAuditor,
+            clusterService
         );
         assert client instanceof NodeClient;
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(
@@ -1136,6 +1152,7 @@ public class MachineLearning extends Plugin
             new RestGetJobsAction(),
             new RestGetJobStatsAction(),
             new RestMlInfoAction(),
+            new RestMlMemoryAction(),
             new RestPutJobAction(),
             new RestPostJobUpdateAction(),
             new RestDeleteJobAction(),
@@ -1222,6 +1239,7 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
             new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
             new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class),
+            new ActionHandler<>(MlMemoryAction.INSTANCE, TransportMlMemoryAction.class),
             new ActionHandler<>(PutJobAction.INSTANCE, TransportPutJobAction.class),
             new ActionHandler<>(UpdateJobAction.INSTANCE, TransportUpdateJobAction.class),
             new ActionHandler<>(DeleteJobAction.INSTANCE, TransportDeleteJobAction.class),
@@ -1280,6 +1298,7 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
             new ActionHandler<>(ExplainDataFrameAnalyticsAction.INSTANCE, TransportExplainDataFrameAnalyticsAction.class),
             new ActionHandler<>(InternalInferModelAction.INSTANCE, TransportInternalInferModelAction.class),
+            new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class),
             new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
             new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
             new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
@@ -1380,7 +1399,8 @@ public class MachineLearning extends Plugin
         return Arrays.asList(
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState(), settings),
             BucketCorrelationAggregationBuilder.buildSpec(),
-            BucketCountKSTestAggregationBuilder.buildSpec()
+            BucketCountKSTestAggregationBuilder.buildSpec(),
+            ChangePointAggregationBuilder.buildSpec()
         );
     }
 
@@ -1505,6 +1525,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         return namedWriteables;
     }
 

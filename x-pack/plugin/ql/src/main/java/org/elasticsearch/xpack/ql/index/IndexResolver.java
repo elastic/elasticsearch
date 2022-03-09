@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -23,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -655,9 +654,8 @@ public class IndexResolver {
 
         Set<String> resolvedAliases = new HashSet<>();
         if (aliases != null) {
-            Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iterator = aliases.iterator();
-            while (iterator.hasNext()) {
-                for (AliasMetadata alias : iterator.next().value) {
+            for (var aliasList : aliases.values()) {
+                for (AliasMetadata alias : aliasList) {
                     resolvedAliases.add(alias.getAlias());
                 }
             }
@@ -665,7 +663,7 @@ public class IndexResolver {
 
         List<String> resolvedIndices = new ArrayList<>(asList(fieldCapsResponse.getIndices()));
         int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
-        Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
+        Map<String, Fields> indices = Maps.newLinkedHashMapWithExpectedSize(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy
@@ -837,13 +835,11 @@ public class IndexResolver {
         Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types across its indices
         Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
 
-        Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = aliases.iterator();
-        while (iter.hasNext()) {
-            ObjectObjectCursor<String, List<AliasMetadata>> index = iter.next();
-            for (AliasMetadata aliasMetadata : index.value) {
+        for (var entry : aliases.entrySet()) {
+            for (AliasMetadata aliasMetadata : entry.getValue()) {
                 String aliasName = aliasMetadata.alias();
                 aliasToIndices.putIfAbsent(aliasName, new HashSet<>());
-                aliasToIndices.get(aliasName).add(index.key);
+                aliasToIndices.get(aliasName).add(entry.getKey());
             }
         }
 

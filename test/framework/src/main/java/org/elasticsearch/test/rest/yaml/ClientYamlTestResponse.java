@@ -13,11 +13,10 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -87,13 +86,20 @@ public class ClientYamlTestResponse {
      * Get a list of all of the values of all warning headers returned in the response.
      */
     public List<String> getWarningHeaders() {
-        List<String> warningHeaders = new ArrayList<>();
+        return getHeaders("Warning");
+    }
+
+    /**
+     * Get a list of all the values of a given header returned in the response.
+     */
+    public List<String> getHeaders(String name) {
+        List<String> headers = new ArrayList<>();
         for (Header header : response.getHeaders()) {
-            if (header.getName().equals("Warning")) {
-                warningHeaders.add(header.getValue());
+            if (header.getName().equalsIgnoreCase(name)) {
+                headers.add(header.getValue());
             }
         }
-        return warningHeaders;
+        return headers;
     }
 
     /**
@@ -122,10 +128,7 @@ public class ClientYamlTestResponse {
             } else {
                 // if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
                 try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
-                    try (
-                        XContentParser parser = bodyContentType.xContent()
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)
-                    ) {
+                    try (XContentParser parser = bodyContentType.xContent().createParser(XContentParserConfiguration.EMPTY, body)) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
                     bodyAsString = Strings.toString(jsonBuilder);

@@ -1452,7 +1452,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDocumentContainsAllowedMetadataField() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        DocumentMapper mapper = createDocumentMapper("""
+            { "_doc": { "dynamic" : "strict", "properties" : { "object" : { "type" : "object" } } } }
+            """);
         {
             // A metadata field that parses a value fails to parse a null value
             MapperParsingException e = expectThrows(
@@ -1482,6 +1484,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             );
             IndexableField field = doc.rootDoc().getField(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE);
             assertEquals("mock-metadata-field-value", field.stringValue());
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+                b.startObject("object");
+                b.field(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value");
+                b.endObject();
+            })));
+            assertTrue(e.getMessage(), e.getMessage().contains("dynamic introduction of [_mock_metadata] within [object]"));
         }
     }
 

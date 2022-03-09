@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,7 +125,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
-     * separately by {@link InternalAggregations#topLevelReduce(List, ReduceContext)}
+     * separately by {@link InternalAggregations#topLevelReduce(List, AggregationReduceContext)}
      */
     public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         if (aggregationsList.isEmpty()) {
@@ -160,5 +161,14 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
 
         return from(reducedAggregations);
+    }
+
+    /**
+     * Finalizes the sampling for all the internal aggregations
+     * @param samplingContext the sampling context
+     * @return the finalized aggregations
+     */
+    public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
+        return internalAggregations;
     }
 }

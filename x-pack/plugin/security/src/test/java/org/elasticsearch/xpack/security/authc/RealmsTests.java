@@ -803,7 +803,6 @@ public class RealmsTests extends ESTestCase {
             OpenIdConnectRealmSettings.TYPE,
             JwtRealmSettings.TYPE
         );
-        platinumRealms.remove(JwtRealmSettings.TYPE);
         final String selectedRealmType = randomFrom(platinumRealms);
         factories.put(selectedRealmType, config -> new DummyRealm(config));
         final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(selectedRealmType);

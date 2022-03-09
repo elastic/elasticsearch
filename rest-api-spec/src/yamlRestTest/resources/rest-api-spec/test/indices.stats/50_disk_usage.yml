@@ -109,6 +109,10 @@ setup:
 
 ---
 "Star":
+  - skip:
+      version: " - 8.1.99"
+      reason: star is resolved in 8.2+
+
   - do:
       indices.disk_usage:
         index: "*"

@@ -255,9 +255,8 @@ public class Archives {
         String keystoreScript = keystorePassword == null ? "" : """
             expect "Elasticsearch keystore password:"
             send "%s\\r"
-            expect eof
             """.formatted(keystorePassword);
-        String checkStartupScript = daemonize ? "" : """
+        String checkStartupScript = daemonize ? "expect eof" : """
             expect {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
@@ -267,7 +266,7 @@ public class Archives {
             """;
         String expectScript = """
             expect - <<EXPECT
-            set timeout 30
+            set timeout 60
             spawn -ignore HUP %s
             %s
             %s

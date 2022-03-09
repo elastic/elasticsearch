@@ -1,0 +1,6 @@
+pr: 83524
+summary: Tolerate empty types array in Watch definitions
+area: Watcher
+type: bug
+issues:
+ - 83235

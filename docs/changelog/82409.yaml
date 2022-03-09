@@ -8,7 +8,7 @@ summary: Allow doc-values only search on number types
 # Note: the following release highlight covers a series of PRs that added
 # this support
 highlight:
-  notable: false
+  notable: true
   title: Doc-values-only search on numeric, `date`, `keyword`, `ip`, and `boolean` fields
   body: |-
     You can now run `term` and `range` queries on numeric, `date`, `date_nanos`,

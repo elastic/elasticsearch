@@ -184,8 +184,8 @@ Grants `manage_transform` cluster privileges, which enable you to manage
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transform-user]] `transform_user`::
-Grants `monitor_transform` cluster privileges, which enable you to use
-{transforms}. This role also includes all
+Grants `monitor_transform` cluster privileges, which enable you to perform
+read-only operations related to {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transport-client]] `transport_client`::

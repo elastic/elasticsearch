@@ -30,7 +30,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         }
 
         return new CompositeAggCursor(
-            new byte[randomInt(256)],
+            new byte[randomInt(1024)],
             extractors,
             randomBitSet(extractorsSize),
             randomIntBetween(10, 1024),

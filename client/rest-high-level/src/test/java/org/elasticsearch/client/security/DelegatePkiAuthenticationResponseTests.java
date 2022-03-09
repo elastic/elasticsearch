@@ -10,6 +10,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -55,8 +56,15 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTest
         assertThat(serverTestInstance.getExpiresIn(), is(clientInstance.getExpiresIn()));
         assertThat(clientInstance.getType(), is("Bearer"));
         AuthenticateResponse serverAuthenticationResponse = createServerAuthenticationResponse(serverTestInstance.getAuthentication());
-        User user = serverTestInstance.getAuthentication().getUser();
-        assertThat(serverAuthenticationResponse, equalTo(clientInstance.getAuthentication()));
+        assertThat(
+            "Expected responses to be equal: server=["
+                + Strings.toString(serverAuthenticationResponse)
+                + "], client=["
+                + Strings.toString(clientInstance.getAuthentication())
+                + "]",
+            serverAuthenticationResponse,
+            equalTo(clientInstance.getAuthentication())
+        );
     }
 
     protected Authentication createAuthentication() {
@@ -76,21 +84,36 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTest
         }
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
-        final boolean enabled = randomBoolean();
-        final String authenticationRealmName = randomAlphaOfLength(5);
-        final String authenticationRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
-        final String lookupRealmName = randomAlphaOfLength(5);
-        final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
+
         final String nodeName = randomAlphaOfLengthBetween(1, 10);
+        final Authentication.RealmRef authenticationRealm;
+        final Authentication.RealmRef lookupRealm;
         final Authentication.AuthenticationType authenticationType = randomFrom(Authentication.AuthenticationType.values());
         if (Authentication.AuthenticationType.API_KEY.equals(authenticationType)) {
+            authenticationRealm = new Authentication.RealmRef(
+                AuthenticationField.API_KEY_REALM_NAME,
+                AuthenticationField.API_KEY_REALM_TYPE,
+                nodeName
+            );
+            lookupRealm = null;
             metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
             metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+        } else {
+            authenticationRealm = new Authentication.RealmRef(
+                randomAlphaOfLength(5),
+                randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos"),
+                nodeName
+            );
+            lookupRealm = new Authentication.RealmRef(
+                randomAlphaOfLength(5),
+                randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos"),
+                nodeName
+            );
         }
         return new Authentication(
             new User(username, roles, fullName, email, metadata, true),
-            new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),
-            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName),
+            authenticationRealm,
+            lookupRealm,
             Version.CURRENT,
             authenticationType,
             metadata

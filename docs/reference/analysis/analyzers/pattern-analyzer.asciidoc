@@ -366,7 +366,7 @@ The regex above is easier to understand as:
 [discrete]
 === Definition
 
-The `pattern` anlayzer consists of:
+The `pattern` analyzer consists of:
 
 Tokenizer::
 * <<analysis-pattern-tokenizer,Pattern Tokenizer>>

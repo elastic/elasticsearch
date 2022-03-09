@@ -1,0 +1,19 @@
+pr: 83943
+summary: Deprecate `index_include_frozen` request parameter
+area: SQL
+type: deprecation
+issues:
+  - 81939
+deprecation:
+  title: Deprecate `index_include_frozen` request parameter in `_sql` API
+  area: REST API
+  details: |-
+    Following the deprecation of frozen indices, the `index_include_frozen`
+    parameter and `FROZEN` syntax is now also deprecated.
+  impact: |-
+    You should unfreeze frozen indices using the
+    {ref}/unfreeze-index-api.html[unfreeze index API] and stop using the
+    `index_include_frozen` parameter or the `FROZEN` keyword in SQL
+    queries. For some use cases, the frozen tier may be a suitable
+    replacement for frozen indices. See {ref}/data-tiers.html[data tiers]
+    for more information.

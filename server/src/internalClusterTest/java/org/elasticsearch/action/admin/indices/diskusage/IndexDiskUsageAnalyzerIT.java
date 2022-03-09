@@ -100,7 +100,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
-        ensureGreen(index);
 
         int numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
@@ -160,7 +159,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             )
             .get();
-        ensureGreen(indexName);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             int value = randomIntBetween(1, 10);

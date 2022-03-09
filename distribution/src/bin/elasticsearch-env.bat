@@ -16,6 +16,7 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 set ES_MODULEPATH=!ES_HOME!\lib
+set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*
 set LAUNCHERS_MODULEPATH=!ES_MODULEPATH!;!ES_HOME!\lib\launchers
 
 set HOSTNAME=%COMPUTERNAME%
@@ -79,5 +80,5 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-%JAVA% --module-path "%LAUNCHERS_MODULEPATH%" -m "org.elasticsearch.java_version_checker/org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%LAUNCHERS_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 

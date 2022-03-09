@@ -1,7 +1,5 @@
 apply plugin: 'elasticsearch.build'
 
-targetCompatibility = JavaVersion.VERSION_1_9
-
 // java_version_checker do not depend on core so only JDK signatures should be checked
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
@@ -9,4 +7,21 @@ tasks.named('forbiddenApisMain').configure {
 
 ["test", "javadoc", "loggerUsageCheck", "jarHell"].each {
   tasks.named(it).configure { enabled = false }
+}
+
+task compileJavaNonModularClasses(type: JavaCompile) {
+  sourceCompatibility = JavaVersion.VERSION_1_7
+  targetCompatibility = JavaVersion.VERSION_1_7
+  exclude 'module-info.java'
+  classpath = files() // empty
+  source = compileJava.source
+  destinationDirectory = compileJava.destinationDirectory
+}
+
+compileJava {
+  dependsOn compileJavaNonModularClasses
+  sourceCompatibility = JavaVersion.VERSION_1_9
+  targetCompatibility = JavaVersion.VERSION_1_9
+  classpath = files() // empty
+  source = 'src/main/java/module-info.java'
 }

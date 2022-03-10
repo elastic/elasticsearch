@@ -57,7 +57,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -150,8 +149,7 @@ public class TaskManager implements ClusterStateApplier {
         TransportAction<Request, Response> action,
         Request request,
         Transport.Connection localConnection,
-        BiConsumer<Task, Response> onResponse,
-        BiConsumer<Task, Exception> onFailure
+        TaskListener<Response> taskListener
     ) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
@@ -171,19 +169,28 @@ public class TaskManager implements ClusterStateApplier {
             @Override
             public void onResponse(Response response) {
                 try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                    release();
                 } finally {
-                    onResponse.accept(task, response);
+                    taskListener.onResponse(task, response);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                    release();
                 } finally {
-                    onFailure.accept(task, e);
+                    taskListener.onFailure(task, e);
                 }
+            }
+
+            @Override
+            public String toString() {
+                return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+            }
+
+            private void release() {
+                Releasables.close(unregisterChildNode, () -> unregister(task));
             }
         });
         return task;
@@ -397,7 +404,7 @@ public class TaskManager implements ClusterStateApplier {
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }
-        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).collect(Collectors.toUnmodifiableList());
+        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).toList();
     }
 
     /**

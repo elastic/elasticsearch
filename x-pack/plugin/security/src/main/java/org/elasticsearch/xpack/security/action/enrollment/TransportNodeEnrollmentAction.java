@@ -81,7 +81,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates = httpKeyConfig.getKeys()
             .stream()
             .filter(t -> t.v2().getBasicConstraints() != -1)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         if (transportKeysAndCertificates.isEmpty()) {
             listener.onFailure(

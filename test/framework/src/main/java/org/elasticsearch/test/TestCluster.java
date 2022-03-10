@@ -151,7 +151,7 @@ public abstract class TestCluster implements Closeable {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (concreteIndices.isEmpty() == false) {
-                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(new String[0])));
                     }
                 }
             }

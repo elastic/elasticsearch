@@ -155,14 +155,8 @@ public abstract class NlpTokenizer implements Releasable {
                             maxSequenceLength() - extraTokens
                         );
                     }
-                    tokenIdsSeq1 = tokenIdsSeq1.subList(
-                        0,
-                        maxSequenceLength() - extraTokens - tokenIdsSeq2.size()
-                    );
-                    tokenPositionMapSeq1 = tokenPositionMapSeq1.subList(
-                        0,
-                        maxSequenceLength() - extraTokens - tokenIdsSeq2.size()
-                    );
+                    tokenIdsSeq1 = tokenIdsSeq1.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq2.size());
+                    tokenPositionMapSeq1 = tokenPositionMapSeq1.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq2.size());
                 }
                 case SECOND -> {
                     isTruncated = true;
@@ -176,14 +170,8 @@ public abstract class NlpTokenizer implements Releasable {
                             maxSequenceLength() - extraTokens
                         );
                     }
-                    tokenIdsSeq2 = tokenIdsSeq2.subList(
-                        0,
-                        maxSequenceLength() - extraTokens - tokenIdsSeq1.size()
-                    );
-                    tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(
-                        0,
-                        maxSequenceLength() - extraTokens - tokenIdsSeq1.size()
-                    );
+                    tokenIdsSeq2 = tokenIdsSeq2.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq1.size());
+                    tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq1.size());
                 }
                 case NONE -> throw ExceptionsHelper.badRequestException(
                     "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",

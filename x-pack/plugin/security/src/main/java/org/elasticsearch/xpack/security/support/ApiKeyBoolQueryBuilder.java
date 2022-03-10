@@ -66,8 +66,11 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
 
         if (authentication != null) {
-            finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()))
-                .filter(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)));
+            finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
+            final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
+            final QueryBuilder realmsQuery = ApiKeyService.filterForRealmNames(realms);
+            assert realmsQuery != null;
+            finalQuery.filter(realmsQuery);
         }
         return finalQuery;
     }

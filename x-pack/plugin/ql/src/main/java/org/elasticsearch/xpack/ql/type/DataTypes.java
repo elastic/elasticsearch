@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
@@ -72,7 +71,7 @@ public final class DataTypes {
         BINARY,
         OBJECT,
         NESTED
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

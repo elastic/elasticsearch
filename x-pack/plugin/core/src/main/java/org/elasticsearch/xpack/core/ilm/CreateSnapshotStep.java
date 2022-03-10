@@ -64,12 +64,9 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             public void onFailure(Exception e) {
                 if (snapshotAlreadyCreated(e)) {
                     logger.warn(e.getMessage());
-                    // we treat a snapshot that was already created before this step as an incomplete snapshot. This means that the
-                    // execution will be successful from ILM's perspective and it will go to the next step, which is cleaning the incomplete
-                    // snapshot and try again. This scenario is triggered by a master restart or a failover which can result in a double
-                    // invocation of this step.
-                    onResponseResult.set(false);
-                    listener.onResponse(null);
+                    // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is triggered
+                    // by a master restart or a failover which can result in a double invocation of this step.
+                    onResponse(false);
                 } else {
                     listener.onFailure(e);
                 }

@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -221,8 +222,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (primaries.available == false && replicas.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "Indices [%s] are unavailable. You are at risk of losing the data in these indices.",
-                    getTruncatedIndicesString(primaries)
+                    "%s [%s] %s unavailable. You are at risk of losing the data in these indices.",
+                    replicas.indicesWithUnavailableShards.size() == 1 ? "Index" : "Indices",
+                    getTruncatedIndicesString(primaries),
+                    replicas.indicesWithUnavailableShards.size() == 1 ? "is" : "are"
                 );
                 impact = new SimpleHealthIndicatorImpact(2, impactDescription);
             } else if (primaries.available == false) {
@@ -254,7 +257,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         final int maxIndices = 2;
         String truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards.stream().limit(maxIndices).collect(joining(", "));
         if (maxIndices < shardAllocationCounts.indicesWithUnavailableShards.size()) {
-            truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards + ", ...";
+            truncatedIndicesString = truncatedIndicesString + ", ...";
         }
         return truncatedIndicesString;
     }

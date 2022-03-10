@@ -284,13 +284,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             .filter(unsupportedTZIdsPredicate.negate())
             .filter(unsupportedZoneIdsPredicate.negate())
             .sorted()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
-        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds()
-            .stream()
-            .filter(unsupportedZoneIdsPredicate.negate())
-            .sorted()
-            .collect(Collectors.toUnmodifiableList());
+        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")

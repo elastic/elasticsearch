@@ -1,5 +1,0 @@
-pr: 82401
-summary: Add `beats_stats.metrics.apm-server.sampling.tail` to stack monitoring templates
-area: Monitoring
-type: enhancement
-issues: []

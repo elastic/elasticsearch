@@ -611,7 +611,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             List<IndexRequest> replicationRequests = new ArrayList<>();
             for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-                indexRequest.process();
+                indexRequest.autoGenerateId();
                 final IndexRequest copyRequest;
                 if (randomBoolean()) {
                     copyRequest = copyIndexRequest(indexRequest);

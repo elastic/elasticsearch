@@ -141,7 +141,7 @@ public class AprioriMapReducer implements MapReducer {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (frequentSets != null) {
-            builder.field("frequent_sets", frequentSets);
+            builder.field(CommonFields.BUCKETS.getPreferredName(), frequentSets);
         }
 
         builder.startObject("frequencies_debug");
@@ -175,7 +175,7 @@ public class AprioriMapReducer implements MapReducer {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startObject(CommonFields.BUCKETS.getPreferredName());
+            builder.startObject(CommonFields.KEY.getPreferredName());
             for (Entry<String, List<String>> item : items.entrySet()) {
                 // TODO: flatten single lists?
                 builder.field(item.getKey(), item.getValue());

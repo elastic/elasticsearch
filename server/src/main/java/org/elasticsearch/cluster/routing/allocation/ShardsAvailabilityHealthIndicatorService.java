@@ -245,7 +245,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     replicas.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(replicas)
                 );
-                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+                impact = new SimpleHealthIndicatorImpact(3, impactDescription);
             } else {
                 impact = HealthIndicatorImpact.EMPTY;
             }

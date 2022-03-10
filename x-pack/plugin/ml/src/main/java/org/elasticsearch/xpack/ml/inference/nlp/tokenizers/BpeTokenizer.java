@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -137,7 +138,6 @@ public class BpeTokenizer extends Tokenizer {
     public void reset() throws IOException {
         super.reset();
         fillBuffer(input);
-        matcher.reset("");
         tokens.clear();
         tokenizedValues.clear();
         filled = false;
@@ -235,20 +235,23 @@ public class BpeTokenizer extends Tokenizer {
                 continue;
             }
             final int offsetOffset = token.startOffset();
-            String str = token.toString();
+            CharSequence delimitedTokenSequence = token.charSequence();
             // If we have splits on a "never_split", it may be that our split ends in " ".
             // Example, original seq "Never <mask> split".
             // Our split sequences would be "Never ", "<mask>", " split". We need to keep the prefix space (important for bpe)
             // But should treat the trailing space "Never " as if its part of the never_split sequence, and thus trim it here.
-            if (split < largeTokensWithNeverSplits.size() - 1) {
-                str = str.stripTrailing();
+            if (split < largeTokensWithNeverSplits.size() - 1
+                && delimitedTokenSequence.charAt(delimitedTokenSequence.length() - 1) == ' ') {
+                delimitedTokenSequence = new BpeTokenReader.CharSequenceRef(delimitedTokenSequence, 0, delimitedTokenSequence.length() - 1);
             }
-            matcher.reset(str);
-            while (matcher.find()) {
+            BpeTokenReader tokenReader = new BpeTokenReader(delimitedTokenSequence);
+            Optional<BpeTokenReader.CharSequenceRef> tokenSequence = Optional.empty();
+            while ((tokenSequence = tokenReader.next()).isPresent()) {
                 boolean addedSpace = false;
-                final int offsetStart = matcher.start();
-                final int offsetEnd = matcher.end();
-                String subStr = str.substring(offsetStart, offsetEnd);
+                final int offsetStart = tokenSequence.get().getOffset();
+                final int offsetEnd = tokenSequence.get().getOffset() + tokenSequence.get().length();
+                // If we could get the utf-bytes by iterating the `chars`, we would't have to do `toString` here.
+                String subStr = tokenSequence.get().toString();
                 if (firstFind && prefixSpace && subStr.startsWith(" ") == false) {
                     subStr = " " + subStr;
                     addedSpace = true;

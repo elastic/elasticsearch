@@ -48,7 +48,7 @@ public class BulkItemResponseTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomBoolean()
+                true
             )
         );
         XContentBuilder xContentBuilder = bulkItemResponse.toXContent(

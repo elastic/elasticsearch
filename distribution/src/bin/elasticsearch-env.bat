@@ -17,7 +17,6 @@ rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 set ES_MODULEPATH=!ES_HOME!\lib
 set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*
-set LAUNCHERS_MODULEPATH=!ES_MODULEPATH!;!ES_HOME!\lib\launchers
 
 set HOSTNAME=%COMPUTERNAME%
 

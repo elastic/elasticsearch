@@ -36,6 +36,3 @@ tasks.named("testingConventions").configure {
   tasks.named(tsk).configure { enabled = false }
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-requires-automatic")
-}

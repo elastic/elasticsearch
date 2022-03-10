@@ -9,8 +9,6 @@ your application to {es} 8.1.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[8.1.0]
-
 [discrete]
 [[breaking-changes-8.1]]
 === Breaking changes
@@ -20,16 +18,15 @@ and prevent them from operating normally.
 Before upgrading to 8.1, review these changes and take the described steps
 to mitigate the impact.
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
+// NOTE: The notable-breaking-changes tagged regions are re-used in the
+// Installation and Upgrade Guide
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_81_rest_api_changes]]
 ==== REST API changes
 
-[[fields_api_geoshape_normalize]]
-.The search API's `fields` parameter now normalizes geometry objects that cross the international dateline.
+[[search_apis_fields_parameter_normalizes_geometry_objects_cross_international_dateline]]
+.The search API's `fields` parameter now normalizes geometry objects that cross the international dateline
 [%collapsible]
 ====
 *Details* +
@@ -42,7 +39,8 @@ still retrieve original, unnormalized geometry objects from `_source`.
 If your application requires unnormalized geometry objects, retrieve them from
 `_source` rather than using the `fields` parameter.
 ====
-//end::notable-breaking-changes[]
+// end::notable-breaking-changes[]
+
 
 [discrete]
 [[deprecated-8.1]]
@@ -57,13 +55,13 @@ after upgrading to 8.1.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-//tag::notable-breaking-changes[]
+// tag::notable-breaking-changes[]
 [discrete]
-[[breaking_8.1_cluster_node_setting_deprecations]]
+[[deprecations_81_cluster_and_node_setting]]
 ==== Cluster and node setting deprecations
 
-[[deprecate-legacy-discovery-type-setting]]
-.Legacy values for the `discovery.type` setting are deprecated.
+[[legacy_values_for_discovery_type_setting_are_deprecated]]
+.Legacy values for the `discovery.type` setting are deprecated
 [%collapsible]
 ====
 *Details* +
@@ -78,11 +76,11 @@ discovery type.
 ====
 
 [discrete]
-[[breaking_8.1_rest_api_deprecations]]
+[[deprecations_81_rest_api]]
 ==== REST API deprecations
 
-[[deprecate-lenient-parsing-of-bulk-actions]]
-.Lenient parsing of bulk actions is deprecated.
+[[lenient_parsing_of_bulk_actions_deprecated]]
+.Lenient parsing of bulk actions is deprecated
 [%collapsible]
 ====
 *Details* +
@@ -95,4 +93,22 @@ actions.
 Ensure that bulk actions are well-formed JSON objects containing a single entry
 with the correct key.
 ====
-//end::notable-breaking-changes[]
+
+[[deprecate_index_include_frozen_request_parameter_in_sql_api]]
+.Deprecate `index_include_frozen` request parameter in `_sql` API
+[%collapsible]
+====
+*Details* +
+Following the deprecation of frozen indices, the `index_include_frozen`
+parameter and `FROZEN` syntax is now also deprecated.
+
+*Impact* +
+You should unfreeze frozen indices using the
+{ref}/unfreeze-index-api.html[unfreeze index API] and stop using the
+`index_include_frozen` parameter or the `FROZEN` keyword in SQL
+queries. For some use cases, the frozen tier may be a suitable
+replacement for frozen indices. See {ref}/data-tiers.html[data tiers]
+for more information.
+====
+// end::notable-breaking-changes[]
+

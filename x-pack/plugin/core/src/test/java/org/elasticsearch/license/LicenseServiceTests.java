@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
@@ -93,7 +92,7 @@ public class LicenseServiceTests extends ESTestCase {
             randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 1),
             LicenseService.ALLOWABLE_UPLOAD_TYPES
         );
-        final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
+        final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).toList();
         final Settings settings = Settings.builder().putList("xpack.license.upload.types", allowedNames).build();
         assertRegisterValidLicense(settings, randomFrom(allowed));
     }
@@ -107,7 +106,7 @@ public class LicenseServiceTests extends ESTestCase {
             randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 2),
             LicenseService.ALLOWABLE_UPLOAD_TYPES
         );
-        final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
+        final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).toList();
         final Settings settings = Settings.builder().putList("xpack.license.upload.types", allowedNames).build();
         final License.LicenseType notAllowed = randomValueOtherThanMany(
             test -> allowed.contains(test),

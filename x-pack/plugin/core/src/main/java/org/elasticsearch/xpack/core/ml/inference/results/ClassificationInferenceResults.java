@@ -113,7 +113,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return featureImportances.stream()
             .sorted((l, r) -> Double.compare(r.getTotalImportance(), l.getTotalImportance()))
             .limit(numTopFeatures)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {

@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -197,11 +198,11 @@ public class BpeTokenizer extends Tokenizer {
                 }
             } else if (childNode.isLeaf()) {
                 // build char seq view, verify its in never split
-                CharSequence maybeNeverSplit = new CharWrapper(neverSplitStart, (i + 1) - neverSplitStart, chars);
+                CharSequence maybeNeverSplit = new CharsRef(chars, neverSplitStart, (i + 1) - neverSplitStart);
                 if (neverSplitSet.contains(maybeNeverSplit)) {
                     if (windowStart < neverSplitStart) {
                         bigTokens.add(
-                            new DelimitedToken(new CharWrapper(windowStart, neverSplitStart, chars), windowStart, neverSplitStart)
+                            new DelimitedToken(new CharsRef(chars, windowStart, neverSplitStart), windowStart, neverSplitStart)
                         );
                     }
                     bigTokens.add(new DelimitedToken(maybeNeverSplit, neverSplitStart, i + 1));
@@ -215,7 +216,7 @@ public class BpeTokenizer extends Tokenizer {
         }
         int finalIndex = bigTokens.isEmpty() ? 0 : bigTokens.getLast().endOffset();
         if (finalIndex < chars.length) {
-            bigTokens.add(new DelimitedToken(new CharWrapper(finalIndex, chars.length - finalIndex, chars), finalIndex, chars.length));
+            bigTokens.add(new DelimitedToken(new CharsRef(chars, finalIndex, chars.length - finalIndex), finalIndex, chars.length));
         }
         return bigTokens;
     }
@@ -268,7 +269,7 @@ public class BpeTokenizer extends Tokenizer {
                 }
                 List<CharSequence> bpeTokens = new ArrayList<>(cs.length);
                 for (int i = 0; i < cs.length; i++) {
-                    bpeTokens.add(new CharWrapper(i, 1, cs));
+                    bpeTokens.add(new CharsRef(cs, i, 1));
                 }
                 while (bpeTokens.size() > 1) {
                     int minRank = Integer.MAX_VALUE;
@@ -372,29 +373,6 @@ public class BpeTokenizer extends Tokenizer {
         @Override
         public String toString() {
             return pair.toString();
-        }
-    }
-
-    private record CharWrapper(int offset, int len, char[] charArray) implements CharSequence {
-
-        @Override
-        public int length() {
-            return len;
-        }
-
-        @Override
-        public char charAt(int index) {
-            return charArray[offset + index];
-        }
-
-        @Override
-        public CharWrapper subSequence(int start, int end) {
-            return new CharWrapper(start + offset, end - start, charArray);
-        }
-
-        @Override
-        public String toString() {
-            return new String(charArray, offset, len);
         }
     }
 

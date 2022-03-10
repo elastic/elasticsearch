@@ -1,0 +1,6 @@
+pr: 84410
+summary: Support IMDSv2 for EC2 Discovery
+area: Discovery-Plugins
+type: enhancement
+issues:
+ - 80398

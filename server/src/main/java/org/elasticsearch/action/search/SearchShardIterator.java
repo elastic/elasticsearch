@@ -162,10 +162,11 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return Objects.hash(clusterAlias, shardId);
     }
 
+    private static final Comparator<SearchShardIterator> COMPARATOR = Comparator.comparing(SearchShardIterator::shardId)
+        .thenComparing(SearchShardIterator::getClusterAlias, Comparator.nullsFirst(String::compareTo));
+
     @Override
     public int compareTo(SearchShardIterator o) {
-        return Comparator.comparing(SearchShardIterator::shardId)
-            .thenComparing(SearchShardIterator::getClusterAlias, Comparator.nullsFirst(String::compareTo))
-            .compare(this, o);
+        return COMPARATOR.compare(this, o);
     }
 }

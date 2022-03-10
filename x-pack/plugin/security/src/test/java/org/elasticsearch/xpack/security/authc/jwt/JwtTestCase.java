@@ -14,7 +14,6 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -53,6 +52,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -561,13 +561,9 @@ public abstract class JwtTestCase extends ESTestCase {
         return IntStream.rangeClosed(1, minToMaxInclusive).mapToObj(i -> randomFrom(collection)).toList(); // 1..N inclusive
     }
 
-    public String saveJwkSetToTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
-        final String serializedJwkSet = JwtUtil.serializeJwkSet(jwksetPkc, publicKeysOnly);
-        if (serializedJwkSet == null) {
-            return null;
-        }
-        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json");
-        Files.writeString(path, serializedJwkSet);
+    public String saveToTempFile(final String prefix, final String suffix, final byte[] content) throws IOException {
+        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), prefix, suffix);
+        Files.write(path, content);
         return path.toString();
     }
 
@@ -586,5 +582,17 @@ public abstract class JwtTestCase extends ESTestCase {
             );
         }
         return requestThreadContext;
+    }
+
+    static Path resolvePath(final String relativePath) {
+        try {
+            final URL url = JwtTestCase.class.getResource(relativePath);
+            if (url != null) {
+                return PathUtils.get(url.toURI()).toAbsolutePath().normalize();
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("resource not found: " + relativePath, e);
+        }
+        return null;
     }
 }

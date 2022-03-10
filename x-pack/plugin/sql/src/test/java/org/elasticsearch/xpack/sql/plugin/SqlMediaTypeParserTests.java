@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -104,31 +103,6 @@ public class SqlMediaTypeParserTests extends ESTestCase {
             )
         );
         assertEquals(e.getMessage(), "Invalid request content type: Accept=[null], Content-Type=[null], format=[null]");
-    }
-
-    public void testCborClearCursor() {
-        assertEquals(
-            XContentType.JSON,
-            getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(false, Mode.JDBC))
-        );
-        assertEquals(
-            XContentType.CBOR,
-            getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.JDBC))
-        );
-        assertEquals(
-            XContentType.CBOR,
-            getResponseMediaType(reqWithAccept("application/whatever"), createClearCursorInstance(true, Mode.JDBC))
-        );
-        assertEquals(
-            XContentType.CBOR,
-            getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.ODBC))
-        );
-        assertEquals(XContentType.CBOR, getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.CLI)));
-        assertEquals(
-            XContentType.JSON,
-            getResponseMediaType(reqWithAccept("application/json"), createClearCursorInstance(true, Mode.PLAIN))
-        );
-
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {

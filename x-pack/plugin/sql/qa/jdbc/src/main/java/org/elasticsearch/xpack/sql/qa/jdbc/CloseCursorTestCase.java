@@ -19,29 +19,41 @@ public abstract class CloseCursorTestCase extends JdbcIntegrationTestCase {
         index("library", "2", builder -> { builder.field("name", "bar"); });
         index("library", "3", builder -> { builder.field("name", "baz"); });
 
-        try (Connection connection = createConnection(connectionProperties())) {
-            try (Statement statement = connection.createStatement()) {
-                statement.setFetchSize(1);
-                ResultSet results = statement.executeQuery(" SELECT name FROM library");
-                assertTrue(results.next());
-                results.close(); // force sending a cursor close since more pages are available
-                assertTrue(results.isClosed());
-            }
+        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
+            statement.setFetchSize(1);
+            ResultSet results = statement.executeQuery(" SELECT name FROM library");
+            assertTrue(results.next());
+            results.close(); // force sending a cursor close since more pages are available
+            assertTrue(results.isClosed());
         }
     }
 
-    public void testCloseEmpyCursor() throws SQLException, IOException {
+    public void testCloseConsumedCursor() throws SQLException, IOException {
         index("library", "1", builder -> { builder.field("name", "foo"); });
         index("library", "2", builder -> { builder.field("name", "bar"); });
         index("library", "3", builder -> { builder.field("name", "baz"); });
 
-        try (Connection connection = createConnection(connectionProperties())) {
-            try (Statement statement = connection.createStatement()) {
-                statement.setFetchSize(1);
-                ResultSet results = statement.executeQuery(" SELECT name FROM library where name = 'zzz'");
-                results.close(); // force sending a cursor close since more pages are available
-                assertTrue(results.isClosed());
+        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
+            statement.setFetchSize(1);
+            ResultSet results = statement.executeQuery(" SELECT name FROM library");
+            for (int i = 0; i < 3; i++) {
+                assertTrue(results.next());
             }
+            results.close();
+            assertTrue(results.isClosed());
+        }
+    }
+
+    public void testCloseNoCursor() throws SQLException, IOException {
+        index("library", "1", builder -> { builder.field("name", "foo"); });
+        index("library", "2", builder -> { builder.field("name", "bar"); });
+        index("library", "3", builder -> { builder.field("name", "baz"); });
+
+        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
+            statement.setFetchSize(1);
+            ResultSet results = statement.executeQuery(" SELECT name FROM library where name = 'zzz'");
+            results.close();
+            assertTrue(results.isClosed());
         }
     }
 }

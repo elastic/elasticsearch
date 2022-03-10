@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
@@ -39,9 +40,16 @@ public class BulkItemResponseTests extends ESTestCase {
 
     public void testBulkItemResponseShouldContainTypeInV7CompatibilityMode() throws IOException {
         BulkItemResponse bulkItemResponse = BulkItemResponse.success(
-            1,
+            randomInt(),
             DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId("entities", "index_uuid", 42), "1", 40, 3, 5, true)
+            new IndexResponse(
+                new ShardId(randomAlphaOfLength(8), UUID.randomUUID().toString(), randomInt()),
+                randomAlphaOfLength(4),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomBoolean()
+            )
         );
         XContentBuilder xContentBuilder = bulkItemResponse.toXContent(
             XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7),

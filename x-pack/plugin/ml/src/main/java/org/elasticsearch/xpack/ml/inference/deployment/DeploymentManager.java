@@ -115,7 +115,10 @@ public class DeploymentManager {
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.inferenceThreads,
-                processContext.modelThreads
+                processContext.modelThreads,
+                stats.peakThroughput(),
+                stats.recentStats().requestsProcessed(),
+                stats.recentStats().avgInferenceTime()
             );
         });
     }

@@ -1,0 +1,5 @@
+pr: 84852
+summary: Note restricted indices in access denied message
+area: Authorization
+type: enhancement
+issues: []

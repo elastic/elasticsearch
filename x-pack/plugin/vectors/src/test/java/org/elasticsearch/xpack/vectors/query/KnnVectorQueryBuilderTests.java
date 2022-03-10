@@ -92,7 +92,7 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
                 String filterFieldName = randomBoolean() ? KEYWORD_FIELD_NAME : TEXT_FIELD_NAME;
                 filters.add(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
             }
-            queryBuilder.filterQueries(filters);
+            queryBuilder.addFilterQueries(filters);
         }
         return queryBuilder;
     }
@@ -155,7 +155,7 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
         context.setAllowUnmappedFields(true);
         TermQueryBuilder termQuery = new TermQueryBuilder("unmapped_field", 42);
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, VECTOR_DIMENSION);
-        query.filterQuery(termQuery);
+        query.addFilterQuery(termQuery);
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> query.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());

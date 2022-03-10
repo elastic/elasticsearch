@@ -41,13 +41,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final String fieldName;
     private final float[] queryVector;
     private final int numCands;
-    private List<QueryBuilder> filterQueries;
+    private final List<QueryBuilder> filterQueries;
 
     public KnnVectorQueryBuilder(String fieldName, float[] queryVector, int numCands) {
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.numCands = numCands;
-        this.filterQueries = List.of();
+        this.filterQueries = new ArrayList<>();
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -56,7 +56,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.numCands = in.readVInt();
         this.queryVector = in.readFloatArray();
         if (in.getVersion().before(Version.V_8_2_0)) {
-            this.filterQueries = List.of();
+            this.filterQueries = new ArrayList<>();
         } else {
             this.filterQueries = readQueries(in);
         }
@@ -78,13 +78,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return filterQueries;
     }
 
-    public KnnVectorQueryBuilder filterQuery(QueryBuilder filterQuery) {
-        this.filterQueries = List.of(filterQuery);
+    public KnnVectorQueryBuilder addFilterQuery(QueryBuilder filterQuery) {
+        Objects.requireNonNull(filterQuery);
+        this.filterQueries.add(filterQuery);
         return this;
     }
 
-    public KnnVectorQueryBuilder filterQueries(List<QueryBuilder> filterQueries) {
-        this.filterQueries = filterQueries;
+    public KnnVectorQueryBuilder addFilterQueries(List<QueryBuilder> filterQueries) {
+        Objects.requireNonNull(filterQueries);
+        this.filterQueries.addAll(filterQueries);
         return this;
     }
 
@@ -124,7 +126,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             rewrittenQueries.add(rewrittenQuery);
         }
         if (changed) {
-            return new KnnVectorQueryBuilder(fieldName, queryVector, numCands).filterQueries(rewrittenQueries);
+            return new KnnVectorQueryBuilder(fieldName, queryVector, numCands).addFilterQueries(rewrittenQueries);
         }
         return this;
     }

@@ -902,7 +902,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50);
 
         if (randomBoolean()) {
-            query.filterQuery(new WildcardQueryBuilder("other", "value*"));
+            query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
         }
 
         // user1 should only be able to see docs with field1: value1

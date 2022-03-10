@@ -432,18 +432,22 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertNull(response.getHits().getAt(0).field("vector"));
 
         // user1 can access field1, so the filtered query should match with the document:
-        QueryBuilder matchQuery = QueryBuilders.matchQuery("field1", "value1");
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+            QueryBuilders.matchQuery("field1", "value1")
+        );
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("test")
-            .setQuery(query.filterQuery(matchQuery))
+            .setQuery(filterQuery1)
             .get();
         assertHitCount(response, 1);
 
         // user1 cannot access field2, so the filtered query should not match with the document:
-        matchQuery = QueryBuilders.matchQuery("field2", "value2");
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+            QueryBuilders.matchQuery("field2", "value2")
+        );
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("test")
-            .setQuery(query.filterQuery(matchQuery))
+            .setQuery(filterQuery2)
             .get();
         assertHitCount(response, 0);
     }

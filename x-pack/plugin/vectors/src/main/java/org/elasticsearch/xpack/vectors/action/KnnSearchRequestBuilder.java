@@ -169,7 +169,7 @@ class KnnSearchRequestBuilder {
 
         KnnVectorQueryBuilder queryBuilder = knnSearch.buildQuery();
         if (filters != null) {
-            queryBuilder.filterQueries(this.filters);
+            queryBuilder.addFilterQueries(this.filters);
         }
 
         sourceBuilder.query(queryBuilder);

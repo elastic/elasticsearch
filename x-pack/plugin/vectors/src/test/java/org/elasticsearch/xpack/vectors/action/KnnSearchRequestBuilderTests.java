@@ -89,7 +89,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
 
         KnnVectorQueryBuilder query = knnSearch.buildQuery();
         if (filterQueries.isEmpty() == false) {
-            query.filterQueries(filterQueries);
+            query.addFilterQueries(filterQueries);
         }
         assertEquals(query, searchRequest.source().query());
         assertEquals(knnSearch.k, searchRequest.source().size());

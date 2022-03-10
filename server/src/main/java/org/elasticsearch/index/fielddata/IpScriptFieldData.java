@@ -11,8 +11,8 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.IpFieldScript;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -20,31 +20,35 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final IpFieldScript.LeafFactory leafFactory;
-        private final ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource;
+        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-        public Builder(String name, IpFieldScript.LeafFactory leafFactory, ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource) {
+        public Builder(
+            String name,
+            IpFieldScript.LeafFactory leafFactory,
+            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
-            this.toScriptFieldSource = toScriptFieldSource;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public IpScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new IpScriptFieldData(name, leafFactory, toScriptFieldSource);
+            return new IpScriptFieldData(name, leafFactory, toScriptFieldFactory);
         }
     }
 
     private final IpFieldScript.LeafFactory leafFactory;
-    private final ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource;
+    private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
     private IpScriptFieldData(
         String fieldName,
         IpFieldScript.LeafFactory leafFactory,
-        ToScriptFieldSource<SortedBinaryDocValues> toScriptFieldSource
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
     ) {
         super(fieldName);
         this.leafFactory = leafFactory;
-        this.toScriptFieldSource = toScriptFieldSource;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -52,8 +56,8 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         IpFieldScript script = leafFactory.newInstance(context);
         return new BinaryScriptLeafFieldData() {
             @Override
-            public DocValuesScriptFieldSource getScriptFieldSource(String name) {
-                return toScriptFieldSource.getScriptFieldSource(getBytesValues(), name);
+            public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+                return toScriptFieldFactory.getScriptFieldFactory(getBytesValues(), name);
             }
 
             @Override

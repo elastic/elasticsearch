@@ -8,12 +8,9 @@
 
 package org.elasticsearch.script.field;
 
-/**
- * This interface is used to mark classes that
- * create and possibly cache a specifically-named {@link Field}
- * for a script.
- */
-public interface ScriptFieldSource {
+public abstract class AbstractScriptFieldFactory<T> implements Field<T>, ScriptFieldFactory {
 
-    Field<?> toScriptField();
+    public Field<?> toScriptField() {
+        return this;
+    }
 }

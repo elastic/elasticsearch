@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -658,18 +658,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesScriptFieldSource docValuesFieldSource = fieldType.fielddataBuilder(
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(
                 "test",
                 () -> { throw new UnsupportedOperationException(); }
-            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldSource("test");
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldFactory("test");
 
             docValuesFieldSource.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            DocValuesScriptFieldSource indexData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
-                .getScriptFieldSource("test");
+                .getScriptFieldFactory("test");
 
             indexData.setNextDocId(0);
 

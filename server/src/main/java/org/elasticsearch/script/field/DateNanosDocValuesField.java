@@ -19,10 +19,10 @@ import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DateNanosDocValuesField extends AbstractScriptFieldSource<ZonedDateTime>
+public class DateNanosDocValuesField extends AbstractScriptFieldFactory<ZonedDateTime>
     implements
         Field<ZonedDateTime>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<ZonedDateTime> {
 
     protected final SortedNumericDocValues input;

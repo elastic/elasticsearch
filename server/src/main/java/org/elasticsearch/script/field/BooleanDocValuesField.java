@@ -17,10 +17,10 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BooleanDocValuesField extends AbstractScriptFieldSource<Boolean>
+public class BooleanDocValuesField extends AbstractScriptFieldFactory<Boolean>
     implements
         Field<Boolean>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Boolean> {
 
     private final SortedNumericDocValues input;

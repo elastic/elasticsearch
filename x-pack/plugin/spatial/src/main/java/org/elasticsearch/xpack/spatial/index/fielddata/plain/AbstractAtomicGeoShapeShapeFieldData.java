@@ -12,8 +12,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues.GeoShapeValue;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
@@ -26,10 +26,10 @@ import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSpherical
 
 public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoShapeFieldData {
 
-    private final ToScriptFieldSource<GeoShapeValues> toScriptFieldSource;
+    private final ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory;
 
-    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldSource<GeoShapeValues> toScriptFieldSource) {
-        this.toScriptFieldSource = toScriptFieldSource;
+    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -38,12 +38,12 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
     }
 
     @Override
-    public final DocValuesScriptFieldSource getScriptFieldSource(String name) {
-        return toScriptFieldSource.getScriptFieldSource(getGeoShapeValues(), name);
+    public final DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getGeoShapeValues(), name);
     }
 
-    public static LeafGeoShapeFieldData empty(final int maxDoc, ToScriptFieldSource<GeoShapeValues> toScriptFieldSource) {
-        return new AbstractAtomicGeoShapeShapeFieldData(toScriptFieldSource) {
+    public static LeafGeoShapeFieldData empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        return new AbstractAtomicGeoShapeShapeFieldData(toScriptFieldFactory) {
 
             @Override
             public long ramBytesUsed() {

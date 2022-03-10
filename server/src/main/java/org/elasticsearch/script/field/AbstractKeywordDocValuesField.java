@@ -18,10 +18,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class AbstractKeywordDocValuesField extends AbstractScriptFieldSource<String>
+public class AbstractKeywordDocValuesField extends AbstractScriptFieldFactory<String>
     implements
         Field<String>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<String> {
 
     protected final SortedBinaryDocValues input;

@@ -18,10 +18,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class GeoPointDocValuesField extends AbstractScriptFieldSource<GeoPoint>
+public class GeoPointDocValuesField extends AbstractScriptFieldFactory<GeoPoint>
     implements
         Field<GeoPoint>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.GeometrySupplier<GeoPoint> {
 
     protected final MultiGeoPointValues input;

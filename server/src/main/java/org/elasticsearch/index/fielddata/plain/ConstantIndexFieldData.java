@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -43,23 +43,23 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final String constantValue;
         private final String name;
         private final ValuesSourceType valuesSourceType;
-        private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
         public Builder(
             String constantValue,
             String name,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
         ) {
             this.constantValue = constantValue;
             this.name = name;
             this.valuesSourceType = valuesSourceType;
-            this.toScriptFieldSource = toScriptFieldSource;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new ConstantIndexFieldData(name, constantValue, valuesSourceType, toScriptFieldSource);
+            return new ConstantIndexFieldData(name, constantValue, valuesSourceType, toScriptFieldFactory);
         }
     }
 
@@ -67,8 +67,8 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         private final String value;
 
-        ConstantLeafFieldData(String value, ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
-            super(toScriptFieldSource);
+        ConstantLeafFieldData(String value, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+            super(toScriptFieldFactory);
             this.value = value;
         }
 
@@ -132,10 +132,10 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         String name,
         String value,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(name, valuesSourceType, null, null, toScriptFieldSource);
-        atomicFieldData = new ConstantLeafFieldData(value, toScriptFieldSource);
+        super(name, valuesSourceType, null, null, toScriptFieldFactory);
+        atomicFieldData = new ConstantLeafFieldData(value, toScriptFieldFactory);
     }
 
     @Override

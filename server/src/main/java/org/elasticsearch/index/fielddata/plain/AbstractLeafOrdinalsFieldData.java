@@ -14,23 +14,23 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.util.Collection;
 import java.util.Collections;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-    protected AbstractLeafOrdinalsFieldData(ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
-        this.toScriptFieldSource = toScriptFieldSource;
+    protected AbstractLeafOrdinalsFieldData(ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
-    public final DocValuesScriptFieldSource getScriptFieldSource(String name) {
-        return toScriptFieldSource.getScriptFieldSource(getOrdinalsValues(), name);
+    public final DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getOrdinalsValues(), name);
     }
 
     @Override
@@ -38,8 +38,8 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
         return FieldData.toString(getOrdinalsValues());
     }
 
-    public static LeafOrdinalsFieldData empty(ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
-        return new AbstractLeafOrdinalsFieldData(toScriptFieldSource) {
+    public static LeafOrdinalsFieldData empty(ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+        return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
 
             @Override
             public long ramBytesUsed() {

@@ -14,8 +14,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DateFieldScript;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -24,36 +24,36 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DateFieldScript.LeafFactory leafFactory;
-        protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
+        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
         public Builder(
             String name,
             DateFieldScript.LeafFactory leafFactory,
-            ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
         ) {
             this.name = name;
             this.leafFactory = leafFactory;
-            this.toScriptFieldSource = toScriptFieldSource;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public DateScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new DateScriptFieldData(name, leafFactory, toScriptFieldSource);
+            return new DateScriptFieldData(name, leafFactory, toScriptFieldFactory);
         }
     }
 
     private final String fieldName;
     private final DateFieldScript.LeafFactory leafFactory;
-    protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
+    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
     private DateScriptFieldData(
         String fieldName,
         DateFieldScript.LeafFactory leafFactory,
-        ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
-        this.toScriptFieldSource = toScriptFieldSource;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -77,7 +77,7 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public DateScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptFieldSource);
+        return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptFieldFactory);
     }
 
     @Override
@@ -92,12 +92,15 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     public static class DateScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
-        protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
+        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
+        DateScriptLeafFieldData(
+            LongScriptDocValues longScriptDocValues,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ) {
             super(0);
             this.longScriptDocValues = longScriptDocValues;
-            this.toScriptFieldSource = toScriptFieldSource;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -106,8 +109,8 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesScriptFieldSource getScriptFieldSource(String name) {
-            return toScriptFieldSource.getScriptFieldSource(getLongValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
         }
     }
 }

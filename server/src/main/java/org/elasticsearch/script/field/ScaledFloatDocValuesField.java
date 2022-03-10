@@ -16,10 +16,10 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public class ScaledFloatDocValuesField extends AbstractScriptFieldSource<Double>
+public class ScaledFloatDocValuesField extends AbstractScriptFieldFactory<Double>
     implements
         Field<Double>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Double> {
 
     protected final SortedNumericDoubleValues input;

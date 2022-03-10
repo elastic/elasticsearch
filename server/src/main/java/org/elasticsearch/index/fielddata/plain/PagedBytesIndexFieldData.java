@@ -33,7 +33,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -52,7 +52,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final double minFrequency, maxFrequency;
         private final int minSegmentSize;
         private final ValuesSourceType valuesSourceType;
-        private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
         public Builder(
             String name,
@@ -60,14 +60,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             double maxFrequency,
             int minSegmentSize,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
         ) {
             this.name = name;
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
             this.minSegmentSize = minSegmentSize;
             this.valuesSourceType = valuesSourceType;
-            this.toScriptFieldSource = toScriptFieldSource;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -80,7 +80,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 minFrequency,
                 maxFrequency,
                 minSegmentSize,
-                toScriptFieldSource
+                toScriptFieldFactory
             );
         }
     }
@@ -93,9 +93,9 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         double minFrequency,
         double maxFrequency,
         int minSegmentSize,
-        ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldSource);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
         this.minSegmentSize = minSegmentSize;
@@ -138,7 +138,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         );
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
-            data = AbstractLeafOrdinalsFieldData.empty(toScriptFieldSource);
+            data = AbstractLeafOrdinalsFieldData.empty(toScriptFieldFactory);
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -169,7 +169,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build();
 
-            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals, toScriptFieldSource);
+            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals, toScriptFieldFactory);
             success = true;
             return data;
         } finally {

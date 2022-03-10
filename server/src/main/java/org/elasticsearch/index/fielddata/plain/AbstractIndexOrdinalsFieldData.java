@@ -24,7 +24,7 @@ import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -36,20 +36,20 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     private final ValuesSourceType valuesSourceType;
     private final IndexFieldDataCache cache;
     protected final CircuitBreakerService breakerService;
-    protected final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
+    protected final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
     protected AbstractIndexOrdinalsFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         IndexFieldDataCache cache,
         CircuitBreakerService breakerService,
-        ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.cache = cache;
         this.breakerService = breakerService;
-        this.toScriptFieldSource = toScriptFieldSource;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -74,7 +74,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // If a field can't be found then it doesn't mean it isn't there,
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
-            return AbstractLeafOrdinalsFieldData.empty(toScriptFieldSource);
+            return AbstractLeafOrdinalsFieldData.empty(toScriptFieldFactory);
         }
 
         try {
@@ -118,7 +118,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
             try {
-                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this, toScriptFieldSource);
+                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this, toScriptFieldFactory);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -136,7 +136,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, toScriptFieldSource);
+        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, toScriptFieldFactory);
     }
 
     @Override

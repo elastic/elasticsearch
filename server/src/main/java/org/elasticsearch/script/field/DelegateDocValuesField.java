@@ -17,7 +17,7 @@ import java.util.Iterator;
  * A default {@link Field} to provide {@code ScriptDocValues} for fields
  * that are not supported by the script fields api.
  */
-public class DelegateDocValuesField extends AbstractScriptFieldSource<Object> implements Field<Object>, DocValuesScriptFieldSource {
+public class DelegateDocValuesField extends AbstractScriptFieldFactory<Object> implements Field<Object>, DocValuesScriptFieldFactory {
 
     private final ScriptDocValues<?> scriptDocValues;
     private final String name;

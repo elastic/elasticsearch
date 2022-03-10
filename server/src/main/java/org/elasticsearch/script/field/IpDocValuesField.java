@@ -29,10 +29,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class IpDocValuesField extends AbstractScriptFieldSource<IPAddress>
+public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
     implements
         Field<IPAddress>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<String> {
     protected final String name;
     protected final ScriptDocValues.Supplier<InetAddress> raw;

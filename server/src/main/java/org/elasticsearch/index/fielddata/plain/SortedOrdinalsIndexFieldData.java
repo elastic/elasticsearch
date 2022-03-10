@@ -20,7 +20,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -33,18 +33,18 @@ public class SortedOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
             this.name = name;
-            this.toScriptFieldSource = toScriptFieldSource;
+            this.toScriptFieldFactory = toScriptFieldFactory;
             this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public SortedOrdinalsIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, toScriptFieldSource);
+            return new SortedOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, toScriptFieldFactory);
         }
     }
 
@@ -53,9 +53,9 @@ public class SortedOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData
         String fieldName,
         ValuesSourceType valuesSourceType,
         CircuitBreakerService breakerService,
-        ToScriptFieldSource<SortedSetDocValues> toScriptFieldSource
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldSource);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class SortedOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
         // Doc value fields are loaded using Lucene's DocValues#getSortedSet
         // that can happily load SortedDocValues as well.
-        return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), toScriptFieldSource);
+        return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), toScriptFieldFactory);
     }
 
     @Override

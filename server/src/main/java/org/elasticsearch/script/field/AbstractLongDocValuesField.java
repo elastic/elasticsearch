@@ -16,10 +16,10 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public abstract class AbstractLongDocValuesField extends AbstractScriptFieldSource<Long>
+public abstract class AbstractLongDocValuesField extends AbstractScriptFieldFactory<Long>
     implements
         Field<Long>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Long> {
 
     protected final String name;

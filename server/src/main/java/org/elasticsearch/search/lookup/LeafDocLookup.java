@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    private final Map<String, DocValuesScriptFieldSource> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -48,8 +48,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    public DocValuesScriptFieldSource getScriptFieldSource(String fieldName) {
-        DocValuesScriptFieldSource source = localCacheScriptFieldData.get(fieldName);
+    public DocValuesScriptFieldFactory getScriptFieldSource(String fieldName) {
+        DocValuesScriptFieldFactory source = localCacheScriptFieldData.get(fieldName);
 
         if (source == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
@@ -60,10 +60,10 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
             // Load the field data on behalf of the script. Otherwise, it would require
             // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            source = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldSource>() {
+            source = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
                 @Override
-                public DocValuesScriptFieldSource run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptFieldSource(fieldName);
+                public DocValuesScriptFieldFactory run() {
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptFieldFactory(fieldName);
                 }
             });
 
@@ -92,7 +92,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     @Override
     public boolean containsKey(Object key) {
         String fieldName = key.toString();
-        DocValuesScriptFieldSource docValuesField = localCacheScriptFieldData.get(fieldName);
+        DocValuesScriptFieldFactory docValuesField = localCacheScriptFieldData.get(fieldName);
         return docValuesField != null || fieldTypeLookup.apply(fieldName) != null;
     }
 

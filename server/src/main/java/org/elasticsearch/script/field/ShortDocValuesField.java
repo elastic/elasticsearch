@@ -16,10 +16,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class ShortDocValuesField extends AbstractScriptFieldSource<Short>
+public class ShortDocValuesField extends AbstractScriptFieldFactory<Short>
     implements
         Field<Short>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Long> {
 
     protected final SortedNumericDocValues input;

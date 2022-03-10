@@ -16,10 +16,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class ByteDocValuesField extends AbstractScriptFieldSource<Byte>
+public class ByteDocValuesField extends AbstractScriptFieldFactory<Byte>
     implements
         Field<Byte>,
-        DocValuesScriptFieldSource,
+        DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Long> {
 
     protected final SortedNumericDocValues input;

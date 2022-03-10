@@ -16,8 +16,8 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.field.DocValuesScriptFieldSource;
-import org.elasticsearch.script.field.ToScriptFieldSource;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -26,11 +26,11 @@ import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.sorta
 
 public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     private final LeafNumericFieldData signedLongFD;
-    protected final ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource;
+    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD, ToScriptFieldSource<SortedNumericDocValues> toScriptFieldSource) {
+    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
         this.signedLongFD = signedLongFD;
-        this.toScriptFieldSource = toScriptFieldSource;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -76,8 +76,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public DocValuesScriptFieldSource getScriptFieldSource(String name) {
-        return toScriptFieldSource.getScriptFieldSource(getLongValues(), name);
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
     }
 
     @Override

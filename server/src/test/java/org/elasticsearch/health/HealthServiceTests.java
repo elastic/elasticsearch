@@ -54,26 +54,7 @@ public class HealthServiceTests extends ESTestCase {
         // Same component, same indicator name, should throw exception:
         var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null);
         var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null);
-
-        var service1 = new HealthService(
-            List.of(createMockHealthIndicatorService(indicator1), createMockHealthIndicatorService(indicator2))
-        );
-        expectThrows(AssertionError.class, () -> service1.getHealth());
-
-        // Different component, same indicator name, everything is OK:
-        var indicator3 = new HealthIndicatorResult("indicator1", "component3", YELLOW, null, null);
-        var service2 = new HealthService(
-            List.of(createMockHealthIndicatorService(indicator1), createMockHealthIndicatorService(indicator3))
-        );
-        assertThat(
-            service2.getHealth(),
-            anyOf(
-                hasItems(
-                    new HealthComponentResult("component1", GREEN, List.of(indicator1)),
-                    new HealthComponentResult("component3", YELLOW, List.of(indicator3))
-                )
-            )
-        );
+        expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2)));
     }
 
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {

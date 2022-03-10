@@ -45,17 +45,17 @@ public class HealthService {
         );
     }
 
-    private static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
+    // Non-private for testing purposes
+    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
         assert indicators.size() > 0 : "Component should not be non empty";
         assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
-        Set<String> duplicateIndicatorNames = findDuplicatesByName(indicators);
-        assert duplicateIndicatorNames.isEmpty()
+        assert findDuplicatesByName(indicators).isEmpty()
             : String.format(
                 Locale.ROOT,
                 "Found multiple indicators with the same name within the %s component: %s",
                 indicators.get(0).component(),
-                duplicateIndicatorNames
+                findDuplicatesByName(indicators)
             );
         return new HealthComponentResult(
             indicators.get(0).component(),

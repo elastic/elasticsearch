@@ -271,7 +271,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
     }
 
-    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {
+    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) {
         this.failure = cause;
         logger.warn(
             "policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step",

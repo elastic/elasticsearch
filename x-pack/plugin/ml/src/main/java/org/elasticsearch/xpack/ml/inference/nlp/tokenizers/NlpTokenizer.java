@@ -54,16 +54,16 @@ public abstract class NlpTokenizer implements Releasable {
      */
     public List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId) {
         var innerResult = innerTokenize(seq);
-        List<? extends DelimitedToken.Encoded> wordPieceTokenIds = innerResult.tokens();
+        List<? extends DelimitedToken.Encoded> tokenIds = innerResult.tokens();
         List<Integer> tokenPositionMap = innerResult.tokenPositionMap();
-        int numTokens = isWithSpecialTokens() ? wordPieceTokenIds.size() + 2 : wordPieceTokenIds.size();
+        int numTokens = isWithSpecialTokens() ? tokenIds.size() + 2 : tokenIds.size();
         boolean isTruncated = false;
 
         if (numTokens > maxSequenceLength()) {
             switch (truncate) {
                 case FIRST, SECOND -> {
                     isTruncated = true;
-                    wordPieceTokenIds = wordPieceTokenIds.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
+                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
                     tokenPositionMap = tokenPositionMap.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
                 }
                 case NONE -> {
@@ -81,7 +81,7 @@ public abstract class NlpTokenizer implements Releasable {
         if (numTokens <= maxSequenceLength() || span == -1) {
             return List.of(
                 createTokensBuilder(clsTokenId(), sepTokenId(), isWithSpecialTokens()).addSequence(
-                    wordPieceTokenIds.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
+                    tokenIds.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
                     tokenPositionMap
                 ).build(seq, isTruncated, innerResult.tokens, -1, sequenceId)
             );
@@ -91,13 +91,13 @@ public abstract class NlpTokenizer implements Releasable {
         int splitEndPos = 0;
         int splitStartPos = 0;
         int spanPrev = -1;
-        while (splitEndPos < wordPieceTokenIds.size()) {
+        while (splitEndPos < tokenIds.size()) {
             splitEndPos = Math.min(
                 splitStartPos + (isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength()),
-                wordPieceTokenIds.size()
+                tokenIds.size()
             );
             // Make sure we do not end on a word
-            if (splitEndPos != wordPieceTokenIds.size()) {
+            if (splitEndPos != tokenIds.size()) {
                 while (Objects.equals(tokenPositionMap.get(splitEndPos), tokenPositionMap.get(splitEndPos - 1))) {
                     splitEndPos--;
                 }
@@ -105,7 +105,7 @@ public abstract class NlpTokenizer implements Releasable {
 
             toReturn.add(
                 createTokensBuilder(clsTokenId(), sepTokenId(), isWithSpecialTokens()).addSequence(
-                    wordPieceTokenIds.subList(splitStartPos, splitEndPos)
+                    tokenIds.subList(splitStartPos, splitEndPos)
                         .stream()
                         .map(DelimitedToken.Encoded::getEncoding)
                         .collect(Collectors.toList()),
@@ -116,7 +116,7 @@ public abstract class NlpTokenizer implements Releasable {
             int prevSplitStart = splitStartPos;
             splitStartPos = splitEndPos - span;
             // try to back up our split so that it starts at the first whole word
-            if (splitStartPos < wordPieceTokenIds.size()) {
+            if (splitStartPos < tokenIds.size()) {
                 while (splitStartPos > (prevSplitStart + 1)
                     && Objects.equals(tokenPositionMap.get(splitStartPos), tokenPositionMap.get(splitStartPos - 1))) {
                     splitStartPos--;
@@ -129,60 +129,60 @@ public abstract class NlpTokenizer implements Releasable {
 
     public TokenizationResult.Tokens tokenize(String seq1, String seq2, Tokenization.Truncate truncate, int sequenceId) {
         var innerResultSeq1 = innerTokenize(seq1);
-        List<? extends DelimitedToken.Encoded> wordPieceTokenIdsSeq1 = innerResultSeq1.tokens;
+        List<? extends DelimitedToken.Encoded> tokenIdsSeq1 = innerResultSeq1.tokens;
         List<Integer> tokenPositionMapSeq1 = innerResultSeq1.tokenPositionMap;
         var innerResultSeq2 = innerTokenize(seq2);
-        List<? extends DelimitedToken.Encoded> wordPieceTokenIdsSeq2 = innerResultSeq2.tokens;
+        List<? extends DelimitedToken.Encoded> tokenIdsSeq2 = innerResultSeq2.tokens;
         List<Integer> tokenPositionMapSeq2 = innerResultSeq2.tokenPositionMap;
         if (isWithSpecialTokens() == false) {
             throw new IllegalArgumentException("Unable to do sequence pair tokenization without special tokens");
         }
         int extraTokens = getNumExtraTokensForSeqPair();
-        int numTokens = wordPieceTokenIdsSeq1.size() + wordPieceTokenIdsSeq2.size() + extraTokens;
+        int numTokens = tokenIdsSeq1.size() + tokenIdsSeq2.size() + extraTokens;
 
         boolean isTruncated = false;
         if (numTokens > maxSequenceLength()) {
             switch (truncate) {
                 case FIRST -> {
                     isTruncated = true;
-                    if (wordPieceTokenIdsSeq2.size() > maxSequenceLength() - extraTokens) {
+                    if (tokenIdsSeq2.size() > maxSequenceLength() - extraTokens) {
                         throw ExceptionsHelper.badRequestException(
                             "Attempting truncation [{}] but input is too large for the second sequence. "
                                 + "The tokenized input length [{}] exceeds the maximum sequence length [{}], "
                                 + "when taking special tokens into account",
                             truncate.toString(),
-                            wordPieceTokenIdsSeq2.size(),
+                            tokenIdsSeq2.size(),
                             maxSequenceLength() - extraTokens
                         );
                     }
-                    wordPieceTokenIdsSeq1 = wordPieceTokenIdsSeq1.subList(
+                    tokenIdsSeq1 = tokenIdsSeq1.subList(
                         0,
-                        maxSequenceLength() - extraTokens - wordPieceTokenIdsSeq2.size()
+                        maxSequenceLength() - extraTokens - tokenIdsSeq2.size()
                     );
                     tokenPositionMapSeq1 = tokenPositionMapSeq1.subList(
                         0,
-                        maxSequenceLength() - extraTokens - wordPieceTokenIdsSeq2.size()
+                        maxSequenceLength() - extraTokens - tokenIdsSeq2.size()
                     );
                 }
                 case SECOND -> {
                     isTruncated = true;
-                    if (wordPieceTokenIdsSeq1.size() > maxSequenceLength() - extraTokens) {
+                    if (tokenIdsSeq1.size() > maxSequenceLength() - extraTokens) {
                         throw ExceptionsHelper.badRequestException(
                             "Attempting truncation [{}] but input is too large for the first sequence. "
                                 + "The tokenized input length [{}] exceeds the maximum sequence length [{}], "
                                 + "when taking special tokens into account",
                             truncate.toString(),
-                            wordPieceTokenIdsSeq1.size(),
+                            tokenIdsSeq1.size(),
                             maxSequenceLength() - extraTokens
                         );
                     }
-                    wordPieceTokenIdsSeq2 = wordPieceTokenIdsSeq2.subList(
+                    tokenIdsSeq2 = tokenIdsSeq2.subList(
                         0,
-                        maxSequenceLength() - extraTokens - wordPieceTokenIdsSeq1.size()
+                        maxSequenceLength() - extraTokens - tokenIdsSeq1.size()
                     );
                     tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(
                         0,
-                        maxSequenceLength() - extraTokens - wordPieceTokenIdsSeq1.size()
+                        maxSequenceLength() - extraTokens - tokenIdsSeq1.size()
                     );
                 }
                 case NONE -> throw ExceptionsHelper.badRequestException(
@@ -195,9 +195,9 @@ public abstract class NlpTokenizer implements Releasable {
         List<DelimitedToken.Encoded> tokens = new ArrayList<>(innerResultSeq1.tokens);
         tokens.addAll(innerResultSeq2.tokens);
         return createTokensBuilder(clsTokenId(), sepTokenId(), isWithSpecialTokens()).addSequencePair(
-            wordPieceTokenIdsSeq1.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
+            tokenIdsSeq1.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
             tokenPositionMapSeq1,
-            wordPieceTokenIdsSeq2.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
+            tokenIdsSeq2.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
             tokenPositionMapSeq2
         ).build(seq1 + seq2, isTruncated, tokens, -1, sequenceId);
     }

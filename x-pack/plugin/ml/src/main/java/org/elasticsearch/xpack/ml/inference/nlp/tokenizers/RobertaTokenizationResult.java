@@ -31,9 +31,12 @@ public class RobertaTokenizationResult extends TokenizationResult {
 
     private static final Map<Character, Integer> CHAR_BYTES;
     static {
-        Map<Integer, Character> encoder = byteEncoder();
-        Map<Character, Integer> decoder = new HashMap<>(encoder.size(), 1.0f);
-        encoder.forEach((b, c) -> decoder.put(c, b));
+        char[] encoder = byteEncoder();
+        Map<Character, Integer> decoder = new HashMap<>((int) (encoder.length / 0.75f) + 1);
+        int i = 0;
+        for (char c : encoder) {
+            decoder.put(c, i++);
+        }
         CHAR_BYTES = decoder;
     }
 

@@ -41,7 +41,7 @@ public class BpeTokenizer extends Tokenizer {
         "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+"
     );
 
-    static Map<Integer, Character> byteEncoder() {
+    static char[] byteEncoder() {
         List<Integer> bytes = IntStream.concat(
             IntStream.range(Character.codePointAt("!", 0), Character.codePointAt("~", 0) + 1),
             IntStream.concat(
@@ -51,30 +51,25 @@ public class BpeTokenizer extends Tokenizer {
         ).boxed().collect(Collectors.toList());
         List<Integer> chars = new ArrayList<>(bytes);
         int n = 0;
-        for (int i = 0; i < 2 << 7; i++) {
+        for (int i = 0; i < 256; i++) {
             if (bytes.contains(i)) {
                 continue;
             }
             bytes.add(i);
-            chars.add((2 << 7) + n);
+            chars.add(256 + n);
             n++;
         }
         char[] charArray = new char[chars.size()];
-        int i = 0;
-        for (Integer c : chars) {
-            charArray[i++] = Character.toChars(c)[0];
-        }
-        Map<Integer, Character> map = new HashMap<>(charArray.length, 1.0f);
         for (int j = 0; j < bytes.size(); j++) {
-            map.put(bytes.get(j), charArray[j]);
+            charArray[bytes.get(j)] = Character.toChars(chars.get(j))[0];
         }
-        return map;
+        return charArray;
     }
 
-    private static final Map<Integer, Character> BYTES_CHAR = byteEncoder();
+    private static final char[] BYTES_CHAR = byteEncoder();
 
     // NOTE: 32 is " " utf-8 encoded byte
-    private static final char ENCODED_SPACE_CHAR = BYTES_CHAR.get(32);
+    private static final char ENCODED_SPACE_CHAR = BYTES_CHAR[32];
 
     public static BpeTokenizer build(
         List<String> neverSplit,
@@ -271,7 +266,7 @@ public class BpeTokenizer extends Tokenizer {
                     if (b < 0) {
                         b += 256;
                     }
-                    cs[i] = BYTES_CHAR.get(b);
+                    cs[i] = BYTES_CHAR[b];
                 }
                 List<CharSequence> bpeTokens = new ArrayList<>(cs.length);
                 for (int i = 0; i < cs.length; i++) {

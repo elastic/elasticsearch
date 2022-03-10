@@ -95,7 +95,7 @@ public class ReadinessServiceTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadpool
         );
-        env = newEnvironment(Settings.EMPTY);
+        env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 9400).build());
 
         httpTransport = new FakeHttpTransport();
         readinessService = new ReadinessService(clusterService, env);
@@ -114,6 +114,7 @@ public class ReadinessServiceTests extends ESTestCase {
     }
 
     public void testStartStop() {
+        assertTrue(readinessService.enabled());
         readinessService.start();
         readinessService.startListener();
         assertNotNull(readinessService.serverChannel());

@@ -26,7 +26,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        Settings.Builder settings = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Settings.builder().put(ReadinessService.PORT.getKey(), 9400 + nodeOrdinal).build());
         return settings.build();
     }
 

@@ -18,7 +18,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -34,7 +33,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static org.elasticsearch.node.Node.WRITE_PORTS_FILE_SETTING;
 import static org.elasticsearch.node.Node.writePortsFile;
@@ -48,12 +46,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private volatile ServerSocketChannel serverChannel;
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
 
-    public static final Setting<String> PORT = new Setting<>(
-        "readiness.port",
-        "9400-9500",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
@@ -67,6 +60,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     // package private for testing
+    boolean enabled() {
+        return PORT.get(environment.settings()) != -1;
+    }
+
+    // package private for testing
     ServerSocketChannel serverChannel() {
         return serverChannel;
     }
@@ -77,39 +75,20 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     ServerSocketChannel setupSocket() {
+        assert PORT.get(environment.settings()) >= 0;
+
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            if (boundSocket.get() != null) {
-                try {
-                    serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
-                    serverChannel.bind(boundSocket.get());
-                } catch (Exception e) {
-                    throw new BindTransportException("Failed to re-bind to " + boundSocket.get(), e);
-                }
-
-                return null;
-            }
-
-            final AtomicReference<Exception> lastException = new AtomicReference<>();
-
-            PortsRange portsRange = new PortsRange(PORT.get(environment.settings()));
             InetAddress localhost = InetAddress.getLoopbackAddress();
+            int portNumber = PORT.get(environment.settings());
 
-            boolean success = portsRange.iterate(portNumber -> {
-                try {
-                    InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
-                    serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
-                    serverChannel.bind(socketAddress);
+            try {
+                InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
+                serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
+                serverChannel.bind(socketAddress);
 
-                    boundSocket.set(socketAddress);
-                } catch (Exception e) {
-                    lastException.set(e);
-                    return false;
-                }
-                return true;
-            });
-
-            if (success == false) {
-                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portsRange), lastException.get());
+                boundSocket.set(socketAddress);
+            } catch (Exception e) {
+                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
             }
 
             return null;
@@ -121,11 +100,16 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     @Override
     protected void doStart() {
         // Mark the service as active, we'll start the listener when ES is ready
-        this.active = true;
+        this.active = enabled();
+        if (active == false) {
+            logger.debug("Readiness service is not enabled");
+        }
     }
 
     // package private for testing
     synchronized void startListener() {
+        assert enabled();
+
         if (this.serverChannel != null || this.active == false) {
             return;
         }
@@ -155,11 +139,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     @Override
     protected void doStop() {
         this.active = false;
-        stopListener();
+        if (enabled()) {
+            stopListener();
+        }
     }
 
     // package private for testing
     synchronized void stopListener() {
+        assert enabled();
         try {
             if (this.serverChannel != null) {
                 this.serverChannel.close();
@@ -177,6 +164,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (enabled() == false) {
+            return;
+        }
+
         ClusterState clusterState = event.state();
 
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);

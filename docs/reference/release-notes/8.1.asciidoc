@@ -9,13 +9,12 @@ Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
 [float]
 === Known issues
 
-* If audit logging is configured to `emit_request_body`, it can prevent some APIs from working.
+* In 8.1.0, a bug ({es-issue}84784[#84784]) can cause APIs that use filtered fields
+to return a `null_pointer_exception` error with a `401` HTTP status code when
+the `xpack.security.audit.logfile.events.emit_request_body` cluster setting is
+`true`.
 +
 --
-In 8.1.0, a bug {es-issue}84784[#84784] prevents APIs using requests with filtered fields from working
-when request body auditing is enabled. Using these APIs can result into a `401` HTTP
-error with a `null_pointer_exception` being the underlying cause.
-
 When `xpack.security.audit.logfile.events.emit_request_body` is `true`, audit
 logs include the request body of incoming requests for certain events.
 These requests can contain sensitive information, such as passwords, that must not
@@ -45,6 +44,17 @@ following events (not all of these events are enabled by default):
 * `tampered_request`
 * `run_as_denied`
 * `anonymous_access_denied`
+
+To work around this issue, you can disable the request body auditing using the cluster settings API:
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "transient": {
+    "xpack.security.audit.logfile.events.emit_request_body": false
+  }
+}
+----
 --
 
 [[breaking-8.1.0]]

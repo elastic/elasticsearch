@@ -958,7 +958,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
-                return new Engine.IndexResult(update);
+                return new Engine.IndexResult(update, operation.parsedDoc().id());
             }
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure
@@ -966,7 +966,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // can not raise an exception that may block any replication of previous operations to the
             // replicas
             verifyNotClosed(e);
-            return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
+            return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
 
         return index(engine, operation);
@@ -1096,12 +1096,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.noOp(noOp);
     }
 
-    public Engine.IndexResult getFailedIndexResult(Exception e, long version) {
-        return new Engine.IndexResult(e, version);
+    public Engine.IndexResult getFailedIndexResult(Exception e, long version, String id) {
+        return new Engine.IndexResult(e, version, id);
     }
 
-    public Engine.DeleteResult getFailedDeleteResult(Exception e, long version) {
-        return new Engine.DeleteResult(e, version, getOperationPrimaryTerm());
+    public Engine.DeleteResult getFailedDeleteResult(Exception e, long version, String id) {
+        return new Engine.DeleteResult(e, version, getOperationPrimaryTerm(), id);
     }
 
     public Engine.DeleteResult applyDeleteOperationOnPrimary(

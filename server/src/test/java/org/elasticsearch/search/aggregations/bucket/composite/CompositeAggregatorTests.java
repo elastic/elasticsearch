@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -660,13 +661,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             Document root;
             root = new Document();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
             root.add(sequenceIDFields.primaryTerm);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new Document();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             root.add(sequenceIDFields.primaryTerm);
             documents.add(root);
@@ -714,13 +715,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             Document root;
             root = new Document();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
             root.add(sequenceIDFields.primaryTerm);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new Document();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             root.add(sequenceIDFields.primaryTerm);
             documents.add(root);
@@ -3066,7 +3067,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
         assert rawFields.length % 2 == 0;
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
         Object[] fields = new Object[rawFields.length];
         for (int i = 0; i < fields.length; i += 2) {

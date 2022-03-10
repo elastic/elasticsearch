@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +50,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "No corrupted repositories.",
-                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size()))
+                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    HealthIndicatorImpact.EMPTY
                 )
             )
         );
@@ -73,7 +75,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     "Detected [1] corrupted repositories: [corrupted-repo].",
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
-                    )
+                    ),
+                    HealthIndicatorImpact.EMPTY
                 )
             )
         );
@@ -85,7 +88,16 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(
             service.calculate(),
-            equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY))
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "No repositories configured.",
+                    HealthIndicatorDetails.EMPTY,
+                    HealthIndicatorImpact.EMPTY
+                )
+            )
         );
     }
 

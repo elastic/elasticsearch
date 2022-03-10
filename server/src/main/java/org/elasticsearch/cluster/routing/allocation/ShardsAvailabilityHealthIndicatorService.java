@@ -16,11 +16,15 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -78,7 +82,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails());
+        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(), status.getImpact());
     }
 
     private static class ShardAllocationCounts {
@@ -89,11 +93,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int initializing = 0;
         private int started = 0;
         private int relocating = 0;
+        private LinkedHashSet<String> indicesWithUnavailableShards = new LinkedHashSet<>();
 
         public void increment(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
+            if (available == false) {
+                indicesWithUnavailableShards.add(routing.getIndexName());
+            }
 
             switch (routing.state()) {
                 case UNASSIGNED -> {
@@ -205,6 +213,39 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     replicas.started + replicas.relocating
                 )
             );
+        }
+
+        public HealthIndicatorImpact getImpact() {
+            final HealthIndicatorImpact impact;
+            if (primaries.available == false && replicas.available == false) {
+                String impactDescription = String.format(
+                    Locale.ROOT,
+                    "Indices [%s] are unavailable. You are at risk of losing the data in these indices.",
+                    primaries.indicesWithUnavailableShards.stream().limit(10).collect(joining(", "))
+                );
+                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+            } else if (primaries.available == false) {
+                String impactDescription = String.format(
+                    Locale.ROOT,
+                    "Cannot add data to %d %s [%s] currently. Search results might return incomplete results.",
+                    primaries.indicesWithUnavailableShards.size(),
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
+                    primaries.indicesWithUnavailableShards.stream().limit(10).collect(joining(", "))
+                );
+                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+            } else if (replicas.available == false) {
+                String impactDescription = String.format(
+                    Locale.ROOT,
+                    "Redundancy for %d %s [%s] is currently disrupted. Fault tolerance and search scalability is reduced.",
+                    replicas.indicesWithUnavailableShards.size(),
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
+                    replicas.indicesWithUnavailableShards.stream().limit(10).collect(joining(", "))
+                );
+                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+            } else {
+                impact = HealthIndicatorImpact.EMPTY;
+            }
+            return impact;
         }
     }
 }

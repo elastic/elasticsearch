@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
@@ -68,6 +69,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        });
+        }, HealthIndicatorImpact.EMPTY);
     }
 }

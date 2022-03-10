@@ -19,7 +19,12 @@ public interface HealthIndicatorService {
 
     HealthIndicatorResult calculate();
 
-    default HealthIndicatorResult createIndicator(HealthStatus status, String summary, HealthIndicatorDetails details) {
-        return new HealthIndicatorResult(name(), component(), status, summary, details);
+    default HealthIndicatorResult createIndicator(
+        HealthStatus status,
+        String summary,
+        HealthIndicatorDetails details,
+        HealthIndicatorImpact impact
+    ) {
+        return new HealthIndicatorResult(name(), component(), status, summary, details, impact);
     }
 }

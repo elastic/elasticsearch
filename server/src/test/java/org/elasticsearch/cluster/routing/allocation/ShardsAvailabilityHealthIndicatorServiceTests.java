@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -211,7 +212,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private HealthIndicatorResult createExpectedResult(HealthStatus status, String summary, Map<String, Object> details) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)));
+        return new HealthIndicatorResult(
+            NAME,
+            DATA,
+            status,
+            summary,
+            new SimpleHealthIndicatorDetails(addDefaults(details)),
+            HealthIndicatorImpact.EMPTY
+        );
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {

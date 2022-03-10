@@ -178,12 +178,14 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertThat(migratingFeatures, hasItem(FEATURE_NAME));
 
         GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+        // The feature upgrade may take longer than ten seconds when tests are running
+        // in parallel, so we give assertBusy a sixty-second timeout.
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
                 .get();
             logger.info(Strings.toString(statusResponse));
             assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Waiting for shards to stabilize if indices were moved around
         ensureGreen();

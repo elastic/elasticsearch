@@ -255,13 +255,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            List<Releasable> toRelease = new ArrayList<>(buffer.stream().<Releasable>map(b -> b::releaseAggs).toList());
-            toRelease.add(() -> {
+            Releasables.close(() -> Releasables.close(buffer.stream().<Releasable>map(b -> b::releaseAggs)::iterator), () -> {
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;
             });
-
-            Releasables.close(toRelease);
 
             if (hasPendingMerges()) {
                 // This is a theoretically unreachable exception.

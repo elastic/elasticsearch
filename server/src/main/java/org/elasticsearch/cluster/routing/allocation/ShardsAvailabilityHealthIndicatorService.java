@@ -23,6 +23,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -221,25 +222,25 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Indices [%s] are unavailable. You are at risk of losing the data in these indices.",
-                    primaries.indicesWithUnavailableShards.stream().limit(10).collect(joining(", "))
+                    getTruncatedIndicesString(primaries)
                 );
                 impact = new SimpleHealthIndicatorImpact(2, impactDescription);
             } else if (primaries.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "Cannot add data to %d %s [%s] currently. Search results might return incomplete results.",
+                    "Cannot add data to %d %s [%s] currently. Searches might return incomplete results.",
                     primaries.indicesWithUnavailableShards.size(),
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    primaries.indicesWithUnavailableShards.stream().limit(10).collect(joining(", "))
+                    getTruncatedIndicesString(primaries)
                 );
                 impact = new SimpleHealthIndicatorImpact(2, impactDescription);
             } else if (replicas.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "Redundancy for %d %s [%s] is currently disrupted. Fault tolerance and search scalability is reduced.",
+                    "Redundancy for %d %s [%s] is currently disrupted. Fault tolerance and search scalability are reduced.",
                     replicas.indicesWithUnavailableShards.size(),
-                    primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    replicas.indicesWithUnavailableShards.stream().limit(10).collect(joining(", "))
+                    replicas.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(replicas)
                 );
                 impact = new SimpleHealthIndicatorImpact(2, impactDescription);
             } else {
@@ -247,5 +248,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             return impact;
         }
+    }
+
+    private static String getTruncatedIndicesString(ShardAllocationCounts shardAllocationCounts) {
+        final int maxIndices = 2;
+        String truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards.stream().limit(maxIndices).collect(joining(", "));
+        if (maxIndices < shardAllocationCounts.indicesWithUnavailableShards.size()) {
+            truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards + ", ...";
+        }
+        return truncatedIndicesString;
     }
 }

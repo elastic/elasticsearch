@@ -23,9 +23,9 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testShouldReturnGroupedIndicators() {
 
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null);
-        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null);
-        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
 
         var service = new HealthService(
             List.of(

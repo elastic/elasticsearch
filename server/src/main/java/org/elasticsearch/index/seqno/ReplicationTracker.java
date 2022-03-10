@@ -562,10 +562,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Returns a list of peer recovery retention leases installed in this replication group
      */
     public List<RetentionLease> getPeerRecoveryRetentionLeases() {
-        return getRetentionLeases().leases()
-            .stream()
-            .filter(lease -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(lease.source()))
-            .collect(Collectors.toUnmodifiableList());
+        return getRetentionLeases().leases().stream().filter(lease -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(lease.source())).toList();
     }
 
     /**

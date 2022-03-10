@@ -118,7 +118,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
      * Sorts a list of node level decisions by the decision type, then by weight ranking, and finally by node id.
      */
     public List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
-        return Collections.unmodifiableList(nodeDecisions.stream().sorted().toList());
+        return nodeDecisions.stream().sorted().toList();
     }
 
     /**

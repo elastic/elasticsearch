@@ -93,7 +93,7 @@ public class StatsRequestLimiter {
     }
 
     public StatsRequestStats stats() {
-        return new StatsRequestStats(stats.values().stream().sorted().map(StatsHolder::stats).toList());
+        return new StatsRequestStats(stats.values().stream().map(StatsHolder::stats).sorted().toList());
     }
 
     // visible for testing

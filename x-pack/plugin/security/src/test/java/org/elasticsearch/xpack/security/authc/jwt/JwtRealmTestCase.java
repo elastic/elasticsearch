@@ -149,8 +149,11 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
-                final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder
-                    = this.createJwtRealmSettings(jwtIssuer, authzCount, jwtCacheSize);
+                final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(
+                    jwtIssuer,
+                    authzCount,
+                    jwtCacheSize
+                );
                 final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, realmNameAndSettingsBuilder);
 
                 // verify exception before initialize()
@@ -210,9 +213,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users, createHttpsServer);
     }
 
-    protected JwtRealmNameAndSettingsBuilder createJwtRealmSettings(
-        final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize
-    ) throws Exception {
+    protected JwtRealmNameAndSettingsBuilder createJwtRealmSettings(final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize)
+        throws Exception {
         final String authcRealmName = "realm_" + jwtIssuer.issuer;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 

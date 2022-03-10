@@ -46,7 +46,6 @@ plugins {
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  id 'elasticsearch.verify-publications'
 }
 
 /**

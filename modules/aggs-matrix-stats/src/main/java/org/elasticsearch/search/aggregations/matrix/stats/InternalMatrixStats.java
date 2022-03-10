@@ -249,7 +249,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalMatrixStats(
             name,
-            samplingContext.inverseScale(getDocCount()),
+            samplingContext.scaleUp(getDocCount()),
             stats,
             new MatrixStatsResults(stats, samplingContext),
             getMetadata()

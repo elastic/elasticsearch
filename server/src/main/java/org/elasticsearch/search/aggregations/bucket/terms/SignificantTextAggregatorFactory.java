@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
 import org.elasticsearch.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -40,6 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregat
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.Timer;
 
@@ -138,13 +141,32 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
+        SamplingContext samplingContext = getSamplingContext().orElse(SamplingContext.NONE);
+        // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (samplingContext.isSampled()) {
+            if ((bucketCountThresholds.getMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
+                .getMinDocCount() && bucketCountThresholds.getMinDocCount() > 1)
+                || (bucketCountThresholds.getShardMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
+                    .getMinDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; "
+                        + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    bucketCountThresholds.getMinDocCount(),
+                    bucketCountThresholds.getShardMinDocCount()
+                );
+            }
+        }
+
         // TODO - need to check with mapping that this is indeed a text field....
 
         final IncludeExclude.StringFilter incExcFilter = includeExclude == null
             ? null
             : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        final SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
+        final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, fieldType, DocValueFormat.RAW, backgroundFilter);
         final CollectorSource collectorSource = createCollectorSource();
         boolean success = false;
         try {

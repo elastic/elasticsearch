@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -401,6 +400,24 @@ public class IndexRequestTests extends ESTestCase {
                         .replace("$end1", formatInstant(end1))
                         .replace("$start2", formatInstant(start2))
                         .replace("$end2", formatInstant(end2))
+                )
+            );
+        }
+
+        {
+            // no @timestamp field
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Error extracting data stream timestamp field: "
+                        + "Failed to parse object: expecting token of type [START_OBJECT] but found [null]"
                 )
             );
         }

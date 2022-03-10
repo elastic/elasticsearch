@@ -12,13 +12,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -101,12 +100,7 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
 
     public void validate(ScriptService scriptService) {
         try {
-            final XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                template,
-                XContentType.JSON
-            );
+            final XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, template, XContentType.JSON);
             final Script script = MustacheTemplateEvaluator.parseForScript(parser, Collections.emptyMap());
             final TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
             if ("mustache".equals(script.getLang())) {
@@ -123,7 +117,7 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
 
     private List<String> convertJsonToList(String evaluation) throws IOException {
         final XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, evaluation);
+            .createParser(XContentParserConfiguration.EMPTY, evaluation);
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -146,12 +140,7 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
     }
 
     private String parseTemplate(ScriptService scriptService, Map<String, Object> parameters) throws IOException {
-        final XContentParser parser = XContentHelper.createParser(
-            NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE,
-            template,
-            XContentType.JSON
-        );
+        final XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, template, XContentType.JSON);
         return MustacheTemplateEvaluator.evaluate(scriptService, parser, parameters);
     }
 

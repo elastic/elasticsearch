@@ -13,31 +13,28 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.PutPrivilegesRequest;
-import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
-import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
-import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
-import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -106,33 +103,49 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected void createRole(
         String name,
         Collection<String> clusterPrivileges,
-        Collection<IndicesPrivileges> indicesPrivileges,
-        Collection<ApplicationResourcePrivileges> applicationPrivileges
+        Collection<RoleDescriptor.IndicesPrivileges> indicesPrivileges,
+        Collection<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges
     ) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final Role role = Role.builder()
-            .name(name)
-            .clusterPrivileges(clusterPrivileges)
-            .indicesPrivileges(indicesPrivileges)
-            .applicationResourcePrivileges(applicationPrivileges)
-            .build();
-        client.security().putRole(new PutRoleRequest(role, null), RequestOptions.DEFAULT);
+        final RoleDescriptor descriptor = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            indicesPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            applicationPrivileges.toArray(RoleDescriptor.ApplicationResourcePrivileges[]::new),
+            null,
+            null,
+            Map.of(),
+            Map.of()
+        );
+        final String body = Strings.toString(descriptor);
+
+        final Request request = new Request(HttpPut.METHOD_NAME, "/_security/role/" + name);
+        request.setJsonEntity(body);
+        adminClient().performRequest(request);
     }
 
     protected void deleteRole(String name) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final DeleteRoleRequest request = new DeleteRoleRequest(name, RefreshPolicy.WAIT_UNTIL);
-        client.security().deleteRole(request, RequestOptions.DEFAULT);
+        final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/role/" + name);
+        adminClient().performRequest(request);
     }
 
     protected void createApplicationPrivileges(String applicationName, Map<String, Collection<String>> privileges) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final List<ApplicationPrivilege> applicationPrivileges = privileges.entrySet()
-            .stream()
-            .map(e -> new ApplicationPrivilege(applicationName, e.getKey(), List.copyOf(e.getValue()), null))
-            .collect(Collectors.toUnmodifiableList());
-        final PutPrivilegesRequest request = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
-        client.security().putPrivileges(request, RequestOptions.DEFAULT);
+        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), bos);
+
+        builder.startObject();
+        builder.startObject(applicationName);
+        for (var entry : privileges.entrySet()) {
+            builder.startObject(entry.getKey());
+            builder.stringListField(ApplicationPrivilegeDescriptor.Fields.ACTIONS.getPreferredName(), entry.getValue());
+            builder.endObject();
+        }
+        builder.endObject();
+        builder.endObject();
+        builder.flush();
+
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/privilege/");
+        request.setJsonEntity(bos.toString(StandardCharsets.UTF_8));
+        adminClient().performRequest(request);
     }
 
     protected void setUserPassword(String username, SecureString password) throws IOException {

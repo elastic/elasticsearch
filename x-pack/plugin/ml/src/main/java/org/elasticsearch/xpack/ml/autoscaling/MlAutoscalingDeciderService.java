@@ -740,14 +740,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // If we still have calculated zero, this means the ml memory tracker does not have the required info.
         // So, request a scale for the default. This is only for the 0 -> N scaling case.
         if (updatedCapacity.getNodeMlNativeMemoryRequirement() == 0L) {
-            updatedCapacity.merge(
+            updatedCapacity = updatedCapacity.merge(
                 new NativeMemoryCapacity(
                     ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB).getBytes(),
                     ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB).getBytes()
                 )
             );
         }
-        updatedCapacity.merge(
+        updatedCapacity = updatedCapacity.merge(
             new NativeMemoryCapacity(
                 MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
                 MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()

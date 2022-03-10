@@ -81,9 +81,10 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
-            .putAll(
+            .putAllFromMap(
                 state.metadata()
                     .findDataStreams(concreteIndices)
+                    .entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
             )

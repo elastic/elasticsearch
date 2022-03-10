@@ -87,7 +87,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     @Override
     public Iterator<IndexRoutingTable> iterator() {
-        return indicesRouting.valuesIt();
+        return indicesRouting.values().iterator();
     }
 
     public boolean hasIndex(String index) {
@@ -174,8 +174,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      */
     public List<ShardRouting> allShards() {
         List<ShardRouting> shards = new ArrayList<>();
-        String[] indices = indicesRouting.keys().toArray(String.class);
-        for (String index : indices) {
+        for (String index : indicesRouting.keySet()) {
             List<ShardRouting> allShardsIndex = allShards(index);
             shards.addAll(allShardsIndex);
         }

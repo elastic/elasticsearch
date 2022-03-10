@@ -221,13 +221,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode oldNode = createNode(
+            DiscoveryNode localNode = createNode(
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
                 DiscoveryNodeRole.MASTER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
             ); // local node is the master
+            DiscoveryNode oldNode = createNode(
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
+                DiscoveryNodeRole.DATA_ROLE
+            ); // local node is the master
+            allNodes.add(localNode);
             allNodes.add(oldNode);
-            ClusterState state = ClusterStateCreationUtils.state(oldNode, oldNode, allNodes.toArray(new DiscoveryNode[0]));
+            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
 
             CreateIndexRequest request = new CreateIndexRequest(
                 "index",
@@ -268,11 +273,11 @@ public class AutoExpandReplicasTests extends ESTestCase {
             }
 
             // check that presence of old node means that auto-expansion does not take allocation filtering into account
-            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(2));
+            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(3));
 
             // remove old node and check that auto-expansion takes allocation filtering into account
             state = cluster.removeNodes(state, Collections.singletonList(oldNode));
-            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(1));
+            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(2));
         } finally {
             terminate(threadPool);
         }

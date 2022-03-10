@@ -2697,7 +2697,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // the global checkpoint.
             final boolean syncNeeded = (asyncDurability
                 && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
-                // check if the persisted global checkpoint
                 || trackedGlobalCheckpointsNeedSync;
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {

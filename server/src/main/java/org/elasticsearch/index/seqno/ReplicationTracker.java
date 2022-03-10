@@ -742,6 +742,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * @return true iff any tracked global checkpoint for an in-sync copy lags behind our global checkpoint
+     */
+    public synchronized boolean trackedGlobalCheckpointsNeedSync() {
+        for (final var checkpointState : checkpoints.values()) {
+            if (checkpointState.inSync && checkpointState.globalCheckpoint < globalCheckpoint) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns whether the replication tracker is in primary mode, i.e., whether the current shard is acting as primary from the point of
      * view of replication.
      */

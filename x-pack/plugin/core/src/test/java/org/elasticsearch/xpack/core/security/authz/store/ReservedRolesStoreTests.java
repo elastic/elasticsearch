@@ -935,8 +935,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         Arrays.asList(
-            ".csp-findings-latest",
-            ".csp-findings-score"
+            "cloud_security_posture-findings_latest",
+            "cloud_security_posture-benchmark_scores"
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

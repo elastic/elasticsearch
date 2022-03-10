@@ -784,8 +784,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
-                        ".csp-findings-latest",
-                        ".csp-findings-score"
+                        "cloud_security_posture-findings_latest",
+                        "cloud_security_posture-benchmark_scores"
                     )
                     .privileges("create_index", "delete_index", "read", "index", "delete" ,"write" ,"all")
                     .build()

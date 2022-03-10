@@ -404,7 +404,7 @@ public class TaskManager implements ClusterStateApplier {
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }
-        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).collect(Collectors.toUnmodifiableList());
+        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).toList();
     }
 
     /**

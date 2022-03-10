@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -1425,7 +1424,7 @@ public final class InternalTestCluster extends TestCluster {
                         continue; // just ignore - shard movement
                     }
                     final SeqNoStats primarySeqNoStats;
-                    final ObjectLongMap<String> syncGlobalCheckpoints;
+                    final Map<String, Long> syncGlobalCheckpoints;
                     try {
                         primarySeqNoStats = primaryShard.seqNoStats();
                         syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();
@@ -2314,7 +2313,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard(null, routing, null, null)) {
+                    if (shard == indexRouting.indexShard("id", routing, null, null)) {
                         return routing;
                     }
                 }

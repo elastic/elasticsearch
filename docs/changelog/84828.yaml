@@ -1,6 +1,0 @@
-pr: 84828
-summary: Bump timeout for feature migration in system index migration test
-area: Infra/Core
-type: bug
-issues:
- - 79620

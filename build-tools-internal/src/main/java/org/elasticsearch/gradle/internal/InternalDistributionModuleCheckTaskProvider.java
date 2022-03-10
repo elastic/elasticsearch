@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import com.google.common.collect.Streams;
-
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -77,7 +75,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** Checks that all expected ES jar files are modular, i.e. contain a module-info.class in their root. */
     private static void assertAllESJarsAreModular(Path libPath) {
-        try (var s =Files.walk(libPath, 1)) {
+        try (var s = Files.walk(libPath, 1)) {
             s.filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
                 try (JarFile jf = new JarFile(path.toFile())) {
                     JarEntry entry = jf.getJarEntry(MODULE_INFO);

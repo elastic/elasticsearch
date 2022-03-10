@@ -147,12 +147,7 @@ public class Loggers {
         }
     }
 
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender appender) {}
-
-
-
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender  appender) {
-    }
+    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender  appender) { }
 
     public static void addAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {}
 

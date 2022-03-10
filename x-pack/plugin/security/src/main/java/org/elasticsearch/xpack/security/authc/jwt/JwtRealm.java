@@ -47,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +57,8 @@ import java.util.Map;
  */
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
+
+    record ExpiringUser(User user, Date exp) {}
 
     record JwksAlgs(List<JWK> jwks, List<String> algs) {
         boolean isEmpty() {
@@ -81,9 +84,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final ClaimParser claimParserGroups;
     final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
+    final Cache<BytesKey, ExpiringUser> jwtCache;
+    final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-    final Cache<BytesKey, User> jwtCache;
-    final CacheIteratorHelper<BytesKey, User> jwtCacheHelper;
 
     public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
         throws SettingsException {
@@ -100,7 +103,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
         this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
         this.jwtCache = this.buildJwtCache();
-        this.jwtCacheHelper = new CacheIteratorHelper(this.jwtCache);
+        this.jwtCacheHelper = new CacheIteratorHelper<>(this.jwtCache);
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
@@ -148,11 +151,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
     }
 
-    private Cache<BytesKey, User> buildJwtCache() {
+    private Cache<BytesKey, ExpiringUser> buildJwtCache() {
         final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
         final int jwtCacheSize = super.config.getSetting(JwtRealmSettings.JWT_CACHE_SIZE);
         if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheSize > 0)) {
-            return CacheBuilder.<BytesKey, User>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
+            return CacheBuilder.<BytesKey, ExpiringUser>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
         }
         return null;
     }
@@ -297,7 +300,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void expire(final String username) {
         this.ensureInitialized();
-        this.jwtCacheHelper.removeValuesIf(value -> value.principal().equals(username));
+        LOGGER.trace("Expiring JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
+        this.jwtCacheHelper.removeValuesIf(expiringUser -> expiringUser.user.principal().equals(username));
     }
 
     @Override
@@ -357,17 +361,52 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final SecureString serializedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
             final BytesKey jwtCacheKey = (this.jwtCache == null) ? null : computeBytesKey(serializedJwt);
             if (jwtCacheKey != null) {
-                final User user = this.jwtCache.get(jwtCacheKey);
-                if (user == null) {
+                final ExpiringUser expiringUser = this.jwtCache.get(jwtCacheKey);
+                if (expiringUser == null) {
                     LOGGER.trace("Realm [" + super.name() + "] JWT cache miss token=[" + tokenPrincipal + "] key=[" + jwtCacheKey + "].");
                 } else {
-                    LOGGER.trace("Realm [" + super.name() + "] JWT cache hit token=[" + tokenPrincipal + "] key=[" + jwtCacheKey + "].");
-                    if (this.delegatedAuthorizationSupport.hasDelegation()) {
-                        this.delegatedAuthorizationSupport.resolve(user.principal(), listener);
-                    } else {
-                        listener.onResponse(AuthenticationResult.success(user));
+                    final User user = expiringUser.user;
+                    final Date exp = expiringUser.exp; // claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis()
+                    final String principal = user.principal();
+                    final Date now = new Date();
+                    if (now.getTime() < exp.getTime()) {
+                        LOGGER.trace(
+                            "Realm ["
+                                + super.name()
+                                + "] JWT cache hit token=["
+                                + tokenPrincipal
+                                + "] key=["
+                                + jwtCacheKey
+                                + "] principal=["
+                                + principal
+                                + "] exp=["
+                                + exp
+                                + "] now=["
+                                + now
+                                + "]."
+                        );
+                        if (this.delegatedAuthorizationSupport.hasDelegation()) {
+                            this.delegatedAuthorizationSupport.resolve(principal, listener);
+                        } else {
+                            listener.onResponse(AuthenticationResult.success(user));
+                        }
+                        return;
                     }
-                    return;
+                    LOGGER.trace(
+                        "Realm ["
+                            + super.name()
+                            + "] JWT cache exp token=["
+                            + tokenPrincipal
+                            + "] key=["
+                            + jwtCacheKey
+                            + "] principal=["
+                            + principal
+                            + "] exp=["
+                            + exp
+                            + "] now=["
+                            + now
+                            + "]."
+                    );
                 }
             }
 
@@ -434,7 +473,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     LOGGER.debug("Realm [" + super.name() + "] roles [" + rolesString + "] for principal=[" + principal + "].");
                     if (this.jwtCache != null) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
-                            this.jwtCache.put(jwtCacheKey, result.getValue());
+                            final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
+                            this.jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
                         }
                     }
                 }

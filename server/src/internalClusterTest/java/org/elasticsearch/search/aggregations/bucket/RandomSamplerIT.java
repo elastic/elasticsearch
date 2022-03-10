@@ -153,7 +153,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         Histogram histogram = trueValueResponse.getAggregations().get("histo");
         for (Histogram.Bucket bucket : histogram.getBuckets()) {
             long numDocs = bucket.getDocCount();
-            double errorRate = Math.pow(1.0/(0.5*numDocs), 0.35);
+            double errorRate = Math.pow(1.0 / (0.5 * numDocs), 0.35);
             double countError = errorRate * numDocs;
             assertThat(Math.abs(sampledDocCount.get(bucket.getKeyAsString()) - numDocs), lessThan(countError));
             double trueMonotonic = ((Avg) bucket.getAggregations().get("mean_monotonic")).getValue();

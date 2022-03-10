@@ -48,10 +48,10 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    public DocValuesScriptFieldFactory getScriptFieldSource(String fieldName) {
-        DocValuesScriptFieldFactory source = localCacheScriptFieldData.get(fieldName);
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName) {
+        DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
 
-        if (source == null) {
+        if (factory == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
             if (fieldType == null) {
@@ -60,40 +60,40 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
             // Load the field data on behalf of the script. Otherwise, it would require
             // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            source = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
+            factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
                 @Override
                 public DocValuesScriptFieldFactory run() {
                     return fieldDataLookup.apply(fieldType).load(reader).getScriptFieldFactory(fieldName);
                 }
             });
 
-            localCacheScriptFieldData.put(fieldName, source);
+            localCacheScriptFieldData.put(fieldName, factory);
         }
 
         try {
-            source.setNextDocId(docId);
+            factory.setNextDocId(docId);
         } catch (IOException ioe) {
             throw ExceptionsHelper.convertToElastic(ioe);
         }
 
-        return source;
+        return factory;
     }
 
     public Field<?> getScriptField(String fieldName) {
-        return getScriptFieldSource(fieldName).toScriptField();
+        return getScriptFieldFactory(fieldName).toScriptField();
     }
 
     @Override
     public ScriptDocValues<?> get(Object key) {
         String fieldName = key.toString();
-        return getScriptFieldSource(fieldName).toScriptDocValues();
+        return getScriptFieldFactory(fieldName).toScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
         String fieldName = key.toString();
-        DocValuesScriptFieldFactory docValuesField = localCacheScriptFieldData.get(fieldName);
-        return docValuesField != null || fieldTypeLookup.apply(fieldName) != null;
+        DocValuesScriptFieldFactory docValuesFieldFactory = localCacheScriptFieldData.get(fieldName);
+        return docValuesFieldFactory != null || fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

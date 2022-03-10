@@ -168,7 +168,7 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        ToScriptFieldFactory<SortedNumericDocValues> getDefaultToScriptField() {
+        ToScriptFieldFactory<SortedNumericDocValues> getDefaultToScriptFieldFactory() {
             return toScriptFieldFactory;
         }
 
@@ -707,7 +707,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptField());
+            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptFieldFactory());
         }
 
         @Override

@@ -143,6 +143,7 @@ Use the following APIs to retrieve and manage user profiles.
 * <<security-api-update-user-profile-data, Update user profile data>>
 * <<security-api-enable-user-profile, Enable user profile>>
 * <<security-api-disable-user-profile, Disable user profile>>
+* <<security-api-search-user-profile, Search user profile>>
 
 
 include::security/activate-user-profile.asciidoc[]

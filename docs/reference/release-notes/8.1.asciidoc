@@ -3,6 +3,58 @@
 
 Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
 
+[[known-issues-8.1.0]]
+[float]
+=== Known issues
+
+* In 8.1.0, a bug ({es-issue}84784[#84784]) can cause APIs that use filtered fields
+to return a `null_pointer_exception` error with a `401` HTTP status code when
+the `xpack.security.audit.logfile.events.emit_request_body` cluster setting is
+`true`.
++
+--
+When `xpack.security.audit.logfile.events.emit_request_body` is `true`, audit
+logs include the request body of incoming requests for certain events.
+These requests can contain sensitive information, such as passwords, that must not
+be logged. Fields containing such information are filtered out before logging.
+The REST APIs that use requests with filtered fields are:
+
+* <<security-api-change-password,Change passwords API>>
+* <<cluster-nodes-reload-secure-settings,Node reload settings API>>
+* <<security-api-put-user,Create or updates users API>>
+* <<security-api-get-token,Get token API>>
+* <<security-api-invalidate-token,Invalidate token API>>
+* <<security-api-grant-api-key,Grant API key API>>
+* <<watcher-api-put-watch,Create or update watch API>>
+* <<watcher-api-execute-watch,Execute watch API>>
+* <<security-api-saml-authenticate,SAML authenticate API>>
+* <<security-api-oidc-authenticate,OpenID Connect authenticate API>>
+* <<docs-reindex,Reindex API>>
+
+Please note the `xpack.security.audit.logfile.events.emit_request_body` cluster
+setting defaults to `false`. If the setting is `true`, audit logs only include
+the request body for the
+following events (not all of these events are enabled by default):
+
+* `authentication_success`
+* `authentication_failed`
+* `realm_authentication_failed`
+* `tampered_request`
+* `run_as_denied`
+* `anonymous_access_denied`
+
+To work around this issue, you can disable the request body auditing using the cluster settings API:
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "transient": {
+    "xpack.security.audit.logfile.events.emit_request_body": false
+  }
+}
+----
+--
+
 [[breaking-8.1.0]]
 [float]
 === Breaking changes

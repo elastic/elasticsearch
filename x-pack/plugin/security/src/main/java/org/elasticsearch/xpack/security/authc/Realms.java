@@ -167,7 +167,7 @@ public class Realms implements Iterable<Realm> {
         }
 
         // Otherwise, we return anything in "all realms" that is not in the allowed realm list
-        return allConfiguredRealms.stream().filter(r -> activeSnapshot.contains(r) == false).collect(Collectors.toUnmodifiableList());
+        return allConfiguredRealms.stream().filter(r -> activeSnapshot.contains(r) == false).toList();
     }
 
     public Stream<Realm> stream() {
@@ -181,7 +181,7 @@ public class Realms implements Iterable<Realm> {
 
     // Protected for testing
     protected List<Realm> calculateLicensedRealms(XPackLicenseState licenseStateSnapshot) {
-        return allConfiguredRealms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).collect(Collectors.toUnmodifiableList());
+        return allConfiguredRealms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).toList();
     }
 
     private static boolean checkLicense(Realm realm, XPackLicenseState licenseState) {

@@ -27,7 +27,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -121,7 +120,7 @@ public class StoreKeyConfig implements SslKeyConfig {
                 return null;
             })
             .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     @Override
@@ -136,7 +135,7 @@ public class StoreKeyConfig implements SslKeyConfig {
                 firstElement = false;
             }
             return certificates.stream();
-        }).collect(Collectors.toUnmodifiableList());
+        }).toList();
     }
 
     @Override

@@ -943,10 +943,6 @@ public class TranslogTests extends ESTestCase {
         return new Term("_id", Uid.encodeId(doc.id()));
     }
 
-    private Term newUid(String id) {
-        return new Term("_id", Uid.encodeId(id));
-    }
-
     public void testVerifyTranslogIsNotDeleted() throws IOException {
         assertFileIsPresent(translog, 1);
         translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
@@ -3340,7 +3336,7 @@ public class TranslogTests extends ESTestCase {
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
-        Field idField = new Field("_id", Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = IdFieldMapper.standardIdField("1");
         Field versionField = new NumericDocValuesField("_version", 1);
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
@@ -3365,7 +3361,7 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0
         );
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         Version wireVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
@@ -3389,7 +3385,7 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0
         );
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true, doc.id());
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();

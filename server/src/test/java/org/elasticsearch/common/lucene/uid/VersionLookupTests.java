@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +44,7 @@ public class VersionLookupTests extends ESTestCase {
                 .setMergePolicy(NoMergePolicy.INSTANCE)
         );
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -78,7 +79,7 @@ public class VersionLookupTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));

@@ -226,7 +226,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("time series index sort by _tsid introduced in 8.1.0", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -268,7 +268,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("time series index sort by _tsid introduced in 8.1.0", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {

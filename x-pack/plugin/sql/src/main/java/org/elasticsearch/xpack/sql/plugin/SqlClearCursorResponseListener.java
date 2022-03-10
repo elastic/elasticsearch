@@ -28,10 +28,9 @@ public class SqlClearCursorResponseListener extends RestResponseListener<SqlClea
     protected SqlClearCursorResponseListener(RestChannel channel, RestRequest request, SqlClearCursorRequest sqlRequest) {
         super(channel);
         this.request = request;
-        if (sqlRequest.binaryCommunication() == false) {
+        if (Boolean.FALSE.equals(sqlRequest.binaryCommunication())) {
             throw new SqlIllegalArgumentException("Only binary communication supported for cursor clear");
         }
-
     }
 
     @Override

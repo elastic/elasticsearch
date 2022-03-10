@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -41,7 +39,9 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -646,7 +646,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             case TEXT_ALIAS_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
-                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    JsonStringEncoder encoder = XContentProvider.provider().getJsonStringEncoder();
                     value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 } else {
                     value = randomAlphaOfLengthBetween(1, 10);

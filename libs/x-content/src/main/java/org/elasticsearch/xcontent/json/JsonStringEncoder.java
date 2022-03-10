@@ -15,6 +15,8 @@ import org.elasticsearch.xcontent.spi.XContentProvider;
  */
 public abstract class JsonStringEncoder {
 
+    protected JsonStringEncoder() {}
+
     private static final JsonStringEncoder INSTANCE = XContentProvider.provider().getJsonStringEncoder();
 
     /**

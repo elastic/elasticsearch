@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.BytesKey;
@@ -46,11 +47,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
@@ -70,18 +68,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
-    // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
-    // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
-    // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values of
-    // the cache the write lock must obtained to prevent any modifications
-    private final ReleasableLock readLock;
-    private final ReleasableLock writeLock;
-    {
-        final ReadWriteLock iterationLock = new ReentrantReadWriteLock();
-        this.readLock = new ReleasableLock(iterationLock.readLock());
-        this.writeLock = new ReleasableLock(iterationLock.writeLock());
-    }
-
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
@@ -97,6 +83,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final SecureString clientAuthenticationSharedSecret;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
     final Cache<BytesKey, User> jwtCache;
+    final CacheIteratorHelper<BytesKey, User> jwtCacheHelper;
 
     public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
         throws SettingsException {
@@ -113,6 +100,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
         this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
         this.jwtCache = this.buildJwtCache();
+        this.jwtCacheHelper = new CacheIteratorHelper(this.jwtCache);
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
@@ -309,15 +297,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void expire(final String username) {
         this.ensureInitialized();
-        try (ReleasableLock ignored = this.writeLock.acquire()) {
-            Iterator<User> userIterator = this.jwtCache.values().iterator();
-            while (userIterator.hasNext()) {
-                if (userIterator.next().principal().equals(username)) {
-                    userIterator.remove();
-                    // do not break since there is no guarantee username is unique in this realm
-                }
-            }
-        }
+        this.jwtCacheHelper.removeValuesIf(value -> value.principal().equals(username));
     }
 
     @Override
@@ -325,7 +305,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.ensureInitialized();
         if (this.jwtCache != null) {
             LOGGER.trace("Invalidating JWT cache for realm [" + super.name() + "]");
-            try (ReleasableLock ignored = this.readLock.acquire()) {
+            try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                 this.jwtCache.invalidateAll();
             }
         }
@@ -453,7 +433,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     final String rolesString = Arrays.toString(user.roles());
                     LOGGER.debug("Realm [" + super.name() + "] roles [" + rolesString + "] for principal=[" + principal + "].");
                     if (this.jwtCache != null) {
-                        try (ReleasableLock ignored = this.readLock.acquire()) {
+                        try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                             this.jwtCache.put(jwtCacheKey, result.getValue());
                         }
                     }

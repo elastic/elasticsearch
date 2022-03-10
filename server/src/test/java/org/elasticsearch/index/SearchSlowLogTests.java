@@ -21,7 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.ESLogMessageImpl;
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -227,7 +227,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogHasJsonFields() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
-        ESLogMessageImpl p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
 
         assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
         assertThat(p.get("elasticsearch.slowlog.took"), equalTo("10nanos"));
@@ -248,7 +248,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id"))
         );
 
-        ESLogMessageImpl p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\"]"));
 
         searchContext = createSearchContext(index, "group1", "group2");
@@ -264,7 +264,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
-        ESLogMessageImpl p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.get("elasticsearch.slowlog.source"), not(containsString("\n")));

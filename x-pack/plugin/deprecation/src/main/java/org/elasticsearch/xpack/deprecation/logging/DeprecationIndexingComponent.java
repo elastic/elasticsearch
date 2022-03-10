@@ -29,10 +29,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.Utils;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.Layout;
 import org.elasticsearch.logging.api.core.RateLimitingFilter;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
@@ -136,12 +135,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     protected void doStart() {
         logger.info("deprecation component started");
 //        this.appender.start();
-        Utils.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        AppenderUtils.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
     }
 
     @Override
     protected void doStop() {
-        Utils.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        AppenderUtils.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
         flushEnabled.set(false);
 //        this.appender.stop();
     }

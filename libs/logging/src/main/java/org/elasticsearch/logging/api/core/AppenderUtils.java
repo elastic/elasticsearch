@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging;
+package org.elasticsearch.logging.api.core;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
@@ -23,9 +23,9 @@ import org.elasticsearch.logging.internal.Util;
 
 import java.io.Serializable;
 
-public class Utils {
+public class AppenderUtils {
 
-    private Utils() {
+    private AppenderUtils() {
     }
 
     public static void addAppender(final org.elasticsearch.logging.Logger logger, final org.elasticsearch.logging.api.core.Appender  appender) {

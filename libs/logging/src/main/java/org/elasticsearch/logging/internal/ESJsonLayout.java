@@ -49,7 +49,7 @@ import static org.elasticsearch.logging.internal.Util.isNullOrEmpty;
  * Taken from JsonThrowablePatternConverter</li>
  * </ul>
  * <p>
- * It is possible to add more field by  using {@link ESLogMessageImpl#with} method which allow adding key value pairs
+ * It is possible to add more field by  using {@link ESLogMessage#with} method which allow adding key value pairs
  * or override field with <code>overrideFields</code>
  * <code>appender.logger.layout.overrideFields=message</code>.
  * In the example above the pattern will be <code>... "message":  %OverrideField{message} ...</code>

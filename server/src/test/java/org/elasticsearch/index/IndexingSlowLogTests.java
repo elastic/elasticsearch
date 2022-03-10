@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.ESLogMessageImpl;
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -211,7 +211,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessageImpl p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
 
         assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo/123]"));
         assertThat(p.get("elasticsearch.slowlog.took"), equalTo("10nanos"));
@@ -239,7 +239,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
 
-        ESLogMessageImpl p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.get("routing"), nullValue());
     }
 
@@ -257,7 +257,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessageImpl p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.getFormattedMessage(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing

@@ -38,7 +38,7 @@ import static org.elasticsearch.logging.internal.Util.isNullOrEmpty;
  * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
  */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = org.apache.logging.log4j.core.Filter.ELEMENT_TYPE)
-public class RateLimitingFilter extends AbstractFilter  implements org.elasticsearch.logging.api.core.RateLimitingFilter {
+public class RateLimitingFilter extends AbstractFilter implements org.elasticsearch.logging.api.core.RateLimitingFilter {
     // a flag to disable/enable use of xOpaqueId controlled by changing cluster setting
     private volatile boolean useXOpaqueId = true;
 
@@ -65,12 +65,12 @@ public class RateLimitingFilter extends AbstractFilter  implements org.elasticse
     }
 
     public Result filter(Message message) {
-        // if (message instanceof final ESLogMessage esLogMessage) { //TODO: just avoid for now
-        // final String key = getKey(esLogMessage);
-        // return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
-        // } else {
-        return Result.NEUTRAL;
-        // }
+        if (message instanceof final ESLogMessage esLogMessage) { //TODO: just avoid for now
+            final String key = getKey(esLogMessage);
+            return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
+        } else {
+            return Result.NEUTRAL;
+        }
     }
 
     private String getKey(ESLogMessage esLogMessage) {

@@ -15,7 +15,7 @@ import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.internal.ESLogMessageImpl;
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
@@ -64,7 +64,7 @@ public class DeprecationLoggerTests extends ESTestCase {
                 supplierCalled.set(true);
                 createTempDir(); // trigger file permission, like rolling logs would
                 return null;
-            }).when(mockLogger).log(eq(Level.WARN), any(ESLogMessageImpl.class));
+            }).when(mockLogger).log(eq(Level.WARN), any(ESLogMessage.class));
 
             final LoggerContext context = Mockito.mock(LoggerContext.class);
             when(context.getLogger(anyString())).thenReturn(mockLogger);

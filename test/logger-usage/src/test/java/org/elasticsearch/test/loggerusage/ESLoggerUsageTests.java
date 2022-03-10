@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
-import org.elasticsearch.logging.internal.ESLogMessageImpl;
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
@@ -116,25 +116,25 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkArgumentsProvidedInConstructor() {
-        logger.debug(new ESLogMessageImpl("message {}", "some-arg").field("x-opaque-id", "some-value"));
+        logger.debug(new ESLogMessage("message {}", "some-arg").field("x-opaque-id", "some-value"));
     }
 
     public void checkWithUsage() {
         logger.debug(
-            new ESLogMessageImpl("message {}").argAndField("x-opaque-id", "some-value").field("field", "value").with("field2", "value2")
+            new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").field("field", "value").with("field2", "value2")
         );
     }
 
     public void checkFailArraySizeForSubclasses(Object... arr) {
-        logger.debug(new ESLogMessageImpl("message {}", arr));
+        logger.debug(new ESLogMessage("message {}", arr));
     }
 
     public void checkFailForTooManyArgumentsInConstr() {
-        logger.debug(new ESLogMessageImpl("message {}", "arg1", "arg2"));
+        logger.debug(new ESLogMessage("message {}", "arg1", "arg2"));
     }
 
     public void checkFailForTooManyArgumentsWithChain() {
-        logger.debug(new ESLogMessageImpl("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
+        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
     }
 
     public void checkFailArraySize(String... arr) {

@@ -94,7 +94,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
                     new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
                     DocumentPermissions.allowAll()
                 );
-                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl), name -> false);
             }
         };
 

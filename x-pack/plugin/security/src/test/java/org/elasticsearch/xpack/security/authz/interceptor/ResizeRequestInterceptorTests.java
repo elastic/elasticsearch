@@ -91,7 +91,8 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                     fieldPermissions,
                     (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
                 )
-            )
+            ),
+            name -> false
         );
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
@@ -133,7 +134,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         );
         Role role = Role.builder(Automatons.EMPTY).add(IndexPrivilege.ALL, "target").add(IndexPrivilege.READ, "source").build();
         final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
-        IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
+        IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap(), name -> false);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 

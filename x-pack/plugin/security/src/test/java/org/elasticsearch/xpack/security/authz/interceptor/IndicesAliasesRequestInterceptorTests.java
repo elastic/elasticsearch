@@ -84,7 +84,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     fieldPermissions,
                     (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
                 )
-            )
+            ),
+            name -> false
         );
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
@@ -131,7 +132,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             new RealmRef("look_name", "look_type", "node")
         );
         final String action = IndicesAliasesAction.NAME;
-        IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
+        IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap(), name -> false);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
         IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 

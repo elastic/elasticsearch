@@ -391,11 +391,19 @@ public interface AuthorizationEngine {
             }
         }
 
-        public static String getFailureDescription(Collection<?> deniedIndices) {
+        public static String getFailureDescription(IndicesAccessControl.DeniedIndices deniedIndices) {
             if (deniedIndices.isEmpty()) {
                 return null;
             }
-            return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
+            StringBuilder message = new StringBuilder();
+            if (deniedIndices.regularIndices().isEmpty() == false) {
+                message.append("on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices.regularIndices()) + "]");
+            }
+            if (deniedIndices.restrictedIndices().isEmpty() == false) {
+                message.append(message.length() == 0 ? "on" : " and")
+                    .append(" restricted indices [" + Strings.collectionToCommaDelimitedString(deniedIndices.restrictedIndices()) + "]");
+            }
+            return message.toString();
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

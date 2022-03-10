@@ -88,7 +88,8 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
                         new FieldPermissions(new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "private" })),
                         documentPermissions1
                     )
-                )
+                ),
+                indexName -> false
             )
         );
     }

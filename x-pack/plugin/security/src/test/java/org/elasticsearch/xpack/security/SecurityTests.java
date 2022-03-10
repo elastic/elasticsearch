@@ -477,7 +477,7 @@ public class SecurityTests extends ESTestCase {
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_null", nullFieldPermissions);
-        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
+        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap, name -> false);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);
 
         assertTrue(fieldFilter.apply("index_granted").test("field_granted"));

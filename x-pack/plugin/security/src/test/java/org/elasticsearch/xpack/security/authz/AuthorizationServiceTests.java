@@ -1332,7 +1332,13 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        TransportRequest request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
+        final boolean includeRestrictedIndex = randomBoolean();
+        final TransportRequest request;
+        if (includeRestrictedIndex) {
+            request = new SearchRequest("all-1", "read-2", "write-3", "other-4", ".kibana");
+        } else {
+            request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
+        }
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -1361,6 +1367,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString("other-4")));
         assertThat(securityException, throwableWithMessage(not(containsString("all-1"))));
         assertThat(securityException, throwableWithMessage(not(containsString("read-2"))));
+
+        if (includeRestrictedIndex) {
+            assertThat(securityException, throwableWithMessage(containsString("and restricted indices [.kibana]")));
+        } else {
+            assertThat(securityException, throwableWithMessage(not(containsString("restricted indices"))));
+        }
+
         assertThat(securityException, throwableWithMessage(containsString(", this action is granted by the index privileges [read,all]")));
     }
 

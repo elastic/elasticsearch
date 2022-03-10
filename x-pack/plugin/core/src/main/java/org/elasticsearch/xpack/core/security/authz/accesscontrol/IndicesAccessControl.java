@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplate
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -36,16 +37,23 @@ public class IndicesAccessControl {
         Collections.singletonMap(
             IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
             new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())
-        )
+        ),
+        ignore -> false // no predicate need, since there are no index names
     );
-    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
+    public static final IndicesAccessControl DENIED = new IndicesAccessControl(
+        false,
+        Collections.emptyMap(),
+        ignore -> false // no predicate need, since there are no index names
+    );
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;
+    private final Predicate<String> restrictedIndices;
 
-    public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
+    public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions, Predicate<String> restrictedIndices) {
         this.granted = granted;
         this.indexPermissions = Objects.requireNonNull(indexPermissions);
+        this.restrictedIndices = restrictedIndices;
     }
 
     /**
@@ -64,12 +72,29 @@ public class IndicesAccessControl {
         return granted;
     }
 
-    public Collection<?> getDeniedIndices() {
-        return this.indexPermissions.entrySet()
-            .stream()
-            .filter(e -> e.getValue().granted == false)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableSet());
+    /**
+     * @return A collection on index names for which the current request was denied access, divide in regular and
+     * {@link #isRestrictedIndex(String) restricted} indices.
+     */
+    public DeniedIndices getDeniedIndices() {
+        final List<String> regular = new ArrayList<>();
+        final List<String> restricted = new ArrayList<>();
+        this.indexPermissions.entrySet().stream().filter(e -> e.getValue().granted == false).map(Map.Entry::getKey).forEach(name -> {
+            if (isRestrictedIndex(name)) {
+                restricted.add(name);
+            } else {
+                regular.add(name);
+            }
+        });
+        return new DeniedIndices(Set.copyOf(regular), Set.copyOf(restricted));
+    }
+
+    /**
+     * @return {code true} if the provided index {@code name} is a
+     * {@link org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames restricted index}
+     */
+    public boolean isRestrictedIndex(String name) {
+        return restrictedIndices.test(name);
     }
 
     public DlsFlsUsage getFieldAndDocumentLevelSecurityUsage() {
@@ -292,7 +317,7 @@ public class IndicesAccessControl {
             IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
             indexPermissionsMap.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
         }
-        return new IndicesAccessControl(isGranted, indexPermissionsMap);
+        return new IndicesAccessControl(isGranted, indexPermissionsMap, this.restrictedIndices);
     }
 
     @Override
@@ -311,7 +336,7 @@ public class IndicesAccessControl {
         private final IndexAccessControl allowAllIndexAccessControl = new IndexAccessControl(true, null, null);
 
         private AllowAllIndicesAccessControl() {
-            super(true, Map.of());
+            super(true, Map.of(), ignore -> false);
         }
 
         @Override
@@ -325,4 +350,10 @@ public class IndicesAccessControl {
         }
     }
 
+    public record DeniedIndices(Collection<String> regularIndices, Collection<String> restrictedIndices) {
+
+        public boolean isEmpty() {
+            return regularIndices.isEmpty() && restrictedIndices.isEmpty();
+        }
+    }
 }

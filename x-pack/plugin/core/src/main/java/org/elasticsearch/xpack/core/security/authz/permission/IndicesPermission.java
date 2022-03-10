@@ -57,7 +57,7 @@ public final class IndicesPermission {
 
     private final Automaton restrictedNamesAutomaton;
     private final Group[] groups;
-    private final CharacterRunAutomaton characterRunAutomaton;
+    private final CharacterRunAutomaton restrictedNamesRunAutomaton;
     private final boolean hasFieldOrDocumentLevelSecurity;
 
     public static class Builder {
@@ -87,7 +87,7 @@ public final class IndicesPermission {
 
     private IndicesPermission(Automaton restrictedNamesAutomaton, Group[] groups) {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
-        this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
+        this.restrictedNamesRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
         this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
             && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
@@ -514,14 +514,14 @@ public final class IndicesPermission {
                 )
             );
         }
-        return new IndicesAccessControl(overallGranted, unmodifiableMap(indexPermissions));
+        return new IndicesAccessControl(overallGranted, unmodifiableMap(indexPermissions), restrictedNamesRunAutomaton::run);
     }
 
     private boolean isConcreteRestrictedIndex(String indexPattern) {
         if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
             return false;
         }
-        return characterRunAutomaton.run(indexPattern);
+        return restrictedNamesRunAutomaton.run(indexPattern);
     }
 
     private static boolean isMappingUpdateAction(String action) {

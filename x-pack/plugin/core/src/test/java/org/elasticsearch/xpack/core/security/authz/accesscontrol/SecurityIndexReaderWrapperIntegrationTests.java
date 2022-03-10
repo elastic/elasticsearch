@@ -175,7 +175,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
-                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl), name -> false);
                 }
             };
 
@@ -285,13 +285,18 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
-                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(
+                    true,
+                    singletonMap("_index", indexAccessControl),
+                    name -> false
+                );
                 if (noFilteredIndexPermissions) {
                     return indicesAccessControl;
                 }
                 IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(
                     true,
-                    singletonMap("_index", limitedIndexAccessControl)
+                    singletonMap("_index", limitedIndexAccessControl),
+                    name -> false
                 );
                 return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
             }

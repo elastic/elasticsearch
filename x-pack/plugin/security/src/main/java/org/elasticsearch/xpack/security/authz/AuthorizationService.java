@@ -767,13 +767,19 @@ public class AuthorizationService {
                                 request.remoteAddress(),
                                 authzInfo
                             );
+                            final IndicesAccessControl.DeniedIndices deniedIndices;
+                            if (indicesAccessControl.isRestrictedIndex(resolvedIndex)) {
+                                deniedIndices = new IndicesAccessControl.DeniedIndices(List.of(), List.of(resolvedIndex));
+                            } else {
+                                deniedIndices = new IndicesAccessControl.DeniedIndices(List.of(resolvedIndex), List.of());
+                            }
                             item.abort(
                                 resolvedIndex,
                                 denialException(
                                     authentication,
                                     itemAction,
                                     request,
-                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex)),
+                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(deniedIndices),
                                     null
                                 )
                             );

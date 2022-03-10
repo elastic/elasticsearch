@@ -6,28 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import net.minidev.json.JSONObject;
-import net.minidev.json.parser.JSONParser;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.protocol.BasicHttpContext;
-import org.apache.http.protocol.HttpContext;
-import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -35,28 +16,17 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URL;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -67,7 +37,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class OpenIdConnectAuthIT extends ESRestTestCase {
+public class OpenIdConnectAuthIT extends C2IdOpTestCase {
 
     private static final String REALM_NAME = "c2id";
     private static final String REALM_NAME_IMPLICIT = "c2id-implicit";
@@ -75,17 +45,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private static final String REALM_NAME_CLIENT_POST_AUTH = "c2id-post";
     private static final String REALM_NAME_CLIENT_JWT_AUTH = "c2id-jwt";
     private static final String FACILITATOR_PASSWORD = "f@cilit@t0rPassword"; // longer than 14 chars
-    private static final String REGISTRATION_URL = "http://127.0.0.1:"
-        + getEphemeralTcpPortFromProperty("oidc-provider", "8080")
-        + "/c2id/clients";
-    private static final String LOGIN_API = "http://127.0.0.1:"
-        + getEphemeralTcpPortFromProperty("oidc-provider", "8080")
-        + "/c2id-login/api/";
     private static final String CLIENT_SECRET = "b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2";
-    // SHA256 of this is defined in x-pack/test/idp-fixture/oidc/override.properties
-    private static final String OP_API_BEARER_TOKEN = "811fa888f3e0fdc9e01d4201bfeee46a";
-    private static final String ES_PORT = getEphemeralTcpPortFromProperty("elasticsearch-node", "9200");
-    private static Path HTTP_TRUSTED_CERT;
 
     @Before
     public void setupUserAndRoles() throws Exception {
@@ -93,234 +53,47 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         setRoleMappings();
     }
 
-    @BeforeClass
-    public static void readTrustedCert() throws Exception {
-        final URL resource = OpenIdConnectAuthIT.class.getResource("/testnode_ec.crt");
-        if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /testnode_ec.crt");
-        }
-        HTTP_TRUSTED_CERT = PathUtils.get(resource.toURI());
-    }
-
     /**
-     * C2id server only supports dynamic registration, so we can't pre-seed it's config with our client data. Execute only once
+     * Register each of the clients that we want to test (C2id only supports dynamic configuration).
      */
     @BeforeClass
     public static void registerClients() throws Exception {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            String codeClient = """
-                {
-                  "grant_types": [ "authorization_code" ],
-                  "response_types": [ "code" ],
-                  "preferred_client_id": "https://my.elasticsearch.org/rp",
-                  "preferred_client_secret": "%s",
-                  "redirect_uris": [ "https://my.fantastic.rp/cb" ],
-                  "token_endpoint_auth_method": "client_secret_basic"
-                }""".formatted(CLIENT_SECRET);
-            String implicitClient = """
-                {
-                  "grant_types": [ "implicit" ],
-                  "response_types": [ "token id_token" ],
-                  "preferred_client_id": "elasticsearch-rp",
-                  "preferred_client_secret": "%s",
-                  "redirect_uris": [ "https://my.fantastic.rp/cb" ]
-                }""".formatted(CLIENT_SECRET);
-            String postClient = """
-                {
-                  "grant_types": [ "authorization_code" ],
-                  "response_types": [ "code" ],
-                  "preferred_client_id": "elasticsearch-post",
-                  "preferred_client_secret": "%s",
-                  "redirect_uris": [ "https://my.fantastic.rp/cb" ],
-                  "token_endpoint_auth_method": "client_secret_post"
-                }""".formatted(CLIENT_SECRET);
-            String jwtClient = """
-                {
-                  "grant_types": [ "authorization_code" ],
-                  "response_types": [ "code" ],
-                  "preferred_client_id": "elasticsearch-post-jwt",
-                  "preferred_client_secret": "%s",
-                  "redirect_uris": [ "https://my.fantastic.rp/cb" ],
-                  "token_endpoint_auth_method": "client_secret_jwt"
-                }""".formatted(CLIENT_SECRET);
-            HttpPost httpPost = new HttpPost(REGISTRATION_URL);
-            final BasicHttpContext context = new BasicHttpContext();
-            httpPost.setEntity(new StringEntity(codeClient, ContentType.APPLICATION_JSON));
-            httpPost.setHeader("Accept", "application/json");
-            httpPost.setHeader("Content-type", "application/json");
-            httpPost.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
-
-            HttpPost httpPost2 = new HttpPost(REGISTRATION_URL);
-            httpPost2.setEntity(new StringEntity(implicitClient, ContentType.APPLICATION_JSON));
-            httpPost2.setHeader("Accept", "application/json");
-            httpPost2.setHeader("Content-type", "application/json");
-            httpPost2.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
-
-            HttpPost httpPost3 = new HttpPost(REGISTRATION_URL);
-            httpPost3.setEntity(new StringEntity(postClient, ContentType.APPLICATION_JSON));
-            httpPost3.setHeader("Accept", "application/json");
-            httpPost3.setHeader("Content-type", "application/json");
-            httpPost3.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
-
-            HttpPost httpPost4 = new HttpPost(REGISTRATION_URL);
-            httpPost4.setEntity(new StringEntity(jwtClient, ContentType.APPLICATION_JSON));
-            httpPost4.setHeader("Accept", "application/json");
-            httpPost4.setHeader("Content-type", "application/json");
-            httpPost4.setHeader("Authorization", "Bearer " + OP_API_BEARER_TOKEN);
-
-            SocketAccess.doPrivileged(() -> {
-                try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
-                    assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
-                }
-                try (CloseableHttpResponse response2 = httpClient.execute(httpPost2, context)) {
-                    assertThat(response2.getStatusLine().getStatusCode(), equalTo(201));
-                }
-                try (CloseableHttpResponse response3 = httpClient.execute(httpPost3, context)) {
-                    assertThat(response3.getStatusLine().getStatusCode(), equalTo(201));
-                }
-                try (CloseableHttpResponse response4 = httpClient.execute(httpPost4, context)) {
-                    assertThat(response4.getStatusLine().getStatusCode(), equalTo(201));
-                }
-            });
-        }
-    }
-
-    @Override
-    protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(CERTIFICATE_AUTHORITIES, HTTP_TRUSTED_CERT)
-            .build();
-    }
-
-    private String authenticateAtOP(URI opAuthUri) throws Exception {
-        // C2ID doesn't have a non JS login page :/, so use their API directly
-        // see https://connect2id.com/products/server/docs/guides/login-page
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            final BasicHttpContext context = new BasicHttpContext();
-            // Initiate the authentication process
-            HttpPost httpPost = new HttpPost(LOGIN_API + "initAuthRequest");
-            String initJson = """
-                {"qs":"%s"}
-                """.formatted(opAuthUri.getRawQuery());
-            configureJsonRequest(httpPost, initJson);
-            JSONObject initResponse = execute(httpClient, httpPost, context, response -> {
-                assertHttpOk(response.getStatusLine());
-                return parseJsonResponse(response);
-            });
-            assertThat(initResponse.getAsString("type"), equalTo("auth"));
-            final String sid = initResponse.getAsString("sid");
-            // Actually authenticate the user with ldapAuth
-            HttpPost loginHttpPost = new HttpPost(LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8));
-            String loginJson = """
-                {"username":"alice","password":"secret"}""";
-            configureJsonRequest(loginHttpPost, loginJson);
-            JSONObject loginJsonResponse = execute(httpClient, loginHttpPost, context, response -> {
-                assertHttpOk(response.getStatusLine());
-                return parseJsonResponse(response);
-            });
-            // Get the consent screen
-            HttpPut consentFetchHttpPut = new HttpPut(
-                LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
-            );
-            String consentFetchJson = """
-                {
-                  "sub": "%s",
-                  "acr": "http://loa.c2id.com/basic",
-                  "amr": [ "pwd" ],
-                  "data": {
-                    "email": "%s",
-                    "name": "%s"
-                  }
-                }""".formatted(
-                loginJsonResponse.getAsString("id"),
-                loginJsonResponse.getAsString("email"),
-                loginJsonResponse.getAsString("name")
-            );
-            configureJsonRequest(consentFetchHttpPut, consentFetchJson);
-            JSONObject consentFetchResponse = execute(httpClient, consentFetchHttpPut, context, response -> {
-                assertHttpOk(response.getStatusLine());
-                return parseJsonResponse(response);
-            });
-            if (consentFetchResponse.getAsString("type").equals("consent")) {
-                // If needed, submit the consent
-                HttpPut consentHttpPut = new HttpPut(
-                    LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
-                );
-                String consentJson = """
-                    {"claims":["name", "email"],"scope":["openid"]}""";
-                configureJsonRequest(consentHttpPut, consentJson);
-                JSONObject jsonConsentResponse = execute(httpClient, consentHttpPut, context, response -> {
-                    assertHttpOk(response.getStatusLine());
-                    return parseJsonResponse(response);
-                });
-                assertThat(jsonConsentResponse.getAsString("type"), equalTo("response"));
-                JSONObject parameters = (JSONObject) jsonConsentResponse.get("parameters");
-                return parameters.getAsString("uri");
-            } else if (consentFetchResponse.getAsString("type").equals("response")) {
-                JSONObject parameters = (JSONObject) consentFetchResponse.get("parameters");
-                return parameters.getAsString("uri");
-            } else {
-                fail("Received an invalid response from the OP");
-                return null;
-            }
-        }
-    }
-
-    private static String getEphemeralTcpPortFromProperty(String service, String port) {
-        String key = "test.fixtures." + service + ".tcp." + port;
-        final String value = System.getProperty(key);
-        assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
-        return value;
-    }
-
-    private Map<String, Object> callAuthenticateApiUsingAccessToken(String accessToken) throws Exception {
-        Request request = new Request("GET", "/_security/_authenticate");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", "Bearer " + accessToken);
-        request.setOptions(options);
-        try (RestClient restClient = getClient()) {
-            return entityAsMap(restClient.performRequest(request));
-        }
-    }
-
-    private <T> T execute(
-        CloseableHttpClient client,
-        HttpEntityEnclosingRequestBase request,
-        HttpContext context,
-        CheckedFunction<HttpResponse, T, Exception> body
-    ) throws Exception {
-        final int timeout = (int) TimeValue.timeValueSeconds(90).millis();
-        RequestConfig requestConfig = RequestConfig.custom()
-            .setConnectionRequestTimeout(timeout)
-            .setConnectTimeout(timeout)
-            .setSocketTimeout(timeout)
-            .build();
-        request.setConfig(requestConfig);
-        logger.info(
-            "Execute HTTP " + request.getMethod() + " " + request.getURI() + " with payload " + EntityUtils.toString(request.getEntity())
-        );
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
-            return body.apply(response);
-        } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("HTTP Request [{}] failed", request.getURI()), e);
-            throw e;
-        }
-    }
-
-    private JSONObject parseJsonResponse(HttpResponse response) throws Exception {
-        JSONParser parser = new JSONParser(JSONParser.DEFAULT_PERMISSIVE_MODE);
-        String entity = EntityUtils.toString(response.getEntity());
-        logger.info("Response entity as string: " + entity);
-        return (JSONObject) parser.parse(entity);
-    }
-
-    private void configureJsonRequest(HttpEntityEnclosingRequestBase request, String jsonBody) {
-        StringEntity entity = new StringEntity(jsonBody, ContentType.APPLICATION_JSON);
-        request.setEntity(entity);
-        request.setHeader("Accept", "application/json");
-        request.setHeader("Content-type", "application/json");
+        String codeClient = """
+            {
+              "grant_types": [ "authorization_code" ],
+              "response_types": [ "code" ],
+              "preferred_client_id": "https://my.elasticsearch.org/rp",
+              "preferred_client_secret": "%s",
+              "redirect_uris": [ "https://my.fantastic.rp/cb" ],
+              "token_endpoint_auth_method": "client_secret_basic"
+            }""".formatted(CLIENT_SECRET);
+        String implicitClient = """
+            {
+              "grant_types": [ "implicit" ],
+              "response_types": [ "token id_token" ],
+              "preferred_client_id": "elasticsearch-rp",
+              "preferred_client_secret": "%s",
+              "redirect_uris": [ "https://my.fantastic.rp/cb" ]
+            }""".formatted(CLIENT_SECRET);
+        String postClient = """
+            {
+              "grant_types": [ "authorization_code" ],
+              "response_types": [ "code" ],
+              "preferred_client_id": "elasticsearch-post",
+              "preferred_client_secret": "%s",
+              "redirect_uris": [ "https://my.fantastic.rp/cb" ],
+              "token_endpoint_auth_method": "client_secret_post"
+            }""".formatted(CLIENT_SECRET);
+        String jwtClient = """
+            {
+              "grant_types": [ "authorization_code" ],
+              "response_types": [ "code" ],
+              "preferred_client_id": "elasticsearch-post-jwt",
+              "preferred_client_secret": "%s",
+              "redirect_uris": [ "https://my.fantastic.rp/cb" ],
+              "token_endpoint_auth_method": "client_secret_jwt"
+            }""".formatted(CLIENT_SECRET);
+        registerClients(codeClient, implicitClient, postClient, jwtClient);
     }
 
     public void testAuthenticateWithCodeFlow() throws Exception {
@@ -400,9 +173,9 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     }
 
     private void verifyElasticsearchAccessTokenForCodeFlow(String accessToken) throws Exception {
-        final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
+        final Map<String, Object> map = callAuthenticateApiUsingBearerToken(accessToken);
         logger.info("Authentication with token Response: " + map);
-        assertThat(map.get("username"), equalTo("alice"));
+        assertThat(map.get("username"), equalTo(TEST_SUBJECT_ID));
         assertThat((List<?>) map.get("roles"), containsInAnyOrder("kibana_admin", "auditor"));
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
@@ -412,7 +185,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     }
 
     private void verifyElasticsearchAccessTokenForImplicitFlow(String accessToken) throws Exception {
-        final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
+        final Map<String, Object> map = callAuthenticateApiUsingBearerToken(accessToken);
         logger.info("Authentication with token Response: " + map);
         assertThat(map.get("username"), equalTo("alice"));
         assertThat((List<?>) map.get("roles"), containsInAnyOrder("limited_user", "auditor"));
@@ -426,7 +199,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private PrepareAuthResponse getRedirectedFromFacilitator(String realmName) throws Exception {
         final Map<String, String> body = Collections.singletonMap("realm", realmName);
         Request request = buildRequest("POST", "/_security/oidc/prepare?error_trace=true", body, facilitatorAuth());
-        try (RestClient restClient = getClient()) {
+        try (RestClient restClient = getElasticsearchClient()) {
             final Response prepare = restClient.performRequest(request);
             assertOK(prepare);
             final Map<String, Object> responseBody = parseResponseAsMap(prepare.getEntity());
@@ -449,7 +222,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             body.put("realm", realm);
         }
         Request request = buildRequest("POST", "/_security/oidc/authenticate", body, facilitatorAuth());
-        try (RestClient restClient = getClient()) {
+        try (RestClient restClient = getElasticsearchClient()) {
             final Response authenticate = restClient.performRequest(request);
             assertOK(authenticate);
             final Map<String, Object> responseBody = parseResponseAsMap(authenticate.getEntity());
@@ -485,16 +258,12 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         return convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
     }
 
-    private void assertHttpOk(StatusLine status) {
-        assertThat("Unexpected HTTP Response status: " + status, status.getStatusCode(), Matchers.equalTo(200));
-    }
-
     /**
      * We create a user named `facilitator` with the appropriate privileges ( `manage_oidc` ). A facilitator web app
      * would need to create one also, in order to access the OIDC related APIs on behalf of the user.
      */
     private void setFacilitatorUser() throws Exception {
-        try (RestClient restClient = getClient()) {
+        try (RestClient restClient = getElasticsearchClient()) {
             Request createRoleRequest = new Request("PUT", "/_security/role/facilitator");
             createRoleRequest.setJsonEntity("""
                 { "cluster" : ["manage_oidc", "manage_token"] }""");
@@ -507,7 +276,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     }
 
     private void setRoleMappings() throws Exception {
-        try (RestClient restClient = getClient()) {
+        try (RestClient restClient = getElasticsearchClient()) {
             Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
             createRoleMappingRequest.setJsonEntity("""
                 {
@@ -566,10 +335,6 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 }""");
             restClient.performRequest(createRoleMappingRequest);
         }
-    }
-
-    private RestClient getClient() throws Exception {
-        return buildClient(restAdminSettings(), new HttpHost[] { new HttpHost("localhost", Integer.parseInt(ES_PORT), "https") });
     }
 
     /**

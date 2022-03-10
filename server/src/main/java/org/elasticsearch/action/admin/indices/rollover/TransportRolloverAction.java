@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -116,6 +117,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final ActionListener<RolloverResponse> listener
     ) throws Exception {
 
+        assert task instanceof CancellableTask;
         Metadata metadata = oldState.metadata();
 
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
@@ -164,7 +166,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .values()
                     .stream()
                     .filter(condition -> trialConditionResults.get(condition.toString()))
-                    .collect(Collectors.toList());
+                    .toList();
 
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
                     trialSourceIndexName,

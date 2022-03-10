@@ -118,7 +118,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         out.writeVInt(size);
         out.writeBoolean(after != null);
         if (after != null) {
-            out.writeMap(after);
+            out.writeGenericMap(after);
         }
     }
 

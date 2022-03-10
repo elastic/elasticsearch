@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
@@ -107,8 +105,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             discoveryNodes.getDataNodes().size()
         );
         // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<String> node : discoveryNodes.getDataNodes().keys()) {
-            nodesToShards.put(node.value, new LinkedHashMap<>()); // LinkedHashMap to preserve order
+        for (var node : discoveryNodes.getDataNodes().keySet()) {
+            nodesToShards.put(node, new LinkedHashMap<>()); // LinkedHashMap to preserve order
         }
 
         // fill in the inverse of node -> shards allocated

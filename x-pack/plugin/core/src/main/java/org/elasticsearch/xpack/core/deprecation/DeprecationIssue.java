@@ -143,7 +143,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         out.writeString(url);
         out.writeOptionalString(details);
         out.writeBoolean(resolveDuringRollingUpgrade);
-        out.writeMap(meta);
+        out.writeGenericMap(meta);
     }
 
     @Override

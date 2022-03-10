@@ -237,13 +237,13 @@ public class LagDetector {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(
-                                Message.createParameterizedMessage(
-                                    "failed to get hot threads from node [{}] lagging at version {} "
-                                        + "despite commit of cluster state version [{}]",
-                                    discoveryNode.descriptionWithoutAttributes(),
-                                    appliedVersion,
-                                    expectedVersion
-                                ),
+                            Message.createParameterizedMessage(
+                                "failed to get hot threads from node [{}] lagging at version {} "
+                                    + "despite commit of cluster state version [{}]",
+                                discoveryNode.descriptionWithoutAttributes(),
+                                appliedVersion,
+                                expectedVersion
+                            ),
                             e
                         );
                     }

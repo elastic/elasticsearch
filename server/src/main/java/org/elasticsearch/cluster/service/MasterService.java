@@ -427,14 +427,14 @@ public class MasterService extends AbstractLifecycleComponent {
         final String stateUUID = newClusterState.stateUUID();
         final String fullState = newClusterState.toString();
         logger.warn(
-                Message.createParameterizedMessage(
-                    "took [{}] and then failed to publish updated cluster state (version: {}, uuid: {}) for [{}]:\n{}",
-                    executionTime,
-                    version,
-                    stateUUID,
-                    summary,
-                    fullState
-                ),
+            Message.createParameterizedMessage(
+                "took [{}] and then failed to publish updated cluster state (version: {}, uuid: {}) for [{}]:\n{}",
+                executionTime,
+                version,
+                stateUUID,
+                summary,
+                fullState
+            ),
             e
         );
         // TODO: do we want to call updateTask.onFailure here?

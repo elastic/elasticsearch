@@ -22,7 +22,10 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.*;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -203,7 +206,7 @@ final class OutboundHandler {
                     } else {
                         logger.log(
                             closeConnectionExceptionLevel,
-                                Message.createParameterizedMessage("send message failed [channel: {}]", channel),
+                            Message.createParameterizedMessage("send message failed [channel: {}]", channel),
                             e
                         );
                     }

@@ -21,13 +21,13 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * A provider locator that finds the implementation of the specified provider type.
+ * A provider locator that finds the implementation of the specified provider.
  *
  * <p> A provider locator is given a small recipe, in the form of constructor arguments, which it uses to find the required provider
  * implementation.
  *
- * <p> When run as a module, the locator will load the provider implementation as a module. Otherwise, the provider implementation will be
- * loaded as a non-module.
+ * <p> When run as a module, the locator will load the provider implementation as a module, in its own module layer.
+ * Otherwise, the provider implementation will be loaded as a non-module.
  *
  * @param <T> the provider type
  */
@@ -74,7 +74,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
     private T loadAsNonModule(EmbeddedImplClassLoader loader) {
         ServiceLoader<T> sl = ServiceLoader.load(providerType, loader);
-        return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
+        return sl.findFirst().orElseThrow(() -> new IllegalStateException("cannot locate %s provider".formatted(providerName)));
     }
 
     private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
@@ -85,6 +85,6 @@ public final class ProviderLocator<T> implements Supplier<T> {
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
         ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
         ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
-        return sl.findFirst().orElseThrow();
+        return sl.findFirst().orElseThrow(() -> new IllegalStateException("cannot locate %s provider".formatted(providerName)));
     }
 }

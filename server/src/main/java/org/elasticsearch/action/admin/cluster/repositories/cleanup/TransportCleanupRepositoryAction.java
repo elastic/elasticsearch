@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
@@ -274,7 +274,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         e.addSuppressed(failure);
                                     }
                                     logger.warn(
-                                        () -> Message.createParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName),
+                                        () -> Message.createParameterizedMessage(
+                                            "[{}] failed to remove repository cleanup task",
+                                            repositoryName
+                                        ),
                                         e
                                     );
                                     listener.onFailure(e);

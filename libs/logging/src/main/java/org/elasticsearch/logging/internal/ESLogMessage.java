@@ -26,7 +26,7 @@ import java.util.stream.Stream;
  * Custom logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 // TODO: PG the same as deprecationmessage. probably an implementation detail
-public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements Message{
+public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements Message {
     private final List<Object> arguments = new ArrayList<>();
     private String messagePattern;
 

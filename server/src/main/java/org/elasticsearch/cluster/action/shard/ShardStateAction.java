@@ -135,12 +135,12 @@ public class ShardStateAction {
                         waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                     } else {
                         logger.warn(
-                                Message.createParameterizedMessage(
-                                    "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
-                                    actionName,
-                                    masterNode,
-                                    request
-                                ),
+                            Message.createParameterizedMessage(
+                                "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
+                                actionName,
+                                masterNode,
+                                request
+                            ),
                             exp
                         );
                         listener.onFailure(
@@ -558,11 +558,19 @@ public class ShardStateAction {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof NotMasterException) {
-                logger.debug(() -> Message.createParameterizedMessage("{} no longer master while failing shard [{}]", entry.shardId, entry));
+                logger.debug(
+                    () -> Message.createParameterizedMessage("{} no longer master while failing shard [{}]", entry.shardId, entry)
+                );
             } else if (e instanceof FailedToCommitClusterStateException) {
-                logger.debug(() -> Message.createParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
+                logger.debug(
+                    () -> Message.createParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry),
+                    e
+                );
             } else {
-                logger.error(() -> Message.createParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
+                logger.error(
+                    () -> Message.createParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry),
+                    e
+                );
             }
             listener.onFailure(e);
         }
@@ -882,11 +890,19 @@ public class ShardStateAction {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof NotMasterException) {
-                logger.debug(() -> Message.createParameterizedMessage("{} no longer master while starting shard [{}]", entry.shardId, entry));
+                logger.debug(
+                    () -> Message.createParameterizedMessage("{} no longer master while starting shard [{}]", entry.shardId, entry)
+                );
             } else if (e instanceof FailedToCommitClusterStateException) {
-                logger.debug(() -> Message.createParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
+                logger.debug(
+                    () -> Message.createParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry),
+                    e
+                );
             } else {
-                logger.error(() -> Message.createParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
+                logger.error(
+                    () -> Message.createParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry),
+                    e
+                );
             }
             listener.onFailure(e);
         }

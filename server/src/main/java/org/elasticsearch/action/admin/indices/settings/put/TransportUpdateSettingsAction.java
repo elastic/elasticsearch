@@ -129,7 +129,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             .masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> Message.createParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), e);
+            logger.debug(
+                () -> Message.createParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices),
+                e
+            );
             l.onFailure(e);
         }));
     }

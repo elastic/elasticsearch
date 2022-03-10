@@ -290,7 +290,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> Message.createParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
+                logger.debug(
+                    () -> Message.createParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node),
+                    e
+                );
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
             });
@@ -332,7 +335,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
                 logger.debug(
-                    () -> Message.createParameterizedMessage("[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node),
+                    () -> Message.createParameterizedMessage(
+                        "[{}] failed to open managed connection to seed node: [{}]",
+                        clusterAlias,
+                        node
+                    ),
                     e
                 );
                 IOUtils.closeWhileHandlingException(openConnectionStep.result());
@@ -401,7 +408,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                                     handleNodes(nodesIter);
                                 } else {
                                     logger.warn(
-                                            Message.createParameterizedMessage("[{}] failed to open managed connection to node [{}]", clusterAlias, node),
+                                        Message.createParameterizedMessage(
+                                            "[{}] failed to open managed connection to node [{}]",
+                                            clusterAlias,
+                                            node
+                                        ),
                                         e
                                     );
                                     IOUtils.closeWhileHandlingException(connection);

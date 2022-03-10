@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.lucene.index;
+package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.CodecReader;
@@ -184,12 +184,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
-        DelegatingCacheHelper(CacheHelper delegate) {
-            super(delegate);
-        }
-    }
-
     public static class LazyBits implements Bits {
 
         private final int maxDoc;
@@ -273,5 +267,11 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             }
         }
         return newDeletes;
+    }
+
+    private static class DelegatingCacheHelper extends org.apache.lucene.index.FilterDirectoryReader.DelegatingCacheHelper {
+        DelegatingCacheHelper(CacheHelper delegate) {
+            super(delegate);
+        }
     }
 }

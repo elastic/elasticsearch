@@ -111,7 +111,10 @@ public abstract class SearchProgressListener {
             onQueryResult(shardIndex);
         } catch (Exception e) {
             logger.warn(
-                () -> Message.createParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
+                () -> Message.createParameterizedMessage(
+                    "[{}] Failed to execute progress listener on query result",
+                    shards.get(shardIndex)
+                ),
                 e
             );
         }
@@ -122,7 +125,10 @@ public abstract class SearchProgressListener {
             onQueryFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(
-                () -> Message.createParameterizedMessage("[{}] Failed to execute progress listener on query failure", shards.get(shardIndex)),
+                () -> Message.createParameterizedMessage(
+                    "[{}] Failed to execute progress listener on query failure",
+                    shards.get(shardIndex)
+                ),
                 e
             );
         }
@@ -149,7 +155,10 @@ public abstract class SearchProgressListener {
             onFetchResult(shardIndex);
         } catch (Exception e) {
             logger.warn(
-                () -> Message.createParameterizedMessage("[{}] Failed to execute progress listener on fetch result", shards.get(shardIndex)),
+                () -> Message.createParameterizedMessage(
+                    "[{}] Failed to execute progress listener on fetch result",
+                    shards.get(shardIndex)
+                ),
                 e
             );
         }
@@ -160,7 +169,10 @@ public abstract class SearchProgressListener {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(
-                () -> Message.createParameterizedMessage("[{}] Failed to execute progress listener on fetch failure", shards.get(shardIndex)),
+                () -> Message.createParameterizedMessage(
+                    "[{}] Failed to execute progress listener on fetch failure",
+                    shards.get(shardIndex)
+                ),
                 e
             );
         }

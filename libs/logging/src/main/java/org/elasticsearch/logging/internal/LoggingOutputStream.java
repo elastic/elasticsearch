@@ -19,7 +19,7 @@ import java.util.Arrays;
 /**
  * A stream whose output is sent to the configured logger, line by line.
  */
-class LoggingOutputStream extends OutputStream {
+public class LoggingOutputStream extends OutputStream {
     /** The starting length of the buffer */
     static final int DEFAULT_BUFFER_LENGTH = 1024;
 
@@ -42,7 +42,7 @@ class LoggingOutputStream extends OutputStream {
 
     private final Level level;
 
-    LoggingOutputStream(Logger logger, Level level) {
+    public LoggingOutputStream(Logger logger, Level level) {
         this.logger = logger;
         this.level = level;
     }

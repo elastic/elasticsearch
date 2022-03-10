@@ -215,11 +215,11 @@ public class InboundHandler {
                     sendErrorResponse(action, transportChannel, e);
                 } else {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
-                                channel,
-                                header.getVersion()
-                            ),
+                        Message.createParameterizedMessage(
+                            "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
+                            channel,
+                            header.getVersion()
+                        ),
                         e
                     );
                     channel.close();
@@ -324,7 +324,10 @@ public class InboundHandler {
             transportChannel.sendResponse(e);
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.warn(() -> Message.createParameterizedMessage("Failed to send error message back to client for action [{}]", actionName), inner);
+            logger.warn(
+                () -> Message.createParameterizedMessage("Failed to send error message back to client for action [{}]", actionName),
+                inner
+            );
         }
     }
 
@@ -342,7 +345,10 @@ public class InboundHandler {
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );
-            logger.warn(Message.createParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            logger.warn(
+                Message.createParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress),
+                serializationException
+            );
             assert ignoreDeserializationErrors : e;
             handleException(handler, serializationException);
             return;

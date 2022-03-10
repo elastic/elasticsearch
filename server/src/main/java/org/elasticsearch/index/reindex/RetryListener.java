@@ -54,7 +54,10 @@ class RetryListener extends ActionListener.Delegating<ScrollableHitSource.Respon
             logger.trace(() -> Message.createParameterizedMessage("retrying rejected search after [{}]", delay), e);
             schedule(() -> retryScrollHandler.accept(this), delay);
         } else {
-            logger.warn(() -> Message.createParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount), e);
+            logger.warn(
+                () -> Message.createParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount),
+                e
+            );
             delegate.onFailure(e);
         }
     }

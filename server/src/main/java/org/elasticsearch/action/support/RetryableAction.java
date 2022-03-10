@@ -150,7 +150,10 @@ public abstract class RetryableAction<Response> {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
                 if (elapsedMillis >= timeoutMillis) {
                     logger.debug(
-                        () -> Message.createParameterizedMessage("retryable action timed out after {}", TimeValue.timeValueMillis(elapsedMillis)),
+                        () -> Message.createParameterizedMessage(
+                            "retryable action timed out after {}",
+                            TimeValue.timeValueMillis(elapsedMillis)
+                        ),
                         e
                     );
                     onFinalFailure(e);

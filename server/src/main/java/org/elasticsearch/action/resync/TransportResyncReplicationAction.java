@@ -203,11 +203,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                     for (int i = 0; i < failures.length; i++) {
                         final ReplicationResponse.ShardInfo.Failure f = failures[i];
                         logger.info(
-                                Message.createParameterizedMessage(
-                                    "{} primary-replica resync to replica on node [{}] failed",
-                                    f.fullShardId(),
-                                    f.nodeId()
-                                ),
+                            Message.createParameterizedMessage(
+                                "{} primary-replica resync to replica on node [{}] failed",
+                                f.fullShardId(),
+                                f.nodeId()
+                            ),
                             f.getCause()
                         );
                     }

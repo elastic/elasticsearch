@@ -178,7 +178,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
                         logger.warn(
-                                Message.createParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
+                            Message.createParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
                             failure.getCause()
                         );
                     }
@@ -222,28 +222,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                 if (failedNodeIds.add(failedNodeException.nodeId())) {
                                     logger.warn(
-                                            Message.createParameterizedMessage(
-                                                "failed to retrieve shard stats from node [{}]",
-                                                failedNodeException.nodeId()
-                                            ),
+                                        Message.createParameterizedMessage(
+                                            "failed to retrieve shard stats from node [{}]",
+                                            failedNodeException.nodeId()
+                                        ),
                                         failedNodeException.getCause()
                                     );
                                 }
                                 logger.trace(
-                                        Message.createParameterizedMessage(
-                                            "failed to retrieve stats for shard [{}][{}]",
-                                            shardFailure.index(),
-                                            shardFailure.shardId()
-                                        ),
+                                    Message.createParameterizedMessage(
+                                        "failed to retrieve stats for shard [{}][{}]",
+                                        shardFailure.index(),
+                                        shardFailure.shardId()
+                                    ),
                                     shardFailure.getCause()
                                 );
                             } else {
                                 logger.warn(
-                                        Message.createParameterizedMessage(
-                                            "failed to retrieve stats for shard [{}][{}]",
-                                            shardFailure.index(),
-                                            shardFailure.shardId()
-                                        ),
+                                    Message.createParameterizedMessage(
+                                        "failed to retrieve stats for shard [{}][{}]",
+                                        shardFailure.index(),
+                                        shardFailure.shardId()
+                                    ),
                                     shardFailure.getCause()
                                 );
                             }

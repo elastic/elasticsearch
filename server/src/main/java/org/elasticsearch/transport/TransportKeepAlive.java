@@ -117,7 +117,10 @@ final class TransportKeepAlive implements Closeable {
                     logger.debug(() -> Message.createParameterizedMessage("[{}] failed to send transport ping", channel), e);
                     failedPings.inc();
                 } else {
-                    logger.trace(() -> Message.createParameterizedMessage("[{}] failed to send transport ping (channel closed)", channel), e);
+                    logger.trace(
+                        () -> Message.createParameterizedMessage("[{}] failed to send transport ping (channel closed)", channel),
+                        e
+                    );
                 }
             }
         });

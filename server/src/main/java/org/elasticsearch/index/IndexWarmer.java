@@ -139,7 +139,10 @@ public final class IndexWarmer {
                     } catch (Exception e) {
                         indexShard.warmerService()
                             .logger()
-                            .warn(() -> Message.createParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()), e);
+                            .warn(
+                                () -> Message.createParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()),
+                                e
+                            );
                     } finally {
                         latch.countDown();
                     }

@@ -117,20 +117,6 @@ java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
 java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
 java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
 
-@defaultMessage Use logger methods with non-Object parameter
-org.elasticsearch.logging.Logger#trace(java.lang.Object)
-org.elasticsearch.logging.Logger#trace(java.lang.Object, java.lang.Throwable)
-org.elasticsearch.logging.Logger#debug(java.lang.Object)
-org.elasticsearch.logging.Logger#debug(java.lang.Object, java.lang.Throwable)
-org.elasticsearch.logging.Logger#info(java.lang.Object)
-org.elasticsearch.logging.Logger#info(java.lang.Object, java.lang.Throwable)
-org.elasticsearch.logging.Logger#warn(java.lang.Object)
-org.elasticsearch.logging.Logger#warn(java.lang.Object, java.lang.Throwable)
-org.elasticsearch.logging.Logger#error(java.lang.Object)
-org.elasticsearch.logging.Logger#error(java.lang.Object, java.lang.Throwable)
-org.elasticsearch.logging.Logger#fatal(java.lang.Object)
-org.elasticsearch.logging.Logger#fatal(java.lang.Object, java.lang.Throwable)
-
 @defaultMessage Use getLogger(Class)
 org.apache.logging.log4j.LogManager#getLogger()
 

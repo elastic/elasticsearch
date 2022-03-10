@@ -413,7 +413,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                         logger.debug(
-                            () -> Message.createParameterizedMessage("{} shards failed for phase: [{}]", numShardFailures, currentPhase.getName()),
+                            () -> Message.createParameterizedMessage(
+                                "{} shards failed for phase: [{}]",
+                                numShardFailures,
+                                currentPhase.getName()
+                            ),
                             cause
                         );
                     }
@@ -457,7 +461,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             phase.run();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(Message.createParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
+                logger.debug(
+                    Message.createParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()),
+                    e
+                );
             }
             onPhaseFailure(phase, "", e);
         }

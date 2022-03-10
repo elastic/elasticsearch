@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;

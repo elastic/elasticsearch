@@ -260,11 +260,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception notificationException) {
                     notificationException.addSuppressed(originalException);
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "notification for task [{}] with id [{}] failed",
-                                taskInProgress.getTaskName(),
-                                taskInProgress.getAllocationId()
-                            ),
+                        Message.createParameterizedMessage(
+                            "notification for task [{}] with id [{}] failed",
+                            taskInProgress.getTaskName(),
+                            taskInProgress.getAllocationId()
+                        ),
                         notificationException
                     );
                 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,8 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;

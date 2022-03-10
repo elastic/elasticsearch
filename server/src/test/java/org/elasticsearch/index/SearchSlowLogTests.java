@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -21,6 +18,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.ESLogMessageImpl;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;

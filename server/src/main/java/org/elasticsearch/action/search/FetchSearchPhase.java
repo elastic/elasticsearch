@@ -232,7 +232,10 @@ final class FetchSearchPhase extends SearchPhase {
                     public void onFailure(Exception e) {
                         try {
                             logger.debug(
-                                () -> Message.createParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.contextId()),
+                                () -> Message.createParameterizedMessage(
+                                    "[{}] Failed to execute fetch phase",
+                                    fetchSearchRequest.contextId()
+                                ),
                                 e
                             );
                             progressListener.notifyFetchFailure(shardIndex, shardTarget, e);

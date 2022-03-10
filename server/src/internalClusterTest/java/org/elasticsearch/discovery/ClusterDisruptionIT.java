@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -178,7 +178,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             } catch (ElasticsearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
-                                logger.trace(() -> Message.createParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                                logger.trace(
+                                    () -> Message.createParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node),
+                                    e
+                                );
                             } finally {
                                 countDownLatchRef.get().countDown();
                                 logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
@@ -186,7 +189,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info(() -> Message.createParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
+                            logger.info(
+                                () -> Message.createParameterizedMessage("unexpected exception in background thread of [{}]", node),
+                                e
+                            );
                         }
                     }
                 });

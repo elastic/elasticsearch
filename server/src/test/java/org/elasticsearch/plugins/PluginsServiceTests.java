@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.logging.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
@@ -19,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

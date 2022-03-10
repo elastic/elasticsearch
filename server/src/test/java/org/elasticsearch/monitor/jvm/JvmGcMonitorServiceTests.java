@@ -8,9 +8,9 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;

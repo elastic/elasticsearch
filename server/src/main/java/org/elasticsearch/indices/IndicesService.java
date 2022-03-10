@@ -1326,7 +1326,10 @@ public class IndicesService extends AbstractLifecycleComponent
                                     deleteShardStore("pending delete", shardLock, delete.settings);
                                     iterator.remove();
                                 } catch (IOException ex) {
-                                    logger.debug(() -> Message.createParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);
+                                    logger.debug(
+                                        () -> Message.createParameterizedMessage("{} retry pending delete", shardLock.getShardId()),
+                                        ex
+                                    );
                                 }
                             } else {
                                 logger.warn("{} no shard lock for pending delete", delete.shardId);
@@ -1738,7 +1741,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 danglingIndicesThreadPoolExecutor.execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> Message.createParameterizedMessage("failed to write dangling indices state for index {}", index), e);
+                        logger.warn(
+                            () -> Message.createParameterizedMessage("failed to write dangling indices state for index {}", index),
+                            e
+                        );
                     }
 
                     @Override

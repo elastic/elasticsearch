@@ -218,10 +218,10 @@ public class GlobalCheckpointListeners implements Closeable {
             } catch (final Exception caught) {
                 if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "error notifying global checkpoint listener of updated global checkpoint [{}]",
-                                globalCheckpoint
-                            ),
+                        Message.createParameterizedMessage(
+                            "error notifying global checkpoint listener of updated global checkpoint [{}]",
+                            globalCheckpoint
+                        ),
                         caught
                     );
                 } else if (e instanceof IndexShardClosedException) {

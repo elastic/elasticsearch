@@ -525,22 +525,22 @@ public abstract class TransportBroadcastByNodeAction<
                 if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
                         logger.trace(
-                                Message.createParameterizedMessage(
-                                    "[{}] failed to execute operation for shard [{}]",
-                                    actionName,
-                                    shardRouting.shortSummary()
-                                ),
+                            Message.createParameterizedMessage(
+                                "[{}] failed to execute operation for shard [{}]",
+                                actionName,
+                                shardRouting.shortSummary()
+                            ),
                             e
                         );
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug(
-                                Message.createParameterizedMessage(
-                                    "[{}] failed to execute operation for shard [{}]",
-                                    actionName,
-                                    shardRouting.shortSummary()
-                                ),
+                            Message.createParameterizedMessage(
+                                "[{}] failed to execute operation for shard [{}]",
+                                actionName,
+                                shardRouting.shortSummary()
+                            ),
                             e
                         );
                     }

@@ -309,7 +309,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 channel.sendResponse(new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(() -> Message.createParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+                logger.error(
+                    () -> Message.createParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
+                    inner
+                );
             }
         }
     }

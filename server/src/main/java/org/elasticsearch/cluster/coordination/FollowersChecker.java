@@ -363,7 +363,10 @@ public class FollowersChecker {
 
                 @Override
                 public void onRejection(Exception e) {
-                    logger.debug(Message.createParameterizedMessage("rejected task to fail node [{}] with reason [{}]", discoveryNode, reason), e);
+                    logger.debug(
+                        Message.createParameterizedMessage("rejected task to fail node [{}] with reason [{}]", discoveryNode, reason),
+                        e
+                    );
                     if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
                         assert esRejectedExecutionException.isExecutorShutdown();
                     } else {
@@ -389,7 +392,11 @@ public class FollowersChecker {
                 public void onFailure(Exception e) {
                     assert false : e;
                     logger.error(
-                            Message.createParameterizedMessage("unexpected failure when failing node [{}] with reason [{}]", discoveryNode, reason),
+                        Message.createParameterizedMessage(
+                            "unexpected failure when failing node [{}] with reason [{}]",
+                            discoveryNode,
+                            reason
+                        ),
                         e
                     );
                 }

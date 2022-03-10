@@ -274,11 +274,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
                     logger.debug(
-                            Message.createParameterizedMessage(
-                                "failed to open remote connection [remote cluster: {}, address: {}]",
-                                clusterAlias,
-                                resolved
-                            ),
+                        Message.createParameterizedMessage(
+                            "failed to open remote connection [remote cluster: {}, address: {}]",
+                            clusterAlias,
+                            resolved
+                        ),
                         e
                     );
                     l.onFailure(e);

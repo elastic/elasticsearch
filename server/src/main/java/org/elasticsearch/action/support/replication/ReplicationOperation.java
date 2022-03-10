@@ -355,7 +355,10 @@ public class ReplicationOperation<
                 public void onFailure(Exception e) {
                     e.addSuppressed(failure);
                     assert false : e;
-                    logger.error(Message.createParameterizedMessage("unexpected failure while failing primary [{}]", primary.routingEntry()), e);
+                    logger.error(
+                        Message.createParameterizedMessage("unexpected failure while failing primary [{}]", primary.routingEntry()),
+                        e
+                    );
                     finishAsFailed(
                         new RetryOnPrimaryException(
                             primary.routingEntry().shardId(),

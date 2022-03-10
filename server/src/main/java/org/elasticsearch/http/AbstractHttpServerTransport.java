@@ -320,7 +320,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 );
             } else {
                 logger.warn(
-                    () -> Message.createParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
+                    () -> Message.createParameterizedMessage(
+                        "caught exception while handling client http traffic, closing connection {}",
+                        channel
+                    ),
                     e
                 );
             }
@@ -330,7 +333,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected void onServerException(HttpServerChannel channel, Exception e) {
-        logger.error(Message.createParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
+        logger.error(
+            Message.createParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel),
+            e
+        );
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {

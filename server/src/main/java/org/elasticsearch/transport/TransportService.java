@@ -929,7 +929,10 @@ public class TransportService extends AbstractLifecycleComponent
                             } catch (Exception inner) {
                                 inner.addSuppressed(e);
                                 logger.warn(
-                                    () -> Message.createParameterizedMessage("failed to notify channel of error message for action [{}]", action),
+                                    () -> Message.createParameterizedMessage(
+                                        "failed to notify channel of error message for action [{}]",
+                                        action
+                                    ),
                                     inner
                                 );
                             }
@@ -958,7 +961,10 @@ public class TransportService extends AbstractLifecycleComponent
                 channel.sendResponse(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.warn(() -> Message.createParameterizedMessage("failed to notify channel of error message for action [{}]", action), inner);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("failed to notify channel of error message for action [{}]", action),
+                    inner
+                );
             }
         }
     }
@@ -1208,7 +1214,10 @@ public class TransportService extends AbstractLifecycleComponent
             @Override
             public void onFailure(Exception e) {
                 assert false : e;
-                logger.warn(() -> Message.createParameterizedMessage("failed to notify response handler on connection close [{}]", connection), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("failed to notify response handler on connection close [{}]", connection),
+                    e
+                );
             }
 
             @Override

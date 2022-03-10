@@ -398,7 +398,10 @@ public class PublicationTransportHandler {
                     );
                 } catch (Exception e) {
                     logger.warn(
-                        () -> Message.createParameterizedMessage("failed to serialize cluster state before publishing it to node {}", destination),
+                        () -> Message.createParameterizedMessage(
+                            "failed to serialize cluster state before publishing it to node {}",
+                            destination
+                        ),
                         e
                     );
                     listener.onFailure(e);

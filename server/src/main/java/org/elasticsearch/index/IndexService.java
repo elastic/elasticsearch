@@ -589,7 +589,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug(
-                    () -> Message.createParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
+                    () -> Message.createParameterizedMessage(
+                        "[{}] failed to delete shard content - scheduled a retry",
+                        lock.getShardId().id()
+                    ),
                     e
                 );
             }
@@ -962,7 +965,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 if (e instanceof AlreadyClosedException == false
                                     && e instanceof IndexShardClosedException == false
                                     && e instanceof ShardNotInPrimaryModeException == false) {
-                                    logger.warn(Message.createParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
+                                    logger.warn(
+                                        Message.createParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source),
+                                        e
+                                    );
                                 }
                             }, ThreadPool.Names.SAME, source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

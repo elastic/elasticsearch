@@ -8,13 +8,13 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.internal.ESLogMessageImpl;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;

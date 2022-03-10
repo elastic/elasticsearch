@@ -28,5 +28,5 @@ public class LogManager {
         return getLogger("");
     }
 
-    //getRootLogger do we want it?
+    // getRootLogger do we want it?
 }

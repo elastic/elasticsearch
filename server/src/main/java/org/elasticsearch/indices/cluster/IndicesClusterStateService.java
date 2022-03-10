@@ -332,7 +332,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> Message.createParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+                        logger.warn(
+                            () -> Message.createParameterizedMessage("[{}] failed to complete pending deletion for index", index),
+                            e
+                        );
                     }
 
                     @Override
@@ -787,7 +790,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
             logger.warn(
-                () -> Message.createParameterizedMessage("{} marking and sending shard failed due to [{}]", shardRouting.shardId(), message),
+                () -> Message.createParameterizedMessage(
+                    "{} marking and sending shard failed due to [{}]",
+                    shardRouting.shardId(),
+                    message
+                ),
                 failure
             );
             failedShardsCache.put(shardRouting.shardId(), shardRouting);

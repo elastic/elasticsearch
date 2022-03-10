@@ -155,11 +155,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                                 // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
                                                 // publish address.
                                                 logger.warn(
-                                                        Message.createParameterizedMessage(
-                                                            "[{}] completed handshake with [{}] but followup connection failed",
-                                                            thisConnectionAttempt,
-                                                            remoteNode
-                                                        ),
+                                                    Message.createParameterizedMessage(
+                                                        "[{}] completed handshake with [{}] but followup connection failed",
+                                                        thisConnectionAttempt,
+                                                        remoteNode
+                                                    ),
                                                     e
                                                 );
                                                 listener.onFailure(e);

@@ -8,12 +8,15 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.logging.*;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 

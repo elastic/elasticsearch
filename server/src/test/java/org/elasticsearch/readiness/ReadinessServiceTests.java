@@ -113,6 +113,12 @@ public class ReadinessServiceTests extends ESTestCase {
         }
     }
 
+    public void testEnabled() {
+        ReadinessService service = new ReadinessService(clusterService, newEnvironment(Settings.EMPTY));
+        assertFalse(service.enabled());
+        assertTrue(readinessService.enabled());
+    }
+
     public void testStartStop() {
         assertTrue(readinessService.enabled());
         readinessService.start();

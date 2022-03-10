@@ -169,10 +169,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             .configureEach(compileTask -> compileTask.getModularity().getInferModulePath().set(false));
 
         var isModuleProject = hasModuleInfoDotJava(project);
-        if (isModuleProject == false) {
-            return; // nothing to do for this non-modular project
-        }
-
         var configurations = project.getConfigurations();
         var compileClasspath = configurations.getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
 

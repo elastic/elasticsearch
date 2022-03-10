@@ -125,7 +125,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestConvertersTests extends ESTestCase {
@@ -1774,7 +1773,10 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        int expectedSize = expectedParameterCount(FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS, fieldCapabilitiesRequest.indicesOptions());
+        int expectedSize = expectedParameterCount(
+            FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS,
+            fieldCapabilitiesRequest.indicesOptions()
+        );
         assertEquals(expectedSize, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
@@ -1815,7 +1817,10 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        int expectedSize = expectedParameterCount(FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS, fieldCapabilitiesRequest.indicesOptions());
+        int expectedSize = expectedParameterCount(
+            FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS,
+            fieldCapabilitiesRequest.indicesOptions()
+        );
         assertEquals(expectedSize, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
@@ -2242,7 +2247,7 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
-        if (!getter.get().ignoreThrottled()) {
+        if (getter.get().ignoreThrottled() == false) {
             expectedParams.put("ignore_throttled", Boolean.toString(getter.get().ignoreThrottled()));
         }
     }
@@ -2271,7 +2276,7 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
-        if (!indicesOptions.ignoreThrottled()) {
+        if (indicesOptions.ignoreThrottled() == false) {
             expectedParams.put("ignore_throttled", Boolean.toString(indicesOptions.ignoreThrottled()));
         }
         return indicesOptions;

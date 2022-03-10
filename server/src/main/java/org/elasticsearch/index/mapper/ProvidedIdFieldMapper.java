@@ -33,7 +33,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -222,7 +222,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             }
 
             @Override
-            public DocValuesField<?> getScriptField(String name) {
+            public DocValuesScriptFieldSource getScriptFieldSource(String name) {
                 return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
             }
 

@@ -14,15 +14,20 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.delete.DeleteResponseTests;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -31,6 +36,21 @@ import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkItemResponseTests extends ESTestCase {
+
+    public void testBulkItemResponseShouldContainTypeInV7CompatibilityMode() throws IOException {
+        BulkItemResponse bulkItemResponse = BulkItemResponse.success(
+            1,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId("entities", "index_uuid", 42), "1", 40, 3, 5, true)
+        );
+        XContentBuilder xContentBuilder = bulkItemResponse.toXContent(
+            XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7),
+            ToXContent.EMPTY_PARAMS
+        );
+
+        String json = BytesReference.bytes(xContentBuilder).utf8ToString();
+        assertThat(json, containsString("\"_type\":\"_doc\""));
+    }
 
     public void testFailureToString() {
         Failure failure = new Failure("index", "id", new RuntimeException("test"));

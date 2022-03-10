@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +30,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A query that performs kNN search using Lucene's {@link KnnVectorQuery}.
+ *
+ * NOTE: this is an internal class and should not be used outside of core Elasticsearch code.
+ */
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "knn";
 

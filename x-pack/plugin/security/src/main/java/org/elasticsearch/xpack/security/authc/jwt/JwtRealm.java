@@ -162,9 +162,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private Cache<BytesKey, User> buildJwtCache() {
         final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
-        final int jwtCacheMaxUsers = super.config.getSetting(JwtRealmSettings.JWT_CACHE_MAX_USERS);
-        if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheMaxUsers > 0)) {
-            return CacheBuilder.<BytesKey, User>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheMaxUsers).build();
+        final int jwtCacheSize = super.config.getSetting(JwtRealmSettings.JWT_CACHE_SIZE);
+        if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheSize > 0)) {
+            return CacheBuilder.<BytesKey, User>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
         }
         return null;
     }

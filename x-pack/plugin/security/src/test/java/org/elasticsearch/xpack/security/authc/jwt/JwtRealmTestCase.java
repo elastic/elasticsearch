@@ -293,7 +293,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 randomIntBetween(10, 120) + randomFrom("s", "m", "h")
             );
         }
-        authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_MAX_USERS), jwtCacheSize);
+        authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_SIZE), jwtCacheSize);
 
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();

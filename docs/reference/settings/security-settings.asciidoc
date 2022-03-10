@@ -2068,7 +2068,7 @@ Use the standard {es} <<time-units,time units>>.
 Defaults to `20m`. Zero disables JWT cache.
 If clients use a different JWT for every request, set to 0 to disable JWT cache.
 
-`jwt.cache.max_users`::
+`jwt.cache.size`::
 (<<static-cluster-setting,Static>>)
 Specifies the maximum number of JWT cache entries.
 Defaults to `100000`. Zero disables JWT cache.

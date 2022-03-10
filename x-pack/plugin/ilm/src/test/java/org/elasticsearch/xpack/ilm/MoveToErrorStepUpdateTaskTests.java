@@ -13,13 +13,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -98,13 +94,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepTime(), equalTo(now));
 
-        XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
-        causeXContentBuilder.startObject();
-        ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
-        causeXContentBuilder.endObject();
-        String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
         assertThat(lifecycleState.stepInfo(), containsString("""
-            {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE","stack_trace":\""""));
+            {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE\""""));
     }
 
     public void testExecuteNoopDifferentStep() throws IOException {

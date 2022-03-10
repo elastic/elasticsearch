@@ -144,7 +144,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         assert fieldType().isIndexed() == false;
 
         TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.build().toBytesRef()));
+        BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+        TsidExtractingIdFieldMapper.INSTANCE.createField(context, timeSeriesId);
     }
 
     @Override

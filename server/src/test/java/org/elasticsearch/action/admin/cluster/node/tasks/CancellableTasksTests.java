@@ -250,8 +250,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 actions[0],
                 request,
                 testNodes[0].transportService.getLocalNodeConnection(),
-                (t, r) -> listener.onResponse(r),
-                (t, e) -> listener.onFailure(e)
+                ActionTestUtils.wrapAsTaskListener(listener)
             );
         if (waitForActionToStart) {
             logger.info("Awaiting for all actions to start");
@@ -435,8 +434,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 testAction,
                 childRequest,
                 testNodes[0].transportService.getLocalNodeConnection(),
-                (task, response) -> {},
-                (task, e) -> {}
+                ActionTestUtils.wrapAsTaskListener(ActionListener.wrap(() -> {}))
             )
         );
         assertThat(cancelledException.getMessage(), equalTo("task cancelled before starting [test]"));

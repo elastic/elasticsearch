@@ -412,7 +412,7 @@ http://www.geojson.org[GeoJSON]
 Binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile]. The API
 returns the tile as a base64-encoded string.
-The `spec` has the format `<zoom>/<x>/<y>` with two optional suffixes `@<extent>` and/or `:<buffer>`, for example `2/0/1` or `2/0/1@4096:5`.
+The `<spec>` has the format `<zoom>/<x>/<y>` with two optional suffixes: `@<extent>` and/or `:<buffer>`. For example, `2/0/1` or `2/0/1@4096:5`.
 +
 .`mvt` parameters
 [%collapsible%open]

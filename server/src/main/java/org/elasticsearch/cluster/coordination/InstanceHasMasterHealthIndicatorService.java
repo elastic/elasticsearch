@@ -16,6 +16,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -25,6 +26,8 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
     private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
+    private static final String NO_MASTER_IMPACT =
+        "The cluster cannot create, delete, or rebalance indices, and is likely to be very unstable";
 
     private final ClusterService clusterService;
 
@@ -51,6 +54,9 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         DiscoveryNode masterNode = nodes.getMasterNode();
 
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
+        HealthIndicatorImpact impact = masterNode == null
+            ? new SimpleHealthIndicatorImpact(1, NO_MASTER_IMPACT)
+            : HealthIndicatorImpact.EMPTY;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
 
         return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, (builder, params) -> {
@@ -69,6 +75,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        }, HealthIndicatorImpact.EMPTY);
+        }, impact);
     }
 }

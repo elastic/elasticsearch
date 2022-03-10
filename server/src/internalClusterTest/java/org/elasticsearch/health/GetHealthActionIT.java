@@ -109,8 +109,12 @@ public class GetHealthActionIT extends ESIntegTestCase {
         @Override
         public HealthIndicatorResult calculate() {
             var status = clusterService.getClusterSettings().get(TEST_HEALTH_STATUS);
-            return createIndicator(status, "Health is set to [" + status + "] by test plugin", HealthIndicatorDetails.EMPTY,
-                HealthIndicatorImpact.EMPTY);
+            return createIndicator(
+                status,
+                "Health is set to [" + status + "] by test plugin",
+                HealthIndicatorDetails.EMPTY,
+                HealthIndicatorImpact.EMPTY
+            );
         }
     }
 

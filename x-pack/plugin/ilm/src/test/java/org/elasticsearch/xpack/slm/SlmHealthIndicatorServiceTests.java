@@ -11,8 +11,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -45,7 +47,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "SLM is running",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
+                    HealthIndicatorImpact.EMPTY
                 )
             )
         );
@@ -64,7 +67,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     YELLOW,
                     "SLM is not running",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
+                    new SimpleHealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
                 )
             )
         );
@@ -83,7 +87,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
+                    HealthIndicatorImpact.EMPTY
                 )
             )
         );
@@ -101,7 +106,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
+                    HealthIndicatorImpact.EMPTY
                 )
             )
         );

@@ -23,11 +23,9 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -255,7 +253,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static String getTruncatedIndicesString(ShardAllocationCounts shardAllocationCounts) {
         final int maxIndices = 2;
-        String truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards.stream().limit(maxIndices).collect(joining(", "));
+        String truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards.stream()
+            .limit(maxIndices)
+            .collect(joining(", "));
         if (maxIndices < shardAllocationCounts.indicesWithUnavailableShards.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
         }

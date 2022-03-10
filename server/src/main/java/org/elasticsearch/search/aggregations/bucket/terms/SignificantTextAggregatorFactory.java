@@ -229,7 +229,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 fieldType,
                 analyzer,
                 fieldNames,
-                context,
                 filterDuplicateText
             );
         }
@@ -239,7 +238,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             fieldType,
             analyzer,
             fieldNames,
-            context,
             filterDuplicateText
         );
     }
@@ -249,7 +247,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private final BigArrays bigArrays;
         private final MappedFieldType fieldType;
         private final Analyzer analyzer;
-        private final AggregationContext context;
         private final String[] sourceFieldNames;
         private final BytesRefBuilder scratch = new BytesRefBuilder();
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
@@ -260,7 +257,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             MappedFieldType fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
-            AggregationContext context,
             boolean filterDuplicateText
         ) {
             this.sourceLookup = sourceLookup;
@@ -268,7 +264,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             this.fieldType = fieldType;
             this.analyzer = analyzer;
             this.sourceFieldNames = sourceFieldNames;
-            this.context = context;
             dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
         }
 
@@ -427,10 +422,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             MappedFieldType fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
-            AggregationContext context,
             boolean filterDuplicateText
         ) {
-            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, context, filterDuplicateText);
+            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, filterDuplicateText);
         }
 
         @Override

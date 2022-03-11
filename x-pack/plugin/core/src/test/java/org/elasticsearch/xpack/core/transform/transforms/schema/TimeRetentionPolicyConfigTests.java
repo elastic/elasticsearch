@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.schema;
 
-import org.elasticsearch.test.AbstractSchemaValidationTestCase;
+import org.elasticsearch.test.xcontent.AbstractSchemaValidationTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 
 import static org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig;

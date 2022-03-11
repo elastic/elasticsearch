@@ -646,7 +646,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             case TEXT_ALIAS_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
-                    JsonStringEncoder encoder = XContentProvider.provider().getJsonStringEncoder();
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
                     value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 } else {
                     value = randomAlphaOfLengthBetween(1, 10);

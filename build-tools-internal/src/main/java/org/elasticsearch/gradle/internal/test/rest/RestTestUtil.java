@@ -55,6 +55,7 @@ public class RestTestUtil {
      * Setup the dependencies needed for the Java REST tests.
      */
     public static void setupJavaRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
-        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+        // TODO: this should just be test framework, but some cleanup is needed in places incorrectly specifying java vs yaml
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:yaml-rest-runner"));
     }
 }

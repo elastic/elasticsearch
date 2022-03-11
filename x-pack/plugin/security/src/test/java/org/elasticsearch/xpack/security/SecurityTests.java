@@ -704,8 +704,8 @@ public class SecurityTests extends ESTestCase {
                 null,
                 null,
                 usageService,
-                null
-            );
+                null,
+                null);
             actionModule.initRestHandlers(null);
 
             appender.assertAllExpectationsMatched();

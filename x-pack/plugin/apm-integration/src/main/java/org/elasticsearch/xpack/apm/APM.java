@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 public class APM extends Plugin implements NetworkPlugin {
-
     public static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
 
     private final SetOnce<APMTracer> tracer = new SetOnce<>();
@@ -73,7 +72,8 @@ public class APM extends Plugin implements NetworkPlugin {
             APMTracer.APM_ENABLED_SETTING,
             APMTracer.APM_ENDPOINT_SETTING,
             APMTracer.APM_TOKEN_SETTING,
-            APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING
+            APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING,
+            APMTracer.APM_SAMPLE_RATE_SETTING
         );
     }
 

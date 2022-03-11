@@ -29,4 +29,6 @@ public interface Tracer {
      * Retrieve context related headers for the span of the given id.
      */
     Map<String, String> getSpanHeadersById(String id);
+
+    void setTraceParent(String traceId);
 }

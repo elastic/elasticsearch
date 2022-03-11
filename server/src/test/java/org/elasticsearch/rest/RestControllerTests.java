@@ -94,7 +94,7 @@ public class RestControllerTests extends ESTestCase {
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracers);
         restController.registerHandler(
             new Route(GET, "/"),
             (request, channel, client) -> channel.sendResponse(
@@ -118,7 +118,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracers);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -160,7 +160,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracers);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -173,7 +173,7 @@ public class RestControllerTests extends ESTestCase {
     public void testTraceParentAndTraceId() throws Exception {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracers);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put(
             Task.TRACE_PARENT_HTTP_HEADER,
@@ -208,7 +208,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService, tracers);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -279,7 +279,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, tracers);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod = randomFrom(
@@ -308,7 +308,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(Collections.emptySet(), h -> {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        }, client, circuitBreakerService, usageService);
+        }, client, circuitBreakerService, usageService, tracers);
         restController.registerHandler(new Route(GET, "/wrapped"), handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -371,7 +371,7 @@ public class RestControllerTests extends ESTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, tracers);
         restController.registerHandler(
             new Route(GET, "/"),
             (r, c, client) -> c.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
@@ -691,7 +691,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracers);
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
 
@@ -715,7 +715,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleRequestToNewlyAddedHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracers);
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
 
@@ -750,7 +750,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracers);
 
         final RestApiVersion version = RestApiVersion.current();
 
@@ -775,7 +775,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCustomMediaTypeValidation() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracers);
 
         final String mediaType = "application/x-protobuf";
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -801,7 +801,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testBrowserSafelistedContentTypesAreRejected() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracers);
 
         final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);

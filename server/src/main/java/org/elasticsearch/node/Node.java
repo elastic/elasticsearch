@@ -700,6 +700,11 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
+            final List<Tracer> tracers = pluginComponents.stream()
+                .map(c -> c instanceof Tracer ? (Tracer) c : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableList());
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -711,7 +716,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                tracers
             );
             modules.add(actionModule);
 
@@ -772,10 +778,6 @@ public class Node implements Closeable {
             clusterService.setTaskManager(transportService.getTaskManager());
 
             final TaskTracer taskTracer = transportService.getTaskManager().getTaskTracer();
-            final List<Tracer> tracers = pluginComponents.stream()
-                .map(c -> c instanceof Tracer ? (Tracer) c : null)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toUnmodifiableList());
             tracers.forEach(taskTracer::addTracer);
 
             pluginsService.filterPlugins(Plugin.class).forEach(plugin -> plugin.onTracers(tracers));

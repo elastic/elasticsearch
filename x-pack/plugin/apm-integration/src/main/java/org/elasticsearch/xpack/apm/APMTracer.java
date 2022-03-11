@@ -27,9 +27,12 @@ import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -65,11 +68,14 @@ import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
+    private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
+
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
     static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
     static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
     static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
+    static final Setting<Float> APM_SAMPLE_RATE_SETTING = Setting.floatSetting("xpack.apm.tracing.sample_rate", 1.0f, Dynamic, NodeScope);
     static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
         "xpack.apm.tracing.names.include",
         Collections.emptyList(),
@@ -86,22 +92,19 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private final SecureString token;
 
     private volatile boolean enabled;
+    private volatile float sampleRate;
     private volatile APMServices services;
 
     private List<String> includeNames;
 
-    /** This class is required to make all open telemetry services visible at once */
-    private static class APMServices {
-        private final SdkTracerProvider provider;
-        private final Tracer tracer;
-        private final OpenTelemetry openTelemetry;
-
-        private APMServices(SdkTracerProvider provider, Tracer tracer, OpenTelemetry openTelemetry) {
-            this.provider = provider;
-            this.tracer = tracer;
-            this.openTelemetry = openTelemetry;
-        }
+    public void setSampleRate(float sampleRate) {
+        this.sampleRate = sampleRate;
     }
+
+    /**
+     * This class is required to make all open telemetry services visible at once
+     */
+    private record APMServices(SdkTracerProvider provider, Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -110,8 +113,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.token = APM_TOKEN_SETTING.get(settings);
         this.enabled = APM_ENABLED_SETTING.get(settings);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        this.sampleRate = APM_SAMPLE_RATE_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_SAMPLE_RATE_SETTING, this::setSampleRate);
     }
 
     public boolean isEnabled() {
@@ -183,6 +188,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                         )
                     )
                 )
+                // TODO make dynamic
+                .setSampler(Sampler.traceIdRatioBased(this.sampleRate))
                 .addSpanProcessor(createSpanProcessor(endpoint, token))
                 .build()
         );
@@ -293,6 +300,16 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), traceContextMap, new MapKeyGetter());
         }
         return null;
+    }
+
+    @Override
+    public void setTraceParent(String traceparent) {
+        // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
+        // TODO tracestate?
+        services.openTelemetry.getPropagators()
+            .getTextMapPropagator()
+            .extract(Context.current(), Map.of(Task.TRACE_PARENT_HTTP_HEADER, traceparent), new MapKeyGetter())
+            .makeCurrent();
     }
 
     @Override

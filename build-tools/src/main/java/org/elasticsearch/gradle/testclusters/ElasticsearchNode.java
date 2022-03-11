@@ -180,7 +180,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String clusterName,
         String path,
         String name,
-        int nodeClusterOrdinal,
         Project project,
         Provider<ReaperService> reaperServiceProvider,
         FileSystemOperations fileSystemOperations,
@@ -215,7 +214,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
-        defaultConfig.put("readiness.port", Integer.toString(9400 + nodeClusterOrdinal));
 
         pluginAndModuleConfiguration = project.getObjects().fileCollection();
         setTestDistribution(TestDistribution.INTEG_TEST);

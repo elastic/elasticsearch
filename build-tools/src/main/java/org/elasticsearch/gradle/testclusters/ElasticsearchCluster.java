@@ -95,7 +95,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 safeName(clusterName),
                 path,
                 clusterName + "-0",
-                0,
                 project,
                 reaper,
                 fileSystemOperations,
@@ -130,7 +129,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     safeName(clusterName),
                     path,
                     clusterName + "-" + i,
-                    i,
                     project,
                     reaper,
                     fileSystemOperations,
@@ -142,6 +140,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     isReleasedVersion
                 )
             );
+        }
+    }
+
+    public void setReadinessPorts(String ports) {
+        String[] portsArray = ports.split(",");
+        if (portsArray.length != nodes.size()) {
+            throw new IllegalArgumentException("Number of readiness ports must match the number of nodes");
+        }
+
+        int counter = 0;
+        for (ElasticsearchNode node : nodes) {
+            node.setting("readiness.port", portsArray[counter++]);
         }
     }
 

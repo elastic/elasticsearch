@@ -10,4 +10,5 @@ dependencies {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
+  readinessPorts = '9400,9401,9402,9403'
 }

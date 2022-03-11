@@ -32,6 +32,7 @@ import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.node.Node.WRITE_PORTS_FILE_SETTING;
@@ -44,6 +45,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private volatile boolean active = false;
     private volatile ServerSocketChannel serverChannel;
+    private CountDownLatch listenerThreadLatch;
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
@@ -115,9 +117,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }
 
         this.serverChannel = setupSocket();
+        this.listenerThreadLatch = new CountDownLatch(1);
 
         new Thread(() -> {
-            while (serverChannel != null && serverChannel.isOpen()) {
+            assert serverChannel != null && listenerThreadLatch != null;
+            while (serverChannel.isOpen()) {
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
                         logger.debug("encountered exception while responding to readiness check request", e);
@@ -127,6 +131,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                     return null;
                 });
             }
+            listenerThreadLatch.countDown();
         }, "elasticsearch[readiness-service]").start();
 
         logger.info("readiness service up and running on {}", boundAddress().publishAddress());
@@ -150,8 +155,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         try {
             if (this.serverChannel != null) {
                 this.serverChannel.close();
+                listenerThreadLatch.await();
             }
-        } catch (IOException e) {
+        } catch (InterruptedException | IOException e) {
             logger.warn("error closing readiness service channel", e);
         } finally {
             this.serverChannel = null;

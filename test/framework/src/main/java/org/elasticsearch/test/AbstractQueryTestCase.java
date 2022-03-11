@@ -41,7 +41,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.IOException;
 import java.time.Instant;

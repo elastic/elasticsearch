@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xcontent.internal;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import java.io.UncheckedIOException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Objects;
 import java.util.ServiceLoader;
 
 /**
@@ -25,7 +27,7 @@ public final class ProviderLocator {
     /**
      * Returns the provider instance.
      */
-    public static final XContentProvider INSTANCE = provider();
+    public static final XContentProvider INSTANCE = Objects.requireNonNull(provider());
 
     private static XContentProvider provider() {
         try {
@@ -36,9 +38,15 @@ public final class ProviderLocator {
         }
     }
 
+    @SuppressForbidden(reason = "I know what I'm doing")
     private static XContentProvider loadAsNonModule() {
-        ClassLoader loader = EmbeddedImplClassLoader.getInstance(ProviderLocator.class.getClassLoader(), "x-content");
-        ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class, loader);
-        return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
+        try {
+            ClassLoader loader = EmbeddedImplClassLoader.getInstance(ProviderLocator.class.getClassLoader(), "x-content");
+            ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class, loader);
+            return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
+        } catch (Throwable t) {
+            System.out.println("HEGO: caught " + t);
+            throw t;
+        }
     }
 }

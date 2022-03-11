@@ -163,6 +163,9 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), jwtIssuer.algorithmsCsv())
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), "roles")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_DN.getClaim()), "dn")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_NAME.getClaim()), "name")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_MAIL.getClaim()), "mail")
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
                 JwtRealmSettings.ClientAuthenticationType.NONE.value()
@@ -241,6 +244,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), "HS256,HS384")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "email")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)@[^.]*[.]example[.]com$")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_MAIL.getClaim()), "email")
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
                 JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()

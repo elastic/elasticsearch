@@ -1440,7 +1440,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         try {
             return readPortsFile(readinessPortsFile);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read readiness ports file: " + readinessPortsFile + " for " + this, e);
+            return new ArrayList<>();
         }
     }
 

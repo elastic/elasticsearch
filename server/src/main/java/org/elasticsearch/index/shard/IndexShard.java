@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.hppc.ObjectLongMap;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -185,7 +183,6 @@ import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
@@ -959,7 +956,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
-                return new Engine.IndexResult(update);
+                return new Engine.IndexResult(update, operation.parsedDoc().id());
             }
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure
@@ -967,7 +964,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // can not raise an exception that may block any replication of previous operations to the
             // replicas
             verifyNotClosed(e);
-            return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
+            return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
 
         return index(engine, operation);
@@ -1097,12 +1094,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.noOp(noOp);
     }
 
-    public Engine.IndexResult getFailedIndexResult(Exception e, long version) {
-        return new Engine.IndexResult(e, version);
+    public Engine.IndexResult getFailedIndexResult(Exception e, long version, String id) {
+        return new Engine.IndexResult(e, version, id);
     }
 
-    public Engine.DeleteResult getFailedDeleteResult(Exception e, long version) {
-        return new Engine.DeleteResult(e, version, getOperationPrimaryTerm());
+    public Engine.DeleteResult getFailedDeleteResult(Exception e, long version, String id) {
+        return new Engine.DeleteResult(e, version, getOperationPrimaryTerm(), id);
     }
 
     public Engine.DeleteResult applyDeleteOperationOnPrimary(
@@ -2669,7 +2666,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public Map<String, Long> getInSyncGlobalCheckpoints() {
         assert assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getInSyncGlobalCheckpoints();
@@ -2690,8 +2687,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
-            final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
-            final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
+            final var trackedGlobalCheckpointsNeedSync = replicationTracker.trackedGlobalCheckpointsNeedSync();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
             // checkpoint can be synced. Also take into account that a shard might be pending sync, which means that it isn't
@@ -2699,8 +2695,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // the global checkpoint.
             final boolean syncNeeded = (asyncDurability
                 && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
-                // check if the persisted global checkpoint
-                || StreamSupport.stream(globalCheckpoints.values().spliterator(), false).anyMatch(v -> v.value < globalCheckpoint);
+                || trackedGlobalCheckpointsNeedSync;
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
                 logger.trace("syncing global checkpoint for [{}]", reason);

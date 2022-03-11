@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
@@ -73,7 +72,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
             } else {
                 return null;
             }
-        }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList());
+        }).filter(Objects::nonNull).toList();
     }
 
     @Override

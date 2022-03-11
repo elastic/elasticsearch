@@ -12,14 +12,64 @@ import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EngineTestPlugin.class);
+    }
+
+    private static final Set<ShardId> failOnFlushShards = Sets.newConcurrentHashSet();
+
+    public static class EngineTestPlugin extends Plugin implements EnginePlugin {
+        @Override
+        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+            return Optional.of(config -> new InternalEngine(config) {
+                @Override
+                public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                    final ShardId shardId = config.getShardId();
+                    if (failOnFlushShards.contains(shardId)) {
+                        throw new EngineException(shardId, "simulated IO");
+                    }
+                    super.flush(force, waitIfOngoing);
+                }
+            });
+        }
+    }
+
+    @Before
+    public void resetFailOnFlush() throws Exception {
+        failOnFlushShards.clear();
+    }
 
     public void testSimple() throws Exception {
         final XContentBuilder mapping = XContentFactory.jsonBuilder();
@@ -50,7 +100,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
-        ensureGreen(index);
 
         int numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
@@ -96,6 +145,42 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertThat(valueField.getDocValuesBytes(), greaterThan(0L));
 
         assertMetadataFields(stats);
+    }
+
+    public void testFailOnFlush() throws Exception {
+        final String indexName = "test-index";
+        int numberOfShards = between(1, 5);
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+            )
+            .get();
+        int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            int value = randomIntBetween(1, 10);
+            final XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("english_text", English.intToEnglish(value))
+                .field("value", value)
+                .endObject();
+            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+        }
+        Index index = clusterService().state().metadata().index(indexName).getIndex();
+        List<ShardId> failedShards = randomSubsetOf(
+            between(1, numberOfShards),
+            IntStream.range(0, numberOfShards).mapToObj(n -> new ShardId(index, n)).toList()
+        );
+        failOnFlushShards.addAll(failedShards);
+        AnalyzeIndexDiskUsageResponse resp = client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { indexName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+        ).actionGet();
+        assertThat(resp.getTotalShards(), equalTo(numberOfShards));
+        assertThat(resp.getFailedShards(), equalTo(failedShards.size()));
     }
 
     void assertMetadataFields(IndexDiskUsageStats stats) {

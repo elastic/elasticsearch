@@ -26,8 +26,9 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
+        int padPixels = randomIntBetween(0, extent);
         Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        FeatureFactory factory = new FeatureFactory(z, x, y, extent);
+        FeatureFactory factory = new FeatureFactory(z, x, y, extent, padPixels);
         List<Point> points = new ArrayList<>();
         List<GeoPoint> geoPoints = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -50,7 +51,8 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
-        FeatureFactory factory = new FeatureFactory(z, x, y, extent);
+        int padPixels = randomIntBetween(0, extent);
+        FeatureFactory factory = new FeatureFactory(z, x, y, extent, padPixels);
         Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
         for (int i = 0; i < extent; i++) {
             byte[] b1 = factory.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
@@ -64,7 +66,8 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         int x = randomIntBetween(1, (1 << z) - 1);
         int y = randomIntBetween(1, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
-        FeatureFactory factory = new FeatureFactory(z, x, y, extent);
+        int padPixels = randomIntBetween(0, extent);
+        FeatureFactory factory = new FeatureFactory(z, x, y, extent, padPixels);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
             // box is a point

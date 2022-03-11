@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.geometry.Rectangle;
@@ -114,7 +115,8 @@ public class RestVectorTileAction extends BaseRestHandler {
                         request.getZ(),
                         request.getX(),
                         request.getY(),
-                        request.getExtent()
+                        request.getExtent(),
+                        SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS
                     );
                     final InternalGeoGrid<?> grid = searchResponse.getAggregations() != null
                         ? searchResponse.getAggregations().get(GRID_FIELD)

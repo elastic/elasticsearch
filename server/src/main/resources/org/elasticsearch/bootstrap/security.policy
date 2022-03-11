@@ -48,6 +48,10 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
+grant codeBase "${codebase.elasticsearch-x-content}" {
+  permission java.lang.RuntimePermission "createClassLoader";
+};
+
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";

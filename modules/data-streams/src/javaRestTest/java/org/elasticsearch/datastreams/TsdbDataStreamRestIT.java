@@ -12,7 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;

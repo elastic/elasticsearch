@@ -9,6 +9,8 @@ package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;

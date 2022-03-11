@@ -462,13 +462,10 @@ public class InstallPluginActionTests extends ESTestCase {
         doCallRealMethod().when(spied)
             .computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
-        int terminalLen = terminal.getOutput().length();
+        terminal.reset();
 
         installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied);
-        assertThat(
-            terminal.getOutput().substring(terminalLen),
-            not(containsString("The plugin installer is trying to verify the signature "))
-        );
+        assertThat(terminal.getOutput(), not(containsString("The plugin installer is trying to verify the signature ")));
     }
 
     public void testMultipleWorks() throws Exception {

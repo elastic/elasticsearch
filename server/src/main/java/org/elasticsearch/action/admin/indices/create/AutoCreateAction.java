@@ -209,21 +209,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 Map<CreateIndexRequest, String> successfulRequests,
                 ClusterStateTaskExecutor.TaskContext<CreateIndexTask> taskContext
             ) throws Exception {
-                final ActionListener<ClusterState> publishListener = new ActionListener<>() {
-                    @Override
-                    public void onResponse(ClusterState clusterState) {
-                        // nothing to do here, listener is completed at the end of acking
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        CreateIndexTask.this.onFailure(e);
-                    }
-                };
-
                 final var previousIndexName = successfulRequests.get(request);
                 if (previousIndexName != null) {
-                    taskContext.success(publishListener, getAckListener(previousIndexName));
+                    taskContext.success(getAckListener(previousIndexName));
                     return currentState;
                 }
 
@@ -255,7 +243,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
-                    taskContext.success(publishListener, getAckListener(indexName));
+                    taskContext.success(getAckListener(indexName));
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 } else {
@@ -270,7 +258,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                         if (shouldAutoCreate == false) {
                             // The index already exists.
-                            taskContext.success(publishListener, getAckListener(indexName));
+                            taskContext.success(getAckListener(indexName));
                             successfulRequests.put(request, indexName);
                             return currentState;
                         }
@@ -309,7 +297,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
 
                     final var clusterState = createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
-                    taskContext.success(publishListener, getAckListener(indexName));
+                    taskContext.success(getAckListener(indexName));
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 }

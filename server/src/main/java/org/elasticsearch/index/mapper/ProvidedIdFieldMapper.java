@@ -50,8 +50,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * A mapper for the {@code _id} field that that reads the from the
- * {@link SourceToParse#id()}. It also optionally supports field data
+ * A mapper for the {@code _id} field that reads the from the
+ * {@link SourceToParse#id()}. It also supports field data
  * if the cluster is configured to allow it.
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {

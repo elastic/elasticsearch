@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
- * {@code _tsid}.
+ * {@code _tsid} and {@code @timestamp}.
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final FieldType FIELD_TYPE = new FieldType();

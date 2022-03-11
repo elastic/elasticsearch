@@ -15,41 +15,22 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
-import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.component.ComponentIdentifier;
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
-import org.gradle.api.artifacts.result.ResolvedComponentResult;
-import org.gradle.api.artifacts.result.ResolvedDependencyResult;
-import org.gradle.api.attributes.LibraryElements;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
-import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
-import org.gradle.process.CommandLineArgumentProvider;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
 
@@ -62,9 +43,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
         // configureConfigurations(project);
-        configureCompileModulePath(project);
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
@@ -160,127 +141,5 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
-    }
-
-    static void configureCompileModulePath(Project project) {
-        // first disable Gradle's builtin module path inference
-        project.getTasks()
-            .withType(JavaCompile.class)
-            .configureEach(compileTask -> compileTask.getModularity().getInferModulePath().set(false));
-
-        var isModuleProject = hasModuleInfoDotJava(project);
-        var configurations = project.getConfigurations();
-        var compileClasspath = configurations.getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
-
-        var moduleCompileClasspath = configurations.create("moduleCompileClasspath", it -> {
-            it.extendsFrom(compileClasspath);
-            it.setCanBeConsumed(false); // We don't want this configuration used by dependent projects
-            it.attributes(
-                attrs -> attrs.attribute(
-                    LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
-                    project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
-                )
-            );
-        }).getIncoming().artifactView(it -> {
-            it.componentFilter(
-                cf -> walkResolvedComponent(project, compileClasspath.getIncoming().getResolutionResult().getRoot(), isModuleProject)
-                    .anyMatch(cf::equals)
-            );
-        }).getFiles();
-
-        project.getTasks().named("compileJava", JavaCompile.class).configure(task -> {
-            var argumentProvider = new CompileModulePathArgumentProvider(isModuleProject, moduleCompileClasspath);
-            task.getOptions().getCompilerArgumentProviders().add(argumentProvider);
-            FileCollection classpath = task.getClasspath();
-            if (isIdea() == false && task.getClasspath() != null) {
-                FileCollection trimmedClasspath = classpath.minus(moduleCompileClasspath);
-                task.setClasspath(project.files(trimmedClasspath));
-            }
-            task.doFirst(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    System.out.println("%s, Module path args: %s".formatted(project, argsToString(argumentProvider.asArguments())));
-                    System.out.println("%s, Classpath: %s".formatted(project, pathToString(classpath.getAsPath())));
-                }
-            });
-        });
-    }
-
-    static Stream<ComponentIdentifier> walkResolvedComponent(Project project, ResolvedComponentResult result, boolean isModuleDependency) {
-        return result.getDependencies()
-            .stream()
-            .filter(ResolvedDependencyResult.class::isInstance)
-            .map(ResolvedDependencyResult.class::cast)
-            .filter(it -> {
-                var id = it.getSelected().getId();
-                return isModuleDependency
-                    || (id instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
-            })
-            .flatMap(it -> Stream.concat(walkResolvedComponent(project, it.getSelected(), true), Stream.of(it.getSelected().getId())));
-    }
-
-    static class CompileModulePathArgumentProvider implements CommandLineArgumentProvider, Named {
-        private final boolean isModuleProject;
-        private final FileCollection modulePath;
-
-        CompileModulePathArgumentProvider(boolean isModuleProject, FileCollection modulePath) {
-            this.isModuleProject = isModuleProject;
-            this.modulePath = modulePath;
-        }
-
-        @Override
-        public Iterable<String> asArguments() {
-            List<String> extraArgs = new ArrayList<>();
-            if (modulePath.isEmpty() == false) {
-                if (isModuleProject == false) {
-                    extraArgs.add("--add-modules=ALL-MODULE-PATH");
-                }
-                String mp = modulePath.getAsPath();
-                extraArgs.add("--module-path=" + mp);
-            }
-            if (isModuleProject) {
-                extraArgs.add("--module-version=" + VersionProperties.getElasticsearch());
-            }
-            return List.copyOf(extraArgs);
-        }
-
-        @Internal
-        @Override
-        public String getName() {
-            return "module-compile-path-arg-provider";
-        }
-    }
-
-    static boolean hasModuleInfoDotJava(Project project) {
-        return getJavaMainSourceSet(project).getJava()
-            .getSrcDirs()
-            .stream()
-            .map(dir -> dir.toPath().resolve("module-info.java"))
-            .anyMatch(Files::exists);
-    }
-
-    static boolean hasModuleInfoDotJava(Project project, ProjectComponentIdentifier id) {
-        return project.findProject(id.getProjectPath()).file("src/main/java/module-info.java").exists();
-    }
-
-    static SourceSet getJavaMainSourceSet(Project project) {
-        return GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-    }
-
-    static String argsToString(Iterable<String> path) {
-        return StreamSupport.stream(path.spliterator(), false).map(arg -> {
-            if (arg.startsWith("--module-path=")) {
-                return "--module-path=" + pathToString(arg.substring("--module-path=".length()));
-            }
-            return arg;
-        }).collect(Collectors.joining("\n  ", "[\n  ", "]"));
-    }
-
-    static String pathToString(String path) {
-        return Arrays.stream(path.split(File.pathSeparator)).sorted().collect(Collectors.joining("\n  ", "[\n  ", "]"));
-    }
-
-    static boolean isIdea() {
-        return System.getProperty("idea.active", "false").equals("true");
     }
 }

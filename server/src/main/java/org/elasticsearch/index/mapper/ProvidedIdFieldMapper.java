@@ -269,4 +269,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         context.id(context.sourceToParse().id());
         context.doc().add(standardIdField(context.id()));
     }
+
+    @Override
+    public String documentDescription(SourceToParse source) {
+        return "document with id '" + source.id() + "'";
+    }
 }

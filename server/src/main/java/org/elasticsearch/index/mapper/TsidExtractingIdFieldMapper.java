@@ -155,4 +155,9 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));
     }
+
+    @Override
+    public String documentDescription(SourceToParse source) {
+        return "a time series document";
+    }
 }

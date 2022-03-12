@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.hppc.ObjectLongMap;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -2668,7 +2666,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public Map<String, Long> getInSyncGlobalCheckpoints() {
         assert assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getInSyncGlobalCheckpoints();

@@ -259,6 +259,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(previousIOTime);
         }
 
+        public String getDeviceName() {
+            return deviceName;
+        }
+
         public long operations() {
             if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
 

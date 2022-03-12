@@ -191,7 +191,6 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         ClusterState clusterState
     ) {
         int successfulShards = 0;
-        int failedShards = 0;
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final Map<String, IndexDiskUsageStats> combined = new HashMap<>();
         for (int i = 0; i < shardsResponses.length(); i++) {
@@ -199,22 +198,16 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             if (r instanceof AnalyzeDiskUsageShardResponse resp) {
                 ++successfulShards;
                 combined.compute(resp.getIndex(), (k, v) -> v == null ? resp.stats : v.add(resp.stats));
+            } else if (r instanceof DefaultShardOperationFailedException e) {
+                shardFailures.add(e);
+            } else if (r instanceof Exception e) {
+                shardFailures.add(new DefaultShardOperationFailedException(ExceptionsHelper.convertToElastic(e)));
             } else {
-                failedShards++;
-                // individual response can be null as we ignore isShardNotAvailableException
-                if (r != null) {
-                    if (r instanceof DefaultShardOperationFailedException e) {
-                        shardFailures.add(e);
-                    } else if (r instanceof Exception e) {
-                        shardFailures.add(new DefaultShardOperationFailedException(ExceptionsHelper.convertToElastic(e)));
-                    } else {
-                        assert false : "unknown response [" + r + "]";
-                        throw new IllegalStateException("unknown response [" + r + "]");
-                    }
-                }
+                assert false : "unknown response [" + r + "]";
+                throw new IllegalStateException("unknown response [" + r + "]");
             }
         }
-        return new AnalyzeIndexDiskUsageResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, combined);
+        return new AnalyzeIndexDiskUsageResponse(shardsResponses.length(), successfulShards, shardFailures.size(), shardFailures, combined);
     }
 
     @Override

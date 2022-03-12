@@ -1861,8 +1861,8 @@ since starting {es}.
 
 `io_time_in_millis` (Linux only)::
     (integer)
-    The total time in milliseconds spent performing I/O operations for the 
-    device since starting {es}.
+    The total time in milliseconds spent performing I/O operations across all 
+    devices used by {es} since starting {es}.
 =======
 ======
 

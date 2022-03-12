@@ -827,13 +827,24 @@ public class RecoverySourceHandler {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(
-                            new ParameterizedMessage(
-                                "failed to recover file [{}] from snapshot, " + "will recover from primary instead",
-                                snapshotFileToRecover.metadata()
-                            ),
-                            e
-                        );
+                        if (cancelled.get() || e instanceof CancellableThreads.ExecutionCancelledException) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "cancelled while recovering file [{}] from snapshot",
+                                    snapshotFileToRecover.metadata()
+                                ),
+                                e
+                            );
+                        } else {
+                            logger.warn(
+                                new ParameterizedMessage(
+                                    "failed to recover file [{}] from snapshot{}",
+                                    snapshotFileToRecover.metadata(),
+                                    shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() ? ", will recover from primary instead" : ""
+                                ),
+                                e
+                            );
+                        }
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode()) {
                             onRequestCompletion(snapshotFileToRecover.metadata(), e);
                         } else {

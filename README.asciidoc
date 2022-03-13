@@ -210,7 +210,7 @@ To build distributions for all supported platforms, run:
 ./gradlew assemble
 ----
 
-Finished distributions are output to `distributions/archives`.
+Finished distributions are output to `distribution/archives`.
 
 See the xref:TESTING.asciidoc[TESTING] for more information about running the Elasticsearch test suite.
 

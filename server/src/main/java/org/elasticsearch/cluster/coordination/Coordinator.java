@@ -193,6 +193,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             settings,
             allocationService,
             masterService,
+            clusterApplier,
             transportService,
             this::getCurrentTerm,
             this::getStateForMasterService,
@@ -279,7 +280,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 .collect(Collectors.toList()),
             getCurrentTerm(),
             electionStrategy,
-            nodeHealthService.getHealth()
+            nodeHealthService.getHealth(),
+            joinHelper.getInFlightJoinStatuses()
         );
     }
 

@@ -21,9 +21,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -44,13 +46,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -69,12 +68,13 @@ public class JoinHelper {
     public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
     private final MasterService masterService;
+    private final ClusterApplier clusterApplier;
     private final TransportService transportService;
     private volatile JoinTaskExecutor joinTaskExecutor;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
 
-    private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
+    private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
     private final Map<DiscoveryNode, Releasable> joinConnections = new HashMap<>(); // synchronized on itself
 
@@ -84,6 +84,7 @@ public class JoinHelper {
         Settings settings,
         AllocationService allocationService,
         MasterService masterService,
+        ClusterApplier clusterApplier,
         TransportService transportService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
@@ -95,6 +96,7 @@ public class JoinHelper {
         JoinReasonService joinReasonService
     ) {
         this.masterService = masterService;
+        this.clusterApplier = clusterApplier;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
@@ -288,9 +290,10 @@ public class JoinHelper {
         }
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
-        if (pendingOutgoingJoins.add(dedupKey)) {
+        final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
+        if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-
+            pendingJoinInfo.message = "waiting to connect";
             // Typically we're already connected to the destination at this point, the PeerFinder holds a reference to this connection to
             // keep it open, but we need to acquire our own reference to keep the connection alive through the joining process.
             transportService.connectToNode(destination, new ActionListener<>() {
@@ -302,26 +305,53 @@ public class JoinHelper {
                     // which point the NodeConnectionsService will have taken ownership of it.
                     registerConnection(destination, connectionReference);
 
-                    transportService.sendRequest(
-                        destination,
-                        JOIN_ACTION_NAME,
-                        joinRequest,
-                        TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
-                        new TransportResponseHandler.Empty() {
+                    // It's possible that our cluster applier is still applying an earlier cluster state (maybe stuck waiting on IO), in
+                    // which case the master will accept our join and add us to the cluster but we won't be able to apply the joining state
+                    // fast enough and will be kicked out of the cluster for lagging, which can happen repeatedly and be a little
+                    // disruptive. To avoid this we send the join from the applier thread which ensures that it's not busy doing something
+                    // else.
+                    pendingJoinInfo.message = "waiting for local cluster applier";
+                    clusterApplier.onNewClusterState(
+                        "joining " + destination.descriptionWithoutAttributes(),
+                        () -> null,
+                        new ActionListener<>() {
                             @Override
-                            public void handleResponse(TransportResponse.Empty response) {
-                                pendingOutgoingJoins.remove(dedupKey);
-                                logger.debug("successfully joined {} with {}", destination, joinRequest);
-                                lastFailedJoinAttempt.set(null);
+                            public void onResponse(Void unused) {
+                                pendingJoinInfo.message = "waiting for response";
+                                transportService.sendRequest(
+                                    destination,
+                                    JOIN_ACTION_NAME,
+                                    joinRequest,
+                                    TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
+                                    new TransportResponseHandler.Empty() {
+                                        @Override
+                                        public void handleResponse(TransportResponse.Empty response) {
+                                            pendingJoinInfo.message = "waiting to receive cluster state"; // only logged if state delayed
+                                            pendingOutgoingJoins.remove(dedupKey);
+                                            logger.debug("successfully joined {} with {}", destination, joinRequest);
+                                            lastFailedJoinAttempt.set(null);
+                                        }
+
+                                        @Override
+                                        public void handleException(TransportException exp) {
+                                            pendingJoinInfo.message = "failed";
+                                            pendingOutgoingJoins.remove(dedupKey);
+                                            FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                            attempt.logNow();
+                                            lastFailedJoinAttempt.set(attempt);
+                                            unregisterAndReleaseConnection(destination, connectionReference);
+                                        }
+                                    }
+                                );
                             }
 
                             @Override
-                            public void handleException(TransportException exp) {
+                            public void onFailure(Exception e) {
+                                assert false : "no-op cluster state update cannot fail";
+                                logger.error("failed to send join request from cluster applier thread", e);
                                 pendingOutgoingJoins.remove(dedupKey);
-                                FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
-                                attempt.logNow();
-                                lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
+                                pendingJoinInfo.message = "failed";
                             }
                         }
                     );
@@ -329,6 +359,7 @@ public class JoinHelper {
 
                 @Override
                 public void onFailure(Exception e) {
+                    pendingJoinInfo.message = "failed to connect";
                     pendingOutgoingJoins.remove(dedupKey);
                     FailedJoinAttempt attempt = new FailedJoinAttempt(
                         destination,
@@ -359,6 +390,32 @@ public class JoinHelper {
                 logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
             }
         });
+    }
+
+    List<JoinStatus> getInFlightJoinStatuses() {
+        final var currentTime = transportService.getThreadPool().relativeTimeInMillis();
+        final var result = new ArrayList<JoinStatus>(pendingOutgoingJoins.size());
+        var maxTerm = Long.MIN_VALUE;
+        for (final var entry : pendingOutgoingJoins.entrySet()) {
+            final var nodeAndJoinRequest = entry.getKey();
+            final var term = nodeAndJoinRequest.v2().getTerm();
+            if (maxTerm < term) {
+                result.clear();
+                maxTerm = term;
+            }
+            if (term == maxTerm) {
+                final var pendingJoinInfo = entry.getValue();
+                result.add(
+                    new JoinStatus(
+                        nodeAndJoinRequest.v1(),
+                        term,
+                        pendingJoinInfo.message,
+                        TimeValue.timeValueMillis(currentTime - pendingJoinInfo.startTimeMillis)
+                    )
+                );
+            }
+        }
+        return result;
     }
 
     interface JoinAccumulator {
@@ -456,6 +513,15 @@ public class JoinHelper {
         @Override
         public String toString() {
             return "CandidateJoinAccumulator{" + joinRequestAccumulator.keySet() + ", closed=" + closed + '}';
+        }
+    }
+
+    private static class PendingJoinInfo {
+        final long startTimeMillis;
+        volatile String message = "initializing";
+
+        PendingJoinInfo(long startTimeMillis) {
+            this.startTimeMillis = startTimeMillis;
         }
     }
 }

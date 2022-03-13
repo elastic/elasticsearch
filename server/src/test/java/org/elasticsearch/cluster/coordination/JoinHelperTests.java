@@ -81,6 +81,7 @@ public class JoinHelperTests extends ESTestCase {
             Settings.EMPTY,
             null,
             null,
+            new NoOpClusterApplier(),
             transportService,
             () -> 0L,
             () -> null,
@@ -228,6 +229,7 @@ public class JoinHelperTests extends ESTestCase {
             Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build(),
             null,
             null,
+            new NoOpClusterApplier(),
             transportService,
             () -> 0L,
             () -> localClusterState,
@@ -287,6 +289,7 @@ public class JoinHelperTests extends ESTestCase {
             Settings.EMPTY,
             null,
             null,
+            new NoOpClusterApplier(),
             transportService,
             () -> 0L,
             () -> null,
@@ -336,7 +339,7 @@ public class JoinHelperTests extends ESTestCase {
         assertEquals(node1, capturedRequest1a.node());
     }
 
-    public void testJoinValidationFailsOnUnreadableClusterState() throws Exception {
+    public void testJoinValidationFailsOnUnreadableClusterState() {
         final List<Releasable> releasables = new ArrayList<>(3);
         try {
             final ThreadPool threadPool = new TestThreadPool("test");
@@ -353,6 +356,7 @@ public class JoinHelperTests extends ESTestCase {
                 Settings.EMPTY,
                 null,
                 null,
+                new NoOpClusterApplier(),
                 remoteTransportService,
                 () -> 0L,
                 () -> null,

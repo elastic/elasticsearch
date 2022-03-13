@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -296,6 +297,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             assertThat(resp.getTotalShards(), equalTo(numberOfShards));
             assertThat(resp.getFailedShards(), equalTo(failedShards.get()));
             assertThat(resp.getSuccessfulShards(), equalTo(resp.getTotalShards() - resp.getFailedShards()));
+            assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);

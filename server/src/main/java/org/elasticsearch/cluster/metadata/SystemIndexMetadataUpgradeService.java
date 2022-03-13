@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                             clusterService.submitStateUpdateTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
                                 new SystemIndexMetadataUpdateTask(),
-                                ClusterStateTaskExecutor.unbatched()
+                                newExecutor()
                             );
                             break;
                         }
@@ -71,6 +72,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     // visible for testing
@@ -100,9 +106,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         updated = true;
                     }
-                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
+                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()))) {
                         for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                            if (aliasMetadata.isHidden() == false) {
+                            if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
                                 builder.removeAlias(aliasMetadata.alias());
                                 builder.putAlias(
                                     AliasMetadata.builder(aliasMetadata.alias())

@@ -268,16 +268,20 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             .field("username", serviceAccountToken.getAccountId().asPrincipal())
             .field("name", serviceAccountToken.getTokenName())
             .field("creation_time", clock.instant().toEpochMilli())
-            .field("enabled", true)
-            .startObject("creator")
-            .field("principal", authentication.getUser().principal())
-            .field("full_name", authentication.getUser().fullName())
-            .field("email", authentication.getUser().email())
-            .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getSourceRealm().getName())
-            .field("realm_type", authentication.getSourceRealm().getType())
-            .endObject();
-
+            .field("enabled", true);
+        {
+            builder.startObject("creator")
+                .field("principal", authentication.getUser().principal())
+                .field("full_name", authentication.getUser().fullName())
+                .field("email", authentication.getUser().email())
+                .field("metadata", authentication.getUser().metadata())
+                .field("realm", authentication.getSourceRealm().getName())
+                .field("realm_type", authentication.getSourceRealm().getType());
+            if (authentication.getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
+            }
+            builder.endObject();
+        }
         byte[] utf8Bytes = null;
         final char[] tokenHash = hasher.hash(serviceAccountToken.getSecret());
         try {

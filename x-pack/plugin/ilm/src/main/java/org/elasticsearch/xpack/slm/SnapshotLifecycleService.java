@@ -13,10 +13,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -99,7 +101,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     clusterService.submitStateUpdateTask(
                         "slm_operation_mode_update[stopped]",
                         OperationModeUpdateTask.slmMode(OperationMode.STOPPED),
-                        ClusterStateTaskExecutor.unbatched()
+                        newExecutor()
                     );
                 }
                 return;
@@ -108,6 +110,11 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             scheduleSnapshotJobs(state);
             cleanupDeletedPolicies(state);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     // Only used for testing

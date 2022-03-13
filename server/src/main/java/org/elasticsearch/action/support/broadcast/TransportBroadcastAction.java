@@ -243,6 +243,9 @@ public abstract class TransportBroadcastAction<
                         }
                     }
                 }
+                if (shardsResponses.get(shardIndex) == null) {
+                    shardsResponses.set(shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
+                }
                 if (expectedOps == counterOps.incrementAndGet()) {
                     finishHim();
                 }

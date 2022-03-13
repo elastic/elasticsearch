@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.apache.lucene.tests.geo.GeoTestUtil;
-import org.apache.lucene.tests.util.English;
+import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.util.English;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -121,7 +121,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(index)
-            .setMapping(mapping)
+            .addMapping("_doc", mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
 
@@ -134,7 +134,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("coordinates", new double[] { GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude() })
                 .endObject()
                 .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
+            client().prepareIndex(index, "_doc").setId("id-" + i).setSource(doc).get();
         }
         AnalyzeIndexDiskUsageResponse resp = client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,

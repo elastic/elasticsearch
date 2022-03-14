@@ -93,8 +93,6 @@ public class BpeTokenizer extends Tokenizer {
     }
 
     private final StringBuilder inputStr = new StringBuilder();
-    // This is pretty much stolen from PatternTokenizer. We really should stream the input and stop using regex
-    final char[] buffer = new char[8192];
     private final Matcher matcher;
     private final LinkedList<BpeToken> tokens = new LinkedList<>();
     private final List<BpeToken> tokenizedValues = new ArrayList<>();
@@ -338,6 +336,8 @@ public class BpeTokenizer extends Tokenizer {
 
     private void fillBuffer(Reader input) throws IOException {
         int len;
+        // This is pretty much stolen from PatternTokenizer. We really should stream the input and stop using regex
+        final char[] buffer = new char[1024];
         inputStr.setLength(0);
         while ((len = input.read(buffer)) > 0) {
             inputStr.append(buffer, 0, len);

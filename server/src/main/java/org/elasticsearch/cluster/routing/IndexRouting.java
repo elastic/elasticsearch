@@ -390,6 +390,21 @@ public abstract class IndexRouting {
             return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
         }
 
+        public byte[] idToSuffix(String id) {
+            byte[] idBytes;
+            try {
+                idBytes = Base64.getUrlDecoder().decode(id);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+            if (idBytes.length < 4) {
+                return null;
+            }
+            byte[] suffix = new byte[idBytes.length - 4];
+            System.arraycopy(idBytes, 4, suffix, 0, suffix.length);
+            return suffix;
+        }
+
         @Override
         public void checkIndexSplitAllowed() {
             throw new IllegalArgumentException(error("index-split"));

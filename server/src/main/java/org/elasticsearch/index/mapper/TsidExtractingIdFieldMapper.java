@@ -10,11 +10,22 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -25,6 +36,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -72,6 +84,51 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
+            if (value instanceof BytesRef == false) {
+                return termsQuery(Arrays.asList(value), context);
+            }
+            String id = ((BytesRef) value).utf8ToString();
+            if (id.startsWith("test:")) {
+                id = id.substring("test:".length());
+                IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.getIndexSettings().getIndexRouting();
+                byte[] suffix = indexRouting.idToSuffix(id);
+                if (suffix == null || suffix.length != 16) {
+                    return new MatchNoDocsQuery();
+                }
+                long timestamp = ByteUtils.readLongLE(suffix, 8);
+                return new TermQuery(new Term(NAME, new BytesRef(id))) {
+                    @Override
+                    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                        Weight delegate = super.createWeight(searcher, scoreMode, boost);
+                        return new Weight(this) {
+                            @Override
+                            public boolean isCacheable(LeafReaderContext ctx) {
+                                return delegate.isCacheable(ctx);
+                            }
+
+                            @Override
+                            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                                return delegate.explain(context, doc); // NOCOMMIT extra from me?
+                            }
+
+                            @Override
+                            public Scorer scorer(LeafReaderContext context) throws IOException {
+                                PointValues timestamps = context.reader().getPointValues("@timestamp");
+                                if (timestamps == null) {
+                                    return null;
+                                }
+                                if (timestamp < LongPoint.decodeDimension(timestamps.getMinPackedValue(), 0)) {
+                                    return null;
+                                }
+                                if (LongPoint.decodeDimension(timestamps.getMaxPackedValue(), 0) < timestamp) {
+                                    return null;
+                                }
+                                return delegate.scorer(context);
+                            }
+                        };
+                    }
+                };
+            }
             return termsQuery(Arrays.asList(value), context);
         }
 

@@ -121,7 +121,7 @@ public class ProfileIT extends ESRestTestCase {
     public void testUpdateProfileData() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request updateProfileRequest1 = new Request("POST", "_security/profile/_data/" + uid);
+        final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
         updateProfileRequest1.setJsonEntity("""
             {
               "access": {

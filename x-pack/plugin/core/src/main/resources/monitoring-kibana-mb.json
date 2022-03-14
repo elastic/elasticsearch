@@ -447,7 +447,7 @@
             }
           }
         },
-        "kibana_rules": {
+        "kibana_node_rules": {
           "properties": {
             "kibana": {
               "properties": {
@@ -457,33 +457,13 @@
                 }
               }
             },
-            "overdue": {
-              "properties": {
-                "count": {
-                  "type": "alias",
-                  "path": "kibana.rules.overdue.count"
-                },
-                "duration": {
-                  "properties": {
-                    "p50": {
-                      "type": "alias",
-                      "path": "kibana.rules.overdue.duration.p50"
-                    },
-                    "p99": {
-                      "type": "alias",
-                      "path": "kibana.rules.overdue.duration.p99"
-                    }
-                  }
-                }
-              }
-            },
             "failures": {
               "type": "alias",
-              "path": "kibana.rules.failures"
+              "path": "kibana.node_rules.failures"
             },
             "executions": {
               "type": "alias",
-              "path": "kibana.rules.executions"
+              "path": "kibana.node_rules.executions"
             },
             "timestamp": {
               "type": "alias",
@@ -491,7 +471,7 @@
             }
           }
         },
-        "kibana_actions": {
+        "kibana_cluster_rules": {
           "properties": {
             "kibana": {
               "properties": {
@@ -505,29 +485,81 @@
               "properties": {
                 "count": {
                   "type": "alias",
-                  "path": "kibana.actions.overdue.count"
+                  "path": "kibana.cluster_rules.overdue.count"
                 },
                 "duration": {
                   "properties": {
                     "p50": {
                       "type": "alias",
-                      "path": "kibana.actions.overdue.duration.p50"
+                      "path": "kibana.cluster_rules.overdue.duration.p50"
                     },
                     "p99": {
                       "type": "alias",
-                      "path": "kibana.actions.overdue.duration.p99"
+                      "path": "kibana.cluster_rules.overdue.duration.p99"
                     }
                   }
                 }
               }
             },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
+            }
+          }
+        },
+        "kibana_node_actions": {
+          "properties": {
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                }
+              }
+            },
             "failures": {
               "type": "alias",
-              "path": "kibana.actions.failures"
+              "path": "kibana.node_actions.failures"
             },
             "executions": {
               "type": "alias",
-              "path": "kibana.actions.executions"
+              "path": "kibana.node_actions.executions"
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
+            }
+          }
+        },
+        "kibana_cluster_actions": {
+          "properties": {
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                }
+              }
+            },
+            "overdue": {
+              "properties": {
+                "count": {
+                  "type": "alias",
+                  "path": "kibana.cluster_actions.overdue.count"
+                },
+                "duration": {
+                  "properties": {
+                    "p50": {
+                      "type": "alias",
+                      "path": "kibana.cluster_actions.overdue.duration.p50"
+                    },
+                    "p99": {
+                      "type": "alias",
+                      "path": "kibana.cluster_actions.overdue.duration.p99"
+                    }
+                  }
+                }
+              }
             },
             "timestamp": {
               "type": "alias",

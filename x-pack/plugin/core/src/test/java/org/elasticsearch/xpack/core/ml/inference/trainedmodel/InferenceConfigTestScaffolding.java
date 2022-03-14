@@ -41,7 +41,7 @@ public final class InferenceConfigTestScaffolding {
 
     static TokenizationUpdate createTokenizationUpdate(Tokenization tokenization, Tokenization.Truncate truncate, Integer span) {
         if (tokenization instanceof MPNetTokenization) {
-            new MPNetTokenizationUpdate(truncate, span);
+            return new MPNetTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof RobertaTokenization) {
             return new RobertaTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof BertTokenization) {

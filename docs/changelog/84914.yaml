@@ -1,0 +1,6 @@
+pr: 84914
+summary: Require and preserve content type for filtered rest requests
+area: Infra/Core
+type: bug
+issues:
+ - 84784

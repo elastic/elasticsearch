@@ -51,18 +51,6 @@ configurations {
     }
 }
 
-// TODO look into removing duplication here
-tasks.named("explodedBundlePlugin").configure {
-    dependsOn configurations.nativeBundle
-    from {
-        configurations.nativeBundle.files.collect { zipTree(it) }
-    }
-
-    // We don't ship the individual nativeBundle licenses - instead
-    // they get combined into the top level NOTICES file we ship
-    exclude 'platform/licenses/**'
-}
-
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))

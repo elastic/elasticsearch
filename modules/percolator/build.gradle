@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.elasticsearch.percolator.PercolatorPlugin'
+  classname 'org.elasticsearch.module.percolator/org.elasticsearch.percolator.PercolatorPlugin'
 }
 
 dependencies {
@@ -22,6 +22,10 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'search', 'msearch'
   }
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure{ task ->

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplate
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -77,16 +76,14 @@ public class IndicesAccessControl {
      * {@link #isRestrictedIndex(String) restricted} indices.
      */
     public DeniedIndices getDeniedIndices() {
-        final List<String> regular = new ArrayList<>();
-        final List<String> restricted = new ArrayList<>();
-        this.indexPermissions.entrySet().stream().filter(e -> e.getValue().granted == false).map(Map.Entry::getKey).forEach(name -> {
-            if (isRestrictedIndex(name)) {
-                restricted.add(name);
-            } else {
-                regular.add(name);
-            }
-        });
-        return new DeniedIndices(Set.copyOf(regular), Set.copyOf(restricted));
+        final Map<Boolean, Set<String>> deniedIndices = this.indexPermissions.entrySet()
+            .stream()
+            .filter(e -> e.getValue().granted == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.groupingBy(this::isRestrictedIndex, Collectors.toUnmodifiableSet()));
+        final Set<String> regularIndices = deniedIndices.getOrDefault(Boolean.FALSE, Set.of());
+        final Set<String> restrictedIndices = deniedIndices.getOrDefault(Boolean.TRUE, Set.of());
+        return new DeniedIndices(regularIndices, restrictedIndices);
     }
 
     /**

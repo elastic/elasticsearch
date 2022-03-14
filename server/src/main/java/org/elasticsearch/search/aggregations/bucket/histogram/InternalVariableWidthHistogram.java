@@ -30,7 +30,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class InternalVariableWidthHistogram extends InternalMultiBucketAggregation<
     InternalVariableWidthHistogram,
@@ -568,7 +567,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalVariableWidthHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             emptyBucketInfo,
             targetNumBuckets,
             format,

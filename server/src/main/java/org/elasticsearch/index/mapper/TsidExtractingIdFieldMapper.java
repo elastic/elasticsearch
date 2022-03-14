@@ -32,9 +32,8 @@ import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
- * A mapper for the _id field. It does nothing since _id is neither indexed nor
- * stored, but we need to keep it so that its FieldType can be used to generate
- * queries.
+ * A mapper for the {@code _id} field that builds the {@code _id} from the
+ * {@code _tsid} and {@code @timestamp}.
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final FieldType FIELD_TYPE = new FieldType();

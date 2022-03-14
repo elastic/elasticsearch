@@ -11,13 +11,13 @@ package org.elasticsearch.script.field;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 
 /**
- * A helper class that lets {@link LeafFieldData#getScriptField} translate from raw doc values
+ * A helper class that lets {@link LeafFieldData#getScriptFieldFactory} translate from raw doc values
  * into the field provider that the scripting API requires. It can make use of information specific
  * to the mapped field type, in a way {@link LeafFieldData} is not designed to do.
  *
- * @param <T> The type of doc values data used to construct a {@link DocValuesField}.
+ * @param <T> The type of doc values data used to construct a {@link DocValuesScriptFieldFactory}.
  */
-public interface ToScriptField<T> {
+public interface ToScriptFieldFactory<T> {
 
-    DocValuesField<?> getScriptField(T docValues, String name);
+    DocValuesScriptFieldFactory getScriptFieldFactory(T docValues, String name);
 }

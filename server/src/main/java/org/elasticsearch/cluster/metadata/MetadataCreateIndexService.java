@@ -514,7 +514,7 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
-            templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
+            templates.stream().map(IndexTemplateMetadata::name).toList()
         );
 
         final Map<String, Object> mappingsMap = parseV1Mappings(

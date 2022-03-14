@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.test.rest.yaml;
+package org.elasticsearch.test.rest;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;

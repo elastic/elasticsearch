@@ -33,7 +33,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -50,9 +50,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * A mapper for the _id field. It does nothing since _id is neither indexed nor
- * stored, but we need to keep it so that its FieldType can be used to generate
- * queries.
+ * A mapper for the {@code _id} field that reads the from the
+ * {@link SourceToParse#id()}. It also supports field data
+ * if the cluster is configured to allow it.
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);
@@ -222,7 +222,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             }
 
             @Override
-            public DocValuesField<?> getScriptField(String name) {
+            public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                 return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
             }
 

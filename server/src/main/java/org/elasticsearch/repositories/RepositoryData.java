@@ -339,7 +339,7 @@ public final class RepositoryData {
                 }
             }
             return false;
-        }).map(Map.Entry::getKey).collect(Collectors.toList());
+        }).map(Map.Entry::getKey).toList();
     }
 
     /**

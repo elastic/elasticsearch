@@ -57,7 +57,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -436,11 +435,7 @@ public class MetadataIndexStateService {
             }
         }
 
-        logger.info(
-            "adding block {} to indices {}",
-            block.name,
-            blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.toList())
-        );
+        logger.info("adding block {} to indices {}", block.name, blockedIndices.keySet().stream().map(Object::toString).toList());
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
     }
 
@@ -1124,17 +1119,7 @@ public class MetadataIndexStateService {
 
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    taskContext.success(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            // listener is notified at the end of acking
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            task.onFailure(e);
-                        }
-                    }, task);
+                    taskContext.success(task);
                 }
             } catch (Exception e) {
                 for (final var taskContext : taskContexts) {
@@ -1234,8 +1219,13 @@ public class MetadataIndexStateService {
         }
 
         @Override
-        public void onAllNodesAcked(@Nullable Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(e == null));
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.of(false));
         }
 
         @Override

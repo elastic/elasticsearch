@@ -168,7 +168,7 @@ teardown:
   - set: { uid: profile_uid }
 
   - do:
-      security.search_user_profile:
+      security.search_user_profiles:
         body: >
           {
             "name": "joe",

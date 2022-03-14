@@ -108,21 +108,14 @@ public class SearchHitCursor implements Cursor {
         client.search(
             request,
             ActionListener.wrap(
-                (SearchResponse response) -> handle(
-                    client,
-                    response,
-                    request.source(),
-                    makeRowSet(nextQuery.size(), response),
-                    listener,
-                    includeFrozen
-                ),
+                (SearchResponse response) -> handle(client, response, request.source(), makeRowSet(response), listener, includeFrozen),
                 listener::onFailure
             )
         );
     }
 
-    private Supplier<SearchHitRowSet> makeRowSet(int sizeRequested, SearchResponse response) {
-        return () -> new SearchHitRowSet(extractors, mask, sizeRequested, limit, response);
+    private Supplier<SearchHitRowSet> makeRowSet(SearchResponse response) {
+        return () -> new SearchHitRowSet(extractors, mask, nextQuery.size(), limit, response);
     }
 
     static void handle(

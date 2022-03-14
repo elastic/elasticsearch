@@ -22,6 +22,8 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
@@ -30,7 +32,11 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.lang.module.ModuleFinder;
 import java.lang.reflect.Constructor;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
@@ -653,6 +659,44 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    static final URI uncheckedToURI(URL url) {
+        try {
+            return url.toURI();
+        } catch (URISyntaxException e) {
+            throw new UncheckedIOException(new IOException(e));
+        }
+    }
+
+    static final String toPackageName(String className) {
+        assert className.endsWith(".") == false;
+        int index = className.lastIndexOf(".");
+        if (index == -1) {
+            throw new IllegalStateException("invalid class name:" + className);
+        }
+        return className.substring(0, index);
+    }
+
+    @SuppressForbidden(reason = "I need to convert URL's to Paths")
+    static final ClassLoader moduleLoader(Bundle bundle, ClassLoader parentLoader) {
+        PrivilegedAction<ClassLoader> pa = () -> {
+            assert bundle.plugin.getModuleName().isPresent();
+            var moduleName = bundle.plugin.getModuleName().get();
+            var paths = bundle.urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
+            var finder = ModuleFinder.of(paths);
+            var parentLayer = ModuleLayer.boot();
+            var configuration = parentLayer.configuration().resolve(ModuleFinder.of(), finder, Set.of(moduleName));
+            var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentLayer), parentLoader);
+            var layer = controller.layer();
+            ClassLoader loader = layer.findLoader(moduleName);
+            var mainModule = layer.findModule(moduleName).get();
+            // ensure that the main class is accessible to server
+            controller.addOpens(mainModule, toPackageName(bundle.plugin.getClassname()), PluginsService.class.getModule());
+            logger.info("plugin module loader for {}", moduleName);
+            return loader;
+        };
+        return AccessController.doPrivileged(pa);
+    }
+
     private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, ClassLoader>> loaded) {
         String name = bundle.plugin.getName();
 
@@ -675,7 +719,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             spiLoader = URLClassLoader.newInstance(bundle.spiUrls.toArray(new URL[0]), parentLoader);
         }
 
-        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), spiLoader == null ? parentLoader : spiLoader);
+        ClassLoader loader;
+        if (bundle.plugin.getModuleName().isPresent()) {
+            loader = moduleLoader(bundle, spiLoader == null ? parentLoader : spiLoader);
+        } else {
+            loader = URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), spiLoader == null ? parentLoader : spiLoader);
+        }
+
         if (spiLoader == null) {
             // use full implementation for plugins extending this one
             spiLoader = loader;
@@ -689,10 +739,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(loader);
-                return null;
-            });
+            privilegedSetContextClassLoader(loader);
 
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
             if (loader != pluginClass.getClassLoader()) {
@@ -710,11 +757,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             loaded.put(name, Tuple.tuple(plugin, spiLoader));
             return plugin;
         } finally {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(cl);
-                return null;
-            });
+            privilegedSetContextClassLoader(cl);
         }
+    }
+
+    @SuppressWarnings("removal")
+    void privilegedSetContextClassLoader(ClassLoader loader) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Thread.currentThread().setContextClassLoader(loader);
+            return null;
+        });
     }
 
     /**

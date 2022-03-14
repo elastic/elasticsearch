@@ -12,12 +12,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -387,10 +389,15 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         int numDocs = 32;
         var currentTime = Instant.now();
         var currentMinus30Days = currentTime.minus(30, ChronoUnit.DAYS);
+        Set<Instant> times = new HashSet<>();
         for (int i = 0; i < numRollovers; i++) {
             for (int j = 0; j < numDocs; j++) {
                 var indexRequest = new Request("POST", "/k8s/_doc");
-                var time = Instant.ofEpochMilli(randomLongBetween(currentMinus30Days.toEpochMilli(), currentTime.toEpochMilli()));
+                var time = randomValueOtherThanMany(
+                    times::contains,
+                    () -> Instant.ofEpochMilli(randomLongBetween(currentMinus30Days.toEpochMilli(), currentTime.toEpochMilli()))
+                );
+                times.add(time);
                 indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
                 var response = client().performRequest(indexRequest);
                 assertOK(response);
@@ -436,13 +443,15 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(newIndex, backingIndexEqualTo("k8s", 6));
 
         // Ingest documents that will land in the new tsdb backing index:
+        var t = currentTime;
         for (int i = 0; i < numDocs; i++) {
             var indexRequest = new Request("POST", "/k8s/_doc");
-            indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(currentTime)));
+            indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(t)));
             var response = client().performRequest(indexRequest);
             assertOK(response);
             var responseBody = entityAsMap(response);
             assertThat((String) responseBody.get("_index"), backingIndexEqualTo("k8s", 6));
+            t = t.plusMillis(1000);
         }
 
         // Fail if documents target older non tsdb backing index:

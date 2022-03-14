@@ -99,7 +99,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             );
         ClusterState execute = task.execute(clusterState);
         assertSame(execute, clusterState); // dry-run
-        task.onAllNodesAcked(null);
+        task.onAllNodesAcked();
         assertNotSame(responseRef.get().getState(), execute);
 
         req.dryRun(false);// now we allocate
@@ -138,7 +138,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         // without retry_failed we won't allocate that shard
         ClusterState newState = task.execute(clusterState);
         assertNotSame(newState, clusterState); // dry-run=false
-        task.onAllNodesAcked(null);
+        task.onAllNodesAcked();
         assertSame(responseRef.get().getState(), newState);
         RoutingTable routingTable = clusterState.routingTable();
         assertEquals(routingTable.index("idx").shards().size(), 1);

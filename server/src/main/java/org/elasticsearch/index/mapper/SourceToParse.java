@@ -29,13 +29,13 @@ public class SourceToParse {
     private final Map<String, String> dynamicTemplates;
 
     public SourceToParse(
-        String id,
+        @Nullable String id,
         BytesReference source,
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates
     ) {
-        this.id = Objects.requireNonNull(id);
+        this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
@@ -52,7 +52,7 @@ public class SourceToParse {
         return this.source;
     }
 
-    public String id() {
+    public String id() { // TODO migrate callers that use this to describe the document to a new method
         return this.id;
     }
 

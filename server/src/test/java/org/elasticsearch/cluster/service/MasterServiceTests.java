@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
@@ -225,7 +224,15 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onAllNodesAcked() {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
@@ -1285,9 +1292,13 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onAllNodesAcked(Exception e) {
-                        assertNull(e);
+                    public void onAllNodesAcked() {
                         latch.countDown();
+                    }
+
+                    @Override
+                    public void onAckFailure(Exception e) {
+                        throw new AssertionError(e);
                     }
 
                     @Override
@@ -1384,9 +1395,13 @@ public class MasterServiceTests extends ESTestCase {
                                 }
 
                                 @Override
-                                public void onAllNodesAcked(Exception e) {
-                                    assertNull(e);
+                                public void onAllNodesAcked() {
                                     latch.countDown();
+                                }
+
+                                @Override
+                                public void onAckFailure(Exception e) {
+                                    throw new AssertionError(e);
                                 }
 
                                 @Override

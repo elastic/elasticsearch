@@ -37,7 +37,7 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
     );
 
     static {
-        // TODO remove this temporary setting in the next major
+        // TODO xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
         assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
     }
 

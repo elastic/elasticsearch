@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -98,7 +97,7 @@ public class LagDetector {
         final List<NodeAppliedStateTracker> laggingTrackers = appliedStateTrackersByNode.values()
             .stream()
             .filter(t -> t.appliedVersionLessThan(version))
-            .collect(Collectors.toList());
+            .toList();
 
         if (laggingTrackers.isEmpty()) {
             logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());

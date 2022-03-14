@@ -378,7 +378,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(
-            new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
+            new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
                 TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
             ).build()
         );

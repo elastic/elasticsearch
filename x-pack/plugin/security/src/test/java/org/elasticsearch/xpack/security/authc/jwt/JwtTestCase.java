@@ -14,7 +14,6 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -43,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -52,6 +52,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,7 +107,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
             Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
-        final String clientAuthenticationType = randomFrom(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES);
+        final ClientAuthenticationType clientAuthenticationType = randomFrom(ClientAuthenticationType.values());
 
         final List<String> allowedSignatureAlgorithmsList = new ArrayList<>();
         if (includeRsa) {
@@ -197,7 +198,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 );
             }
         }
-        if (JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType)) {
+        if (ClientAuthenticationType.SHARED_SECRET.equals(clientAuthenticationType)) {
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
                 randomAlphaOfLengthBetween(8, 12)
@@ -560,13 +561,9 @@ public abstract class JwtTestCase extends ESTestCase {
         return IntStream.rangeClosed(1, minToMaxInclusive).mapToObj(i -> randomFrom(collection)).toList(); // 1..N inclusive
     }
 
-    public String saveJwkSetToTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
-        final String serializedJwkSet = JwtUtil.serializeJwkSet(jwksetPkc, publicKeysOnly);
-        if (serializedJwkSet == null) {
-            return null;
-        }
-        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json");
-        Files.writeString(path, serializedJwkSet);
+    public String saveToTempFile(final String prefix, final String suffix, final byte[] content) throws IOException {
+        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), prefix, suffix);
+        Files.write(path, content);
         return path.toString();
     }
 
@@ -581,9 +578,21 @@ public abstract class JwtTestCase extends ESTestCase {
         if (sharedSecret != null) {
             requestThreadContext.putHeader(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET + " " + sharedSecret
+                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret
             );
         }
         return requestThreadContext;
+    }
+
+    static Path resolvePath(final String relativePath) {
+        try {
+            final URL url = JwtTestCase.class.getResource(relativePath);
+            if (url != null) {
+                return PathUtils.get(url.toURI()).toAbsolutePath().normalize();
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("resource not found: " + relativePath, e);
+        }
+        return null;
     }
 }

@@ -937,9 +937,9 @@ public class ClusterStateTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(new Index("index", "indexUUID"))
                             .addIndexShard(
-                                new IndexShardRoutingTable.Builder(new ShardId("index", "_na_", 1)).addShard(
+                                new IndexShardRoutingTable.Builder(new ShardId("index", "indexUUID", 1)).addShard(
                                     TestShardRouting.newShardRouting(
-                                        new ShardId("index", "_na_", 1),
+                                        new ShardId("index", "indexUUID", 1),
                                         "nodeId2",
                                         true,
                                         ShardRoutingState.STARTED

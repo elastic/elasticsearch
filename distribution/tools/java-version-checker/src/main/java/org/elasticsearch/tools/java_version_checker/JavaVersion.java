@@ -17,6 +17,8 @@ public class JavaVersion {
     public static final List<Integer> CURRENT = parse(System.getProperty("java.specification.version"));
     public static final List<Integer> JAVA_17 = parse("17");
 
+    private JavaVersion() {}
+
     static List<Integer> parse(final String value) {
         if (value.matches("^0*[0-9]+(\\.[0-9]+)*$") == false) {
             throw new IllegalArgumentException(value);

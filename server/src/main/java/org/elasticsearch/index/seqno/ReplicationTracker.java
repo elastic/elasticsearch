@@ -372,7 +372,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         retentionLeases = new RetentionLeases(
             operationPrimaryTerm,
             retentionLeases.version() + 1,
-            Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())
+            Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).toList()
         );
         return retentionLease;
     }
@@ -414,7 +414,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             operationPrimaryTerm,
             retentionLeases.version() + 1,
             Stream.concat(retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false), Stream.of(retentionLease))
-                .collect(Collectors.toList())
+                .toList()
         );
         return retentionLease;
     }
@@ -437,7 +437,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             retentionLeases = new RetentionLeases(
                 operationPrimaryTerm,
                 retentionLeases.version() + 1,
-                retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false).collect(Collectors.toList())
+                retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false).toList()
             );
             currentRetentionLeases = retentionLeases;
         }
@@ -562,10 +562,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Returns a list of peer recovery retention leases installed in this replication group
      */
     public List<RetentionLease> getPeerRecoveryRetentionLeases() {
-        return getRetentionLeases().leases()
-            .stream()
-            .filter(lease -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(lease.source()))
-            .collect(Collectors.toUnmodifiableList());
+        return getRetentionLeases().leases().stream().filter(lease -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(lease.source())).toList();
     }
 
     /**
@@ -733,15 +730,26 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return a map from allocation ID to the local knowledge of the persisted global checkpoint for that allocation ID
      */
-    public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public synchronized Map<String, Long> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
         final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
-        checkpoints.entrySet()
+        return checkpoints.entrySet()
             .stream()
             .filter(e -> e.getValue().inSync)
-            .forEach(e -> globalCheckpoints.put(e.getKey(), e.getValue().globalCheckpoint));
-        return globalCheckpoints;
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().globalCheckpoint));
+    }
+
+    /**
+     * @return true iff any tracked global checkpoint for an in-sync copy lags behind our global checkpoint
+     */
+    public synchronized boolean trackedGlobalCheckpointsNeedSync() {
+        for (final var checkpointState : checkpoints.values()) {
+            if (checkpointState.inSync && checkpointState.globalCheckpoint < globalCheckpoint) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

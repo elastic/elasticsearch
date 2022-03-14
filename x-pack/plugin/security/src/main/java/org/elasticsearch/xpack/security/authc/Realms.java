@@ -168,7 +168,7 @@ public class Realms implements Iterable<Realm> {
         }
 
         // Otherwise, we return anything in "all realms" that is not in the allowed realm list
-        return allConfiguredRealms.stream().filter(r -> activeSnapshot.contains(r) == false).collect(Collectors.toUnmodifiableList());
+        return allConfiguredRealms.stream().filter(r -> activeSnapshot.contains(r) == false).toList();
     }
 
     public Stream<Realm> stream() {
@@ -182,7 +182,7 @@ public class Realms implements Iterable<Realm> {
 
     // Protected for testing
     protected List<Realm> calculateLicensedRealms(XPackLicenseState licenseStateSnapshot) {
-        return allConfiguredRealms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).collect(Collectors.toUnmodifiableList());
+        return allConfiguredRealms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).toList();
     }
 
     private static boolean checkLicense(Realm realm, XPackLicenseState licenseState) {
@@ -271,9 +271,7 @@ public class Realms implements Iterable<Realm> {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
-        final List<Realm> realmList = getActiveRealms().stream()
-            .filter(r -> ReservedRealm.TYPE.equals(r.type()) == false)
-            .collect(Collectors.toList());
+        final List<Realm> realmList = getActiveRealms().stream().filter(r -> ReservedRealm.TYPE.equals(r.type()) == false).toList();
         final CountDown countDown = new CountDown(realmList.size());
         final Runnable doCountDown = () -> {
             if ((realmList.isEmpty() || countDown.countDown()) && failed.get() == false) {

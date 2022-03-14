@@ -452,7 +452,8 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
         assertThat(indexRoutingTable, notNullValue());
 
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
             assertThat(shardRoutingTable.shards().stream().allMatch(ShardRouting::unassigned), is(true));
             assertThat(
                 shardRoutingTable.shards()

@@ -31,6 +31,8 @@ import java.util.regex.Pattern;
  */
 public class MediaTypeRegistry<T extends MediaType> {
 
+    public MediaTypeRegistry() {}
+
     private Map<String, T> queryParamToMediaType = new HashMap<>();
     private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
     private Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();

@@ -166,7 +166,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     public Collection<PersistentTask<?>> findTasks(String taskName, Predicate<PersistentTask<?>> predicate) {
-        return this.tasks().stream().filter(p -> taskName.equals(p.getTaskName())).filter(predicate).collect(Collectors.toList());
+        return this.tasks().stream().filter(p -> taskName.equals(p.getTaskName())).filter(predicate).toList();
     }
 
     @Override

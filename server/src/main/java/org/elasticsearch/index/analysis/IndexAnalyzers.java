@@ -13,7 +13,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -104,7 +103,7 @@ public final class IndexAnalyzers implements Closeable {
             Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
                 .flatMap(s -> s)
                 .filter(a -> a.scope() == AnalyzerScope.INDEX)
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 }

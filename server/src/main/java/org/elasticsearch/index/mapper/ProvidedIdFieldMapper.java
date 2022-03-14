@@ -50,9 +50,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * A mapper for the _id field. It does nothing since _id is neither indexed nor
- * stored, but we need to keep it so that its FieldType can be used to generate
- * queries.
+ * A mapper for the {@code _id} field that reads the from the
+ * {@link SourceToParse#id()}. It also supports field data
+ * if the cluster is configured to allow it.
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);

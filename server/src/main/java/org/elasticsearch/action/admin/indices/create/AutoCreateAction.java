@@ -173,18 +173,19 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
 
                     @Override
-                    public void onAllNodesAcked(Exception e) {
-                        if (e == null) {
-                            activeShardsObserver.waitForActiveShards(
-                                new String[] { indexName },
-                                ActiveShardCount.DEFAULT,
-                                request.timeout(),
-                                shardsAcked -> listener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
-                                listener::onFailure
-                            );
-                        } else {
-                            listener.onResponse(new CreateIndexResponse(false, false, indexName));
-                        }
+                    public void onAllNodesAcked() {
+                        activeShardsObserver.waitForActiveShards(
+                            new String[] { indexName },
+                            ActiveShardCount.DEFAULT,
+                            request.timeout(),
+                            shardsAcked -> listener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
+                            listener::onFailure
+                        );
+                    }
+
+                    @Override
+                    public void onAckFailure(Exception e) {
+                        listener.onResponse(new CreateIndexResponse(false, false, indexName));
                     }
 
                     @Override

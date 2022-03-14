@@ -225,7 +225,15 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onAllNodesAcked() {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(@Nullable Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
@@ -1278,9 +1286,13 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onAllNodesAcked(Exception e) {
-                    assertNull(e);
+                public void onAllNodesAcked() {
                     latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    throw new AssertionError(e);
                 }
 
                 @Override

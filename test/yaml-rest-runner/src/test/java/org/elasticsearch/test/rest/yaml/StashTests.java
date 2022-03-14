@@ -9,6 +9,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.Stash;
 
 import java.io.IOException;
 import java.util.Arrays;

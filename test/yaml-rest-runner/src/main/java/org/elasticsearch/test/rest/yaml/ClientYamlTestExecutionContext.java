@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;

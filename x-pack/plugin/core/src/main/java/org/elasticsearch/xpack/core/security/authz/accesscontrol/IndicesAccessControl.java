@@ -130,11 +130,7 @@ public class IndicesAccessControl {
     }
 
     private List<String> getIndexNames(Predicate<IndexAccessControl> predicate) {
-        return indexPermissions.entrySet()
-            .stream()
-            .filter(entry -> predicate.test(entry.getValue()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableList());
+        return indexPermissions.entrySet().stream().filter(entry -> predicate.test(entry.getValue())).map(Map.Entry::getKey).toList();
     }
 
     public enum DlsFlsUsage {

@@ -1232,4 +1232,66 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         );
     }
 
+    public void testTrackedGlobalCheckpointsNeedSync() {
+        final int numberOfActiveAllocationsIds = randomIntBetween(2, 8);
+        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final var activeAndInitializingAllocationIds = randomActiveAndInitializingAllocationIds(
+            numberOfActiveAllocationsIds,
+            numberOfInitializingIds
+        );
+        final var activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final var initializingAllocationIds = activeAndInitializingAllocationIds.v2();
+
+        final var primaryId = activeAllocationIds.iterator().next();
+
+        final var initialClusterStateVersion = randomNonNegativeLong();
+
+        final var currentTimeMillis = new AtomicLong(0L);
+        final var tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, currentTimeMillis::get);
+
+        final var routingTable = routingTable(initializingAllocationIds, primaryId);
+        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        final var localCheckpoint = randomLongBetween(0L, 1000L);
+        tracker.activatePrimaryMode(localCheckpoint);
+
+        // the global checkpoint hasn't moved yet so no sync is needed
+        assertEquals(UNASSIGNED_SEQ_NO, tracker.globalCheckpoint);
+        assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+
+        // advance the local checkpoint on all in-sync copies to move the global checkpoint on the primary
+        for (final var activeAllocationId : activeAllocationIds) {
+            assertEquals(UNASSIGNED_SEQ_NO, tracker.globalCheckpoint);
+            assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+            tracker.updateLocalCheckpoint(activeAllocationId.getId(), localCheckpoint);
+
+            // there may also be some activity on initializing shards but this is irrelevant
+            if (0 < numberOfInitializingIds && randomBoolean()) {
+                tracker.updateLocalCheckpoint(
+                    randomFrom(initializingAllocationIds).getId(),
+                    usually() ? localCheckpoint : randomLongBetween(0L, localCheckpoint)
+                );
+            }
+        }
+        // the global checkpoint advanced on the primary, but not on any other copy, so a sync is needed
+        assertEquals(localCheckpoint, tracker.globalCheckpoint);
+        assertTrue(tracker.trackedGlobalCheckpointsNeedSync());
+
+        // sync the global checkpoint on every active copy
+        for (final var activeAllocationId : activeAllocationIds) {
+            assertTrue(tracker.trackedGlobalCheckpointsNeedSync());
+            tracker.updateGlobalCheckpointForShard(activeAllocationId.getId(), localCheckpoint);
+
+            // there may also be some activity on initializing shards but this is irrelevant
+            if (0 < numberOfInitializingIds && randomBoolean()) {
+                tracker.updateGlobalCheckpointForShard(
+                    randomFrom(initializingAllocationIds).getId(),
+                    usually() ? localCheckpoint : randomLongBetween(0L, localCheckpoint)
+                );
+            }
+        }
+
+        // the global checkpoint is up to date on every in-sync copy so no further sync is needed
+        assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+    }
+
 }

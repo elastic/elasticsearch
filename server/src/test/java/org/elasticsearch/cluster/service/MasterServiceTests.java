@@ -233,7 +233,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onAckFailure(@Nullable Exception e) {
+                public void onAckFailure(Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());

@@ -1,0 +1,13 @@
+pr: 84632
+summary: Ensure `RANDOM(NULL) = NULL` applies everywhere
+area: SQL
+type: "bug, breaking"
+issues:
+ - 84627
+breaking:
+  title: Ensure `RANDOM(NULL) = NULL` applies everywhere
+  area: SQL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

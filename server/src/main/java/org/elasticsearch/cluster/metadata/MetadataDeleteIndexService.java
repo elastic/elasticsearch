@@ -224,8 +224,8 @@ public class MetadataDeleteIndexService {
 
         final Set<SnapshotId> activeSearchableSnapshots = state.metadata()
             .indices()
+            .values()
             .stream()
-            .map(Map.Entry::getValue)
             .filter(index -> index.isSearchableSnapshot() && indicesToDelete.contains(index.getIndex()) == false)
             .map(index -> MetadataDeleteIndexService.toSnapshotId(index.getSettings()))
             .collect(Collectors.toUnmodifiableSet());

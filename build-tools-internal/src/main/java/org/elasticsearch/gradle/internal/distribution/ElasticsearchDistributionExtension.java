@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.distribution;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -32,14 +31,14 @@ public class ElasticsearchDistributionExtension {
     }
 
     private Configuration moduleZip(Project module) {
-        Map<String, String> moduleConfigurationCoords = Map.of("path", module.getPath(), "configuration", EXPLODED_BUNDLE_CONFIG);
-        Dependency dep = project.getDependencies().project(moduleConfigurationCoords);
+        var moduleConfigurationCoords = Map.of("path", module.getPath(), "configuration", EXPLODED_BUNDLE_CONFIG);
+        var dep = project.getDependencies().project(moduleConfigurationCoords);
         return project.getConfigurations().detachedConfiguration(dep);
     }
 
     public void copyModule(TaskProvider<AbstractCopyTask> copyTask, Project module) {
         copyTask.configure(sync -> {
-            Configuration moduleConfig = moduleZip(module);
+            var moduleConfig = moduleZip(module);
             sync.dependsOn(moduleConfig);
             Callable<File> callableSingleFile = () -> moduleConfig.getSingleFile();
             sync.from(callableSingleFile, spec -> {
@@ -50,7 +49,7 @@ public class ElasticsearchDistributionExtension {
 
                 // This adds a implicit dependency for 'module' to PluginBuildPlugin which is fine as we just fail
                 // in case an invalid 'module' not applying this plugin is passed here
-                String moduleName = module.getExtensions().getByType(PluginPropertiesExtension.class).getName();
+                var moduleName = module.getExtensions().getByType(PluginPropertiesExtension.class).getName();
 
                 spec.eachFile(d -> {
                     if (CONFIG_BIN_REGEX_PATTERN.matcher(d.getRelativePath().getPathString()).matches() == false) {

@@ -27,7 +27,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFile;
@@ -157,7 +156,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
     }
 
     /**
-     * Adds bundlePlugin tasks which builds the dir and zip containing the plugin jars,
+     * Adds bundle tasks which builds the dir and zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
     private static TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
@@ -196,14 +195,14 @@ public class PluginBuildPlugin implements Plugin<Project> {
         testSourceSet.getOutput().dir(map, new File(project.getBuildDir(), "generated-resources"));
         testSourceSet.getResources().srcDir(pluginMetadata);
 
-        CopySpec bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
+        var bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
         extension.setBundleSpec(bundleSpec);
         // create the actual bundle task, which zips up all the files for the plugin
         final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> zip.with(bundleSpec));
         project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(bundle));
 
         // also make the zip available as a configuration (used when depending on this project)
-        Configuration configuration = project.getConfigurations().create("zip");
+        var configuration = project.getConfigurations().create("zip");
         configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
@@ -213,7 +212,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         });
 
         // also make the exploded bundle available as a configuration (used when depending on this project)
-        Configuration explodedBundleZip = project.getConfigurations().create(EXPLODED_BUNDLE_CONFIG);
+        var explodedBundleZip = project.getConfigurations().create(EXPLODED_BUNDLE_CONFIG);
         explodedBundleZip.setCanBeResolved(false);
         explodedBundleZip.setCanBeConsumed(true);
         explodedBundleZip.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
@@ -222,8 +221,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
     }
 
     private static CopySpec createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
-
-        CopySpec bundleSpec = project.copySpec();
+        var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
         bundleSpec.from(pluginMetadata, copySpec -> {
             // metadata (eg custom security policy)
@@ -248,7 +246,5 @@ public class PluginBuildPlugin implements Plugin<Project> {
             copySpec.include("bin/**");
         });
         return bundleSpec;
-
     }
-
 }

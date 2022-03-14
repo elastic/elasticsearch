@@ -18,11 +18,13 @@ import org.gradle.api.tasks.TaskProvider;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchDistributionExtension {
-    public static final String CONFIG_BIN_REGEX = "([^\\/]+\\/)?(config|bin)\\/.*";
+    private static final Pattern CONFIG_BIN_REGEX_PATTERN = Pattern.compile("([^\\/]+\\/)?(config|bin)\\/.*");
+
     private final Project project;
 
     public ElasticsearchDistributionExtension(Project project) {
@@ -45,12 +47,13 @@ public class ElasticsearchDistributionExtension {
                 // these are handled separately in the log4j config tasks in the :distribution plugin
                 spec.exclude("*/config/log4j2.properties");
                 spec.exclude("config/log4j2.properties");
+
                 // This adds a implicit dependency for 'module' to PluginBuildPlugin which is fine as we just fail
                 // in case an invalid 'module' not applying this plugin is passed here
                 String moduleName = module.getExtensions().getByType(PluginPropertiesExtension.class).getName();
 
                 spec.eachFile(d -> {
-                    if (d.getRelativePath().getPathString().matches(CONFIG_BIN_REGEX) == false) {
+                    if (CONFIG_BIN_REGEX_PATTERN.matcher(d.getRelativePath().getPathString()).matches() == false) {
                         d.setRelativePath(d.getRelativePath().prepend("modules", moduleName));
                     }
                 });

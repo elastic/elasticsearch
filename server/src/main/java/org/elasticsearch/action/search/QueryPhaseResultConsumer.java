@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
@@ -255,10 +256,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            Releasables.close(() -> Releasables.close(buffer.stream().<Releasable>map(b -> b::releaseAggs)::iterator), () -> {
+            List<Releasable> toRelease = buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(toCollection(ArrayList::new));
+            toRelease.add(() -> {
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;
             });
+            Releasables.close(toRelease);
 
             if (hasPendingMerges()) {
                 // This is a theoretically unreachable exception.

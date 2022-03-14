@@ -67,6 +67,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -80,6 +81,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -275,8 +277,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             settings,
             getStateForMasterService(),
             peerFinder.getLastResolvedAddresses(),
-            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                .collect(Collectors.toList()),
+            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
             electionStrategy,
             nodeHealthService.getHealth()
@@ -559,21 +560,52 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(connectionReference -> {
-            boolean retainConnection = false;
-            try {
-                validateJoinRequest(
-                    joinRequest,
-                    ActionListener.runBefore(joinListener, () -> Releasables.close(connectionReference))
-                        .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
-                );
-                retainConnection = true;
-            } finally {
-                if (retainConnection == false) {
-                    Releasables.close(connectionReference);
+        transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable response) {
+                boolean retainConnection = false;
+                try {
+                    validateJoinRequest(
+                        joinRequest,
+                        ActionListener.runBefore(joinListener, () -> Releasables.close(response))
+                            .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
+                    );
+                    retainConnection = true;
+                } catch (Exception e) {
+                    joinListener.onFailure(e);
+                } finally {
+                    if (retainConnection == false) {
+                        Releasables.close(response);
+                    }
                 }
             }
-        }, joinListener::onFailure));
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "received join request from [{}] but could not connect back to the joining node",
+                        joinRequest.getSourceNode()
+                    ),
+                    e
+                );
+
+                joinListener.onFailure(
+                    // NodeDisconnectedException mainly to suppress uninteresting stack trace
+                    new NodeDisconnectedException(
+                        joinRequest.getSourceNode(),
+                        String.format(
+                            Locale.ROOT,
+                            "failure when opening connection back from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            joinRequest.getSourceNode().descriptionWithoutAttributes()
+                        ),
+                        JoinHelper.JOIN_ACTION_NAME,
+                        e
+                    )
+                );
+            }
+        });
     }
 
     private void validateJoinRequest(JoinRequest joinRequest, ActionListener<Void> validateListener) {
@@ -635,7 +667,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                 logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
-                listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
+                listener.onFailure(
+                    new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "failure when sending a join validation request from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            discoveryNode.descriptionWithoutAttributes()
+                        ),
+                        e
+                    )
+                );
             }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
@@ -651,7 +693,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     () -> new ParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
                     e
                 );
-                listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
+                listener.onFailure(
+                    new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "failure when sending a join ping request from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            discoveryNode.descriptionWithoutAttributes()
+                        ),
+                        e
+                    )
+                );
             }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
@@ -1039,7 +1091,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);
 
-            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).toList()) == false) {
                 logger.debug(
                     "skip setting initial configuration as not enough nodes discovered to form a quorum in the "
                         + "initial configuration [knownNodes={}, {}]",
@@ -1696,7 +1748,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                                         futureVoteCollection
                                                     );
                                                 })
-                                                .collect(Collectors.toList());
+                                                .toList();
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
                                                 attemptReconfiguration = false;

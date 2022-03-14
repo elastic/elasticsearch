@@ -998,7 +998,8 @@ public class InternalEngine extends Engine {
                             plan.versionForIndexing,
                             index.primaryTerm(),
                             index.seqNo(),
-                            plan.currentNotFoundOrDeleted
+                            plan.currentNotFoundOrDeleted,
+                            index.id()
                         );
                     }
                 }
@@ -1108,7 +1109,7 @@ public class InternalEngine extends Engine {
         if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
-                plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                plan = IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
             } else {
                 plan = IndexingStrategy.optimizedAppendOnly(1L, reservingDocs);
             }
@@ -1134,7 +1135,7 @@ public class InternalEngine extends Engine {
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
-                plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion);
+                plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion, index.id());
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && (versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm())) {
                     final VersionConflictEngineException e = new VersionConflictEngineException(
@@ -1145,7 +1146,7 @@ public class InternalEngine extends Engine {
                         versionValue.seqNo,
                         versionValue.term
                     );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
                 } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
                     final VersionConflictEngineException e = new VersionConflictEngineException(
                         shardId,
@@ -1153,11 +1154,11 @@ public class InternalEngine extends Engine {
                         currentVersion,
                         currentNotFoundOrDeleted
                     );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
                 } else {
                     final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
                     if (reserveError != null) {
-                        plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                        plan = IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
                     } else {
                         plan = IndexingStrategy.processNormally(
                             currentNotFoundOrDeleted,
@@ -1191,7 +1192,7 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 addDocs(index.docs(), indexWriter);
             }
-            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
+            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted, index.id());
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false
                 && indexWriter.getTragicException() == null
@@ -1209,7 +1210,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo());
+                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo(), index.id());
             } else {
                 throw ex;
             }
@@ -1314,9 +1315,10 @@ public class InternalEngine extends Engine {
         public static IndexingStrategy skipDueToVersionConflict(
             VersionConflictEngineException e,
             boolean currentNotFoundOrDeleted,
-            long currentVersion
+            long currentVersion,
+            String id
         ) {
-            final IndexResult result = new IndexResult(e, currentVersion);
+            final IndexResult result = new IndexResult(e, currentVersion, id);
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, Versions.NOT_FOUND, 0, result);
         }
 
@@ -1340,8 +1342,8 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(false, false, false, true, versionForIndexing, reservedDocs, null);
         }
 
-        static IndexingStrategy failAsTooManyDocs(Exception e) {
-            final IndexResult result = new IndexResult(e, Versions.NOT_FOUND);
+        static IndexingStrategy failAsTooManyDocs(Exception e, String id) {
+            final IndexResult result = new IndexResult(e, Versions.NOT_FOUND, id);
             return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
     }
@@ -1424,7 +1426,8 @@ public class InternalEngine extends Engine {
                         plan.versionOfDeletion,
                         delete.primaryTerm(),
                         delete.seqNo(),
-                        plan.currentlyDeleted == false
+                        plan.currentlyDeleted == false,
+                        delete.id()
                     );
                 }
                 if (plan.deleteFromLucene) {
@@ -1550,7 +1553,7 @@ public class InternalEngine extends Engine {
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM
             );
-            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true, delete.id());
         } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
             && (versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm())) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
@@ -1561,7 +1564,7 @@ public class InternalEngine extends Engine {
                     versionValue.seqNo,
                     versionValue.term
                 );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
             } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
                     shardId,
@@ -1569,11 +1572,11 @@ public class InternalEngine extends Engine {
                     currentVersion,
                     currentlyDeleted
                 );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
             } else {
                 final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
                 if (reserveError != null) {
-                    plan = DeletionStrategy.failAsTooManyDocs(reserveError);
+                    plan = DeletionStrategy.failAsTooManyDocs(reserveError, delete.id());
                 } else {
                     final long versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
                     plan = DeletionStrategy.processNormally(currentlyDeleted, versionOfDeletion, 1);
@@ -1598,7 +1601,13 @@ public class InternalEngine extends Engine {
             } else {
                 indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
             }
-            return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+            return new DeleteResult(
+                plan.versionOfDeletion,
+                delete.primaryTerm(),
+                delete.seqNo(),
+                plan.currentlyDeleted == false,
+                delete.id()
+            );
         } catch (final Exception ex) {
             /*
              * Document level failures when deleting are unexpected, we likely hit something fatal such as the Lucene index being corrupt,
@@ -1655,14 +1664,16 @@ public class InternalEngine extends Engine {
         public static DeletionStrategy skipDueToVersionConflict(
             VersionConflictEngineException e,
             long currentVersion,
-            boolean currentlyDeleted
+            boolean currentlyDeleted,
+            String id
         ) {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
                 currentVersion,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
-                currentlyDeleted == false
+                currentlyDeleted == false,
+                id
             );
             return new DeletionStrategy(false, false, currentlyDeleted, Versions.NOT_FOUND, 0, deleteResult);
         }
@@ -1680,13 +1691,14 @@ public class InternalEngine extends Engine {
             return new DeletionStrategy(false, true, false, versionOfDeletion, 0, null);
         }
 
-        static DeletionStrategy failAsTooManyDocs(Exception e) {
+        static DeletionStrategy failAsTooManyDocs(Exception e, String id) {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
                 Versions.NOT_FOUND,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
-                false
+                false,
+                id
             );
             return new DeletionStrategy(false, false, false, Versions.NOT_FOUND, 0, deleteResult);
         }

@@ -115,7 +115,6 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
@@ -1764,7 +1763,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (l.isEmpty()) {
                 return Collections.singletonList("//");
             }
-            return l.stream().map(f -> f.isEmpty() ? "//" : f).collect(Collectors.toList());
+            return l.stream().map(f -> f.isEmpty() ? "//" : f).toList();
         }
 
         /**

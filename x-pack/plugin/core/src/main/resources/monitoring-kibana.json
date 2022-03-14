@@ -264,6 +264,7 @@
                 }
               }
             }
+          }
         },
         "kibana_stats": {
           "properties": {

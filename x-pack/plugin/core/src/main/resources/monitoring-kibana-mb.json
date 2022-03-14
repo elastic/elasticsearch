@@ -391,7 +391,7 @@
                 }
               }
             },
-            "rules": {
+            "cluster_rules": {
               "properties": {
                 "overdue": {
                   "properties": {
@@ -409,7 +409,11 @@
                       }
                     }
                   }
-                },
+                }
+              }
+            },
+            "node_rules": {
+              "properties": {
                 "failures": {
                   "type": "long"
                 },
@@ -418,7 +422,7 @@
                 }
               }
             },
-            "actions": {
+            "cluster_actions": {
               "properties": {
                 "overdue": {
                   "properties": {
@@ -436,7 +440,11 @@
                       }
                     }
                   }
-                },
+                }
+              }
+            },
+            "node_actions": {
+              "properties": {
                 "failures": {
                   "type": "long"
                 },

@@ -1123,17 +1123,7 @@ public class MetadataIndexStateService {
 
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    taskContext.success(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            // listener is notified at the end of acking
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            task.onFailure(e);
-                        }
-                    }, task);
+                    taskContext.success(task);
                 }
             } catch (Exception e) {
                 for (final var taskContext : taskContexts) {

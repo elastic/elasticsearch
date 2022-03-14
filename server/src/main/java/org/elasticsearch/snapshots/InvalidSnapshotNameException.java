@@ -23,7 +23,7 @@ public class InvalidSnapshotNameException extends SnapshotException {
 
     private final Reason reason;
 
-    public InvalidSnapshotNameException(final String repositoryName, final String snapshotName, Reason reason) {
+    public InvalidSnapshotNameException(final String repositoryName, final String snapshotName, final Reason reason) {
         super(repositoryName, snapshotName, "Invalid snapshot name [" + snapshotName + "], " + reason.description);
         this.reason = reason;
     }

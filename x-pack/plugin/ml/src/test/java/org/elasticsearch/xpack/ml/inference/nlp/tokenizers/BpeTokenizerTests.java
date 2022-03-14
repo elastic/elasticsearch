@@ -372,6 +372,8 @@ public class BpeTokenizerTests extends BaseTokenStreamTestCase {
 
     public void testNeverSplit() throws IOException {
         Analyzer analyzer = analyzerFromSettings(List.of("<mask>"), false);
+        assertAnalyzesToNoCharFilter(analyzer, "Elasticsearch <<mask>.", new String[] { "Elast", "icsearch", "Ġ", "<", "<mask>", "." });
+        assertAnalyzesToNoCharFilter(analyzer, "Elasticsearch < red", new String[] { "Elast", "icsearch", "Ġ", "<", "Ġred" });
         assertAnalyzesToNoCharFilter(analyzer, "Elasticsearch <mask>.", new String[] { "Elast", "icsearch", "<mask>", "." });
         assertAnalyzesToNoCharFilter(
             analyzer,
@@ -383,6 +385,7 @@ public class BpeTokenizerTests extends BaseTokenStreamTestCase {
             "Elasticsearch red~<mask><mask>.",
             new String[] { "Elast", "icsearch", "Ġred", "~", "<mask>", "<mask>", "." }
         );
+        assertAnalyzesToNoCharFilter(analyzer, "Elasticsearch <mask>!!", new String[] { "Elast", "icsearch", "<mask>", "!", "!" });
     }
 
     public void testTokenization() throws IOException {

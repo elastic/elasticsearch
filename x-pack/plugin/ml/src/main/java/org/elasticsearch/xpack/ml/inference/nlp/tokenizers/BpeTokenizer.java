@@ -92,7 +92,7 @@ public class BpeTokenizer extends Tokenizer {
         return new BpeTokenizer(isPrefixSpace, mergeRanks, neverSplitSet, neverSplitTree, vocabHash, unknownToken);
     }
 
-    private final StringBuilder str = new StringBuilder();
+    private final StringBuilder inputStr = new StringBuilder();
     // This is pretty much stolen from PatternTokenizer. We really should stream the input and stop using regex
     final char[] buffer = new char[8192];
     private final Matcher matcher;
@@ -149,7 +149,7 @@ public class BpeTokenizer extends Tokenizer {
     public final void end() throws IOException {
         super.end();
         // set final offset
-        offsetAtt.setOffset(str.length(), str.length());
+        offsetAtt.setOffset(inputStr.length(), inputStr.length());
     }
 
     @Override
@@ -177,7 +177,7 @@ public class BpeTokenizer extends Tokenizer {
     }
 
     private LinkedList<DelimitedToken> splitOutNeverSplit() {
-        String str = this.str.toString();
+        String str = this.inputStr.toString();
         char[] chars = str.toCharArray();
         CharTrie current = neverSplit;
         LinkedList<DelimitedToken> bigTokens = new LinkedList<>();
@@ -195,15 +195,14 @@ public class BpeTokenizer extends Tokenizer {
                 childNode = current.children.get(chars[i]);
                 if (childNode != null) {
                     neverSplitStart = i;
+                    current = childNode;
                 }
             } else if (childNode.isLeaf()) {
                 // build char seq view, verify its in never split
                 CharSequence maybeNeverSplit = new CharsRef(chars, neverSplitStart, (i + 1) - neverSplitStart);
                 if (neverSplitSet.contains(maybeNeverSplit)) {
                     if (windowStart < neverSplitStart) {
-                        bigTokens.add(
-                            new DelimitedToken(new CharsRef(chars, windowStart, neverSplitStart), windowStart, neverSplitStart)
-                        );
+                        bigTokens.add(new DelimitedToken(new CharsRef(chars, windowStart, neverSplitStart), windowStart, neverSplitStart));
                     }
                     bigTokens.add(new DelimitedToken(maybeNeverSplit, neverSplitStart, i + 1));
                 }
@@ -302,9 +301,10 @@ public class BpeTokenizer extends Tokenizer {
                     Integer tokenId = vocabulary.get(charSequence);
                     // If this is the start of a new set of sub-word tokens AND it starts with a space, adjust the offsets to not include
                     // the space. But, don't consider our potentially added space as it is not part of the original string
-                    int startOffsetAdj = subWordToken == false && charSequence.charAt(0) == ENCODED_SPACE_CHAR && addedSpace == false
-                        ? 1
-                        : 0;
+                    int startOffsetAdj = subWordToken == false
+                        && charSequence.charAt(0) == ENCODED_SPACE_CHAR
+                        && addedSpace == false
+                        && charSequence.length() > 1 ? 1 : 0;
                     BpeToken toAdd = tokenId == null
                         ? new BpeToken(
                             unknownToken,
@@ -338,9 +338,9 @@ public class BpeTokenizer extends Tokenizer {
 
     private void fillBuffer(Reader input) throws IOException {
         int len;
-        str.setLength(0);
+        inputStr.setLength(0);
         while ((len = input.read(buffer)) > 0) {
-            str.append(buffer, 0, len);
+            inputStr.append(buffer, 0, len);
         }
     }
 

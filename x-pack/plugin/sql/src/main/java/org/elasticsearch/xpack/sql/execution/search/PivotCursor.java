@@ -74,7 +74,7 @@ public class PivotCursor extends CompositeAggCursor {
             aggregation.size(),
             limit(),
             previousKey,
-            mightProducePartialPages(aggregation)
+            couldProducePartialPages(aggregation)
         );
     }
 

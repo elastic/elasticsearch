@@ -454,7 +454,7 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             CompositeAggregationBuilder aggregation = CompositeAggCursor.getCompositeBuilder(request.source());
-            boolean mightProducePartialPages = CompositeAggCursor.mightProducePartialPages(aggregation);
+            boolean mightProducePartialPages = CompositeAggCursor.couldProducePartialPages(aggregation);
 
             Supplier<CompositeAggRowSet> makeRowSet = isPivot
                 ? () -> new PivotRowSet(

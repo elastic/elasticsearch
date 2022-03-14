@@ -141,7 +141,7 @@ public class CompositeAggCursor implements Cursor {
                     makeCursor(),
                     () -> client.search(request, this),
                     delegate,
-                    mightProducePartialPages(getCompositeBuilder(next()))
+                    couldProducePartialPages(getCompositeBuilder(next()))
                 );
             }
         });
@@ -149,7 +149,7 @@ public class CompositeAggCursor implements Cursor {
 
     protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
         CompositeAggregationBuilder aggregation = getCompositeBuilder(nextQuery);
-        return () -> new CompositeAggRowSet(extractors, mask, response, aggregation.size(), limit, mightProducePartialPages(aggregation));
+        return () -> new CompositeAggRowSet(extractors, mask, response, aggregation.size(), limit, couldProducePartialPages(aggregation));
     }
 
     protected BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor() {
@@ -163,7 +163,7 @@ public class CompositeAggCursor implements Cursor {
         BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor,
         Runnable retry,
         ActionListener<Page> listener,
-        boolean mightProducePartialPages
+        boolean couldProducePartialPages
     ) {
 
         if (log.isTraceEnabled()) {
@@ -171,7 +171,7 @@ public class CompositeAggCursor implements Cursor {
         }
 
         // retry
-        if (mightProducePartialPages && shouldRetryDueToEmptyPage(response)) {
+        if (couldProducePartialPages && shouldRetryDueToEmptyPage(response)) {
             updateCompositeAfterKey(response, source);
             retry.run();
             return;
@@ -208,8 +208,13 @@ public class CompositeAggCursor implements Cursor {
         return (CompositeAggregationBuilder) aggregation;
     }
 
-    static boolean mightProducePartialPages(CompositeAggregationBuilder aggregation) {
-        return aggregation.getPipelineAggregations().stream().anyMatch(a -> a instanceof BucketSelectorPipelineAggregationBuilder);
+    static boolean couldProducePartialPages(CompositeAggregationBuilder aggregation) {
+        for (var agg : aggregation.getPipelineAggregations()) {
+            if (agg instanceof BucketSelectorPipelineAggregationBuilder) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static CompositeAggregation getComposite(SearchResponse response) {

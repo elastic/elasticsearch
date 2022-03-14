@@ -47,9 +47,9 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTable).build();
 
-        assertThat(routingTable.index("test").shards().size(), equalTo(1));
+        assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).shards().get(0).state(), equalTo(UNASSIGNED));
         assertThat(routingTable.index("test").shard(0).shards().get(1).state(), equalTo(UNASSIGNED));
         assertThat(routingTable.index("test").shard(0).shards().get(0).currentNodeId(), nullValue());
@@ -66,9 +66,9 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         final String nodeHoldingPrimary = routingTable.index("test").shard(0).primaryShard().currentNodeId();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
-        assertThat(routingTable.index("test").shards().size(), equalTo(1));
+        assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(INITIALIZING));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
@@ -82,9 +82,9 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         final String nodeHoldingReplica = routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId();
         assertThat(nodeHoldingPrimary, not(equalTo(nodeHoldingReplica)));
         assertThat(prevRoutingTable != routingTable, equalTo(true));
-        assertThat(routingTable.index("test").shards().size(), equalTo(1));
+        assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));

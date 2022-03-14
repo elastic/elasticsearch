@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -183,8 +182,8 @@ public class AllocationServiceTests extends ESTestCase {
 
         // permit the testGatewayAllocator to allocate primaries to every node
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                final ShardRouting primaryShard = indexRoutingTable.shard(i).primaryShard();
                 for (DiscoveryNode node : clusterState.nodes()) {
                     testGatewayAllocator.addKnownAllocation(primaryShard.initialize(node.getId(), FAKE_IN_SYNC_ALLOCATION_ID, 0L));
                 }

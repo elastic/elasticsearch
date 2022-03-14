@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
@@ -328,8 +327,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         Map<String, Integer> counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
                     counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }

@@ -50,7 +50,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -659,14 +658,13 @@ public class MetadataIndexStateService {
                 return;
             }
 
-            final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
-            final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
-            final CountDown countDown = new CountDown(shards.size());
+            final AtomicArray<ShardResult> results = new AtomicArray<>(indexRoutingTable.size());
+            final CountDown countDown = new CountDown(indexRoutingTable.size());
 
-            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
-                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
                         ShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
@@ -790,14 +788,13 @@ public class MetadataIndexStateService {
                 return;
             }
 
-            final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
-            final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(shards.size());
-            final CountDown countDown = new CountDown(shards.size());
+            final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(indexRoutingTable.size());
+            final CountDown countDown = new CountDown(indexRoutingTable.size());
 
-            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
-                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<ReplicationResponse>() {
+                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
                         AddBlockShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())

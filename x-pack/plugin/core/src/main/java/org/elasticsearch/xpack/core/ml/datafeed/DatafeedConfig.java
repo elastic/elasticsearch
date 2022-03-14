@@ -538,7 +538,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
-        out.writeMap(runtimeMappings);
+        out.writeGenericMap(runtimeMappings);
     }
 
     @Override
@@ -844,7 +844,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (indicesOptions != null) {
                 indicesOptions.writeIndicesOptions(out);
             }
-            out.writeMap(runtimeMappings);
+            out.writeGenericMap(runtimeMappings);
         }
 
         @Override

@@ -14,11 +14,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
+import static org.elasticsearch.common.Strings.capitalize;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -222,40 +225,33 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testClientAuthenticationType() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Setting.AffixSetting<String> setting = JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE;
+        final Setting.AffixSetting<ClientAuthenticationType> setting = JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
-        for (final String rejectedValue : new String[] { "", "unknown" }) {
+        for (final String rejectedValue : new String[] { "unknown", "", randomAlphaOfLengthBetween(1, 3) }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
                 final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
-                final String actualValue = realmConfig.getSetting(setting);
+                final ClientAuthenticationType actualValue = realmConfig.getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
             assertThat(
                 exception.getMessage(),
-                equalTo(
-                    "Invalid value ["
-                        + rejectedValue
-                        + "] for ["
-                        + settingKey
-                        + "]."
-                        + " Allowed values are "
-                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES
-                        + "."
-                )
+                equalTo("Invalid value [" + rejectedValue + "] for [" + settingKey + "]," + " allowed values are " + "[none,shared_secret]")
             );
         }
         for (final String ignoredValue : new String[] { null }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
             final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
-            final String actualValue = realmConfig.getSetting(setting);
+            final ClientAuthenticationType actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(setting.getDefault(settings)));
         }
-        for (final String acceptedValue : new String[] { "SharedSecret", "None" }) {
-            final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
-            final String actualValue = realmConfig.getSetting(setting);
-            assertThat(actualValue, equalTo(acceptedValue));
+        for (final String acceptedValue : new String[] { "shared_secret", "none" }) {
+            for (String inputValue : new String[] { acceptedValue, acceptedValue.toUpperCase(Locale.ROOT), capitalize(acceptedValue) }) {
+                final Settings settings = Settings.builder().put(settingKey, inputValue).build();
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
+                final ClientAuthenticationType actualValue = realmConfig.getSetting(setting);
+                assertThat(actualValue.value(), equalTo(acceptedValue));
+            }
         }
     }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -35,10 +35,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**
      * Supplies values to different ScriptDocValues as we
-     * convert them to wrappers around {@link DocValuesField}.
-     * This allows for different {@link DocValuesField} to implement
+     * convert them to wrappers around {@link DocValuesScriptFieldFactory}.
+     * This allows for different {@link DocValuesScriptFieldFactory} to implement
      * this supplier class in many-to-one relationship since
-     * {@link DocValuesField} are more specific where
+     * {@link DocValuesScriptFieldFactory} are more specific where
      * ({byte, short, int, long, _version, murmur3, etc.} -> {long})
      */
     public interface Supplier<T> {

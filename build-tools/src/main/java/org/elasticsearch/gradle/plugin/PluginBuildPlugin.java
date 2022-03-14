@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
  */
 public class PluginBuildPlugin implements Plugin<Project> {
 
+    public static final String PLUGIN_EXTENSION_NAME = "esplugin";
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
 
     @Override
@@ -155,7 +156,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
     }
 
     /**
-     * Adds a bundlePlugin task which builds the zip containing the plugin jars,
+     * Adds bundlePlugin tasks which builds the dir and zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
     private static TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
@@ -247,5 +248,4 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     }
 
-    public static final String PLUGIN_EXTENSION_NAME = "esplugin";
 }

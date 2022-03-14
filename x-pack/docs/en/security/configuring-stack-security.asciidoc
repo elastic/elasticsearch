@@ -97,6 +97,8 @@ Congratulations! You've successfully started the {stack} with security enabled.
 communication is encrypted. If you want to enable HTTPS for web traffic, you
 can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
 
+[discrete]
+[[stack-security-certificates]]
 include::{es-ref-dir}/setup/install/security-files-reference.asciidoc[leveloffset=-2]
 
 Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, the HTTP layer CA certificate is retrieved from {es} and stored in the

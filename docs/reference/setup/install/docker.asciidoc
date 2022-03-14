@@ -207,6 +207,7 @@ You now have a test {es} environment set up. Before you start
 serious development or go into production with {es}, review the
 <<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
+[[elasticsearch-security-certificates]]
 include::security-files-reference.asciidoc[]
 
 [[docker-compose-file]]

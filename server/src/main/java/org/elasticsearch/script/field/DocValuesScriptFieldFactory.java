@@ -12,7 +12,11 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 
-public interface DocValuesField<T> extends Field<T> {
+/**
+ * This interface is used to mark classes that generate
+ * both {@link Field} and {@link ScriptDocValues} for use in a script.
+ */
+public interface DocValuesScriptFieldFactory extends ScriptFieldFactory {
 
     /** Set the current document ID. */
     void setNextDocId(int docId) throws IOException;
@@ -22,5 +26,5 @@ public interface DocValuesField<T> extends Field<T> {
      * This is used to support backwards compatibility for accessing field values
      * through the {@code doc} variable.
      */
-    ScriptDocValues<?> getScriptDocValues();
+    ScriptDocValues<?> toScriptDocValues();
 }

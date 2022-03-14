@@ -25,7 +25,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         }
 
         LongDocValuesField longField = wrap(values);
-        Longs longs = (Longs) longField.getScriptDocValues();
+        Longs longs = (Longs) longField.toScriptDocValues();
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);

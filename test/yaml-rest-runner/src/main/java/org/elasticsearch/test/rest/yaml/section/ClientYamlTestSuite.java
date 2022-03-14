@@ -9,6 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -54,7 +55,7 @@ public class ClientYamlTestSuite {
             if (channel.size() == 0) {
                 throw new IllegalArgumentException("test suite file " + file.toString() + " is empty");
             }
-            channel.read(bb, channel.size() - 1);
+            Channels.readFromFileChannel(channel, channel.size() - 1, bb);
             if (bb.get(0) != 10) {
                 throw new IOException("test suite [" + api + "/" + filename + "] doesn't end with line feed (\\n)");
             }

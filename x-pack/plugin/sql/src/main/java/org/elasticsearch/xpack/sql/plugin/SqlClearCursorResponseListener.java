@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
 
@@ -23,19 +22,22 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_TOOK_NA
 
 public class SqlClearCursorResponseListener extends RestResponseListener<SqlClearCursorResponse> {
     private final long startNanos = System.nanoTime();
-    RestRequest request;
+    private final RestRequest request;
+    private final XContentType responseType;
 
     protected SqlClearCursorResponseListener(RestChannel channel, RestRequest request, SqlClearCursorRequest sqlRequest) {
         super(channel);
         this.request = request;
-        if (Boolean.FALSE.equals(sqlRequest.binaryCommunication())) {
-            throw new SqlIllegalArgumentException("Only binary communication supported for cursor clear");
+        if (Boolean.TRUE.equals(sqlRequest.binaryCommunication())) {
+            responseType = XContentType.CBOR;
+        } else {
+            responseType = XContentType.JSON;
         }
     }
 
     @Override
     public RestResponse buildResponse(SqlClearCursorResponse response) throws Exception {
-        XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.CBOR, true);
+        XContentBuilder builder = channel.newBuilder(request.getXContentType(), responseType, true);
         response.toXContent(builder, request);
         BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, builder);
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));

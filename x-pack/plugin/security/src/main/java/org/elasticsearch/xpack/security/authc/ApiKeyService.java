@@ -532,7 +532,7 @@ public class ApiKeyService {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }).collect(Collectors.toList());
+        }).toList();
         return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
             ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
             : roleDescriptors;
@@ -1260,7 +1260,7 @@ public class ApiKeyService {
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(ApiKeyService::convertSearchHitToQueryItem)
-                            .collect(Collectors.toUnmodifiableList());
+                            .toList();
                         listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)
                 )

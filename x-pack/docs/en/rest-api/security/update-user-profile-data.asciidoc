@@ -13,7 +13,7 @@ unique ID.
 [[security-api-update-user-profile-data-request]]
 ==== {api-request-title}
 
-`POST /_security/profile/_data/<uid>`
+`POST /_security/profile/<uid>/_data`
 
 [[security-api-update-user-profile-data-prereqs]]
 ==== {api-prereq-title}
@@ -95,7 +95,7 @@ The following request updates a profile document for a `uid` matching
 
 [source,console]
 ----
-POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
   "access": {
     "app1": {
@@ -115,7 +115,7 @@ You can update the profile data to replace some keys and add new keys:
 
 [source,console]
 ----
-POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
   "access": {
     "app1": {

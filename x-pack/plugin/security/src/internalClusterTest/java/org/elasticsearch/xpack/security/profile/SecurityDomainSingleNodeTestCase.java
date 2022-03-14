@@ -144,6 +144,14 @@ public class SecurityDomainSingleNodeTestCase extends AbstractProfileSingleNodeT
         );
 
         assertThat(responseView.get("creator.realm_domain"), equalTo(REALM_DOMAIN_MAP));
+
+        // The service token is usable
+        client().filterWithHeader(Map.of("Authorization", "Bearer " + createServiceTokenResponse.getValue()))
+            .admin()
+            .cluster()
+            .prepareHealth()
+            .execute()
+            .actionGet();
     }
 
     private void assertDomainCapturedForToken() {

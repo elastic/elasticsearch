@@ -70,7 +70,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         var status = new ShardAllocationStatus();
 
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
-            for (IndexShardRoutingTable shardRouting : indexShardRouting) {
+            for (int i = 0; i < indexShardRouting.size(); i++) {
+                IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
                 status.addPrimary(shardRouting.primaryShard(), shutdown);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
                     status.addReplica(replicaShard, shutdown);

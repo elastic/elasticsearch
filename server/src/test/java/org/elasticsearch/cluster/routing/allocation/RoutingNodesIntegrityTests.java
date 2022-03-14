@@ -174,14 +174,14 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
-        assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
 
         newState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
-        assertThat(clusterState.routingTable().index("test1").shards().size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
 
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(4));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(4));
@@ -300,7 +300,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.hasInactivePrimaries(), equalTo(false));
         assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
 
-        assertThat(clusterState.routingTable().index("test1").shards().size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
 
         clusterState = strategy.reroute(clusterState, "reroute");
 

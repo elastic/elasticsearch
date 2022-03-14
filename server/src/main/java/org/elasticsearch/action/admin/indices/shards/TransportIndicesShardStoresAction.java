@@ -108,7 +108,8 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 continue;
             }
             final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(state.metadata().index(index).getSettings());
-            for (IndexShardRoutingTable routing : indexShardRoutingTables) {
+            for (int i = 0; i < indexShardRoutingTables.size(); i++) {
+                IndexShardRoutingTable routing = indexShardRoutingTables.shard(i);
                 final int shardId = routing.shardId().id();
                 ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {

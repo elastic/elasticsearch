@@ -183,6 +183,14 @@ public class BootstrapForTesting {
                         properties.load(stream);
                     }
                     String clazz = properties.getProperty("classname");
+
+                    int i;
+                    if ((i = clazz.indexOf('/')) != -1) {
+                        // it's a module qualified name
+                        //this.moduleName = classname.substring(0, i);
+                        clazz = clazz.substring(i + 1);
+                    }
+
                     if (clazz != null) {
                         Class.forName(clazz);
                     }

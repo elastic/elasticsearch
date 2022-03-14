@@ -25,6 +25,7 @@ public class InvalidSnapshotNameException extends SnapshotException {
 
     public InvalidSnapshotNameException(final String repositoryName, final String snapshotName, final Reason reason) {
         super(repositoryName, snapshotName, "Invalid snapshot name [" + snapshotName + "], " + reason.description);
+        assert reason != Reason.MISSING : "Reason.MISSING is only for bwc purposes";
         this.reason = reason;
     }
 

@@ -19,14 +19,15 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.MockLogAppender.LoggingExpectation;
+import org.elasticsearch.logging.api.core.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender.LoggingExpectation;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -83,7 +84,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "warn when source is empty",
                 checkpointProviderLogger.getName(),
                 Level.WARN,
@@ -99,12 +100,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "do not warn if empty again",
-                checkpointProviderLogger.getName(),
-                Level.WARN,
-                "Source did not resolve to any concrete indexes"
-            ),
+                MockLogAppender.createUnseenEventExpectation(
+                    "do not warn if empty again",
+                    checkpointProviderLogger.getName(),
+                    Level.WARN,
+                    "Source did not resolve to any concrete indexes"
+                ),
             new MockTransformAuditor.UnseenAuditExpectation(
                 "do not warn if empty again",
                 org.elasticsearch.xpack.core.common.notifications.Level.WARNING,
@@ -121,7 +122,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -137,7 +138,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -152,7 +153,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             () -> { provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index")); }
         );
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -183,7 +184,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         }
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -291,12 +292,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
         try {
-            Loggers.addAppender(checkpointProviderLogger, mockLogAppender);
+            AppenderUtils.addAppender(checkpointProviderLogger, mockLogAppender);
             codeBlock.run();
             mockLogAppender.assertAllExpectationsMatched();
             transformAuditor.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(checkpointProviderLogger, mockLogAppender);
+            AppenderUtils.removeAppender(checkpointProviderLogger, mockLogAppender);
             mockLogAppender.stop();
         }
     }

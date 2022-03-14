@@ -26,8 +26,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -239,7 +239,7 @@ public class InboundHandlerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "expected message",
                 InboundHandler.class.getCanonicalName(),
                 Level.WARN,
@@ -247,7 +247,7 @@ public class InboundHandlerTests extends ESTestCase {
             )
         );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        AppenderUtils.addAppender(inboundHandlerLogger, mockAppender);
 
         try {
             final AtomicBoolean isClosed = new AtomicBoolean();
@@ -269,7 +269,7 @@ public class InboundHandlerTests extends ESTestCase {
             assertNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
+            AppenderUtils.removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -278,14 +278,14 @@ public class InboundHandlerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        AppenderUtils.addAppender(inboundHandlerLogger, mockAppender);
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
         try {
             final Version remoteVersion = Version.CURRENT;
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "expected slow request",
                     InboundHandler.class.getCanonicalName(),
                     Level.WARN,
@@ -314,7 +314,7 @@ public class InboundHandlerTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "expected slow response",
                     InboundHandler.class.getCanonicalName(),
                     Level.WARN,
@@ -341,7 +341,7 @@ public class InboundHandlerTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
+            AppenderUtils.removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }

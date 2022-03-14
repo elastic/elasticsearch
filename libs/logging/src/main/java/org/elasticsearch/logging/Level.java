@@ -55,6 +55,10 @@ public final class Level {
         this.name = name;
         this.severity = severity;
     }
+    @Override
+    public String toString() {
+        return this.name;
+    }
 
     /**
      * Returns the name of this level.
@@ -82,7 +86,15 @@ public final class Level {
     }
 
     @Override
-    public String toString() {
-        return "Level{" + "name='" + name + '\'' + ", severity=" + severity + '}';
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Level level = (Level) o;
+        return severity == level.severity && Objects.equals(name, level.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, severity);
     }
 }

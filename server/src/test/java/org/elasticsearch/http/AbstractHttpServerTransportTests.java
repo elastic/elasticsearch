@@ -25,8 +25,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -358,11 +358,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
             try {
                 appender.start();
-                Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
+                AppenderUtils.addAppender(LogManager.getLogger(traceLoggerName), appender);
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                    MockLogAppender.createPatternSeenEventExpectation(
                         "received request",
                         traceLoggerName,
                         Level.TRACE,
@@ -373,7 +373,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 final boolean badRequest = randomBoolean();
 
                 appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                    MockLogAppender.createPatternSeenEventExpectation(
                         "sent response",
                         traceLoggerName,
                         Level.TRACE,
@@ -386,12 +386,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 );
 
                 appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
-                        "received other request",
-                        traceLoggerName,
-                        Level.TRACE,
-                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
-                    )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "received other request",
+                            traceLoggerName,
+                            Level.TRACE,
+                            "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
+                        )
                 );
 
                 final Exception inboundException;
@@ -429,7 +429,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
                 appender.assertAllExpectationsMatched();
             } finally {
-                Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);
+                AppenderUtils.removeAppender(LogManager.getLogger(traceLoggerName), appender);
                 appender.stop();
             }
         }
@@ -442,7 +442,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         final String path = "/internal/test";
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "expected message",
                 AbstractHttpServerTransport.class.getCanonicalName(),
                 Level.WARN,
@@ -450,7 +450,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             )
         );
         final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        AppenderUtils.addAppender(inboundHandlerLogger, mockAppender);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
@@ -509,7 +509,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
+            AppenderUtils.removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }

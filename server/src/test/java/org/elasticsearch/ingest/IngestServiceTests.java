@@ -47,8 +47,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -670,7 +670,7 @@ public class IngestServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 IngestService.class.getCanonicalName(),
                 Level.WARN,
@@ -678,12 +678,12 @@ public class IngestServiceTests extends ESTestCase {
             )
         );
         Logger ingestLogger = LogManager.getLogger(IngestService.class);
-        Loggers.addAppender(ingestLogger, mockAppender);
+        AppenderUtils.addAppender(ingestLogger, mockAppender);
         try {
             ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(ingestLogger, mockAppender);
+            AppenderUtils.removeAppender(ingestLogger, mockAppender);
             mockAppender.stop();
         }
         pipeline = ingestService.getPipeline(id);

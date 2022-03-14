@@ -17,11 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -122,7 +122,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "warning",
                 SetStepInfoUpdateTask.class.getCanonicalName(),
                 Level.WARN,
@@ -131,12 +131,12 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         );
 
         final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);
-        Loggers.addAppender(taskLogger, mockAppender);
+        AppenderUtils.addAppender(taskLogger, mockAppender);
         try {
             task.onFailure(new RuntimeException("test exception"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(taskLogger, mockAppender);
+            AppenderUtils.removeAppender(taskLogger, mockAppender);
             mockAppender.stop();
         }
     }

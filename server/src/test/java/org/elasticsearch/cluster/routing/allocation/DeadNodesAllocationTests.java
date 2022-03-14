@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -99,12 +99,12 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         final Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        Loggers.addAppender(allocationServiceLogger, appender);
+        AppenderUtils.addAppender(allocationServiceLogger, appender);
         try {
             final String dissociationReason = "node left " + randomAlphaOfLength(10);
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "health change log message",
                     AllocationService.class.getName(),
                     Level.INFO,
@@ -122,7 +122,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(allocationServiceLogger, appender);
+            AppenderUtils.removeAppender(allocationServiceLogger, appender);
             appender.stop();
         }
     }

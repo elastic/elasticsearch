@@ -18,8 +18,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -56,13 +56,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             connection.sendRequest(requestId, action, request, options);
         },
             childNode -> List.of(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "cannot send ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
                     "*cannot send ban for tasks*" + childNode.getId() + "*"
                 ),
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "cannot remove ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
@@ -82,13 +82,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             connection.sendRequest(requestId, action, request, options);
         },
             childNode -> List.of(
-                new MockLogAppender.UnseenEventExpectation(
-                    "cannot send ban",
-                    TaskCancellationService.class.getName(),
-                    Level.DEBUG,
-                    "*cannot send ban for tasks*" + childNode.getId() + "*"
-                ),
-                new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createUnseenEventExpectation(
+                        "cannot send ban",
+                        TaskCancellationService.class.getName(),
+                        Level.DEBUG,
+                        "*cannot send ban for tasks*" + childNode.getId() + "*"
+                    ),
+                MockLogAppender.createSeenEventExpectation(
                     "cannot remove ban",
                     TaskCancellationService.class.getName(),
                     Level.DEBUG,
@@ -171,8 +171,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             MockLogAppender appender = new MockLogAppender();
             appender.start();
             resources.add(appender::stop);
-            Loggers.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
-            resources.add(() -> Loggers.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
+            AppenderUtils.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
+            resources.add(() -> AppenderUtils.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
 
             for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
                 appender.addExpectation(expectation);

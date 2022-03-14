@@ -18,6 +18,8 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.config.Property;
+import org.apache.logging.log4j.core.filter.AbstractFilter;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.LogEventImpl;
 import org.elasticsearch.logging.internal.Util;
 
@@ -27,6 +29,18 @@ public class AppenderUtils {
 
     private AppenderUtils() {
     }
+
+//    public static MockLogAppender2 addMockAppender(Logger logger) throws IllegalAccessException {
+//        MockLogAppender2 impl = new MockLogAppender2();
+//        Loggers.addAppender(logger, impl.mockLogAppender1);
+//        return impl;
+//    }
+
+//    public static MockLogAppender2 addAppender(final org.elasticsearch.logging.Logger logger, MockLogAppender2 mockLogAppender) throws IllegalAccessException {
+//        Loggers.addAppender(logger, mockLogAppender.mockLogAppender1);
+//        return mockLogAppender;
+//    }
+
 
     public static void addAppender(final org.elasticsearch.logging.Logger logger, final org.elasticsearch.logging.api.core.Appender  appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -46,7 +60,8 @@ public class AppenderUtils {
 
     @SuppressWarnings("unchecked")
     private static Appender createLog4jAdapter(org.elasticsearch.logging.api.core.Appender appender) {
-        return new AbstractAppender(appender.name(), (Filter) appender.filter(),
+        org.apache.logging.log4j.core.Filter filter = createLog4jFilter(appender.filter());
+        return new AbstractAppender(appender.name(), filter,
             (Layout<? extends Serializable>) appender.layout(),
             false, Property.EMPTY_ARRAY ){
 
@@ -59,8 +74,38 @@ public class AppenderUtils {
         };
     }
 
-    public static void removeAppender(final org.elasticsearch.logging.Logger logger, final org.elasticsearch.logging.api.core.Appender  appender) {
-
+    private static Filter createLog4jFilter(org.elasticsearch.logging.api.core.Filter filter) {
+        return new AbstractFilter() {
+            @Override
+            public Result filter(LogEvent event) {
+                return filter.filter(new LogEventImpl(event));
+            }
+        };
     }
 
+    public static void addAppender(final Logger logger, final MockLogAppender appender) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        config.addAppender(appender.impl);
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        if (logger.getName().equals(loggerConfig.getName()) == false) {
+            loggerConfig = new LoggerConfig(logger.getName(), Util.log4jLevel(logger.getLevel()), true);
+            config.addLogger(logger.getName(), loggerConfig);
+        }
+        loggerConfig.addAppender(appender.impl, null, null);
+        ctx.updateLoggers();
+    }
+
+
+    public static void removeAppender(final Logger logger, final MockLogAppender appender) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        if (logger.getName().equals(loggerConfig.getName()) == false) {
+            loggerConfig = new LoggerConfig(logger.getName(), Util.log4jLevel(logger.getLevel()), true);
+            config.addLogger(logger.getName(), loggerConfig);
+        }
+        loggerConfig.removeAppender("mock");
+        ctx.updateLoggers();
+    }
 }

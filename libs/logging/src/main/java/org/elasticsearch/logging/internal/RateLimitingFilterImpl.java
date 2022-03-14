@@ -9,4 +9,6 @@
 package org.elasticsearch.logging.internal;
 
 public class RateLimitingFilterImpl extends RateLimitingFilter implements org.elasticsearch.logging.api.core.RateLimitingFilter{
+    public RateLimitingFilterImpl() {
+    }
 }

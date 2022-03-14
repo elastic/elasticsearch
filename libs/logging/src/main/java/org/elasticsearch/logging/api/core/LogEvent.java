@@ -8,5 +8,15 @@
 
 package org.elasticsearch.logging.api.core;
 
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Message;
+
 public interface LogEvent {
+    Level getLevel();
+
+    String getLoggerName();
+
+    Throwable getThrown();
+
+    Message getMessage();
 }

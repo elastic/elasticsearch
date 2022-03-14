@@ -30,8 +30,8 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -316,7 +316,7 @@ public class OutboundHandlerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "expected message",
                 OutboundHandler.class.getCanonicalName(),
                 Level.WARN,
@@ -324,7 +324,7 @@ public class OutboundHandlerTests extends ESTestCase {
             )
         );
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
-        Loggers.addAppender(outboundHandlerLogger, mockAppender);
+        AppenderUtils.addAppender(outboundHandlerLogger, mockAppender);
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
         try {
@@ -344,7 +344,7 @@ public class OutboundHandlerTests extends ESTestCase {
             f.get();
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(outboundHandlerLogger, mockAppender);
+            AppenderUtils.removeAppender(outboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }

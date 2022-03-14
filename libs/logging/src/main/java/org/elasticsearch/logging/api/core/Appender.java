@@ -8,16 +8,14 @@
 
 package org.elasticsearch.logging.api.core;
 
-import java.io.Serializable;
 
 public interface Appender {
+
     void append(LogEvent event);
 
-
-    Filter   filter();
+    Filter filter();
 
     Layout layout();
 
     String name();
-
 }

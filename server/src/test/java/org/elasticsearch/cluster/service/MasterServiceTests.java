@@ -39,8 +39,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -294,7 +294,7 @@ public class MasterServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1 start",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -302,7 +302,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1 computation",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -310,7 +310,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1 notification",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -319,7 +319,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2 start",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -327,7 +327,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2 failure",
                 MasterService.class.getCanonicalName(),
                 Level.TRACE,
@@ -335,7 +335,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2 computation",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -343,7 +343,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2 notification",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -352,7 +352,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test3 start",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -360,7 +360,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test3 computation",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -368,7 +368,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test3 notification",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -377,7 +377,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -386,7 +386,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
+        AppenderUtils.addAppender(clusterLogger, mockAppender);
         try (MasterService masterService = createMasterService(true)) {
             masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
@@ -451,7 +451,7 @@ public class MasterServiceTests extends ESTestCase {
             }, ClusterStateTaskExecutor.unbatched());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
+            AppenderUtils.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -1011,15 +1011,15 @@ public class MasterServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test1 shouldn't log because it was fast enough",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took*test1*"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "test1 shouldn't log because it was fast enough",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took*test1*"
+                )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
@@ -1027,7 +1027,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test3",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
@@ -1035,7 +1035,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
@@ -1043,15 +1043,15 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test5 should not log despite publishing slowly",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took*test5*"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "test5 should not log despite publishing slowly",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took*test5*"
+                )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test6 should log due to slow and failing publication",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
@@ -1060,7 +1060,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
+        AppenderUtils.addAppender(clusterLogger, mockAppender);
         try (
             MasterService masterService = new MasterService(
                 Settings.builder()
@@ -1232,7 +1232,7 @@ public class MasterServiceTests extends ESTestCase {
             }, ClusterStateTaskExecutor.unbatched());
             latch.await();
         } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
+            AppenderUtils.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();
@@ -1506,7 +1506,7 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.start();
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
+        AppenderUtils.addAppender(clusterLogger, mockAppender);
         try (MasterService masterService = createMasterService(true)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
 
@@ -1562,7 +1562,7 @@ public class MasterServiceTests extends ESTestCase {
             }, ClusterStateTaskExecutor.unbatched());
 
             // check that a warning is logged after 5m
-            final MockLogAppender.EventuallySeenEventExpectation expectation1 = new MockLogAppender.EventuallySeenEventExpectation(
+            final MockLogAppender.LoggingExpectationWithExpectSeen expectation1 = MockLogAppender.createEventuallySeenEventExpectation(
                 "starvation warning",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
@@ -1584,7 +1584,7 @@ public class MasterServiceTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             // check that another warning is logged after 10m
-            final MockLogAppender.EventuallySeenEventExpectation expectation2 = new MockLogAppender.EventuallySeenEventExpectation(
+            final MockLogAppender.LoggingExpectationWithExpectSeen expectation2 = MockLogAppender.createEventuallySeenEventExpectation(
                 "starvation warning",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
@@ -1611,7 +1611,7 @@ public class MasterServiceTests extends ESTestCase {
             assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
 
         } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
+            AppenderUtils.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
     }

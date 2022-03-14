@@ -25,8 +25,8 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -894,11 +894,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(admin().indices().prepareClose(indexName).get());
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
+                MockLogAppender.createUnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
         );
         mockAppender.start();
         final Logger logger = LogManager.getLogger(FileRestoreContext.class);
-        Loggers.addAppender(logger, mockAppender);
+        AppenderUtils.addAppender(logger, mockAppender);
         try {
             final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
                 .setIndices(indexName)
@@ -908,7 +908,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, mockAppender);
+            AppenderUtils.removeAppender(logger, mockAppender);
             mockAppender.stop();
         }
     }

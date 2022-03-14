@@ -19,8 +19,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -134,13 +134,13 @@ public class FsHealthServiceTests extends ESTestCase {
         mockAppender.start();
 
         Logger logger = LogManager.getLogger(FsHealthService.class);
-        Loggers.addAppender(logger, mockAppender);
+        AppenderUtils.addAppender(logger, mockAppender);
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
             for (Path path : env.nodeDataPaths()) {
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createSeenEventExpectation(
                         "test" + ++counter,
                         FsHealthService.class.getCanonicalName(),
                         Level.WARN,
@@ -155,7 +155,7 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(logger, mockAppender);
+            AppenderUtils.removeAppender(logger, mockAppender);
             mockAppender.stop();
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);

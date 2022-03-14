@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.ml.process.logging;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -107,7 +108,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -115,7 +116,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -123,7 +124,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test3",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -131,7 +132,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test4",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -158,7 +159,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -166,15 +167,15 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test2",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1 | repeated [1]"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "test2",
+                    CppLogMessageHandler.class.getName(),
+                    Level.INFO,
+                    "[test_throttling] * message 1 | repeated [1]"
+                )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -182,7 +183,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -215,7 +216,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -223,7 +224,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -231,7 +232,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test3",
                 CppLogMessageHandler.class.getName(),
                 Level.ERROR,
@@ -239,7 +240,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test4",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -247,7 +248,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test5",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -255,7 +256,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test6",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -283,7 +284,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -291,7 +292,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -320,7 +321,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
@@ -328,7 +329,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.DEBUG,
@@ -336,12 +337,12 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test3",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1 | repeated [5]"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "test3",
+                    CppLogMessageHandler.class.getName(),
+                    Level.INFO,
+                    "[test_throttling] * message 1 | repeated [5]"
+                )
         );
 
         executeLoggingTest(is, mockAppender, Level.DEBUG, "test_throttling");
@@ -381,14 +382,14 @@ public class CppLogMessageHandlerTests extends ESTestCase {
 
     private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId) throws IOException {
         Logger cppMessageLogger = LogManager.getLogger(CppLogMessageHandler.class);
-        Loggers.addAppender(cppMessageLogger, mockAppender);
+        AppenderUtils.addAppender(cppMessageLogger, mockAppender);
 
         Level oldLevel = cppMessageLogger.getLevel();
         Loggers.setLevel(cppMessageLogger, level);
         try (CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)) {
             handler.tailStream();
         } finally {
-            Loggers.removeAppender(cppMessageLogger, mockAppender);
+            AppenderUtils.removeAppender(cppMessageLogger, mockAppender);
             Loggers.setLevel(cppMessageLogger, oldLevel);
             mockAppender.stop();
         }

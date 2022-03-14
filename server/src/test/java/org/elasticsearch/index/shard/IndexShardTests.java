@@ -106,6 +106,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -113,7 +114,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -3399,10 +3400,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        Loggers.addAppender(LogManager.getLogger(IndexShard.class), appender);
+        AppenderUtils.addAppender(LogManager.getLogger(IndexShard.class), appender);
         try {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                 MockLogAppender.createSeenEventExpectation(
                     "expensive checks warning",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
@@ -3412,7 +3413,7 @@ public class IndexShardTests extends IndexShardTestCase {
             );
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "failure message",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
@@ -3428,7 +3429,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(IndexShard.class), appender);
+            AppenderUtils.removeAppender(LogManager.getLogger(IndexShard.class), appender);
             appender.stop();
         }
 

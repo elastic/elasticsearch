@@ -21,10 +21,10 @@ import java.util.Arrays;
  */
 public class LoggingOutputStream extends OutputStream {
     /** The starting length of the buffer */
-    static final int DEFAULT_BUFFER_LENGTH = 1024;
+    public static final int DEFAULT_BUFFER_LENGTH = 1024;
 
     // limit a single log message to 64k
-    static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 64;
+    public static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 64;
 
     class Buffer {
 
@@ -104,7 +104,7 @@ public class LoggingOutputStream extends OutputStream {
     }
 
     // pkg private for testing
-    void log(String msg) {
+    public void log(String msg) {
         logger.log(level, msg);
     }
 }

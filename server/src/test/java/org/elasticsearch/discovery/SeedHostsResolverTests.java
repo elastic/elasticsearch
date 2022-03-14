@@ -23,8 +23,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -228,7 +228,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         appender.addExpectation(
-            new MockLogAppender.ExceptionSeenEventExpectation(
+            MockLogAppender.createExceptionSeenEventExpectation(
                 getTestName(),
                 logger.getName(),
                 Level.WARN,
@@ -239,13 +239,13 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
 
         try {
-            Loggers.addAppender(logger, appender);
+            AppenderUtils.addAppender(logger, appender);
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(Collections.singletonList(hostname));
 
             assertThat(transportAddresses, empty());
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
         }
     }
@@ -307,7 +307,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         appender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 getTestName(),
                 logger.getName(),
                 Level.WARN,
@@ -318,13 +318,13 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
 
         try {
-            Loggers.addAppender(logger, appender);
+            AppenderUtils.addAppender(logger, appender);
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2"));
 
             assertThat(transportAddresses, hasSize(1));
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
             latch.countDown();
         }
@@ -433,7 +433,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         appender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 getTestName(),
                 logger.getName(),
                 Level.WARN,
@@ -442,7 +442,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
 
         try {
-            Loggers.addAppender(logger, appender);
+            AppenderUtils.addAppender(logger, appender);
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(
                 Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301")
             );
@@ -451,7 +451,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
         }
     }

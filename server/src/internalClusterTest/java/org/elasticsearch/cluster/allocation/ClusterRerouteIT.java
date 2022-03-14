@@ -38,8 +38,11 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -434,14 +437,14 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         MockLogAppender dryRunMockLog = new MockLogAppender();
         dryRunMockLog.start();
         dryRunMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no completed message logged on dry run",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "no completed message logged on dry run",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*"
+                )
         );
-        Loggers.addAppender(actionLogger, dryRunMockLog);
+        AppenderUtils.addAppender(actionLogger, dryRunMockLog);
 
         AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
         ClusterRerouteResponse dryRunResponse = client().admin()
@@ -459,12 +462,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         dryRunMockLog.assertAllExpectationsMatched();
         dryRunMockLog.stop();
-        Loggers.removeAppender(actionLogger, dryRunMockLog);
+        AppenderUtils.removeAppender(actionLogger, dryRunMockLog);
 
         MockLogAppender allocateMockLog = new MockLogAppender();
         allocateMockLog.start();
         allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "message for first allocate empty primary",
                 TransportClusterRerouteAction.class.getName(),
                 Level.INFO,
@@ -472,14 +475,14 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             )
         );
         allocateMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no message for second allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName2 + "*"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "no message for second allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName2 + "*"
+                )
         );
-        Loggers.addAppender(actionLogger, allocateMockLog);
+        AppenderUtils.addAppender(actionLogger, allocateMockLog);
 
         AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
         AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
@@ -498,7 +501,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         allocateMockLog.assertAllExpectationsMatched();
         allocateMockLog.stop();
-        Loggers.removeAppender(actionLogger, allocateMockLog);
+        AppenderUtils.removeAppender(actionLogger, allocateMockLog);
     }
 
     public void testClusterRerouteWithBlocks() {

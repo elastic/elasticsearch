@@ -34,7 +34,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
         }
 
         @Override
-        void log(String msg) {
+        public void log(String msg) {
             lines.add(msg);
         }
     }

@@ -21,10 +21,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +48,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
         // Set up a log appender for detecting log messages
         final MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "message",
                 "org.elasticsearch.xpack.logstash.action.TransportGetPipelineAction",
                 Level.INFO,
@@ -90,7 +90,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
         };
 
         try (Client client = getMockClient(multiGetResponse)) {
-            Loggers.addAppender(logger, mockLogAppender);
+            AppenderUtils.addAppender(logger, mockLogAppender);
             TransportGetPipelineAction action = new TransportGetPipelineAction(
                 mock(TransportService.class),
                 mock(ActionFilters.class),
@@ -98,7 +98,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             );
             action.doExecute(null, request, testActionListener);
         } finally {
-            Loggers.removeAppender(logger, mockLogAppender);
+            AppenderUtils.removeAppender(logger, mockLogAppender);
             mockLogAppender.stop();
         }
     }

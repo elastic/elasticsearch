@@ -12,12 +12,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -101,12 +102,12 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        Loggers.addAppender(logger, appender);
+        AppenderUtils.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
         try {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "marking",
                     logger.getName(),
                     Level.DEBUG,
@@ -120,7 +121,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
             );
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }
@@ -219,13 +220,13 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        Loggers.addAppender(logger, appender);
+        AppenderUtils.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
         try {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "intercepting",
                     logger.getName(),
                     Level.DEBUG,
@@ -236,7 +237,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
             verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }

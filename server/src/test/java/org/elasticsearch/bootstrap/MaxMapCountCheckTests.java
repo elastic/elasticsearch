@@ -16,8 +16,9 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.LogEvent;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 
 import java.io.BufferedReader;
@@ -144,11 +145,11 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     e -> ioException == e
                 )
             );
-            Loggers.addAppender(logger, appender);
+            AppenderUtils.addAppender(logger, appender);
             assertThat(check.getMaxMapCount(logger), equalTo(-1L));
             appender.assertAllExpectationsMatched();
             verify(reader).close();
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
         }
 
@@ -168,11 +169,11 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
                 )
             );
-            Loggers.addAppender(logger, appender);
+            AppenderUtils.addAppender(logger, appender);
             assertThat(check.getMaxMapCount(logger), equalTo(-1L));
             appender.assertAllExpectationsMatched();
             verify(reader).close();
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
             appender.stop();
         }
 
@@ -209,7 +210,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         public void match(final LogEvent event) {
             if (event.getLevel().equals(level)
                 && event.getLoggerName().equals(loggerName)
-                && event.getMessage()instanceof final Message message) {
+               /* && event.getMessage() instanceof final org.elasticsearch.logging. message*/) {
+                Message message = event.getMessage();
                 saw = message.getFormat().equals(messagePattern)
                     && Arrays.deepEquals(arguments, message.getParameters())
                     && throwablePredicate.test(event.getThrown());

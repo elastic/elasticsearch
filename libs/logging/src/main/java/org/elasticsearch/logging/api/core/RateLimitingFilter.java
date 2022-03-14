@@ -17,13 +17,12 @@ package org.elasticsearch.logging.api.core;
 
 import org.elasticsearch.logging.internal.RateLimitingFilterImpl;
 
-public interface RateLimitingFilter extends Filter{
-     void setUseXOpaqueId(boolean useXOpaqueId) ;
-
-
-     static RateLimitingFilter createRateLimitingFilter(){
+public interface RateLimitingFilter extends Filter {
+    static RateLimitingFilter createRateLimitingFilter() {
         return new RateLimitingFilterImpl();
     }
+
+    void setUseXOpaqueId(boolean useXOpaqueId);
 
     void reset();
 }

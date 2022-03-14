@@ -28,6 +28,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -763,12 +764,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
+        AppenderUtils.addAppender(logger, appender);
         appender.start();
 
         try {
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                MockLogAppender.createPatternSeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -776,34 +777,34 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "no-thrashing",
-                    ApiKeyService.class.getName(),
-                    Level.WARN,
-                    "Possible thrashing for API key authentication cache,*"
-                )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "no-thrashing",
+                        ApiKeyService.class.getName(),
+                        Level.WARN,
+                        "Possible thrashing for API key authentication cache,*"
+                    )
             );
             apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "replace",
-                    ApiKeyService.class.getName(),
-                    Level.TRACE,
-                    "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
-                )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "replace",
+                        ApiKeyService.class.getName(),
+                        Level.TRACE,
+                        "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+                    )
             );
             apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "invalidate",
-                    ApiKeyService.class.getName(),
-                    Level.TRACE,
-                    "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
-                )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "invalidate",
+                        ApiKeyService.class.getName(),
+                        Level.TRACE,
+                        "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+                    )
             );
             apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
             apiKeyAuthCache.invalidateAll();
@@ -811,7 +812,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         } finally {
             appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
         }
     }
 
@@ -828,17 +829,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
+        AppenderUtils.addAppender(logger, appender);
         appender.start();
 
         try {
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "evict",
-                    ApiKeyService.class.getName(),
-                    Level.TRACE,
-                    "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
-                )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "evict",
+                        ApiKeyService.class.getName(),
+                        Level.TRACE,
+                        "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
+                    )
             );
             apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
             // Wait for the entry to expire
@@ -851,7 +852,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         } finally {
             appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
         }
     }
 
@@ -865,7 +866,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
+        AppenderUtils.addAppender(logger, appender);
         appender.start();
 
         try {
@@ -881,7 +882,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             // Ensure the counter is updated
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -889,7 +890,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "thrashing",
                     ApiKeyService.class.getName(),
                     Level.WARN,
@@ -905,7 +906,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
             // Will not log warning again for the next eviction because of throttling
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "evict-again",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -913,19 +914,19 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "throttling",
-                    ApiKeyService.class.getName(),
-                    Level.WARN,
-                    "Possible thrashing for API key authentication cache,*"
-                )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "throttling",
+                        ApiKeyService.class.getName(),
+                        Level.WARN,
+                        "Possible thrashing for API key authentication cache,*"
+                    )
             );
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
+            AppenderUtils.removeAppender(logger, appender);
         }
     }
 

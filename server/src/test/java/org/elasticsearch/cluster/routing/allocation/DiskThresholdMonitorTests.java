@@ -37,8 +37,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -909,21 +909,21 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
+                MockLogAppender.createUnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
         );
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
+                MockLogAppender.createUnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
         );
 
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderUtils.addAppender(diskThresholdMonitorLogger, mockAppender);
 
         for (int i = between(1, 3); i >= 0; i--) {
             monitor.onNewInfo(clusterInfo(diskUsages));
         }
 
         mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderUtils.removeAppender(diskThresholdMonitorLogger, mockAppender);
         mockAppender.stop();
     }
 
@@ -951,24 +951,24 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
+            MockLogAppender.createSeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
         );
         mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "any message of another level",
-                DiskThresholdMonitor.class.getCanonicalName(),
-                level == Level.INFO ? Level.WARN : Level.INFO,
-                "*"
-            )
+                MockLogAppender.createUnseenEventExpectation(
+                    "any message of another level",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    level == Level.INFO ? Level.WARN : Level.INFO,
+                    "*"
+                )
         );
 
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderUtils.addAppender(diskThresholdMonitorLogger, mockAppender);
 
         monitor.onNewInfo(clusterInfo(diskUsages));
 
         mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderUtils.removeAppender(diskThresholdMonitorLogger, mockAppender);
         mockAppender.stop();
     }
 

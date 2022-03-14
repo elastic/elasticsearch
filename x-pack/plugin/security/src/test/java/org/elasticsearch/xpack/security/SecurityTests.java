@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,7 +47,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -671,7 +672,7 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(amLogger, appender);
+        AppenderUtils.addAppender(amLogger, appender);
         appender.start();
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
@@ -685,7 +686,7 @@ public class SecurityTests extends ESTestCase {
             // Verify Security rest wrapper is about to be installed
             // We will throw later if another wrapper is already installed
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "Security rest wrapper",
                     ActionModule.class.getName(),
                     Level.DEBUG,
@@ -712,7 +713,7 @@ public class SecurityTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
             appender.stop();
-            Loggers.removeAppender(amLogger, appender);
+            AppenderUtils.removeAppender(amLogger, appender);
         }
     }
 
@@ -721,7 +722,7 @@ public class SecurityTests extends ESTestCase {
         boolean securityEnabled = true;
         Loggers.setLevel(mockLogger, Level.INFO);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(mockLogger, appender);
+        AppenderUtils.addAppender(mockLogger, appender);
         appender.start();
 
         Settings.Builder settings = Settings.builder().put("path.home", createTempDir());
@@ -733,7 +734,7 @@ public class SecurityTests extends ESTestCase {
 
         try {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "message",
                     Security.class.getName(),
                     Level.INFO,
@@ -744,7 +745,7 @@ public class SecurityTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            Loggers.removeAppender(mockLogger, appender);
+            AppenderUtils.removeAppender(mockLogger, appender);
         }
     }
 

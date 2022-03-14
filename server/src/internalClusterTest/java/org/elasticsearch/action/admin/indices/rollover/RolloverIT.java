@@ -33,8 +33,8 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -256,20 +256,20 @@ public class RolloverIT extends ESIntegTestCase {
         MockLogAppender appender = new MockLogAppender();
         appender.start();
         appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
+            MockLogAppender.createUnseenEventExpectation(
                 "no related message logged on dry run",
                 AllocationService.class.getName(),
                 Level.INFO,
                 "*test_index*"
             )
         );
-        Loggers.addAppender(allocationServiceLogger, appender);
+        AppenderUtils.addAppender(allocationServiceLogger, appender);
 
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
 
         appender.assertAllExpectationsMatched();
         appender.stop();
-        Loggers.removeAppender(allocationServiceLogger, appender);
+        AppenderUtils.removeAppender(allocationServiceLogger, appender);
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-000002"));

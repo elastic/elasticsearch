@@ -12,17 +12,16 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 //import org.elasticsearch.logging.core.LogEvent;
 //import org.elasticsearch.logging.message.Message;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class ExpressionModelTests extends ESTestCase {
@@ -38,7 +37,7 @@ public class ExpressionModelTests extends ESTestCase {
 
         doWithLoggingExpectations(
             List.of(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "undefined field",
                     model.getClass().getName(),
                     Level.DEBUG,
@@ -76,14 +75,14 @@ public class ExpressionModelTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            Loggers.addAppender(modelLogger, mockAppender);
+            AppenderUtils.addAppender(modelLogger, mockAppender);
             expectations.forEach(mockAppender::addExpectation);
 
             body.run();
 
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(modelLogger, mockAppender);
+            AppenderUtils.removeAppender(modelLogger, mockAppender);
             mockAppender.stop();
         }
     }

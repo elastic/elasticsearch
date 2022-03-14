@@ -22,8 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
@@ -162,7 +162,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            MockLogAppender.createSeenEventExpectation(
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
                 Level.WARN,
@@ -170,14 +170,14 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             )
         );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
-        Loggers.addAppender(targetLogger, mockAppender);
+        AppenderUtils.addAppender(targetLogger, mockAppender);
 
         try {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(targetLogger, mockAppender);
+            AppenderUtils.removeAppender(targetLogger, mockAppender);
             mockAppender.stop();
         }
     }

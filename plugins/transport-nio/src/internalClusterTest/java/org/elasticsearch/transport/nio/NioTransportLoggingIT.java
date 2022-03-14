@@ -12,10 +12,10 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
@@ -30,14 +30,14 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+        AppenderUtils.addAppender(LogManager.getLogger(TransportLogger.class), appender);
+        AppenderUtils.addAppender(LogManager.getLogger(TcpTransport.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
+        AppenderUtils.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
+        AppenderUtils.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
         appender.stop();
         super.tearDown();
     }
@@ -50,7 +50,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
             + ", version: .*"
             + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
             + " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLogAppender.LoggingExpectation writeExpectation = MockLogAppender.createPatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
@@ -64,7 +64,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
             + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
             + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLogAppender.LoggingExpectation readExpectation = MockLogAppender.createPatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
@@ -80,20 +80,20 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
     @TestLogging(value = "org.elasticsearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
     public void testConnectionLogging() throws IOException {
         appender.addExpectation(
-            new MockLogAppender.PatternSeenEventExpectation(
-                "open connection log",
-                TcpTransport.class.getCanonicalName(),
-                Level.DEBUG,
-                ".*opened transport connection \\[[1-9][0-9]*\\] to .*"
-            )
+                MockLogAppender.createPatternSeenEventExpectation(
+                    "open connection log",
+                    TcpTransport.class.getCanonicalName(),
+                    Level.DEBUG,
+                    ".*opened transport connection \\[[1-9][0-9]*\\] to .*"
+                )
         );
         appender.addExpectation(
-            new MockLogAppender.PatternSeenEventExpectation(
-                "close connection log",
-                TcpTransport.class.getCanonicalName(),
-                Level.DEBUG,
-                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"
-            )
+                MockLogAppender.createPatternSeenEventExpectation(
+                    "close connection log",
+                    TcpTransport.class.getCanonicalName(),
+                    Level.DEBUG,
+                    ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"
+                )
         );
 
         final String nodeName = internalCluster().startNode();

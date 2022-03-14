@@ -24,7 +24,7 @@ public interface Layout {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
             final Configuration config = ctx.getConfiguration();
 
-            EcsLayout layout =    ECSJsonLayout.newBuilder()
+            EcsLayout layout = ECSJsonLayout.newBuilder()
                         .setDataset(dataset)
                         .setConfiguration(config)
                         .build();

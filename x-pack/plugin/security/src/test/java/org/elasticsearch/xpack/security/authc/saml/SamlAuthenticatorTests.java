@@ -10,11 +10,11 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -727,10 +727,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            Loggers.addAppender(samlLogger, mockAppender);
+            AppenderUtils.addAppender(samlLogger, mockAppender);
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "similar audience",
                     authenticator.getClass().getName(),
                     Level.INFO,
@@ -744,7 +744,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "not similar audience",
                     authenticator.getClass().getName(),
                     Level.INFO,
@@ -755,7 +755,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             assertThat(exception.getMessage(), containsString("required audience"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
+            AppenderUtils.removeAppender(samlLogger, mockAppender);
             mockAppender.stop();
         }
     }

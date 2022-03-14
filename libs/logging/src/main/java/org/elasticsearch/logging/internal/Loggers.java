@@ -12,18 +12,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.core.config.Property;
-import org.elasticsearch.logging.MockLogAppender;
 
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -149,8 +142,6 @@ public class Loggers {
 
     public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender  appender) { }
 
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {}
-
     public static void addAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
@@ -164,11 +155,6 @@ public class Loggers {
         ctx.updateLoggers();
     }
 
-
-
-    public static void removeAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {
-
-    }
 
     public static void removeAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -194,4 +180,7 @@ public class Loggers {
         return null;
     }
 
+    public static void setLevel(Logger logger, org.elasticsearch.logging.Level info) {
+
+    }
 }

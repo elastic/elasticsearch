@@ -12,7 +12,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -24,7 +24,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -566,14 +566,14 @@ public class RealmsTests extends ESTestCase {
 
         final Logger realmsLogger = LogManager.getLogger(Realms.class);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(realmsLogger, appender);
+        AppenderUtils.addAppender(realmsLogger, appender);
         appender.start();
 
         when(licenseState.statusDescription()).thenReturn("mock license");
         try {
             for (String realmId : List.of("kerberos.kerberos_realm", "type_0.custom_realm_1", "type_1.custom_realm_2")) {
                 appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createSeenEventExpectation(
                         "Realm [" + realmId + "] disabled",
                         realmsLogger.getName(),
                         Level.WARN,
@@ -585,7 +585,7 @@ public class RealmsTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            Loggers.removeAppender(realmsLogger, appender);
+            AppenderUtils.removeAppender(realmsLogger, appender);
         }
 
         final List<String> unlicensedRealmNames = realms.getUnlicensedRealms().stream().map(r -> r.name()).collect(Collectors.toList());

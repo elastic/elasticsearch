@@ -14,14 +14,18 @@ module org.elasticsearch.logging {
     requires ecs.logging.core;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
+    requires org.hamcrest;
 
     exports org.elasticsearch.logging;
     exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
 
     opens org.elasticsearch.logging.internal to org.apache.logging.log4j.core;
 
-    exports org.elasticsearch.logging.internal to org.elasticsearch.server;
     exports org.elasticsearch.logging.api.core;
+    exports org.elasticsearch.logging.internal;
+    opens org.elasticsearch.logging.api.core to org.apache.logging.log4j.core;
+    exports org.elasticsearch.logging.internal.testing;
+    opens org.elasticsearch.logging.internal.testing to org.apache.logging.log4j.core;
 
     uses org.elasticsearch.logging.internal.spi.ServerSupport;
 }

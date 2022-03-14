@@ -64,6 +64,12 @@ public class RateLimitingFilter extends AbstractFilter implements org.elasticsea
         this.lruKeyCache.clear();
     }
 
+    @Override
+    public Result filter(org.elasticsearch.logging.api.core.LogEvent logEvent) {
+
+        return null;
+    }
+
     public Result filter(Message message) {
         if (message instanceof final ESLogMessage esLogMessage) { //TODO: just avoid for now
             final String key = getKey(esLogMessage);
@@ -107,4 +113,6 @@ public class RateLimitingFilter extends AbstractFilter implements org.elasticsea
     public void setUseXOpaqueId(boolean useXOpaqueId) {
         this.useXOpaqueId = useXOpaqueId;
     }
+
+
 }

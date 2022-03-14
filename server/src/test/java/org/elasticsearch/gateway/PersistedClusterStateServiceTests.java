@@ -56,8 +56,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -1188,7 +1188,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createSeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1204,7 +1204,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createSeenEventExpectation(
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1220,12 +1220,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
-                        "should not see warning below threshold",
-                        PersistedClusterStateService.class.getCanonicalName(),
-                        Level.WARN,
-                        "*"
-                    )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "should not see warning below threshold",
+                            PersistedClusterStateService.class.getCanonicalName(),
+                            Level.WARN,
+                            "*"
+                        )
                 );
 
                 clusterSettings.applySettings(
@@ -1238,7 +1238,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createSeenEventExpectation(
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1271,7 +1271,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    MockLogAppender.createSeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1288,12 +1288,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
-                        "should not see warning below threshold",
-                        PersistedClusterStateService.class.getCanonicalName(),
-                        Level.WARN,
-                        "*"
-                    )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "should not see warning below threshold",
+                            PersistedClusterStateService.class.getCanonicalName(),
+                            Level.WARN,
+                            "*"
+                        )
                 );
 
                 assertThat(currentTime.get(), lessThan(startTimeMillis + 14 * slowWriteLoggingThresholdMillis)); // ensure no overflow
@@ -1536,7 +1536,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         mockAppender.start();
         mockAppender.addExpectation(expectation);
         Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
-        Loggers.addAppender(classLogger, mockAppender);
+        AppenderUtils.addAppender(classLogger, mockAppender);
 
         try {
             if (previousState == null) {
@@ -1545,7 +1545,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
         } finally {
-            Loggers.removeAppender(classLogger, mockAppender);
+            AppenderUtils.removeAppender(classLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();

@@ -12,13 +12,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -130,7 +130,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         );
         final int elapsedMs = warnMs + randomIntBetween(1, 100);
 
-        final MockLogAppender.PatternSeenEventExpectation expectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLogAppender.LoggingExpectation expectation = MockLogAppender.createPatternSeenEventExpectation(
             "WARN-Slow Index Resolution",
             timerLogger.getName(),
             Level.WARN,
@@ -156,7 +156,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         );
         final int elapsedMs = infoMs + randomIntBetween(1, 100);
 
-        final MockLogAppender.PatternSeenEventExpectation expectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLogAppender.LoggingExpectation expectation = MockLogAppender.createPatternSeenEventExpectation(
             "INFO-Slow Index Resolution",
             timerLogger.getName(),
             Level.INFO,
@@ -171,7 +171,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
     private void testLogging(
         LoadAuthorizedIndicesTimeChecker.Thresholds thresholds,
         int elapsedMs,
-        MockLogAppender.PatternSeenEventExpectation expectation
+        MockLogAppender.LoggingExpectation expectation
     ) throws IllegalAccessException {
         final User user = new User("slow-user", "slow-role");
         final Authentication authentication = new Authentication(user, new Authentication.RealmRef("test", "test", "foo"), null);
@@ -192,12 +192,12 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            Loggers.addAppender(timerLogger, mockAppender);
+            AppenderUtils.addAppender(timerLogger, mockAppender);
             mockAppender.addExpectation(expectation);
             checker.accept(List.of());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(timerLogger, mockAppender);
+            AppenderUtils.removeAppender(timerLogger, mockAppender);
             mockAppender.stop();
         }
     }

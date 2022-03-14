@@ -16,7 +16,9 @@
 package org.elasticsearch.logging.api.core;
 
 
+
 public interface Filter {
 
 
+    org.apache.logging.log4j.core.Filter.Result filter(LogEvent logEvent);
 }

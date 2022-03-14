@@ -5,9 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.logging;
+package org.elasticsearch.logging.api.core;
 
-import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.internal.testing.MockLogAppenderImpl;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -16,20 +19,54 @@ import java.util.regex.Pattern;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender /*extends AbstractAppender */ {
+public class MockLogAppender {
 
     private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
-
-    private List<LoggingExpectation> expectations;
+    private final List<LoggingExpectation> expectations;
+     MockLogAppenderImpl impl;
 
     public MockLogAppender() throws IllegalAccessException {
-        // super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
+        impl = new MockLogAppenderImpl(expectations);
+    }
+
+    public static LoggingExpectation createUnseenEventExpectation(String name, String logger, Level level, String message) {
+        return new UnseenEventExpectation(name, logger, level, message);
+    }
+
+    public static LoggingExpectationWithExpectSeen createEventuallySeenEventExpectation(String name, String logger, Level level, String message) {
+        return new EventuallySeenEventExpectation(name, logger, level, message);
+    }
+
+    public static LoggingExpectation createExceptionSeenEventExpectation(
+        final String name,
+        final String logger,
+        final Level level,
+        final String message,
+        final Class<? extends Exception> clazz,
+        final String exceptionMessage
+    ) {
+        return new ExceptionSeenEventExpectation(name, logger, level, message, clazz, exceptionMessage);
+    }
+
+    public static LoggingExpectation createPatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
+        return new PatternSeenEventExpectation(name, logger, level, pattern);
+    }
+
+    public static LoggingExpectation createSeenEventExpectation(String name, String logger, Level level, String message) {
+        return new SeenEventExpectation(name, logger, level, message);
+    }
+
+    private static String getLoggerName(String name) {
+        if (name.startsWith("org.elasticsearch.")) {
+            name = name.substring("org.elasticsearch.".length());
+        }
+        return COMMON_PREFIX + name;
     }
 
     public void addExpectation(LoggingExpectation expectation) {
@@ -37,17 +74,11 @@ public class MockLogAppender /*extends AbstractAppender */ {
     }
 
     public void start() {
-        // super.start();
+        impl.start();
     }
 
     public void stop() {
-        // super.stop();
-    }
-
-    public void append(LogEvent event) {
-        for (LoggingExpectation expectation : expectations) {
-            expectation.match(event);
-        }
+        impl.stop();
     }
 
     public void assertAllExpectationsMatched() {
@@ -57,12 +88,15 @@ public class MockLogAppender /*extends AbstractAppender */ {
     }
 
     public interface LoggingExpectation {
-        void match(LogEvent event);
-
         void assertMatched();
+        void match(org.elasticsearch.logging.api.core.LogEvent event);
     }
 
-    public abstract static class AbstractEventExpectation implements LoggingExpectation {
+    public interface  LoggingExpectationWithExpectSeen extends LoggingExpectation {
+         void setExpectSeen() ;
+    }
+
+    public abstract static class AbstractEventExpectation implements LoggingExpectation{
         protected final String name;
         protected final String logger;
         protected final Level level;
@@ -76,29 +110,32 @@ public class MockLogAppender /*extends AbstractAppender */ {
             this.message = message;
             this.saw = false;
         }
-
+        public static boolean isSimpleMatchPattern(String str) {
+            return str.indexOf('*') != -1;
+        }
         @Override
-        public void match(LogEvent event) {
+        public void match(org.elasticsearch.logging.api.core.LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
-                // if (Regex.isSimpleMatchPattern(message)) {
-                // if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
-                // saw = true;
-                // }
-                // } else {
-                // if (event.getMessage().getFormattedMessage().contains(message)) {
-                // saw = true;
-                // }
-                // }
+                if (isSimpleMatchPattern(message)) {
+                    if (RegexCopy.simpleMatch(message, event.getMessage().getFormattedMessage())) {
+                        saw = true;
+                    }
+                } else {
+                    if (event.getMessage().getFormattedMessage().contains(message)) {
+                        saw = true;
+                    }
+                }
             }
         }
 
-        public boolean innerMatch(final LogEvent event) {
+        public boolean innerMatch(final org.elasticsearch.logging.api.core.LogEvent event) {
             return true;
         }
 
     }
 
     public static class UnseenEventExpectation extends AbstractEventExpectation {
+
 
         public UnseenEventExpectation(String name, String logger, Level level, String message) {
             super(name, logger, level, message);
@@ -122,14 +159,14 @@ public class MockLogAppender /*extends AbstractAppender */ {
         }
     }
 
-    public static class EventuallySeenEventExpectation extends SeenEventExpectation {
+    public static class EventuallySeenEventExpectation extends AbstractEventExpectation implements LoggingExpectationWithExpectSeen {
 
         private volatile boolean expectSeen = false;
 
         public EventuallySeenEventExpectation(String name, String logger, Level level, String message) {
             super(name, logger, level, message);
         }
-
+@Override
         public void setExpectSeen() {
             expectSeen = true;
         }
@@ -137,9 +174,9 @@ public class MockLogAppender /*extends AbstractAppender */ {
         @Override
         public void assertMatched() {
             if (expectSeen) {
-                super.assertMatched();
+                assertMatched();
             } else {
-                // MatcherAssert.assertThat("expected not to see " + name + " yet but did", saw, CoreMatchers.equalTo(false));
+                MatcherAssert.assertThat("expected not to see " + name + " yet but did", saw, CoreMatchers.equalTo(false));
             }
         }
     }
@@ -159,11 +196,11 @@ public class MockLogAppender /*extends AbstractAppender */ {
         ) {
             super(name, logger, level, message);
             this.clazz = clazz;
-            this.exceptionMessage = exceptionMessage;
-        }
+            this.exceptionMessage = exceptionMessage;        }
+
 
         @Override
-        public boolean innerMatch(final LogEvent event) {
+        public boolean innerMatch(final org.elasticsearch.logging.api.core.LogEvent event) {
             return event.getThrown() != null
                 && event.getThrown().getClass() == clazz
                 && event.getThrown().getMessage().equals(exceptionMessage);
@@ -182,12 +219,13 @@ public class MockLogAppender /*extends AbstractAppender */ {
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
-            this.level = level;
+            this.level =  level;
             this.pattern = Pattern.compile(pattern);
         }
 
+
         @Override
-        public void match(LogEvent event) {
+        public void match(org.elasticsearch.logging.api.core.LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
                 if (pattern.matcher(event.getMessage().getFormattedMessage()).matches()) {
                     saw = true;
@@ -197,15 +235,11 @@ public class MockLogAppender /*extends AbstractAppender */ {
 
         @Override
         public void assertMatched() {
-            // MatcherAssert.assertThat(name, saw, CoreMatchers.equalTo(true));
+             MatcherAssert.assertThat(name, saw, CoreMatchers.equalTo(true));
         }
 
     }
 
-    private static String getLoggerName(String name) {
-        if (name.startsWith("org.elasticsearch.")) {
-            name = name.substring("org.elasticsearch.".length());
-        }
-        return COMMON_PREFIX + name;
-    }
+
+
 }

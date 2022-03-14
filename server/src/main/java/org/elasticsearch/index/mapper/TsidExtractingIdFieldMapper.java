@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -153,5 +154,14 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));
+    }
+
+    @Override
+    public String documentDescription(ParsedDocument parsedDocument) {
+        BytesRef tsid = parsedDocument.rootDoc().getField(TimeSeriesIdFieldMapper.NAME).binaryValue();
+        String tsidStr = TimeSeriesIdFieldMapper.decodeTsid(tsid).toString();
+        long timestamp = parsedDocument.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue();
+        String timestampStr = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(timestamp);
+        return parsedDocument.id() + "/" + tsidStr + "@" + timestampStr;
     }
 }

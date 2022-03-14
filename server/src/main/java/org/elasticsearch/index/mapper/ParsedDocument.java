@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * The result of parsing a document.
@@ -167,4 +168,7 @@ public class ParsedDocument {
         return "Document id[" + id + "] doc [" + documents + ']';
     }
 
+    public String documentDescription() {
+        return "id";
+    }
 }

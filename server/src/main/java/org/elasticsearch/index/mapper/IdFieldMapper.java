@@ -38,4 +38,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public static Field standardIdField(String id) {
         return new Field(NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
     }
+
+    public abstract String documentDescription(ParsedDocument parsedDocument);
 }

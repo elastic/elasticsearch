@@ -70,11 +70,21 @@ public final class TrackingResultProcessor implements Processor {
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
             Pipeline pipelineToCall = pipelineProcessor.getPipeline(ingestDocument);
             if (pipelineToCall == null) {
-                throw new IllegalArgumentException(
+                IllegalArgumentException e = new IllegalArgumentException(
                     "Pipeline processor configured for non-existent pipeline ["
                         + pipelineProcessor.getPipelineToCallName(ingestDocument)
                         + ']'
                 );
+                processorResultList.add(
+                    new SimulateProcessorResult(
+                        pipelineProcessor.getType(),
+                        pipelineProcessor.getTag(),
+                        pipelineProcessor.getDescription(),
+                        e,
+                        conditionalWithResult
+                    )
+                );
+                throw e;
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors

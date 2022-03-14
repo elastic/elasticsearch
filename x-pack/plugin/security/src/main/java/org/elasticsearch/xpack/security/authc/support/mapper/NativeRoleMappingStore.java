@@ -150,7 +150,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     supplier,
                     ActionListener.wrap(
                         (Collection<ExpressionRoleMapping> mappings) -> listener.onResponse(
-                            mappings.stream().filter(Objects::nonNull).collect(Collectors.toList())
+                            mappings.stream().filter(Objects::nonNull).toList()
                         ),
                         ex -> {
                             logger.error(
@@ -304,9 +304,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             getMappings(listener);
         } else {
             getMappings(listener.delegateFailure((l, mappings) -> {
-                final List<ExpressionRoleMapping> filtered = mappings.stream()
-                    .filter(m -> names.contains(m.getName()))
-                    .collect(Collectors.toList());
+                final List<ExpressionRoleMapping> filtered = mappings.stream().filter(m -> names.contains(m.getName())).toList();
                 l.onResponse(filtered);
             }));
         }

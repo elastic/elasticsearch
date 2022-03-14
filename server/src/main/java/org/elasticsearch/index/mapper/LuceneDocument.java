@@ -144,5 +144,4 @@ public class LuceneDocument implements Iterable<IndexableField> {
         }
         return null;
     }
-
 }

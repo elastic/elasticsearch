@@ -301,7 +301,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
+        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands, Query filter) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -321,7 +321,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                 }
                 checkVectorMagnitude(queryVector, squaredMagnitude);
             }
-            return new KnnVectorQuery(name(), queryVector, numCands);
+            return new KnnVectorQuery(name(), queryVector, numCands, filter);
         }
 
         private void checkVectorMagnitude(float[] vector, float squaredMagnitude) {

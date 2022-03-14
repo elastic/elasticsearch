@@ -42,7 +42,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -58,12 +57,12 @@ import static org.hamcrest.Matchers.not;
 public class AllocationServiceTests extends ESTestCase {
 
     public void testFirstListElementsToCommaDelimitedStringReportsAllElementsIfShort() {
-        List<String> strings = IntStream.range(0, between(0, 10)).mapToObj(i -> randomAlphaOfLength(10)).collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         assertAllElementsReported(strings, randomBoolean());
     }
 
     public void testFirstListElementsToCommaDelimitedStringReportsAllElementsIfDebugEnabled() {
-        List<String> strings = IntStream.range(0, between(0, 100)).mapToObj(i -> randomAlphaOfLength(10)).collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 100)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         assertAllElementsReported(strings, true);
     }
 
@@ -76,10 +75,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testFirstListElementsToCommaDelimitedStringReportsFirstElementsIfLong() {
-        List<String> strings = IntStream.range(0, between(0, 100))
-            .mapToObj(i -> randomAlphaOfLength(between(6, 10)))
-            .distinct()
-            .collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 100)).mapToObj(i -> randomAlphaOfLength(between(6, 10))).distinct().toList();
         final String abbreviated = AllocationService.firstListElementsToCommaDelimitedString(strings, Function.identity(), false);
         for (int i = 0; i < strings.size(); i++) {
             if (i < 10) {
@@ -98,7 +94,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testFirstListElementsToCommaDelimitedStringUsesFormatterNotToString() {
-        List<String> strings = IntStream.range(0, between(1, 100)).mapToObj(i -> "original").collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(1, 100)).mapToObj(i -> "original").toList();
         final String abbreviated = AllocationService.firstListElementsToCommaDelimitedString(strings, s -> "formatted", randomBoolean());
         assertThat(abbreviated, containsString("formatted"));
         assertThat(abbreviated, not(containsString("original")));

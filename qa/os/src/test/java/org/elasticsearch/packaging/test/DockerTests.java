@@ -414,17 +414,6 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the JDK uses the Cloudflare zlib, instead of the default one.
-     */
-    public void test060JavaUsesCloudflareZlib() {
-        waitForElasticsearch(installation, "elastic", PASSWORD);
-
-        final String output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout();
-
-        assertThat("Expected java to be using cloudflare-zlib", output, containsString("cloudflare-zlib"));
-    }
-
-    /**
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
     public void test070BindMountCustomPathConfAndJvmOptions() throws Exception {

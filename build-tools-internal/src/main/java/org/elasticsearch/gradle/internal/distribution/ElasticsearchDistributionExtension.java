@@ -9,20 +9,20 @@
 package org.elasticsearch.gradle.internal.distribution;
 
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
-import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
 import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchDistributionExtension {
-
+    public static final String CONFIG_BIN_REGEX = "([^\\/]+\\/)?(config|bin)\\/.*";
     private final Project project;
 
     public ElasticsearchDistributionExtension(Project project) {
@@ -30,32 +30,31 @@ public class ElasticsearchDistributionExtension {
     }
 
     private Configuration moduleZip(Project module) {
-        Dependency dep = project.getDependencies().project(Map.of("path", module.getPath(), "configuration", EXPLODED_BUNDLE_CONFIG));
-        Configuration config = project.getConfigurations().detachedConfiguration(dep);
-        return config;
+        Map<String, String> moduleConfigurationCoords = Map.of("path", module.getPath(), "configuration", EXPLODED_BUNDLE_CONFIG);
+        Dependency dep = project.getDependencies().project(moduleConfigurationCoords);
+        return project.getConfigurations().detachedConfiguration(dep);
     }
 
     public void copyModule(TaskProvider<AbstractCopyTask> copyTask, Project module) {
         copyTask.configure(sync -> {
             Configuration moduleConfig = moduleZip(module);
             sync.dependsOn(moduleConfig);
-            Callable<Object> callableSingleFile = () -> moduleConfig.getSingleFile();
+            Callable<File> callableSingleFile = () -> moduleConfig.getSingleFile();
             sync.from(callableSingleFile, spec -> {
                 spec.setIncludeEmptyDirs(false);
-
                 // these are handled separately in the log4j config tasks in the :distribution plugin
                 spec.exclude("*/config/log4j2.properties");
                 spec.exclude("config/log4j2.properties");
-                String moduleName = resolveModuleName(module);
-                spec.eachFile(d -> d.setRelativePath(d.getRelativePath().prepend("modules", moduleName)));
+                // This adds a implicit dependency for 'module' to PluginBuildPlugin which is fine as we just fail
+                // in case an invalid 'module' not applying this plugin is passed here
+                String moduleName = module.getExtensions().getByType(PluginPropertiesExtension.class).getName();
+
+                spec.eachFile(d -> {
+                    if (d.getRelativePath().getPathString().matches(CONFIG_BIN_REGEX) == false) {
+                        d.setRelativePath(d.getRelativePath().prepend("modules", moduleName));
+                    }
+                });
             });
         });
-    }
-
-    private static String resolveModuleName(Project module) {
-        if (module.getPlugins().hasPlugin("elasticsearch.esplugin")) {
-            return module.getExtensions().getByType(PluginPropertiesExtension.class).getName();
-        }
-        throw new GradleException("Cannot copy from project not applying the 'elasticsearch.esplugin' plugin");
     }
 }

@@ -18,7 +18,6 @@ class ElasticsearchDistributionPluginFuncTest extends AbstractGradleFuncTest {
         moduleSubProject()
 
         buildFile << """plugins {
-                id 'base'
                 id 'elasticsearch.distro'
             }
             

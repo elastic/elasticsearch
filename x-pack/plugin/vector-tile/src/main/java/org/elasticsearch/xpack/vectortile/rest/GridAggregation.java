@@ -61,7 +61,7 @@ enum GridAggregation {
     GEOHEX {
 
         // Because hex bins do not fit perfectly on a tile, we need to buffer our queries in order to collect
-        // all points inside the bin. We never have aggregations for levels 0 and 1, values for level 2 have
+        // all points inside the bin. For levels 0 and 1 we will consider all data, values for level 2 have
         // been computed manually and approximated. The amount that the buffer decreases by level has been
         // approximated to 2.5 (brute force computation suggest ~2.6 in the first 9 levels so 2.5 should be safe).
         private static final double[] LAT_BUFFER_SIZE = new double[16];
@@ -76,6 +76,69 @@ enum GridAggregation {
                 LON_BUFFER_SIZE[i] = LON_BUFFER_SIZE[i - 1] / 2.5;
             }
         }
+        // Mapping between a vector tile zoom and a H3 resolution. The mapping tries to keep the density of hexes similar
+        // to the density of tile bins but trying not to be bigger.
+        // Level unique tiles H3 resolution unique hexes ratio
+        // 1 4 0 122 30.5
+        // 2 16 0 122 7.625
+        // 3 64 1 842 13.15625
+        // 4 256 1 842 3.2890625
+        // 5 1024 2 5882 5.744140625
+        // 6 4096 2 5882 1.436035156
+        // 7 16384 3 41162 2.512329102
+        // 8 65536 3 41162 0.6280822754
+        // 9 262144 4 288122 1.099098206
+        // 10 1048576 4 288122 0.2747745514
+        // 11 4194304 5 2016842 0.4808526039
+        // 12 16777216 6 14117882 0.8414913416
+        // 13 67108864 6 14117882 0.2103728354
+        // 14 268435456 7 98825162 0.3681524172
+        // 15 1073741824 8 691776122 0.644266719
+        // 16 4294967296 8 691776122 0.1610666797
+        // 17 17179869184 9 4842432842 0.2818666889
+        // 18 68719476736 10 33897029882 0.4932667053
+        // 19 274877906944 11 237279209162 0.8632167343
+        // 20 1099511627776 11 237279209162 0.2158041836
+        // 21 4398046511104 12 1660954464122 0.3776573213
+        // 22 17592186044416 13 11626681248842 0.6609003122
+        // 23 70368744177664 13 11626681248842 0.165225078
+        // 24 281474976710656 14 81386768741882 0.2891438866
+        // 25 1125899906842620 15 569707381193162 0.5060018015
+        // 26 4503599627370500 15 569707381193162 0.1265004504
+        // 27 18014398509482000 15 569707381193162 0.03162511259
+        // 28 72057594037927900 15 569707381193162 0.007906278149
+        // 29 288230376151712000 15 569707381193162 0.001976569537
+        private static final int[] ZOOM2RESOLUTION = new int[] {
+            0,
+            0,
+            0,
+            1,
+            1,
+            2,
+            2,
+            3,
+            3,
+            4,
+            4,
+            5,
+            6,
+            6,
+            7,
+            8,
+            8,
+            9,
+            10,
+            11,
+            11,
+            12,
+            13,
+            13,
+            14,
+            15,
+            15,
+            15,
+            15,
+            15 };
 
         @Override
         public GeoGridAggregationBuilder newAgg(String aggName) {
@@ -89,6 +152,10 @@ enum GridAggregation {
                 return tile;
             }
             final int aggPrecision = gridPrecisionToAggPrecision(z, gridPrecision);
+            if (aggPrecision < 2) {
+                // we need to consider all data
+                return new Rectangle(-180, 180, GeoTileUtils.LATITUDE_MASK, -GeoTileUtils.LATITUDE_MASK);
+            }
             return new Rectangle(
                 GeoUtils.normalizeLon(tile.getMinX() - LON_BUFFER_SIZE[aggPrecision]),
                 GeoUtils.normalizeLon(tile.getMaxX() + LON_BUFFER_SIZE[aggPrecision]),
@@ -99,41 +166,7 @@ enum GridAggregation {
 
         @Override
         public int gridPrecisionToAggPrecision(int z, int gridPrecision) {
-            // The minimum resolution we allow is 2 to avoid having hexagons containing the pole.
-            // this is the table of Hex precision:
-            // precision: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-            // -------------------------------------------
-            // zoom 0: 2 | 2 | 2 | 2 | 2 | 2 | 3 | 3 |
-            // zoom 1: 2 | 2 | 2 | 2 | 2 | 3 | 3 | 4 |
-            // zoom 2: 2 | 2 | 2 | 2 | 3 | 3 | 4 | 4 |
-            // zoom 3: 2 | 2 | 2 | 3 | 3 | 4 | 4 | 5 |
-            // zoom 4: 2 | 2 | 3 | 3 | 4 | 4 | 5 | 5 |
-            // zoom 5: 2 | 3 | 3 | 4 | 4 | 5 | 5 | 6 |
-            // zoom 6: 3 | 3 | 4 | 4 | 5 | 5 | 6 | 6 |
-            // zoom 7: 3 | 4 | 4 | 5 | 5 | 6 | 6 | 7 |
-            // zoom 8: 4 | 4 | 5 | 5 | 6 | 6 | 7 | 7 |
-            // zoom 9: 4 | 5 | 5 | 6 | 6 | 7 | 7 | 8 |
-            // zoom 10: 5 | 5 | 6 | 6 | 7 | 7 | 8 | 8 |
-            // zoom 11: 5 | 6 | 6 | 7 | 7 | 8 | 8 | 9 |
-            // zoom 12: 6 | 6 | 7 | 7 | 8 | 8 | 9 | 9 |
-            // zoom 13: 6 | 7 | 7 | 8 | 8 | 9 | 9 | 10 |
-            // zoom 14: 7 | 7 | 8 | 8 | 9 | 9 | 10 | 10 |
-            // zoom 15: 7 | 8 | 8 | 9 | 9 | 10 | 10 | 11 |
-            // zoom 16: 8 | 8 | 9 | 9 | 10 | 10 | 11 | 11 |
-            // zoom 17: 8 | 9 | 9 | 10 | 10 | 11 | 11 | 12 |
-            // zoom 18: 9 | 9 | 10 | 10 | 11 | 11 | 12 | 12 |
-            // zoom 19: 9 | 10 | 10 | 11 | 11 | 12 | 12 | 13 |
-            // zoom 20: 10 | 10 | 11 | 11 | 12 | 12 | 13 | 13 |
-            // zoom 21: 10 | 11 | 11 | 12 | 12 | 13 | 13 | 14 |
-            // zoom 22: 11 | 11 | 12 | 12 | 13 | 13 | 14 | 14 |
-            // zoom 23: 11 | 12 | 12 | 13 | 13 | 14 | 14 | 15 |
-            // zoom 24: 12 | 12 | 13 | 13 | 14 | 14 | 15 | 15 |
-            // zoom 25: 12 | 13 | 13 | 14 | 14 | 15 | 15 | 15 |
-            // zoom 26: 13 | 13 | 14 | 14 | 15 | 15 | 15 | 15 |
-            // zoom 27: 13 | 14 | 14 | 15 | 15 | 15 | 15 | 15 |
-            // zoom 28: 14 | 14 | 15 | 15 | 15 | 15 | 15 | 15 |
-            // zoom 29: 14 | 15 | 15 | 15 | 15 | 15 | 15 | 15 |
-            return Math.min(H3.MAX_H3_RES, Math.max(2, (z + gridPrecision - 1) / 2));
+            return ZOOM2RESOLUTION[GEOTILE.gridPrecisionToAggPrecision(z, gridPrecision)];
         }
 
         @Override

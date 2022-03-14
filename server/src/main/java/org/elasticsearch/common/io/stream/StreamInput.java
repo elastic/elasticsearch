@@ -67,6 +67,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -648,6 +649,26 @@ public abstract class StreamInput extends InputStream {
         final Map<K, List<V>> map = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             map.put(keyReader.read(this), readList(valueReader));
+        }
+        return map;
+    }
+
+    /**
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
+     *
+     * @param valueReader The value reader
+     * @param keyMapper function to create a key from a value
+     * @return Never {@code null}.
+     */
+    public <K, V> Map<K, V> readMapValues(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
+        final int size = readArraySize();
+        if (size == 0) {
+            return Map.of();
+        }
+        final Map<K, V> map = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            V value = valueReader.read(this);
+            map.put(keyMapper.apply(value), value);
         }
         return map;
     }

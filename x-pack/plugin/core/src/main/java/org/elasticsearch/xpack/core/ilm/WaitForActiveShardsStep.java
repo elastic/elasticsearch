@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -17,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
@@ -136,8 +133,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
         int currentActiveShards = 0;
-        for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            currentActiveShards += shardRouting.value.activeShards().size();
+        for (var shardRouting : indexRoutingTable.getShards().values()) {
+            currentActiveShards += shardRouting.activeShards().size();
         }
         return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
     }

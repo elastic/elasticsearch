@@ -8,7 +8,7 @@ services:
       - cluster.name=elasticsearch-node
       - bootstrap.memory_lock=true
       - network.publish_host=127.0.0.1
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.jwt_realm_feature_flag_enabled=true"
       - path.repo=/tmp/es-repo
       - node.attr.testattr=test
       - cluster.routing.allocation.disk.watermark.low=1b
@@ -92,6 +92,13 @@ services:
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.name=name
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.mail=email
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.groups=groups
+      - xpack.security.authc.realms.jwt.op-jwt.order=7
+      - xpack.security.authc.realms.jwt.op-jwt.allowed_issuer=http://oidc-provider:8080/c2id
+      - xpack.security.authc.realms.jwt.op-jwt.allowed_audiences=elasticsearch-jwt1,elasticsearch-jwt2
+      - xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path=op-jwks.json
+      - xpack.security.authc.realms.jwt.op-jwt.claims.principal=sub
+      - xpack.security.authc.realms.jwt.op-jwt.claims.groups=groups
+      - xpack.security.authc.realms.jwt.op-jwt.client_authentication.type=shared_secret
     volumes:
       - ./testfixtures_shared/logs/node1:/usr/share/elasticsearch/logs
       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks

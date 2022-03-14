@@ -84,7 +84,7 @@ public class ClusterFormationFailureHelper {
         }
 
         void scheduleNextWarning() {
-            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.GENERIC, new AbstractRunnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.CLUSTER_COORDINATION, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("unexpected exception scheduling cluster formation warning", e);
@@ -129,7 +129,10 @@ public class ClusterFormationFailureHelper {
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();
-            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(
+                clusterState.nodes().getMasterNodes().values().iterator(),
+                clusterStateNodes
+            );
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,

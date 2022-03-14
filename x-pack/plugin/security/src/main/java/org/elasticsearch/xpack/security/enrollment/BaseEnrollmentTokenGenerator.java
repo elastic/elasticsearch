@@ -85,8 +85,8 @@ public class BaseEnrollmentTokenGenerator {
         };
         localAddresses.sort(ipv4BeforeIpv6Comparator);
         nonLocalAddresses.sort(ipv4BeforeIpv6Comparator);
-        final List<String> distinctLocalAddresses = localAddresses.stream().distinct().collect(Collectors.toUnmodifiableList());
-        final List<String> distinctNonLocalAddresses = nonLocalAddresses.stream().distinct().collect(Collectors.toUnmodifiableList());
+        final List<String> distinctLocalAddresses = localAddresses.stream().distinct().toList();
+        final List<String> distinctNonLocalAddresses = nonLocalAddresses.stream().distinct().toList();
         return new Tuple<>(distinctLocalAddresses, distinctNonLocalAddresses);
     }
 

@@ -91,6 +91,10 @@ using metrics.
   `transport`::
       Transport statistics about sent and received bytes in cluster
       communication.
+
+  `stats_requests`::
+      Statistics about stats requests such as indices stats, nodes stats,
+      recovery stats etc.
 --
 
 `<index_metric>`::
@@ -2633,6 +2637,37 @@ search requests on the keyed node.
 The rank of this node; used for shard selection when routing search
 requests.
 ======
+======
+
+[[cluster-nodes-stats-api-response-body-stats-requests]]
+`stats_requests`::
+(object)
+Contains statistics about the stats requests the node has received.
++
+.Properties of `stats_requests`
+[%collapsible%open]
+======
+`<stats_requests_name>`::
+(object)
+Contains statistics about a specific type of a stats request the node has received.
++
+.Properties of `<stats_requests_name>`
+[%collapsible%open]
+=======
+`current`::
+(integer)
+Number of stats requests currently in progress.
+
+`completed`::
+(integer)
+Number of stats requests that have been completed by the node (successfully or
+not).
+
+`rejected`::
+(integer)
+Number of stats requests that were rejected by the node because it had reached
+the limit of concurrent stats requests (`node.stats.max_concurrent_requests`).
+=======
 =====
 ====
 

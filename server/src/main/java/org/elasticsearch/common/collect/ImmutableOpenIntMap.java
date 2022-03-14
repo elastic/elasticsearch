@@ -10,18 +10,19 @@ package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.IntCollection;
 import com.carrotsearch.hppc.IntContainer;
-import com.carrotsearch.hppc.IntLookupContainer;
 import com.carrotsearch.hppc.IntObjectAssociativeContainer;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 
+import java.util.AbstractCollection;
 import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -36,7 +37,7 @@ import java.util.function.Consumer;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)}
  * (which is an optimized option to copy over existing content and modify it).
  */
-public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
+public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
 
     private final IntObjectHashMap<VType> map;
 
@@ -44,113 +45,89 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      * Holds cached entrySet().
      */
     private Set<Map.Entry<Integer, VType>> entrySet;
+    private Set<Integer> keySet;
 
     private ImmutableOpenIntMap(IntObjectHashMap<VType> map) {
         this.map = map;
     }
 
-    /**
-     * @return Returns the value associated with the given key or the default value
-     * for the key type, if the key is not associated with any value.
-     * <p>
-     * <b>Important note:</b> For primitive type values, the value returned for a non-existing
-     * key may not be the default value of the primitive type (it may be any value previously
-     * assigned to that slot).
-     */
-    public VType get(int key) {
-        return map.get(key);
-    }
-
-    /**
-     * Returns <code>true</code> if this container has an association to a value for
-     * the given key.
-     */
-    public boolean containsKey(int key) {
-        return map.containsKey(key);
-    }
-
-    /**
-     * @return Returns the current size (number of assigned keys) in the container.
-     */
+    @Override
     public int size() {
         return map.size();
     }
 
-    /**
-     * @return Return <code>true</code> if this hash map contains no assigned keys.
-     */
+    @Override
     public boolean isEmpty() {
         return map.isEmpty();
     }
 
-    /**
-     * Returns a cursor over the entries (key-value pairs) in this map. The iterator is
-     * implemented as a cursor and it returns <b>the same cursor instance</b> on every
-     * call to {@link java.util.Iterator#next()}. To read the current key and value use the cursor's
-     * public fields. An example is shown below.
-     * <pre>
-     * for (IntShortCursor c : intShortMap)
-     * {
-     *     System.out.println(&quot;index=&quot; + c.index
-     *       + &quot; key=&quot; + c.key
-     *       + &quot; value=&quot; + c.value);
-     * }
-     * </pre>
-     * <p>
-     * The <code>index</code> field inside the cursor gives the internal index inside
-     * the container's implementation. The interpretation of this index depends on
-     * to the container.
-     */
     @Override
-    public Iterator<IntObjectCursor<VType>> iterator() {
-        return map.iterator();
+    public boolean containsKey(Object key) {
+        return key instanceof Integer i && map.containsKey(i);
     }
 
-    /**
-     * Returns a specialized view of the keys of this associated container.
-     * The view additionally implements {@link com.carrotsearch.hppc.ObjectLookupContainer}.
-     */
-    public IntLookupContainer keys() {
-        return map.keys();
+    @Override
+    public boolean containsValue(Object value) {
+        for (ObjectCursor<VType> cursor : map.values()) {
+            if (Objects.equals(cursor.value, value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<Integer> keysIt() {
-        final Iterator<IntCursor> iterator = map.keys().iterator();
-        return new Iterator<Integer>() {
+    @Override
+    public VType get(Object key) {
+        if (key instanceof Integer k) {
+            return map.get(k);
+        }
+        return null;
+    }
+
+    @Override
+    public VType put(Integer key, VType value) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public VType remove(Object key) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public void putAll(Map<? extends Integer, ? extends VType> m) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public void clear() {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public Set<Integer> keySet() {
+        if (keySet == null) {
+            keySet = new KeySet();
+        }
+        return keySet;
+    }
+
+    @Override
+    public Collection<VType> values() {
+        return new AbstractCollection<VType>() {
             @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
+            public Iterator<VType> iterator() {
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override
-            public Integer next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
+            public int size() {
+                return map.size();
             }
         };
     }
 
-    /**
-     * @return Returns a container with all values stored in this map.
-     */
-    public ObjectContainer<VType> values() {
-        return map.values();
-    }
-
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return ImmutableOpenMap.iterator(map.values());
-    }
-
+    @Override
     public Set<Map.Entry<Integer, VType>> entrySet() {
         Set<Map.Entry<Integer, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
@@ -181,11 +158,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
     }
 
-    private final class ConversionIterator implements Iterator<Map.Entry<Integer, VType>> {
+    private final class EntryIterator implements Iterator<Map.Entry<Integer, VType>> {
 
         private final Iterator<IntObjectCursor<VType>> original;
 
-        ConversionIterator() {
+        EntryIterator() {
             this.original = map.iterator();
         }
 
@@ -209,17 +186,52 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
     }
 
-    private final class EntrySet extends AbstractSet<Map.Entry<Integer, VType>> {
+    private final class KeyIterator implements Iterator<Integer> {
+        private final Iterator<IntObjectCursor<VType>> cursor = map.iterator();
+
+        @Override
+        public boolean hasNext() {
+            return cursor.hasNext();
+        }
+
+        @Override
+        public Integer next() {
+            return cursor.next().key;
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+    }
+
+    private abstract class UnmodifiableSetView<T> extends AbstractSet<T> {
+
+        @Override
         public int size() {
             return map.size();
         }
 
-        public void clear() {
-            throw new UnsupportedOperationException("removal is unsupported");
+        @Override
+        public Spliterator<T> spliterator() {
+            return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
         }
 
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+    }
+
+    private final class EntrySet extends UnmodifiableSetView<Map.Entry<Integer, VType>> {
+
         public Iterator<Map.Entry<Integer, VType>> iterator() {
-            return new ConversionIterator();
+            return new EntryIterator();
         }
 
         @SuppressWarnings("unchecked")
@@ -236,19 +248,23 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             return Objects.equals(val, e.getValue());
         }
 
-        public boolean remove(Object o) {
-            throw new UnsupportedOperationException("removal is not supported");
-        }
-
-        public Spliterator<Map.Entry<Integer, VType>> spliterator() {
-            return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
-        }
-
         public void forEach(Consumer<? super Map.Entry<Integer, VType>> action) {
             map.forEach((Consumer<? super IntObjectCursor<VType>>) cursor -> {
                 ImmutableEntry entry = new ImmutableEntry(cursor.key, cursor.value);
                 action.accept(entry);
             });
+        }
+    }
+
+    private final class KeySet extends UnmodifiableSetView<Integer> {
+        @Override
+        public Iterator<Integer> iterator() {
+            return new KeyIterator();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return o instanceof Integer i && map.containsKey(i);
         }
     }
 

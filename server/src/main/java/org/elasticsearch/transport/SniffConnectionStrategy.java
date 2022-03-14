@@ -367,7 +367,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleResponse(ClusterStateResponse response) {
-            handleNodes(response.getState().nodes().getNodes().valuesIt());
+            handleNodes(response.getState().nodes().getNodes().values().iterator());
         }
 
         private void handleNodes(Iterator<DiscoveryNode> nodesIter) {

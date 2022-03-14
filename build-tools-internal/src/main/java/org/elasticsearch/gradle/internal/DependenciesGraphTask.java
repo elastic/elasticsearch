@@ -14,6 +14,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.gradle.StartParameter;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
@@ -26,6 +27,10 @@ import org.gradle.api.tasks.TaskAction;
 
 import java.util.HashSet;
 import java.util.Set;
+
+import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
 
 /**
  * A task to generate a dependency graph of our runtime dependencies and push that via
@@ -43,6 +48,7 @@ public class DependenciesGraphTask extends DefaultTask {
     private Configuration runtimeConfiguration;
     private String token;
     private String url;
+    private StartParameter startParameter;
 
     @Input
     public String getUrl() {
@@ -71,10 +77,14 @@ public class DependenciesGraphTask extends DefaultTask {
         this.runtimeConfiguration = runtimeConfiguration;
     }
 
+    @Inject
+    public DependenciesGraphTask(StartParameter startParameter) {
+        this.startParameter = startParameter;
+    }
+
     @TaskAction
     void generateDependenciesGraph() {
-
-        if (getProject().getGradle().getStartParameter().isOffline()) {
+        if (startParameter.isOffline()) {
             throw new GradleException("Must run in online mode in order to submit the dependency graph to the SCA service");
         }
 
@@ -102,7 +112,7 @@ public class DependenciesGraphTask extends DefaultTask {
         }
         // We add one package and one node for each dependency, it suffices to check packages.
         if (packages.size() > 0) {
-            final String projectName = "elastic/elasticsearch" + getProject().getPath();
+            final String projectName = "elastic/elasticsearch" + projectPath(getPath());
             final String output = """
                 {
                   "depGraph": {
@@ -138,4 +148,5 @@ public class DependenciesGraphTask extends DefaultTask {
             }
         }
     }
+
 }

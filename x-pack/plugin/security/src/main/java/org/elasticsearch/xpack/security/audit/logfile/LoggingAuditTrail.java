@@ -1398,7 +1398,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(UpdateProfileDataRequest updateProfileDataRequest) throws IOException {
-            logEntry.with(EVENT_ACTION_FIELD_NAME, "update_user_profile_data");
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_user_profile_data");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                 .field("uid", updateProfileDataRequest.getUid())
@@ -1410,7 +1410,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(SetProfileEnabledRequest setProfileEnabledRequest) throws IOException {
-            logEntry.with(EVENT_ACTION_FIELD_NAME, "");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             if (setProfileEnabledRequest.isEnabled()) {
                 builder.startObject()

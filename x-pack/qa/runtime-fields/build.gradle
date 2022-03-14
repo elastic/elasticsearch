@@ -7,13 +7,13 @@
  */
 
 
+
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  api project(":test:framework")
+  api project(":test:yaml-rest-runner")
 }
 
 // We don't currently have any tests for this because they are test utilities.
@@ -95,6 +95,8 @@ subprojects {
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
           'search.aggregation/170_cardinality_metric/profiler string',
           'search.aggregation/235_composite_sorted/*',
+          // timeseries dimensions can't be runtime fields
+          'search.aggregation/450_time_series/*',
           // The error messages are different
           'search/330_fetch_fields/error includes field name',
           'search/330_fetch_fields/error includes glob pattern',

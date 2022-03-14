@@ -292,6 +292,8 @@ public abstract class AggregationContext implements Releasable {
      */
     public abstract boolean isInSortOrderExecutionRequired();
 
+    public abstract Set<String> sourcePath(String fullName);
+
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
@@ -547,6 +549,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean isInSortOrderExecutionRequired() {
             return inSortOrderExecutionRequired;
+        }
+
+        @Override
+        public Set<String> sourcePath(String fullName) {
+            return context.sourcePath(fullName);
         }
 
         @Override

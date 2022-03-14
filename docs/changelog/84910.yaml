@@ -1,0 +1,5 @@
+pr: 84910
+summary: Improve failure logging in recovery-from-snapshot
+area: Recovery
+type: enhancement
+issues: []

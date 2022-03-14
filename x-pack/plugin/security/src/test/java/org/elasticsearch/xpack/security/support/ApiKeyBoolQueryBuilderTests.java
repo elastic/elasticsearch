@@ -27,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
@@ -34,7 +35,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -60,6 +61,32 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         assertThat(mustQueries.get(0), equalTo(q1));
         assertTrue(apiKeyQb1.should().isEmpty());
         assertTrue(apiKeyQb1.mustNot().isEmpty());
+    }
+
+    public void testQueryForDomainAuthentication() {
+        final Authentication authentication = AuthenticationTests.randomAuthentication(null, AuthenticationTests.randomRealmRef(true));
+        final QueryBuilder query = randomSimpleQuery("name");
+        final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, authentication);
+        assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeysQuery.filter().get(1), is(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())));
+        if (authentication.getDomain().realms().size() == 1) {
+            assertThat(
+                apiKeysQuery.filter().get(2),
+                is(QueryBuilders.termQuery("creator.realm", authentication.getDomain().realms().stream().findFirst().get().getName()))
+            );
+        } else {
+            assertThat(apiKeysQuery.filter().get(2), instanceOf(BoolQueryBuilder.class));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).must().size(), is(0));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).mustNot().size(), is(0));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).filter().size(), is(0));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).minimumShouldMatch(), is("1"));
+            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getDomain().realms()) {
+                assertThat(
+                    ((BoolQueryBuilder) apiKeysQuery.filter().get(2)).should(),
+                    hasItem(QueryBuilders.termQuery("creator.realm", realmIdentifier.getName()))
+                );
+            }
+        }
     }
 
     public void testBuildFromBoolQuery() {
@@ -283,7 +310,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             .stream()
             .filter(q -> q.getClass() == TermQueryBuilder.class)
             .map(q -> (TermQueryBuilder) q)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         assertTrue(tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("doc_type", "api_key"))));
         if (authentication == null) {
             return;

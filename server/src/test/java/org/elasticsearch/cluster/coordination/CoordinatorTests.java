@@ -2016,7 +2016,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                         .<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
                                         .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))
                                 )
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(matchingNodes, hasSize(1));
 
                             assertTrue(

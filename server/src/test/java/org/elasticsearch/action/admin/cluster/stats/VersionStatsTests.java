@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +81,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
                 );
                 default -> throw new IllegalArgumentException("unexpected branch");
             };
-        }).collect(Collectors.toList()));
+        }).toList());
     }
 
     public void testCreation() {

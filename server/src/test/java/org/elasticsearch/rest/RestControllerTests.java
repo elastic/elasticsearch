@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
@@ -282,9 +281,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod = randomFrom(
-            Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).collect(Collectors.toList())
-        );
+        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 

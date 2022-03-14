@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -117,14 +116,14 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
             getName(),
             requiredSize,
             buckets.stream()
-                .map(
-                    b -> createBucket(
+                .<InternalGeoGridBucket>map(
+                    b -> this.createBucket(
                         b.hashAsLong,
                         samplingContext.scaleUp(b.docCount),
                         InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
                     )
                 )
-                .collect(Collectors.toList()),
+                .toList(),
             getMetadata()
         );
     }

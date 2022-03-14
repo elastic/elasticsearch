@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -65,7 +64,7 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null,
-            IdFieldMapper.NO_FIELD_DATA,
+            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
             ScriptCompiler.NONE
         );
     }

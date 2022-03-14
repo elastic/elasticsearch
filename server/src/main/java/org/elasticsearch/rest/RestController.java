@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -492,7 +491,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
             if (headerValues != null && headerValues.isEmpty() == false) {
-                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {

@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -100,10 +99,9 @@ public class StatsRequestStats implements Writeable, ToXContentFragment, Iterabl
         }
     }
 
-    private List<Stats> stats;
+    private final List<Stats> stats;
 
     public StatsRequestStats(List<Stats> stats) {
-        Collections.sort(stats);
         this.stats = stats;
     }
 

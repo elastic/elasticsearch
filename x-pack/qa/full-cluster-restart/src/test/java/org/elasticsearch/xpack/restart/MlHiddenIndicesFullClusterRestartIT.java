@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.restart;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -18,6 +16,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -26,7 +27,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -66,6 +66,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84844")
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation
@@ -154,10 +155,12 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> contentAsMap(Response response) throws IOException {
-        return new ObjectMapper().readValue(
-            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8),
-            HashMap.class
-        );
+        InputStreamReader reader = new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8);
+        XContentParser parser = XContentProvider.provider()
+            .getJsonXContent()
+            .XContent()
+            .createParser(XContentParserConfiguration.EMPTY, reader);
+        return parser.map();
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {

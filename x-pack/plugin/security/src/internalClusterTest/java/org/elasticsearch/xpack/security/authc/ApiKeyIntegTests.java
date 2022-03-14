@@ -36,7 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestSecurityClient;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;

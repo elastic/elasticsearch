@@ -45,7 +45,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -160,7 +159,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             configuredSeedNodes,
             configuredSeedNodes.stream()
                 .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 
@@ -367,7 +366,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleResponse(ClusterStateResponse response) {
-            handleNodes(response.getState().nodes().getNodes().valuesIt());
+            handleNodes(response.getState().nodes().getNodes().values().iterator());
         }
 
         private void handleNodes(Iterator<DiscoveryNode> nodesIter) {

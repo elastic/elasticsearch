@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -452,6 +453,8 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            CompositeAggregationBuilder aggregation = CompositeAggCursor.getCompositeBuilder(request.source());
+            boolean mightProducePartialPages = CompositeAggCursor.couldProducePartialPages(aggregation);
 
             Supplier<CompositeAggRowSet> makeRowSet = isPivot
                 ? () -> new PivotRowSet(
@@ -459,15 +462,19 @@ public class Querier {
                     initBucketExtractors(response),
                     mask,
                     response,
+                    aggregation.size(),
                     query.sortingColumns().isEmpty() ? query.limit() : -1,
-                    null
+                    null,
+                    mightProducePartialPages
                 )
                 : () -> new SchemaCompositeAggRowSet(
                     schema,
                     initBucketExtractors(response),
                     mask,
                     response,
-                    query.sortingColumns().isEmpty() ? query.limit() : -1
+                    aggregation.size(),
+                    query.sortingColumns().isEmpty() ? query.limit() : -1,
+                    mightProducePartialPages
                 );
 
             BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
@@ -498,7 +505,7 @@ public class Querier {
                 makeCursor,
                 () -> client.search(request, this),
                 listener,
-                schema
+                mightProducePartialPages
             );
         }
     }

@@ -192,11 +192,7 @@ public class CompositeAggCursor implements Cursor {
         }
 
         if (rowSet.remainingData() == 0) {
-            closePointInTime(
-                client,
-                response.pointInTimeId(),
-                ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
-            );
+            closePointInTime(client, response.pointInTimeId(), listener.map(r -> Page.last(rowSet)));
         } else {
             listener.onResponse(new Page(rowSet, makeCursor.apply(source, rowSet)));
         }

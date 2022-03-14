@@ -35,7 +35,7 @@ public class RestSqlPaginationTestCase extends BaseRestSqlTestCase {
         String lateValue = Integer.toString(randomIntBetween(4, Integer.MAX_VALUE));
         index("{\"foo\": " + lateValue + "}");
 
-        assertBusy(() -> { assertThat(runSqlAsText(query("SELECT foo FROM test"), format).v1(), containsString(lateValue)); });
+        assertBusy(() -> assertThat(runSqlAsText(query("SELECT foo FROM test"), format).v1(), containsString(lateValue)));
 
         assertThat(fetchRemainingPages(response.v2(), format), not(containsString(lateValue)));
         assertNoSearchContexts(client());
@@ -53,22 +53,23 @@ public class RestSqlPaginationTestCase extends BaseRestSqlTestCase {
             format
         );
 
-        index("{\"foo\": 4, \"bar\": 2}");
+        String lateValue = Integer.toString(randomIntBetween(4, Integer.MAX_VALUE));
+        index("{\"foo\": " + lateValue + ", \"bar\": 2}");
 
-        assertBusy(() -> { assertThat(runSqlAsText(query("SELECT foo FROM test"), format).v1(), containsString("4")); });
+        assertBusy(() -> assertThat(runSqlAsText(query("SELECT foo FROM test"), format).v1(), containsString(lateValue)));
 
         assertThat(fetchRemainingPages(response.v2(), format), not(containsString("4")));
         assertNoSearchContexts(client());
     }
 
     private String fetchRemainingPages(String cursor, String format) throws IOException {
-        String result = "";
+        StringBuilder result = new StringBuilder();
         while (cursor != null) {
             Tuple<String, String> response = runSqlAsText(cursor(cursor), format);
-            result += "\n" + response.v1();
+            result.append("\n").append(response.v1());
             cursor = response.v2();
         }
-        return result;
+        return result.toString();
     }
 
 }

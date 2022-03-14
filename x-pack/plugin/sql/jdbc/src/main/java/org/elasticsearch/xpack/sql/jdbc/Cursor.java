@@ -30,4 +30,6 @@ interface Cursor {
     void close() throws SQLException;
 
     List<String> warnings();
+
+    Cursor withoutWarnings();
 }

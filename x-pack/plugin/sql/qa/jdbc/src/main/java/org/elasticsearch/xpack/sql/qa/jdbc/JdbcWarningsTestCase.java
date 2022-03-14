@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
 
-    private static Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_2_0;
+    private static final Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_2_0;
 
     @Before
     public void setupData() throws IOException {
@@ -41,7 +41,7 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testSingleDeprecationWarning() throws SQLException {
-        assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(WARNING_HANDLING_ADDED_VERSION));
+        assumeWarningHandlingDriverVersion();
 
         try (Connection connection = esJdbc(); Statement statement = connection.createStatement()) {
             ResultSet rs = statement.executeQuery("SELECT * FROM FROZEN test_data");
@@ -52,7 +52,7 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testMultipleDeprecationWarnings() throws SQLException {
-        assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(WARNING_HANDLING_ADDED_VERSION));
+        assumeWarningHandlingDriverVersion();
 
         Properties props = connectionProperties();
         props.setProperty("index.include.frozen", "true");
@@ -74,6 +74,22 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
                 )
             );
         }
+    }
+
+    public void testClearWarnings() throws SQLException {
+        assumeWarningHandlingDriverVersion();
+
+        try (Connection connection = esJdbc(); Statement statement = connection.createStatement()) {
+            ResultSet rs = statement.executeQuery("SELECT * FROM FROZEN test_data");
+            assertNotNull(rs.getWarnings());
+
+            rs.clearWarnings();
+            assertNull(rs.getWarnings());
+        }
+    }
+
+    private void assumeWarningHandlingDriverVersion() {
+        assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(WARNING_HANDLING_ADDED_VERSION));
     }
 
 }

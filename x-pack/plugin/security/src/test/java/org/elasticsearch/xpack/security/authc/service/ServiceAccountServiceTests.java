@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -644,7 +643,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 3))
             .mapToObj(i -> TokenInfo.indexToken(ValidationTests.randomTokenName()))
             .sorted()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

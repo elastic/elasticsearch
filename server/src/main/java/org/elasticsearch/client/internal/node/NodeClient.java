@@ -110,22 +110,13 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, (t, r) -> {
-            try {
-                listener.onResponse(r);
-            } catch (Exception e) {
-                assert false : new AssertionError("callback must handle its own exceptions", e);
-                throw e;
-            }
-        }, (t, e) -> {
-            try {
-                listener.onFailure(e);
-            } catch (Exception ex) {
-                ex.addSuppressed(e);
-                assert false : new AssertionError("callback must handle its own exceptions", ex);
-                throw ex;
-            }
-        });
+        return taskManager.registerAndExecute(
+            "transport",
+            transportAction(action),
+            request,
+            localConnection,
+            new ActionResponseTaskListener<>(listener)
+        );
     }
 
     /**
@@ -139,14 +130,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         TaskListener<Response> listener
     ) {
-        return taskManager.registerAndExecute(
-            "transport",
-            transportAction(action),
-            request,
-            localConnection,
-            listener::onResponse,
-            listener::onFailure
-        );
+        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, listener);
     }
 
     /**
@@ -181,5 +165,29 @@ public class NodeClient extends AbstractClient {
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    private record ActionResponseTaskListener<Response> (ActionListener<Response> listener) implements TaskListener<Response> {
+
+        @Override
+        public void onResponse(Task task, Response response) {
+            try {
+                listener.onResponse(response);
+            } catch (Exception e) {
+                assert false : new AssertionError("callback must handle its own exceptions", e);
+                throw e;
+            }
+        }
+
+        @Override
+        public void onFailure(Task task, Exception e) {
+            try {
+                listener.onFailure(e);
+            } catch (Exception ex) {
+                ex.addSuppressed(e);
+                assert false : new AssertionError("callback must handle its own exceptions", ex);
+                throw ex;
+            }
+        }
     }
 }

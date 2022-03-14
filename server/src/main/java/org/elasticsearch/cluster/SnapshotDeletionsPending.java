@@ -55,7 +55,7 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
     /**
      * Version from which a snapshot can be marked as to be deleted after an index is deleted.
      */
-    public static final Version SNAPSHOT_DELETIONS_PENDING_VERSION = Version.V_8_1_0;
+    public static final Version SNAPSHOT_DELETIONS_PENDING_VERSION = Version.V_8_2_0;
 
     /**
      * Setting for the maximum number of snapshots pending deletion allowed in the cluster state.

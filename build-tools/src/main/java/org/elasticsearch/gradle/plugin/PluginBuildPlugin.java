@@ -59,6 +59,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     public static final String PLUGIN_EXTENSION_NAME = "esplugin";
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
+    public static final String EXPLODED_BUNDLE_CONFIG = "explodedBundleZip";
 
     @Override
     public void apply(final Project project) {
@@ -212,9 +213,11 @@ public class PluginBuildPlugin implements Plugin<Project> {
         });
 
         // also make the exploded bundle available as a configuration (used when depending on this project)
-        Configuration explodedZip = project.getConfigurations().create("explodedZip");
-        explodedZip.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-        project.getArtifacts().add("explodedZip", explodedBundle);
+        Configuration explodedBundleZip = project.getConfigurations().create(EXPLODED_BUNDLE_CONFIG);
+        explodedBundleZip.setCanBeResolved(false);
+        explodedBundleZip.setCanBeConsumed(true);
+        explodedBundleZip.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        project.getArtifacts().add(EXPLODED_BUNDLE_CONFIG, explodedBundle);
         return bundle;
     }
 

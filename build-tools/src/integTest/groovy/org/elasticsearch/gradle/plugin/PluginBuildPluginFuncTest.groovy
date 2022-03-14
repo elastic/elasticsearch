@@ -24,11 +24,6 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
                 classname = 'com.acme.plugin.TestPlugin'
             }
             
-            tasks.named('explodedBundlePlugin').configure {
-                doLast {
-                    println outputs.files.files[0].listFiles()
-                }
-            }
             // for testing purposes only
             configurations.compileOnly.dependencies.clear()
             """
@@ -47,4 +42,44 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
     }
 
+    def "can resolve plugin as directory without intermediate zipping "() {
+        given:
+        buildFile << """plugins {
+                id 'elasticsearch.esplugin'
+            }
+            
+            esplugin { 
+                name = 'sample-plugin'
+                description = 'test plugin'
+                classname = 'com.acme.plugin.TestPlugin'
+            }
+            
+            // for testing purposes only
+            configurations.compileOnly.dependencies.clear()
+            """
+
+        file('settings.gradle') << "include 'module-consumer'"
+        file('module-consumer/build.gradle') << """
+            configurations {
+                consume
+            }
+            
+            dependencies {
+                consume project(path:':', configuration:'${PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
+            }
+            
+            tasks.register("resolveModule", Copy) {
+                from configurations.consume
+                into "build/resolved"
+            }
+        """
+        when:
+        def result = gradleRunner(":module-consumer:resolveModule").build()
+
+        then:
+        result.task(":module-consumer:resolveModule").outcome == TaskOutcome.SUCCESS
+        result.task(":explodedBundlePlugin").outcome == TaskOutcome.SUCCESS
+        file("module-consumer/build/resolved/sample-plugin.jar").exists()
+        file("module-consumer/build/resolved/plugin-descriptor.properties").exists()
+    }
 }

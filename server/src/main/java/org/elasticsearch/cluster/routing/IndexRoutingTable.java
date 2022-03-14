@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.cursors.IntCursor;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -564,18 +563,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder("-- index [" + index + "]\n");
-
-        List<IndexShardRoutingTable> ordered = new ArrayList<>(Arrays.asList(this.shards));
-
-        CollectionUtil.timSort(ordered, (o1, o2) -> {
-            int v = o1.shardId().getIndex().getName().compareTo(o2.shardId().getIndex().getName());
-            if (v == 0) {
-                v = Integer.compare(o1.shardId().id(), o2.shardId().id());
-            }
-            return v;
-        });
-
-        for (IndexShardRoutingTable indexShard : ordered) {
+        for (IndexShardRoutingTable indexShard : shards) {
             sb.append("----shard_id [")
                 .append(indexShard.shardId().getIndex().getName())
                 .append("][")

@@ -278,7 +278,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         // Setup
         {
-            createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster");
+            createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster", null);
         }
         // Create data stream and ensure that is is auto followed
         {

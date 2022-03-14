@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -22,7 +21,6 @@ import java.io.IOException;
  */
 public class InvalidSnapshotNameException extends SnapshotException {
 
-    @Nullable
     private final Reason reason;
 
     public InvalidSnapshotNameException(final String repositoryName, final String snapshotName, Reason reason) {
@@ -33,9 +31,9 @@ public class InvalidSnapshotNameException extends SnapshotException {
     public InvalidSnapshotNameException(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
-            reason = in.readOptionalEnum(Reason.class);
+            reason = in.readEnum(Reason.class);
         } else {
-            reason = null;
+            reason = Reason.MISSING;
         }
     }
 
@@ -48,11 +46,10 @@ public class InvalidSnapshotNameException extends SnapshotException {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
-            out.writeOptionalEnum(reason);
+            out.writeEnum(reason);
         }
     }
 
-    @Nullable
     public Reason getReason() {
         return reason;
     }
@@ -69,7 +66,8 @@ public class InvalidSnapshotNameException extends SnapshotException {
         NOT_LOWERCASE("must be lowercase"),
         INVALID_FILENAME_CHARS("must not contain the following characters " + Strings.INVALID_FILENAME_CHARS),
         ALREADY_IN_PROGRESS("snapshot with the same name is already in-progress"),
-        ALREADY_EXISTS("snapshot with the same name already exists");
+        ALREADY_EXISTS("snapshot with the same name already exists"),
+        MISSING("reason is missing in versions before 8.2.0, please check the error message");
 
         private final String description;
 

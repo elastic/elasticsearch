@@ -134,8 +134,10 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
     private boolean snapshotAlreadyCreated(Exception exception) {
         return (exception instanceof InvalidSnapshotNameException invalidSnapshotNameException)
-            && (invalidSnapshotNameException.getReason() == InvalidSnapshotNameException.Reason.ALREADY_EXISTS
-                || invalidSnapshotNameException.getReason() == InvalidSnapshotNameException.Reason.ALREADY_IN_PROGRESS);
+            && switch (invalidSnapshotNameException.getReason()) {
+            case ALREADY_IN_PROGRESS, ALREADY_EXISTS -> true;
+            default -> false;
+            };
     }
 
     @Override

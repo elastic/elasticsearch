@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -82,9 +82,9 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         // if deciders say YES to allocating primary shards, stay in YELLOW state
         ClusterState clusterState = runAllocationTest(settings, indexName, Collections.singleton(decider), ClusterHealthStatus.YELLOW);
         // make sure primaries are initialized
-        RoutingTable routingTable = clusterState.routingTable();
-        for (IndexShardRoutingTable indexShardRoutingTable : routingTable.index(indexName)) {
-            assertTrue(indexShardRoutingTable.primaryShard().initializing());
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            assertTrue(indexRoutingTable.shard(i).primaryShard().initializing());
         }
     }
 

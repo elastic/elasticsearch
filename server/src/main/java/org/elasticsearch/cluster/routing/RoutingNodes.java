@@ -112,7 +112,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable indexShard = indexRoutingTable.shard(i);
                 assert indexShard.primary != null;
                 for (ShardRouting shard : indexShard) {
                     totalShardCount++;

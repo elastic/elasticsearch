@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
 
@@ -123,6 +124,10 @@ public class CompositeAggCursor implements Cursor {
         return includeFrozen;
     }
 
+    protected SearchSourceBuilder nextQuery() {
+        return nextQuery;
+    }
+
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
@@ -135,6 +140,7 @@ public class CompositeAggCursor implements Cursor {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(
+                    client,
                     response,
                     request.source(),
                     makeRowSet(response),
@@ -157,6 +163,7 @@ public class CompositeAggCursor implements Cursor {
     }
 
     static void handle(
+        Client client,
         SearchResponse response,
         SearchSourceBuilder source,
         Supplier<CompositeAggRowSet> makeRowSet,
@@ -165,7 +172,6 @@ public class CompositeAggCursor implements Cursor {
         ActionListener<Page> listener,
         boolean couldProducePartialPages
     ) {
-
         if (log.isTraceEnabled()) {
             logSearchResponse(response, log);
         }
@@ -185,8 +191,11 @@ public class CompositeAggCursor implements Cursor {
             updateSourceAfterKey(afterKey, source);
         }
 
-        Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(source, rowSet);
-        listener.onResponse(new Page(rowSet, next));
+        if (rowSet.remainingData() == 0) {
+            closePointInTime(client, response.pointInTimeId(), listener.map(r -> Page.last(rowSet)));
+        } else {
+            listener.onResponse(new Page(rowSet, makeCursor.apply(source, rowSet)));
+        }
     }
 
     private static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
@@ -240,7 +249,8 @@ public class CompositeAggCursor implements Cursor {
 
     @Override
     public void clear(Client client, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+        Check.isTrue(nextQuery().pointInTimeBuilder() != null, "Expected cursor with point-in-time id but got null");
+        closePointInTime(client, nextQuery().pointInTimeBuilder().getEncodedId(), listener);
     }
 
     @Override

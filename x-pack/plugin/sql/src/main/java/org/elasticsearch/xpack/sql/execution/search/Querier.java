@@ -135,13 +135,11 @@ public class Querier {
         if (cfg.task() != null && cfg.task().isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
         } else if (query.isAggsOnly()) {
-            ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
+                client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
             } else {
-                l = new CompositeActionListener(listener, client, cfg, output, query, search);
+                searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
             }
-            client.search(search, l);
         } else {
             searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
@@ -499,6 +497,7 @@ public class Querier {
                 );
 
             CompositeAggCursor.handle(
+                client,
                 response,
                 request.source(),
                 makeRowSet,

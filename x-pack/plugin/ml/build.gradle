@@ -3,33 +3,33 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-    name 'x-pack-ml'
-    description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
-    classname 'org.elasticsearch.xpack.ml.MachineLearning'
-    hasNativeController true
-    extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
+  name 'x-pack-ml'
+  description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+  classname 'org.elasticsearch.xpack.ml.MachineLearning'
+  hasNativeController true
+  extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
 
 repositories {
-    exclusiveContent {
-        forRepository {
-            ivy {
-                name "ml-cpp"
-                url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
-                metadataSources {
-                    // no repository metadata, look directly for the artifact
-                    artifact()
-                }
-                patternLayout {
-                    artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
-                }
-            }
+  exclusiveContent {
+    forRepository {
+      ivy {
+        name "ml-cpp"
+        url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
+        metadataSources {
+          // no repository metadata, look directly for the artifact
+          artifact()
         }
         patternLayout {
           artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module]-[revision](-[classifier]).[ext]"
         }
+      }
     }
+    filter {
+      includeGroup 'org.elasticsearch.ml'
+    }
+  }
 }
 
 configurations {
@@ -38,21 +38,24 @@ configurations {
   }
 }
 
-tasks.named("bundlePlugin").configure {
-  dependsOn configurations.nativeBundle
-  from {
-    configurations.nativeBundle.files.collect { zipTree(it) }
-  }
+["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
+    tasks.named(bundleTaskName).configure {
+        dependsOn configurations.nativeBundle
+        from {
+            configurations.nativeBundle.files.collect { zipTree(it) }
+        }
 
-  // We don't ship the individual nativeBundle licenses - instead
-  // they get combined into the top level NOTICES file we ship
-  exclude 'platform/licenses/**'
+        // We don't ship the individual nativeBundle licenses - instead
+        // they get combined into the top level NOTICES file we ship
+        exclude 'platform/licenses/**'
+    }
 }
-// TODO remove code duplication
+
+// TODO look into removing duplication here
 tasks.named("explodedBundlePlugin").configure {
     dependsOn configurations.nativeBundle
     from {
-        project.zipTree(configurations.nativeBundle.singleFile)
+        configurations.nativeBundle.files.collect { zipTree(it) }
     }
 
     // We don't ship the individual nativeBundle licenses - instead
@@ -90,8 +93,8 @@ dependencies {
 }
 
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for extensions
-    archives tasks.named("jar")
+  // normal es plugins do not publish the jar but we need to since users need it for extensions
+  archives tasks.named("jar")
 }
 
 tasks.register("extractNativeLicenses", Copy) {
@@ -103,18 +106,18 @@ tasks.register("extractNativeLicenses", Copy) {
   include 'platform/licenses/**'
 }
 project.afterEvaluate {
-    // Add an extra licenses directory to the combined notices
-    tasks.named('generateNotice').configure {
-        dependsOn "extractNativeLicenses"
-        licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
-        outputs.upToDateWhen {
-            extractNativeLicenses.didWork
-        }
+  // Add an extra licenses directory to the combined notices
+  tasks.named('generateNotice').configure {
+    dependsOn "extractNativeLicenses"
+    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+    outputs.upToDateWhen {
+      extractNativeLicenses.didWork
     }
+  }
 }
 
 tasks.named("dependencyLicenses").configure {
-    mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
 addQaCheckDependencies()

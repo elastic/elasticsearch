@@ -75,6 +75,8 @@ public final class TrackingResultProcessor implements Processor {
                         + pipelineProcessor.getPipelineToCallName(ingestDocument)
                         + ']'
                 );
+                // Add error as processor result, otherwise this gets lost in SimulateExecutionService#execute(...) and
+                // an empty response gets returned by the ingest simulate api.
                 processorResultList.add(
                     new SimulateProcessorResult(
                         pipelineProcessor.getType(),

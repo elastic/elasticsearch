@@ -1516,6 +1516,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         throws InterruptedException {
         Random random = random();
         Set<String> indices = new HashSet<>();
+        builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
             indices.add(builder.request().index());
         }

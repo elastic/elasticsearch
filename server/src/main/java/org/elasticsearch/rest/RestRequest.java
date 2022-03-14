@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
@@ -387,7 +386,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently unconsumed parameters.
      */
     List<String> unconsumedParams() {
-        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).collect(Collectors.toList());
+        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).toList();
     }
 
     public float paramAsFloat(String key, float defaultValue) {

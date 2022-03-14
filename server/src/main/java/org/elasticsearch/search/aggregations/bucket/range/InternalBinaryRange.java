@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -290,7 +289,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             name,
             format,
             keyed,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             metadata
         );
     }
@@ -298,7 +297,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
-        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
+        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).toList();
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
         return createBucket(aggs, buckets.get(0));
     }

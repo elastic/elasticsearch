@@ -380,7 +380,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // synchronize starting with the waiting thread
         barrier.await();
 
-        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1).boxed().collect(Collectors.toList());
+        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1)
+            .boxed()
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(elements);
         for (int i = 0; i < elements.size(); i++) {
             updateLocalCheckpoint(tracker, trackingAllocationId.getId(), elements.get(i));

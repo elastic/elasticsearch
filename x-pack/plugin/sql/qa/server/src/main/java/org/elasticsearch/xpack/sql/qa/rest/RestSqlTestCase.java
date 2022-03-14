@@ -478,7 +478,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
 
         String cursor = (String) response.remove("cursor");
-        assertNotNull(cursor);
+        assertNull(cursor);
         assertResponse(expected, response);
     }
 
@@ -1460,7 +1460,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
         index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
 
-        testFetchAllPages(format, "SELECT field FROM " + indexPattern("test") + " ORDER BY field", texts, pageSize, true);
+        testFetchAllPages(format, "SELECT field FROM " + indexPattern("test") + " ORDER BY field", texts, pageSize, size % pageSize == 0);
     }
 
     /**
@@ -1495,7 +1495,41 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
         index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
 
-        testFetchAllPages(format, "SELECT field FROM " + indexPattern("test") + " GROUP BY field ORDER BY field", texts, pageSize, true);
+        testFetchAllPages(
+            format,
+            "SELECT field FROM " + indexPattern("test") + " GROUP BY field ORDER BY field",
+            texts,
+            pageSize,
+            size % pageSize == 0
+        );
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregateTxt() throws IOException {
+        testFetchAllPagesCompositeAggCursorWithFilterOnAggregate("text/plain");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregateCsv() throws IOException {
+        testFetchAllPagesCompositeAggCursorWithFilterOnAggregate("text/csv");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregateTsv() throws IOException {
+        testFetchAllPagesCompositeAggCursorWithFilterOnAggregate("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregate(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages(
+            format,
+            "SELECT field, COUNT(*) c FROM " + indexPattern("test") + " GROUP BY field HAVING c = 1 ORDER BY field",
+            texts,
+            pageSize,
+            true
+        );
     }
 
     public void testFetchAllPagesListCursorTxt() throws IOException {
@@ -1526,7 +1560,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * 2. There are at most `expectedValues.size() / pageSize + 1` pages (the last one might or might not be empty)
      * 3. Optionally: That the last page is not empty.
      */
-    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean allowEmptyLastPage)
+    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
         throws IOException {
         int remainingPages = expectedValues.size() / pageSize + 1;
 
@@ -1550,8 +1584,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             remainingPages--;
         }
 
-        if (allowEmptyLastPage == false) {
-            assertFalse(Strings.isNullOrEmpty(response.v1()));
+        if (emptyLastPage) {
+            assertTrue("Expected empty last page but got " + response.v1(), Strings.isNullOrEmpty(response.v1()));
+        } else {
+            assertFalse("Expected non-empty last page but got " + response.v1(), Strings.isNullOrEmpty(response.v1()));
         }
 
         assertNull(response.v2());

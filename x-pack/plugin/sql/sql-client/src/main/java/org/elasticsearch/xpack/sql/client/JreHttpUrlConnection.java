@@ -32,8 +32,9 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
-import java.util.LinkedList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -188,18 +189,12 @@ public class JreHttpUrlConnection implements Closeable {
 
     private Function<String, List<String>> getHeaderFields(URLConnection con) {
         return header -> {
-            // HTTP headers are case-insensitive but the map returned by `URLConnection.getHeaderFields` is case-sensitive.
-            // The linear scan below replicates the linear case-insensitive lookup of `URLConnection.getHeaderField(String)`.
-            List<String> values = new LinkedList<>();
-            int i = 0;
-            String value = con.getHeaderField(i);
-            while (value != null) {
-                if (header.equalsIgnoreCase(con.getHeaderFieldKey(i))) {
-                    values.add(value);
+            for (Map.Entry<String, List<String>> entry : con.getHeaderFields().entrySet()) {
+                if (header.equalsIgnoreCase(entry.getKey())) {
+                    return entry.getValue();
                 }
-                value = con.getHeaderField(++i);
             }
-            return values;
+            return Collections.emptyList();
         };
     }
 

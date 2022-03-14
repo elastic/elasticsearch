@@ -7,6 +7,7 @@
  */
 
 
+
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
@@ -15,14 +16,41 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-
 dependencies {
   testImplementation project(":client:rest-high-level")
 }
 
+/*
+ This qa module runs yaml and java tests against a local cluster on the current version
+ with a connected remote cluster and mostly tests CCS behaviour. We run this in two version
+ configurations for the remote cluster, one time with the current version and one time
+ with the earliest previous minor, because that is the first version that we guarantee
+ CCS backward compatibility with.
+*/
+
+Version bwcVersion() {
+  Version current = BuildParams.bwcVersions.currentVersion().elasticsearch()
+  Version previousMinor = (BuildParams.bwcVersions.wireCompatible.reverse().find {
+    it.before(current) && (it.minor < current.minor || it.major < current.major)
+  })
+  // we want to test against the first revision of this minor series
+  return new Version(previousMinor.major, previousMinor.minor, 0)
+}
+
+String bwc = bwcVersion().toString()
+
 testClusters.register('remote-cluster')
 
+testClusters.register("remote-cluster-${bwc}") {
+      versions = [bwc]
+}
+
 tasks.register('remote-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.rest.suite', 'remote_cluster'
+}
+
+tasks.register("remote-cluster-${bwc}", RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
@@ -37,9 +65,21 @@ testClusters.matching{ it.name == 'remote-cluster' }.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
+testClusters.matching{ it.name == "remote-cluster-${bwc}" }.configureEach {
+  numberOfNodes = 2
+  setting 'node.roles', '[data,ingest,master]'
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.register("mixedClusterTest", RestIntegTestTask) {
     useCluster testClusters.named('remote-cluster')
     dependsOn 'remote-cluster'
+    systemProperty 'tests.rest.suite', 'multi_cluster'
+}
+
+tasks.register("mixedClusterTest-${bwc}", RestIntegTestTask) {
+    useCluster testClusters.named("remote-cluster-${bwc}")
+    dependsOn "remote-cluster-${bwc}"
     systemProperty 'tests.rest.suite', 'multi_cluster'
 }
 
@@ -50,8 +90,16 @@ testClusters.matching { it.name == "mixedClusterTest"}.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
+testClusters.matching { it.name == "mixedClusterTest-${bwc}"}.configureEach {
+  setting 'cluster.remote.my_remote_cluster.seeds',
+    { "\"${testClusters."remote-cluster-${bwc}".getAllTransportPortURI().get(0)}\"" }
+  setting 'cluster.remote.connections_per_cluster', '1'
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.register("integTest") {
   dependsOn "mixedClusterTest"
+  dependsOn "mixedClusterTest-${bwc}"
 }
 
 tasks.named("check").configure { dependsOn("integTest") }

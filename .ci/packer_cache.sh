@@ -31,7 +31,7 @@ else
   export JAVA15_HOME="${HOME}"/.java/openjdk15
   export JAVA16_HOME="${HOME}"/.java/openjdk16
 
-  ## 6.8 branch is not referenced from any bwc project in master so we need to
+  ## 6.8 branch is not referenced from any bwc project in main so we need to
   ## resolve its dependencies explicitly
   rm -rf checkout/6.8
   git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
@@ -41,6 +41,6 @@ else
 fi
 
 ## Gradle is able to resolve dependencies resolved with earlier gradle versions
-## therefore we run master _AFTER_ we run 6.8 which uses an earlier gradle version
+## therefore we run main _AFTER_ we run 6.8 which uses an earlier gradle version
 export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
 ./gradlew --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none

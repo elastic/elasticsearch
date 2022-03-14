@@ -39,11 +39,11 @@ import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregat
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
@@ -214,7 +214,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     public void testMultipleDefinedAggParse() throws IOException {
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), MULTIPLE_AGG_DEF_DATAFEED)
         ) {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> DatafeedUpdate.PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_update] failed to parse field [aggs]"));

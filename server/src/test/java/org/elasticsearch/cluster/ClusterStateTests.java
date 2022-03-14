@@ -145,7 +145,7 @@ public class ClusterStateTests extends ESTestCase {
               "cluster_uuid": "clusterUUID",
               "version": 0,
               "state_uuid": "stateUUID",
-              "master_node": "masterNodeId",
+              "master_node": "nodeId1",
               "blocks": {
                 "global": {
                   "1": {
@@ -355,7 +355,7 @@ public class ClusterStateTests extends ESTestCase {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
               "state_uuid" : "stateUUID",
-              "master_node" : "masterNodeId",
+              "master_node" : "nodeId1",
               "blocks" : {
                 "global" : {
                   "1" : {
@@ -558,7 +558,7 @@ public class ClusterStateTests extends ESTestCase {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
               "state_uuid" : "stateUUID",
-              "master_node" : "masterNodeId",
+              "master_node" : "nodeId1",
               "blocks" : {
                 "global" : {
                   "1" : {
@@ -877,7 +877,7 @@ public class ClusterStateTests extends ESTestCase {
             .stateUUID("stateUUID")
             .nodes(
                 DiscoveryNodes.builder()
-                    .masterNodeId("masterNodeId")
+                    .masterNodeId("nodeId1")
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )
@@ -937,9 +937,9 @@ public class ClusterStateTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(new Index("index", "indexUUID"))
                             .addIndexShard(
-                                new IndexShardRoutingTable.Builder(new ShardId("index", "_na_", 1)).addShard(
+                                new IndexShardRoutingTable.Builder(new ShardId("index", "indexUUID", 1)).addShard(
                                     TestShardRouting.newShardRouting(
-                                        new ShardId("index", "_na_", 1),
+                                        new ShardId("index", "indexUUID", 1),
                                         "nodeId2",
                                         true,
                                         ShardRoutingState.STARTED

@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalVariableWidthHistogram extends InternalMultiBucketAggregation<
     InternalVariableWidthHistogram,
@@ -188,6 +190,16 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
         public DocValueFormat getFormatter() {
             return format;
+        }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                centroid,
+                bounds,
+                samplingContext.scaleUp(docCount),
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 
@@ -550,6 +562,18 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             adjustBoundsForOverlappingBuckets(reducedBuckets, reduceContext);
         }
         return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalVariableWidthHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            emptyBucketInfo,
+            targetNumBuckets,
+            format,
+            getMetadata()
+        );
     }
 
     @Override

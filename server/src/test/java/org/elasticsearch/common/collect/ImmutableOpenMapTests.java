@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
@@ -31,6 +29,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ImmutableOpenMapTests extends ESTestCase {
 
@@ -52,14 +51,22 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testStreamOperationsAreSupported() {
         assertThat(
-            regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue).collect(Collectors.toSet()),
+            regionCurrencySymbols.entrySet()
+                .stream()
+                .filter(e -> e.getKey().startsWith("U"))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toSet()),
             equalTo(Set.of("£", "$"))
         );
     }
 
     public void testSortedStream() {
         assertThat(
-            regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
+            regionCurrencySymbols.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList()),
             equalTo(List.of("€", "¥", "₩", "£", "$"))
         );
     }
@@ -68,16 +75,17 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        Map<Long, List<String>> collectedViaStreams = map.stream()
+        Map<Long, List<String>> collectedViaStreams = map.entrySet()
+            .stream()
             .filter(e -> e.getKey() > 0)
             .sorted(Map.Entry.comparingByKey())
             .limit(limit)
             .collect(Collectors.groupingBy(e -> e.getKey() % 2, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         Map<Long, String> sortedMap = new TreeMap<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key > 0) {
-                sortedMap.put(cursor.key, cursor.value);
+        for (var entry : map.entrySet()) {
+            if (entry.getKey() > 0) {
+                sortedMap.put(entry.getKey(), entry.getValue());
             }
         }
         int i = 0;
@@ -93,7 +101,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEmptyStreamWorks() {
-        assertThat(ImmutableOpenMap.of().stream().count(), equalTo(0L));
+        assertThat(ImmutableOpenMap.of().entrySet().stream().count(), equalTo(0L));
     }
 
     public void testKeySetStreamOperationsAreSupported() {
@@ -101,6 +109,18 @@ public class ImmutableOpenMapTests extends ESTestCase {
             regionCurrencySymbols.keySet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
             equalTo(Set.of("Japan", "EU", "Korea"))
         );
+    }
+
+    public void testIntMapKeySet() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        Set<Integer> expectedKeys = Set.of(1, 2);
+        Set<Integer> actualKeys = map.keySet();
+        assertThat(actualKeys.contains(1), is(true));
+        assertThat(actualKeys.contains(2), is(true));
+        assertThat(actualKeys, equalTo(expectedKeys));
+        assertThat(expectedKeys, equalTo(actualKeys));
+        assertThat(expectedKeys.stream().filter(actualKeys::contains).count(), equalTo(2L));
+        assertThat(actualKeys.stream().filter(expectedKeys::contains).count(), equalTo(2L));
     }
 
     public void testSortedKeysSet() {
@@ -114,9 +134,9 @@ public class ImmutableOpenMapTests extends ESTestCase {
         List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).collect(Collectors.toList());
 
         SortedSet<Long> positiveNumbers = new TreeSet<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key > 0) {
-                positiveNumbers.add(cursor.key);
+        for (var key : map.keySet()) {
+            if (key > 0) {
+                positiveNumbers.add(key);
             }
         }
         int i = 0;
@@ -143,7 +163,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
 
         ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
-        builder3.putAll(hMap);
+        builder3.putAllFromMap(hMap);
 
         assertThat("forEach should match", map, equalTo(builder1.build()));
         assertThat("forEach on a stream should match", map, equalTo(builder2.build()));
@@ -192,9 +212,9 @@ public class ImmutableOpenMapTests extends ESTestCase {
             .collect(Collectors.toList());
 
         SortedSet<String> filteredSortedStrings = new TreeSet<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if ((cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) == false) {
-                filteredSortedStrings.add(cursor.value);
+        for (var value : map.values()) {
+            if ((value.contains("ab") || value.contains("cd") || value.contains("ef")) == false) {
+                filteredSortedStrings.add(value);
             }
         }
         int i = 0;
@@ -238,6 +258,15 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertTrue(map.entrySet().contains(entry(1, null)));
         assertFalse(map.containsKey(2));
         assertFalse(map.entrySet().contains(entry(2, null)));
+    }
+
+    public void testContainsValue() {
+        assertTrue(countryPopulations.containsValue(37_846_611));
+    }
+
+    public void testIntMapContainsValue() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        assertTrue(map.containsValue("bar"));
     }
 
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {

@@ -215,7 +215,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         List<String> nodeIds = randomSubsetOf(
             randomInt(clusterState.nodes().getNodes().size() - 1),
-            clusterState.nodes().getNodes().keys().toArray(String.class)
+            clusterState.nodes().getNodes().keySet().toArray(new String[0])
         );
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
@@ -241,7 +241,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         if (numberOfIndices > 0) {
             List<String> randomIndices = randomSubsetOf(
                 randomInt(numberOfIndices - 1),
-                clusterState.routingTable().indicesRouting().keys().toArray(String.class)
+                clusterState.routingTable().indicesRouting().keySet().toArray(new String[0])
             );
             for (String index : randomIndices) {
                 if (randomBoolean()) {
@@ -250,7 +250,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     builder.add(
                         randomChangeToIndexRoutingTable(
                             clusterState.routingTable().indicesRouting().get(index),
-                            clusterState.nodes().getNodes().keys().toArray(String.class)
+                            clusterState.nodes().getNodes().keySet().toArray(new String[0])
                         )
                     );
                 }
@@ -258,7 +258,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
         int additionalIndexCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
-            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keys().toArray(String.class)));
+            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keySet().toArray(new String[0])));
         }
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }
@@ -403,7 +403,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(
                 randomInt(partCount - 1),
-                randomPart.parts(clusterState).keys().toArray(String.class)
+                randomPart.parts(clusterState).keySet().toArray(new String[0])
             );
             for (String part : randomParts) {
                 if (randomBoolean()) {
@@ -502,7 +502,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         ImmutableOpenMap<String, T> parts = randomPart.parts(metadata);
         int partCount = parts.size();
         if (partCount > 0) {
-            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keys().toArray(String.class));
+            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keySet().toArray(new String[0]));
             for (String part : randomParts) {
                 if (randomBoolean()) {
                     randomPart.remove(builder, part);
@@ -564,7 +564,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 1:
                         if (randomBoolean() && part.getAliases().isEmpty() == false) {
-                            builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
+                            builder.removeAlias(randomFrom(part.getAliases().keySet().toArray(new String[0])));
                         } else {
                             builder.putAlias(AliasMetadata.builder(randomAlphaOfLength(10)));
                         }

@@ -4,8 +4,6 @@ setup:
       version: " - 7.14.99"
       reason: analyze index disk usage API is introduced in 7.15
 
----
-"Disk usage stats":
   - do:
       indices.create:
         index: testindex
@@ -40,8 +38,13 @@ setup:
       index:
         index: testindex
         body: { "name": "foobar", "quantity": 1000, "genre": "country" }
+
+---
+"Name the index":
   - do:
-      indices.disk_usage: { index: "testindex", "run_expensive_tasks": true }
+      indices.disk_usage:
+        index: testindex
+        run_expensive_tasks: true
 
   - gt: { testindex.store_size_in_bytes: 100 }
   # all_fields
@@ -103,3 +106,23 @@ setup:
   - gt: { testindex.fields._seq_no.points_in_bytes: 0 }
   - match: { testindex.fields._seq_no.norms_in_bytes: 0 }
   - match: { testindex.fields._seq_no.term_vectors_in_bytes: 0 }
+
+---
+"Star":
+  - skip:
+      version: " - 8.1.99"
+      reason: star is resolved in 8.2+
+
+  - do:
+      indices.disk_usage:
+        index: "*"
+        run_expensive_tasks: true
+
+  - gt: { testindex.store_size_in_bytes: 100 }
+  # all_fields
+  - gt: { testindex.all_fields.total_in_bytes: 0 }
+  - gt: { testindex.all_fields.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.all_fields.stored_fields_in_bytes: 0 }
+  - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
+  - gt: { testindex.all_fields.points_in_bytes: 0 }
+  - match: { testindex.all_fields.term_vectors_in_bytes: 0 }

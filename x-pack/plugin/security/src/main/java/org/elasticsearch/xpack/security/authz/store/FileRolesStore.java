@@ -24,7 +24,9 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -286,8 +288,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         NamedXContentRegistry xContentRegistry
     ) {
         String roleName = null;
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, segment);
+            XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment);
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
@@ -329,7 +333,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
-        } catch (IOException e) {
+        } catch (IOException | XContentParseException e) {
             if (roleName != null) {
                 final String finalRoleName = roleName;
                 logger.error(

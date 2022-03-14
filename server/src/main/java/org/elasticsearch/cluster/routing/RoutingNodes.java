@@ -1307,33 +1307,29 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
      * all the nodes have been returned.
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator() {
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            queue.add(entry.getValue().copyShards().iterator());
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
+        for (final var routingNode : nodesToShards.values()) {
+            final var iterator = routingNode.copyShards().iterator();
+            if (iterator.hasNext()) {
+                queue.add(iterator);
+            }
         }
-        return new Iterator<ShardRouting>() {
+        return new Iterator<>() {
             public boolean hasNext() {
-                while (queue.isEmpty() == false) {
-                    if (queue.peek().hasNext()) {
-                        return true;
-                    }
-                    queue.poll();
-                }
-                return false;
+                return queue.isEmpty() == false;
             }
 
             public ShardRouting next() {
-                if (hasNext() == false) {
+                if (queue.isEmpty()) {
                     throw new NoSuchElementException();
                 }
-                Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
-                queue.offer(iter);
-                return result;
-            }
-
-            public void remove() {
-                throw new UnsupportedOperationException();
+                final var nodeIterator = queue.poll();
+                assert nodeIterator.hasNext();
+                final var nextShard = nodeIterator.next();
+                if (nodeIterator.hasNext()) {
+                    queue.offer(nodeIterator);
+                }
+                return nextShard;
             }
         };
     }

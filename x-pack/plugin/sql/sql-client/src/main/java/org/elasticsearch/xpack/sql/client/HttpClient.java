@@ -46,6 +46,24 @@ import static java.util.Collections.emptyList;
  */
 public class HttpClient {
 
+    public static class ResponseWithWarnings<R> {
+        private final R response;
+        private final List<String> warnings;
+
+        ResponseWithWarnings(R response, List<String> warnings) {
+            this.response = response;
+            this.warnings = warnings;
+        }
+
+        public R response() {
+            return response;
+        }
+
+        public List<String> warnings() {
+            return warnings;
+        }
+    }
+
     private final ConnectionConfiguration cfg;
     private final ContentType requestBodyContentType;
 
@@ -84,10 +102,10 @@ public class HttpClient {
             false,
             cfg.binaryCommunication()
         );
-        return query(sqlRequest).v1();
+        return query(sqlRequest).response();
     }
 
-    public Tuple<SqlQueryResponse, List<String>> query(SqlQueryRequest sqlRequest) throws SQLException {
+    public ResponseWithWarnings<SqlQueryResponse> query(SqlQueryRequest sqlRequest) throws SQLException {
         return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse);
     }
 
@@ -100,20 +118,20 @@ public class HttpClient {
             new RequestInfo(Mode.CLI),
             cfg.binaryCommunication()
         );
-        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).v1();
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).response();
     }
 
     public boolean queryClose(String cursor, Mode mode) throws SQLException {
-        Tuple<SqlClearCursorResponse, List<String>> response = post(
+        ResponseWithWarnings<SqlClearCursorResponse> response = post(
             CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT,
             new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
             Payloads::parseClearCursorResponse
         );
-        return response.v1().isSucceeded();
+        return response.response().isSucceeded();
     }
 
     @SuppressWarnings({ "removal" })
-    private <Request extends AbstractSqlRequest, Response> Tuple<Response, List<String>> post(
+    private <Request extends AbstractSqlRequest, Response> ResponseWithWarnings<Response> post(
         String path,
         Request request,
         CheckedFunction<JsonParser, Response, IOException> responseParser
@@ -134,7 +152,7 @@ public class HttpClient {
             )
         ).getResponseOrThrowException();
         List<String> warnings = response.v1().apply("Warning");
-        return new Tuple<>(
+        return new ResponseWithWarnings<>(
             fromContent(contentType(response.v1()), response.v2(), responseParser),
             warnings == null ? Collections.emptyList() : warnings
         );

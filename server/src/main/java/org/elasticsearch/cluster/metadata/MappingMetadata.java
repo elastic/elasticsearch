@@ -10,8 +10,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +30,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
+public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
         MapperService.SINGLE_MAPPING_NAME,
@@ -141,6 +141,16 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         return sourceAsMap();
     }
 
+    /**
+     * Converts the serialized compressed form of the mappings into a parsed map.
+     * In contrast to {@link #sourceAsMap()}, this does not remove the type
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rawSourceAsMap() throws ElasticsearchParseException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+        return mapping;
+    }
+
     public boolean routingRequired() {
         return this.routingRequired;
     }
@@ -183,6 +193,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(MappingMetadata::new, in);
+        return SimpleDiffable.readDiffFrom(MappingMetadata::new, in);
     }
 }

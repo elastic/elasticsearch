@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.client.internal.Client;
@@ -42,12 +44,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction.Request;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsShardAction;
@@ -260,10 +260,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
         final String source = loadTemplateSource("/fleet-actions-results.json");
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
             ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
             return new SystemDataStreamDescriptor(
                 ".fleet-actions-results",

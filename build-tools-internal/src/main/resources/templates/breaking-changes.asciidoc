@@ -11,65 +11,101 @@ See also <<release-highlights>> and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
 coming::[${version}]
 <% } %>
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-<% if (breakingIncludeList.isEmpty() == false) { %>
+<% if (breakingByNotabilityByArea.isEmpty() == false) { %>
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
 
 The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.
-Before upgrading to ${majorDotMinor} review these changes and take the described steps
+Before upgrading to ${majorDotMinor}, review these changes and take the described steps
 to mitigate the impact.
 
-NOTE: Breaking changes introduced in minor versions are
-normally limited to security and bug fixes.
-Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
-
 <%
-  for (include in breakingIncludeList) {
-      print "include::migrate_${version.major}_${version.minor}/${include}.asciidoc[]\n";
-  }
+    [true, false].each { isNotable ->
+        def breakingByArea = breakingByNotabilityByArea.getOrDefault(isNotable, [])
+        if (breakingByArea.isEmpty() == false) {
+            if (isNotable) {
+                /* No newline here, one will be added below */
+                print "// NOTE: The notable-breaking-changes tagged regions are re-used in the\n"
+                print "// Installation and Upgrade Guide\n"
+                print "// tag::notable-breaking-changes[]"
+            }
 
+            breakingByArea.eachWithIndex { area, breakingChanges, i ->
+                print "\n[discrete]\n"
+                print "[[breaking_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }_changes]]\n"
+                print "==== ${area} changes\n"
+
+                for (breaking in breakingChanges) { %>
+[[${ breaking.anchor }]]
+.${breaking.title}
+[%collapsible]
+====
+*Details* +
+${breaking.details.trim()}
+
+*Impact* +
+${breaking.impact.trim()}
+====
+<%
+                }
+            }
+
+            if (isNotable) {
+                print "// end::notable-breaking-changes[]\n"
+            }
+        }
+    }
 }
 
-if (deprecationsByArea.empty == false) { %>
+if (deprecationsByNotabilityByArea.isEmpty() == false) { %>
 
 [discrete]
 [[deprecated-${majorDotMinor}]]
 === Deprecations
 
 The following functionality has been deprecated in {es} ${majorDotMinor}
-and will be removed in ${nextMajor}.
+and will be removed in a future version.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to ${majorDotMinor}.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>."
+enable <<deprecation-logging, deprecation logging>>.
 
 <%
-deprecationsByArea.eachWithIndex { area, deprecations, i ->
-    print "\n[discrete]\n"
-    print "[[deprecations_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }]]"
-    print "==== ${area} deprecations"
+    [true, false].each { isNotable ->
+        def deprecationsByArea = deprecationsByNotabilityByArea.getOrDefault(isNotable, [])
+        if (deprecationsByArea.isEmpty() == false) {
+            if (isNotable) {
+                /* No newline here, one will be added below */
+                print "// tag::notable-breaking-changes[]"
+            }
 
-    for (deprecation in deprecations) { %>
+            deprecationsByArea.eachWithIndex { area, deprecations, i ->
+                print "\n[discrete]\n"
+                print "[[deprecations_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }]]\n"
+                print "==== ${area} deprecations\n"
 
+                for (deprecation in deprecations) { %>
 [[${ deprecation.anchor }]]
 .${deprecation.title}
 [%collapsible]
 ====
 *Details* +
-${deprecation.body.trim()}
+${deprecation.details.trim()}
+
+*Impact* +
+${deprecation.impact.trim()}
 ====
 <%
-}
-}
+                }
+            }
+
+            if (isNotable) {
+                print "// end::notable-breaking-changes[]\n"
+            }
+        }
+    }
 } %>

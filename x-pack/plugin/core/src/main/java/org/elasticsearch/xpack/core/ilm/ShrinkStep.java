@@ -70,19 +70,19 @@ public class ShrinkStep extends AsyncActionStep {
                 "skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME,
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 shrunkenIndexName
             );
             listener.onResponse(null);
             return;
         }
 
-        String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        String policyName = indexMetadata.getLifecyclePolicyName();
 
         Settings.Builder builder = Settings.builder();
         // need to remove the single shard, allocation so replicas can be allocated
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);

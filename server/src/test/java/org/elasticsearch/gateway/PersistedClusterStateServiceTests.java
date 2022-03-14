@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.mockfile.ExtrasFS;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -34,6 +33,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -1192,7 +1192,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1206,7 +1208,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1238,7 +1242,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1269,8 +1275,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; "
-                            + "wrote global metadata [false] and metadata for [1] indices and skipped [0] unchanged indices"
+                        """
+                            writing cluster state took [*] which is above the warn threshold of [*]; [skipped writing] global metadata, \
+                            wrote metadata for [1] new indices and [0] existing indices, removed metadata for [0] indices and \
+                            skipped [0] unchanged indices"""
                     )
                 );
 
@@ -1306,7 +1314,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport.stream(directoryStream.spliterator(), false).filter(p -> {
                     final String filename = p.getFileName().toString();
                     return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
-                }).collect(Collectors.toList())));
+                }).toList()));
             }
 
             assertThat(
@@ -1560,7 +1568,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     private NodeEnvironment newNodeEnvironment(Path[] dataPaths) throws IOException {
         return newNodeEnvironment(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).collect(Collectors.toList()))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).toList())
                 .build()
         );
     }

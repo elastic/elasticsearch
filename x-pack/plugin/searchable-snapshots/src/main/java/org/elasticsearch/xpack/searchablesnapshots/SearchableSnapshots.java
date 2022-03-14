@@ -127,8 +127,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
@@ -376,7 +374,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (isSearchableSnapshotStore(indexModule.getSettings())) {
+        if (indexModule.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
             indexModule.addIndexEventListener(
                 new SearchableSnapshotIndexEventListener(settings, cacheService.get(), frozenCacheService.get())
             );
@@ -449,9 +447,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+        if (indexSettings.getIndexMetadata().isSearchableSnapshot()) {
             final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
-            final boolean useFrozenEngine = isPartialSearchableSnapshotIndex(indexSettings.getSettings())
+            final boolean useFrozenEngine = indexSettings.getIndexMetadata().isPartialSearchableSnapshot()
                 && (frozen == null || frozen.equals(Boolean.TRUE));
 
             if (useFrozenEngine) {

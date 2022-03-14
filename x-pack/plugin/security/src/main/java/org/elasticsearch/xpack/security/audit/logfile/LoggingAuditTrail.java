@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -42,14 +40,15 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.Grant;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -110,7 +109,6 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
@@ -1470,13 +1468,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withAuthentication(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isAuthenticatedWithApiKey()) {
+            if (authentication.isApiKey()) {
                 logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
                 String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
-                String creatorRealmName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+                final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
@@ -1485,11 +1483,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 if (authentication.getUser().isRunAs()) {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
                         .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
+                        // API key can run-as, when that happens, the following field will be _es_api_key,
+                        // not the API key owner user's realm.
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                    // TODO: API key can run-as which means we could use extra fields (#84394)
                 } else {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
+            // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
                 logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                     .with(
@@ -1694,7 +1696,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (l.isEmpty()) {
                 return Collections.singletonList("//");
             }
-            return l.stream().map(f -> f.isEmpty() ? "//" : f).collect(Collectors.toList());
+            return l.stream().map(f -> f.isEmpty() ? "//" : f).toList();
         }
 
         /**

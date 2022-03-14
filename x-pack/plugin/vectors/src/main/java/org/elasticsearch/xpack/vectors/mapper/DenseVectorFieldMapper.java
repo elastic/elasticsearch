@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -301,7 +301,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
+        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands, Query filter) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -321,7 +321,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                 }
                 checkVectorMagnitude(queryVector, squaredMagnitude);
             }
-            return new KnnVectorQuery(name(), queryVector, numCands);
+            return new KnnVectorQuery(name(), queryVector, numCands, filter);
         }
 
         private void checkVectorMagnitude(float[] vector, float squaredMagnitude) {
@@ -502,7 +502,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     @Override
     public void doValidate(MappingLookup mappers) {
-        if (indexed && mappers.getNestedParent(name()) != null) {
+        if (indexed && mappers.nestedLookup().getNestedParent(name()) != null) {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
         }
     }
@@ -528,7 +528,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene90HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene91HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -83,6 +85,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -105,7 +108,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -303,8 +305,13 @@ public class MetadataCreateIndexService {
                     super.onFailure(e);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
@@ -507,7 +514,7 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
-            templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
+            templates.stream().map(IndexTemplateMetadata::name).toList()
         );
 
         final Map<String, Object> mappingsMap = parseV1Mappings(
@@ -846,15 +853,23 @@ public class MetadataCreateIndexService {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
+            final IndexMode matchingIndexMode = Optional.of(request)
+                .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
+                .map(ComposableIndexTemplate::getDataStreamTemplate)
+                .map(ComposableIndexTemplate.DataStreamTemplate::getIndexMode)
+                .orElse(null);
+
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
+            final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             for (IndexSettingProvider provider : indexSettingProviders) {
                 additionalIndexSettings.put(
                     provider.getAdditionalIndexSettings(
                         request.index(),
                         request.dataStreamName(),
+                        matchingIndexMode,
                         currentState.getMetadata(),
-                        request.getNameResolvedAt(),
+                        resolvedAt,
                         templateAndRequestSettings
                     )
                 );
@@ -1307,7 +1322,7 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
         }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
@@ -1340,7 +1355,7 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
         }
         IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
@@ -1348,7 +1363,7 @@ public class MetadataCreateIndexService {
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
                 if (nonCloneableSetting.exists(targetIndexSettings) == false) {
                     throw new IllegalArgumentException(
@@ -1459,6 +1474,9 @@ public class MetadataCreateIndexService {
             .put(IndexMetadata.SETTING_ROUTING_PARTITION_SIZE, sourceMetadata.getRoutingPartitionSize())
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+        if (sourceMetadata.getSettings().hasValue(IndexMetadata.SETTING_VERSION_COMPATIBILITY)) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, sourceMetadata.getCompatibilityVersion());
+        }
     }
 
     /**

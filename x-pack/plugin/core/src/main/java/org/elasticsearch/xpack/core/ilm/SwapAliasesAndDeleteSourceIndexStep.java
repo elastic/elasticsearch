@@ -55,7 +55,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         IndexMetadata targetIndexMetadata = currentClusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
-            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            String policyName = indexMetadata.getLifecyclePolicyName();
             String errorMessage = String.format(
                 Locale.ROOT,
                 "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" + " index [%s]",

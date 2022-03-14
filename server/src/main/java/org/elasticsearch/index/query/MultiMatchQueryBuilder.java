@@ -812,4 +812,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
             && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

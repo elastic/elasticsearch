@@ -28,29 +28,25 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             List<InternalAggregation> aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            super(key, from, originalFrom, to, originalTo, docCount, InternalAggregations.from(aggregations), keyed, formatter);
+            super(key, from, to, docCount, InternalAggregations.from(aggregations), keyed, formatter);
         }
 
         public Bucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            super(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed, formatter);
+            super(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
         @Override
@@ -73,14 +69,6 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         private Double internalGetTo() {
             return to;
-        }
-
-        private Double internalGetOriginalFrom() {
-            return originalFrom;
-        }
-
-        private Double internalGetOriginalTo() {
-            return originalTo;
         }
 
         @Override
@@ -124,15 +112,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket createBucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            return new Bucket(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed, formatter);
+            return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
         @Override
@@ -140,9 +126,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             return new Bucket(
                 prototype.getKey(),
                 prototype.internalGetFrom(),
-                prototype.internalGetOriginalFrom(),
                 prototype.internalGetTo(),
-                prototype.internalGetOriginalTo(),
                 prototype.getDocCount(),
                 aggregations,
                 prototype.getKeyed(),

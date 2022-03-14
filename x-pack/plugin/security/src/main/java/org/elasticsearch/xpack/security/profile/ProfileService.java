@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -28,13 +29,17 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,6 +48,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
@@ -63,6 +70,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 
 public class ProfileService {
@@ -84,14 +92,13 @@ public class ProfileService {
     }
 
     public void getProfile(String uid, @Nullable Set<String> dataKeys, ActionListener<Profile> listener) {
-        getVersionedDocument(uid, listener.map(versionedDocument -> {
-            // TODO: replace null with actual domain lookup
-            return versionedDocument != null ? versionedDocument.toProfile(null, dataKeys) : null;
-        }));
+        getVersionedDocument(
+            uid,
+            listener.map(versionedDocument -> versionedDocument != null ? versionedDocument.toProfile(dataKeys) : null)
+        );
     }
 
     // TODO: with request when we take request body for profile activation
-
     /**
      * Create a new profile or update an existing profile for the user of the given Authentication.
      * @param authentication This is the object from which the profile will be created or updated.
@@ -119,7 +126,7 @@ public class ProfileService {
             return;
         }
 
-        getVersionedDocument(authentication, ActionListener.wrap(versionedDocument -> {
+        getVersionedDocument(subject, ActionListener.wrap(versionedDocument -> {
             if (versionedDocument == null) {
                 createNewProfile(subject, listener);
             } else {
@@ -159,6 +166,82 @@ public class ProfileService {
         );
     }
 
+    public void searchProfile(SearchProfilesRequest request, ActionListener<SearchProfilesResponse> listener) {
+        tryFreezeAndCheckIndex(listener.map(response -> {
+            assert response == null : "only null response can reach here";
+            return new SearchProfilesResponse(new SearchProfilesResponse.ProfileHit[] {}, 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+        })).ifPresent(frozenProfileIndex -> {
+            final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
+            if (Strings.hasText(request.getName())) {
+                query.must(
+                    QueryBuilders.multiMatchQuery(
+                        request.getName(),
+                        "user_profile.user.username",
+                        "user_profile.user.username._2gram",
+                        "user_profile.user.username._3gram",
+                        "user_profile.user.full_name",
+                        "user_profile.user.full_name._2gram",
+                        "user_profile.user.full_name._3gram",
+                        "user_profile.user.email"
+                    ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
+                );
+            }
+            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                .setQuery(query)
+                .setSize(request.getSize())
+                .addSort("_score", SortOrder.DESC)
+                .addSort("user_profile.last_synchronized", SortOrder.DESC)
+                .request();
+
+            frozenProfileIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    SearchAction.INSTANCE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final SearchHits searchHits = searchResponse.getHits();
+                        final SearchHit[] hits = searchHits.getHits();
+                        final SearchProfilesResponse.ProfileHit[] profileHits;
+                        if (hits.length == 0) {
+                            profileHits = new SearchProfilesResponse.ProfileHit[0];
+                        } else {
+                            profileHits = new SearchProfilesResponse.ProfileHit[hits.length];
+                            for (int i = 0; i < hits.length; i++) {
+                                final SearchHit hit = hits[i];
+                                final VersionedDocument versionedDocument = new VersionedDocument(
+                                    buildProfileDocument(hit.getSourceRef()),
+                                    hit.getPrimaryTerm(),
+                                    hit.getSeqNo()
+                                );
+                                profileHits[i] = new SearchProfilesResponse.ProfileHit(
+                                    versionedDocument.toProfile(request.getDataKeys()),
+                                    hit.getScore()
+                                );
+                            }
+                        }
+                        listener.onResponse(
+                            new SearchProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
+                        );
+                    }, listener::onFailure)
+                )
+            );
+        });
+    }
+
+    public void setEnabled(String uid, boolean enabled, RefreshPolicy refreshPolicy, ActionListener<AcknowledgedResponse> listener) {
+        final XContentBuilder builder;
+        try {
+            builder = XContentFactory.jsonBuilder();
+            builder.startObject().field("user_profile", Map.of("enabled", enabled)).endObject();
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+    }
+
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
@@ -183,16 +266,36 @@ public class ProfileService {
     }
 
     // Package private for testing
-    void getVersionedDocument(Authentication authentication, ActionListener<VersionedDocument> listener) {
+    void getVersionedDocument(Subject subject, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
-            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("user_profile.user.username", authentication.getUser().principal()))
-                        // TODO: this will be replaced by domain lookup and reverse lookup
-                        .must(QueryBuilders.termQuery("user_profile.user.realm.name", authentication.getSourceRealm().getName()))
-                )
-                .request();
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
+            if (subject.getRealm().getDomain() == null) {
+                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
+                if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
+                    boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()));
+                }
+            } else {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "searching existing profile document for user [{}] from any of the realms [{}] under domain [{}]",
+                        subject.getUser().principal(),
+                        Strings.collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
+                        subject.getRealm().getDomain().name()
+                    )
+                );
+                subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
+                    final BoolQueryBuilder perRealmQuery = QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()));
+                    if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
+                        perRealmQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()));
+                    }
+                    boolQuery.should(perRealmQuery);
+                });
+                boolQuery.minimumShouldMatch(1);
+            }
+
+            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).request();
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
@@ -206,8 +309,8 @@ public class ProfileService {
                         if (hits.length < 1) {
                             logger.debug(
                                 "profile does not exist for username [{}] and realm name [{}]",
-                                authentication.getUser().principal(),
-                                authentication.getSourceRealm().getName()
+                                subject.getUser().principal(),
+                                subject.getRealm().getName()
                             );
                             listener.onResponse(null);
                         } else if (hits.length == 1) {
@@ -217,11 +320,14 @@ public class ProfileService {
                             );
                         } else {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                "multiple [{}] profiles [{}] found for user [{}]",
+                                "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
                                 hits.length,
                                 Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),
-                                // TODO: include domain information
-                                authentication.getUser().principal()
+                                subject.getUser().principal(),
+                                subject.getRealm().getName(),
+                                subject.getRealm().getDomain() == null
+                                    ? ""
+                                    : (" under domain [" + subject.getRealm().getDomain().name() + "]")
                             );
                             logger.error(errorMessage);
                             listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
@@ -252,9 +358,12 @@ public class ProfileService {
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
                     // TODO: replace with actual domain information
-                    listener.onResponse(
-                        new VersionedDocument(profileDocument, indexResponse.getPrimaryTerm(), indexResponse.getSeqNo()).toProfile(null)
+                    final VersionedDocument versionedDocument = new VersionedDocument(
+                        profileDocument,
+                        indexResponse.getPrimaryTerm(),
+                        indexResponse.getSeqNo()
                     );
+                    listener.onResponse(versionedDocument.toProfile(Set.of()));
                 }, listener::onFailure))
             )
         );
@@ -274,7 +383,7 @@ public class ProfileService {
             ),
             listener.map(
                 updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
-                    .toProfile(null)
+                    .toProfile(Set.of())
             )
         );
     }
@@ -360,7 +469,7 @@ public class ProfileService {
 
     /**
      * Freeze the profile index check its availability and return it if everything is ok.
-     * Otherwise it returns null.
+     * Otherwise it calls the listener with null and returns an empty Optional.
      */
     private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(ActionListener<T> listener) {
         final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();
@@ -388,8 +497,6 @@ public class ProfileService {
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
                 subjectUser.fullName(),
-                // TODO: displayName is not available in Authentication object
-                doc.user().displayName(),
                 subjectUser.enabled()
             ),
             doc.access(),
@@ -400,14 +507,13 @@ public class ProfileService {
     // Package private for testing
     record VersionedDocument(ProfileDocument doc, long primaryTerm, long seqNo) {
 
-        Profile toProfile(@Nullable String realmDomain) {
-            return toProfile(realmDomain, Set.of());
-        }
-
-        Profile toProfile(@Nullable String realmDomain, @Nullable Set<String> dataKeys) {
+        /**
+         * Convert the index document to the user-facing Profile by filtering through the application data
+         */
+        Profile toProfile(Set<String> dataKeys) {
+            assert dataKeys != null : "data keys must not be null";
             final Map<String, Object> applicationData;
-            // NOTE null is the same as empty which means not retrieving any application data
-            if (dataKeys == null || dataKeys.isEmpty()) {
+            if (dataKeys.isEmpty()) {
                 applicationData = Map.of();
             } else {
                 applicationData = XContentHelper.convertToMap(doc.applicationData(), false, XContentType.JSON, dataKeys, null).v2();
@@ -417,7 +523,7 @@ public class ProfileService {
                 doc.uid(),
                 doc.enabled(),
                 doc.lastSynchronized(),
-                doc.user().toProfileUser(realmDomain),
+                doc.user().toProfileUser(),
                 doc.access(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)

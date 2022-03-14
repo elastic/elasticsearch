@@ -9,7 +9,6 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.Term;
@@ -20,6 +19,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,7 +52,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -195,7 +194,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            IdFieldMapper.NO_FIELD_DATA,
+            module.indexSettings().getMode().buildNoFieldDataIdFieldMapper(),
             null,
             indexDeletionListener,
             emptyMap()

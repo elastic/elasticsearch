@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -89,6 +90,11 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     /**

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -55,21 +55,20 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
-        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
-            ClusterStateTaskExecutor.ClusterTasksResult.builder();
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
+        currentState,
+        taskContexts) -> {
         ClusterState state = currentState;
-        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+        for (final var taskContext : taskContexts) {
             try {
+                final var task = taskContext.getTask();
                 state = task.execute(state);
-                builder.success(task);
+                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
-                builder.failure(task, e);
+                taskContext.onFailure(e);
             }
         }
-        // Trigger indices lookup creation and related validation
-        state.metadata().getIndicesLookup();
-        return builder.build(state);
+        return state;
     };
 
     IndexLifecycleRunner(
@@ -332,7 +331,7 @@ class IndexLifecycleRunner {
                         }
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                newExecutor()
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -537,7 +536,7 @@ class IndexLifecycleRunner {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
             }),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -601,7 +600,7 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 indexMetadata.getLifecycleExecutionState()
@@ -621,7 +620,7 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(
                 metadataBeforeDeletion.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadataBeforeDeletion.getSettings()),
+                metadataBeforeDeletion.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.builder(metadataBeforeDeletion.getLifecycleExecutionState())
@@ -645,7 +644,7 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.failure(
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 indexMetadata.getLifecycleExecutionState(),
@@ -688,5 +687,10 @@ class IndexLifecycleRunner {
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

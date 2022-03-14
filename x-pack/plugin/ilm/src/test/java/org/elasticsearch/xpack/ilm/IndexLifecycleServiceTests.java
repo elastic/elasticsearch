@@ -158,7 +158,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         );
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -200,7 +200,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setAction(mockShrinkStep.getAction());
         lifecycleState.setStep(mockShrinkStep.getName());
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -260,7 +260,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setAction(mockShrinkStep.getAction());
         lifecycleState.setStep(mockShrinkStep.getName());
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -314,7 +314,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setAction(currentStepKey.getAction());
         lifecycleState.setStep(currentStepKey.getName());
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -430,13 +430,13 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         );
 
         IndexMetadata i1indexMetadata = IndexMetadata.builder(index1.getName())
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i1lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetadata i2indexMetadata = IndexMetadata.builder(index2.getName())
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i2lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -535,7 +535,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         );
 
         IndexMetadata nonDangerousIndex = IndexMetadata.builder("no_danger")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "mypolicy"))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
             .putCustom(
                 ILM_CUSTOM_METADATA_KEY,
                 LifecycleExecutionState.builder()
@@ -550,7 +550,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         IndexMetadata dangerousIndex = IndexMetadata.builder("danger")
             .settings(
-                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "mypolicy")
+                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
                     .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", "shutdown_node")
             )
             .putCustom(

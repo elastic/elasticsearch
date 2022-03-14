@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -188,17 +186,9 @@ public class ServiceAccountService {
         String nodeName
     ) {
         final User user = account.asUser();
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
-            ServiceAccountSettings.REALM_NAME,
-            ServiceAccountSettings.REALM_TYPE,
-            nodeName
-        );
-        return new Authentication(
+        return Authentication.newServiceAccountAuthentication(
             user,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
+            nodeName,
             Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT))
         );
     }

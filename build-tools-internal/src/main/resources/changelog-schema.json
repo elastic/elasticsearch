@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/elastic/elasticsearch/tree/master/docs/changelog",
+  "$id": "https://github.com/elastic/elasticsearch/tree/main/docs/changelog",
   "$ref": "#/definitions/Changelog",
   "definitions": {
     "Changelog": {
@@ -39,6 +39,7 @@
             "Features",
             "Geo",
             "Graph",
+            "Health",
             "Highlighting",
             "ILM+SLM",
             "IdentityProvider",
@@ -77,9 +78,10 @@
             "Stats",
             "Store",
             "Suggesters",
-            "TLS",
             "Task Management",
+            "TLS",
             "Transform",
+            "TSDB",
             "Watcher"
           ]
         },
@@ -107,10 +109,10 @@
           "$ref": "#/definitions/Highlight"
         },
         "breaking": {
-          "$ref": "#/definitions/Breaking"
+          "$ref": "#/definitions/CompatibilityChange"
         },
         "deprecation": {
-          "$ref": "#/definitions/Deprecation"
+          "$ref": "#/definitions/CompatibilityChange"
         }
       },
       "required": [
@@ -138,10 +140,10 @@
       ],
       "additionalProperties": false
     },
-    "Breaking": {
+    "CompatibilityChange": {
       "properties": {
         "area": {
-          "$ref": "#/definitions/breakingArea"
+          "$ref": "#/definitions/compatibilityChangeArea"
         },
         "title": {
           "type": "string",
@@ -170,35 +172,12 @@
       ],
       "additionalProperties": false
     },
-    "Deprecation": {
-      "properties": {
-        "area": {
-          "$ref": "#/definitions/breakingArea"
-        },
-        "title": {
-          "type": "string",
-          "minLength": 1
-        },
-        "body": {
-          "type": "string",
-          "minLength": 1
-        },
-        "ess_setting_change": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "area",
-        "title",
-        "body"
-      ],
-      "additionalProperties": false
-    },
-    "breakingArea": {
+    "compatibilityChangeArea": {
       "type": "string",
       "enum": [
         "Cluster and node setting",
         "Command line tool",
+        "CRUD",
         "Index setting",
         "JVM option",
         "Java API",

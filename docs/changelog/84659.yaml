@@ -1,0 +1,5 @@
+pr: 84659
+summary: Do not throw exceptions when resolving paths in ingest documents
+area: Ingest
+type: enhancement
+issues: []

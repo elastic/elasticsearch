@@ -61,6 +61,7 @@ fetch the _tsid:
           query:
             query_string:
               query: '+@timestamp:"2021-04-28T18:35:24.467Z" +metricset:aa'
+          sort:   [ _tsid ]
 
   - match: {hits.total.value: 2}
   - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
@@ -71,7 +72,9 @@ fetch the _tsid:
   - match: {hits.hits.1.fields.ul: [9223372036854775807]}
 
 ---
-# TODO: Sort order is wrong here. Probably this is caused by the encoding of unsigned_long
+# Sort order is of unsigned_long fields is not the one we would expect.
+# This is caused by the encoding of unsigned_long as a signed long before
+# being serialized in _tsid
 aggregate the _tsid:
   - skip:
       version: " - 8.0.99"
@@ -100,9 +103,10 @@ aggregate the _tsid:
   - match: {aggregations.tsids.buckets.3.doc_count: 3}
 
 ---
-# The time-series index is sorted by [_tsid, @timestamp] in ascending order by default
-# TODO: Sort order is wrong here. Probably this is caused by the encoding of unsigned_long
-default sort:
+# Sort order is of unsigned_long fields is not the one we would expect.
+# This is caused by the encoding of unsigned_long as a signed long before
+# being serialized in _tsid
+sort by tsid:
   - skip:
       version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
@@ -112,6 +116,7 @@ default sort:
         index: test
         body:
           fields: [ _tsid ]
+          sort:   [ _tsid ]
 
   - match: {hits.total.value: 8 }
   - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}

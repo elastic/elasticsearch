@@ -95,6 +95,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -132,6 +133,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final CircuitBreaker circuitBreaker;
     private final ExecutorSelector executorSelector;
     private final int defaultPreFilterShardSize;
+    private final boolean ccsCheckCompatibility;
 
     @Inject
     public TransportSearchAction(
@@ -160,6 +162,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -371,6 +374,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchRequest> rewriteListener = ActionListener.wrap(rewritten -> {
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
+            if (ccsCheckCompatibility) {
+                checkCCSVersionCompatibility(rewritten);
+            }
             if (rewritten.pointInTimeBuilder() != null) {
                 searchContext = rewritten.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
                 remoteClusterIndices = getIndicesFromSearchContexts(searchContext, rewritten.indicesOptions());
@@ -963,7 +969,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 OriginalIndices finalIndices = finalIndicesMap.get(it.shardId().getIndex().getUUID());
                 assert finalIndices != null;
                 return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
-            }).collect(Collectors.toList());
+            }).toList();
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -1026,9 +1032,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices)
-            .map(executorSelector::executorForSearch)
-            .collect(Collectors.toList());
+        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
         if (executorsForIndices.size() == 1) { // all indices have same executor
             return threadPool.executor(executorsForIndices.get(0));
         }

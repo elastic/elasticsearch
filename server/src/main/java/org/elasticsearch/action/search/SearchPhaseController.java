@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
@@ -23,7 +22,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
@@ -59,7 +57,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -73,8 +70,8 @@ public final class SearchPhaseController {
     }
 
     public AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
-        ObjectObjectHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+        Map<Term, TermStatistics> termStatistics = new HashMap<>();
+        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         long aggMaxDoc = 0;
         for (DfsSearchResult lEntry : results) {
             final Term[] terms = lEntry.terms();
@@ -103,29 +100,25 @@ public final class SearchPhaseController {
             }
 
             assert lEntry.fieldStatistics().containsKey(null) == false;
-            final Object[] keys = lEntry.fieldStatistics().keys;
-            final Object[] values = lEntry.fieldStatistics().values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    String key = (String) keys[i];
-                    CollectionStatistics value = (CollectionStatistics) values[i];
-                    if (value == null) {
-                        continue;
-                    }
-                    assert key != null;
-                    CollectionStatistics existing = fieldStatistics.get(key);
-                    if (existing != null) {
-                        CollectionStatistics merged = new CollectionStatistics(
-                            key,
-                            existing.maxDoc() + value.maxDoc(),
-                            existing.docCount() + value.docCount(),
-                            existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
-                            existing.sumDocFreq() + value.sumDocFreq()
-                        );
-                        fieldStatistics.put(key, merged);
-                    } else {
-                        fieldStatistics.put(key, value);
-                    }
+            for (var entry : lEntry.fieldStatistics().entrySet()) {
+                String key = entry.getKey();
+                CollectionStatistics value = entry.getValue();
+                if (value == null) {
+                    continue;
+                }
+                assert key != null;
+                CollectionStatistics existing = fieldStatistics.get(key);
+                if (existing != null) {
+                    CollectionStatistics merged = new CollectionStatistics(
+                        key,
+                        existing.maxDoc() + value.maxDoc(),
+                        existing.docCount() + value.docCount(),
+                        existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
+                        existing.sumDocFreq() + value.sumDocFreq()
+                    );
+                    fieldStatistics.put(key, merged);
+                } else {
+                    fieldStatistics.put(key, value);
                 }
             }
             aggMaxDoc += lEntry.maxDoc();
@@ -444,7 +437,7 @@ public final class SearchPhaseController {
             );
         }
         int total = queryResults.size();
-        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).collect(Collectors.toList());
+        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).toList();
         String errorMsg = "must have at least one non-empty search result, got 0 out of " + total;
         assert queryResults.isEmpty() == false : errorMsg;
         if (queryResults.isEmpty()) {

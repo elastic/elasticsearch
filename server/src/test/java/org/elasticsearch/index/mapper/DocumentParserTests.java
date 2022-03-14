@@ -468,14 +468,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Nested document:
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
         assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
         assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(ProvidedIdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
         assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
@@ -1452,7 +1452,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDocumentContainsAllowedMetadataField() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        DocumentMapper mapper = createDocumentMapper("""
+            { "_doc": { "dynamic" : "strict", "properties" : { "object" : { "type" : "object" } } } }
+            """);
         {
             // A metadata field that parses a value fails to parse a null value
             MapperParsingException e = expectThrows(
@@ -1482,6 +1484,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             );
             IndexableField field = doc.rootDoc().getField(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE);
             assertEquals("mock-metadata-field-value", field.stringValue());
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+                b.startObject("object");
+                b.field(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value");
+                b.endObject();
+            })));
+            assertTrue(e.getMessage(), e.getMessage().contains("dynamic introduction of [_mock_metadata] within [object]"));
         }
     }
 
@@ -1526,7 +1536,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper builtDocMapper = createDocumentMapper(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1538,7 +1548,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1547,7 +1557,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper docMapper = createDocumentMapper(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1787,7 +1797,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             {"top..foo.":{"a":1}}
             """)));
 
-        assertThat(e.getCause().getMessage(), containsString("object field cannot contain only whitespace: ['top..foo.']"));
+        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['top..foo.']"));
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {

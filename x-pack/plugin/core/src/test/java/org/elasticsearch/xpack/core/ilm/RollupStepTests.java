@@ -95,7 +95,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
         RollupStep step = createRandomInstance();
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -465,7 +467,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         /** the full keys for the contexts in the context affix setting */
         protected static List<String> fullKeys(Setting.AffixSetting<?> affix, List<String> contexts) {
-            return contexts.stream().map(ctx -> affix.getConcreteSettingForNamespace(ctx).getKey()).collect(Collectors.toList());
+            return contexts.stream().map(ctx -> affix.getConcreteSettingForNamespace(ctx).getKey()).toList();
         }
 
         /**
@@ -497,7 +499,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
          * All context specific settings
          */
         public List<String> contextSettings() {
-            List<String> contextSettings = fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts);
+            List<String> contextSettings = new ArrayList<>(fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts));
             contextSettings.addAll(fullKeys(SCRIPT_CACHE_SIZE_SETTING, sizeContexts));
             contextSettings.addAll(fullKeys(SCRIPT_CACHE_EXPIRE_SETTING, expireContexts));
             return contextSettings;
@@ -740,7 +742,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     public void deleteStoredScript(
@@ -757,7 +759,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {

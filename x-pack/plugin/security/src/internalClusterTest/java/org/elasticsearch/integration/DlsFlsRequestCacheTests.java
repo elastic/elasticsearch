@@ -24,9 +24,9 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 

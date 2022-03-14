@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
@@ -94,7 +93,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
             Matchers.is((int) readTimeValue.millis())
         );
-        assertThat(storage.getOptions().getCredentials(), Matchers.nullValue(Credentials.class));
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
     }
 

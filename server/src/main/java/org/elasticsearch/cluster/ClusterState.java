@@ -522,7 +522,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
                 builder.startObject(indexRoutingTable.getIndex().getName());
                 builder.startObject("shards");
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         shardRouting.toXContent(builder, params);
@@ -631,6 +632,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return nodes;
         }
 
+        public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
+            return routingTable(routingTableBuilder.build());
+        }
+
         public Builder routingTable(RoutingTable routingTable) {
             this.routingTable = routingTable;
             return this;
@@ -681,8 +686,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
-            this.customs.putAll(customs);
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.customs.putAllFromMap(customs);
             return this;
         }
 

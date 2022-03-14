@@ -149,12 +149,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2
             )) {
                 headerMatchers.add(
-                    equalTo(
-                        "["
-                            + setting.getKey()
-                            + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version."
-                    )
+                    equalTo("[" + setting.getKey() + "] setting was deprecated in Elasticsearch and will be removed in a future release.")
                 );
             }
 

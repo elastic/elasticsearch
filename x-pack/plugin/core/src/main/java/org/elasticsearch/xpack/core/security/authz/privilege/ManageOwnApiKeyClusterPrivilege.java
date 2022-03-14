@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -122,9 +123,15 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 } else if (ownedByAuthenticatedUser) {
                     return true;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
-                    final String sourceUserPrincipal = authentication.getUser().principal();
-                    final String sourceRealmName = authentication.getSourceRealm().getName();
-                    return username.equals(sourceUserPrincipal) && realmName.equals(sourceRealmName);
+                    if (false == username.equals(authentication.getUser().principal())) {
+                        return false;
+                    }
+                    RealmDomain domain = authentication.getSourceRealm().getDomain();
+                    if (domain != null) {
+                        return domain.realms().stream().anyMatch(realmIdentifier -> realmName.equals(realmIdentifier.getName()));
+                    } else {
+                        return realmName.equals(authentication.getSourceRealm().getName());
+                    }
                 }
             }
             return false;

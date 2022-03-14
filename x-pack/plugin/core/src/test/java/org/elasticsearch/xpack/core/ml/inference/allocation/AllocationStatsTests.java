@@ -57,10 +57,16 @@ public class AllocationStatsTests extends AbstractWireSerializingTestCase<Alloca
             randomNonNegativeLong(),
             randomBoolean() ? randomDoubleBetween(0.0, 100.0, true) : null,
             randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
             Instant.now(),
             Instant.now(),
             randomIntBetween(1, 16),
-            randomIntBetween(1, 16)
+            randomIntBetween(1, 16),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomBoolean() ? randomDoubleBetween(0.0, 100.0, true) : null
         );
     }
 

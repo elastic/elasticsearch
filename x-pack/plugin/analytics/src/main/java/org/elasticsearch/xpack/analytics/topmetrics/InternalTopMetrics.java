@@ -15,6 +15,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -205,6 +206,11 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             }
             return value.getValue().format(value.getFormat());
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

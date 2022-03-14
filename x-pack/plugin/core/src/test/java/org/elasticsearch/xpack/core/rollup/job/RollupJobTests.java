@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class RollupJobTests extends AbstractDiffableSerializationTestCase<RollupJob> {
+public class RollupJobTests extends SimpleDiffableSerializationTestCase<RollupJob> {
     @Override
     protected Writeable.Reader<Diff<RollupJob>> diffReader() {
         return RollupJob::readJobDiffFrom;

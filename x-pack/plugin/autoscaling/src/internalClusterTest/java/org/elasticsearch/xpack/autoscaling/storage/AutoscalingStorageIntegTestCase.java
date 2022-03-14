@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.autoscaling.LocalStateAutoscaling;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;

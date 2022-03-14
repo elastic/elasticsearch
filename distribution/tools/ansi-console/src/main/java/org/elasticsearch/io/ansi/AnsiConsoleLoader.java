@@ -40,7 +40,11 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
     // package-private for tests
     static @Nullable ConsoleLoader.Console newConsole(AnsiPrintStream out) {
         if (isValidConsole(out)) {
-            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), Ansi.isEnabled(), tryExtractPrintCharset(out));
+            // virtual terminal does support ANSI escape sequences, but the JVM must toggle a mode
+            // option on the console using the Kernel32 API, which JANSI knows to do, but ES currently lacks
+            // the testing infra to assert the behavior
+            boolean ansiEnabled = Ansi.isEnabled() && out.getType() != AnsiType.VirtualTerminal;
+            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), ansiEnabled, tryExtractPrintCharset(out));
         } else {
             return null;
         }

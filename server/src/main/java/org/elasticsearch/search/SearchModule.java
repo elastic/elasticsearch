@@ -119,6 +119,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.prefix.InternalIpPrefix;
+import org.elasticsearch.search.aggregations.bucket.prefix.IpPrefixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
@@ -131,6 +133,8 @@ import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregati
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -164,17 +168,16 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -182,6 +185,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationB
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -361,7 +365,7 @@ public class SearchModule {
         );
         registerAggregation(
             new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER).addResultReader(
-                InternalSum::new
+                Sum::new
             ).setAggregatorRegistrar(SumAggregationBuilder::registerAggregators),
             builder
         );
@@ -373,7 +377,7 @@ public class SearchModule {
         );
         registerAggregation(
             new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder.PARSER).addResultReader(
-                InternalMax::new
+                Max::new
             ).setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators),
             builder
         );
@@ -464,6 +468,15 @@ public class SearchModule {
             builder
         );
         registerAggregation(
+            new AggregationSpec(
+                RandomSamplerAggregationBuilder.NAME,
+                RandomSamplerAggregationBuilder::new,
+                RandomSamplerAggregationBuilder.PARSER
+            ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)),
+            builder
+        );
+        registerAggregation(
             new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse)
                 .addResultReader(InternalSampler.NAME, InternalSampler::new)
                 .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
@@ -526,6 +539,12 @@ public class SearchModule {
             new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new, DateRangeAggregationBuilder.PARSER)
                 .addResultReader(InternalDateRange::new)
                 .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(IpPrefixAggregationBuilder.NAME, IpPrefixAggregationBuilder::new, IpPrefixAggregationBuilder.PARSER)
+                .addResultReader(InternalIpPrefix::new)
+                .setAggregatorRegistrar(IpPrefixAggregationBuilder::registerAggregators),
             builder
         );
         registerAggregation(

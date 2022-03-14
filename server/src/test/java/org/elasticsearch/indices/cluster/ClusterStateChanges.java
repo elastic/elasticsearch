@@ -36,8 +36,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -45,6 +46,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdate
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.coordination.JoinTask;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -65,6 +67,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -91,7 +94,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -100,9 +102,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
 import static org.hamcrest.Matchers.notNullValue;
@@ -110,6 +112,7 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -324,7 +327,7 @@ public class ClusterStateChanges {
         newState = MetadataIndexStateServiceUtils.closeRoutingTable(
             newState,
             blockedIndices,
-            blockedIndices.keySet().stream().collect(Collectors.toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
+            blockedIndices.keySet().stream().collect(toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
         );
         return allocationService.reroute(newState, "indices closed");
     }
@@ -345,46 +348,44 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
             joinTaskExecutor,
             clusterState,
-            nodes.stream()
-                .map(
-                    node -> new JoinTaskExecutor.Task(
-                        node,
-                        "dummy reason",
-                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                    )
+            List.of(
+                JoinTask.singleNode(
+                    discoveryNode,
+                    "dummy reason",
+                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
                 )
-                .collect(Collectors.toList())
+            )
         );
     }
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
-        joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
-        joinNodes.addAll(
-            nodes.stream()
-                .map(
-                    node -> new JoinTaskExecutor.Task(
-                        node,
-                        "dummy reason",
-                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                    )
+        return runTasks(
+            joinTaskExecutor,
+            clusterState,
+            List.of(
+                JoinTask.completingElection(
+                    nodes.stream()
+                        .map(
+                            node -> new JoinTask.NodeJoinTask(
+                                node,
+                                "dummy reason",
+                                ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                            )
+                        )
                 )
-                .collect(Collectors.toList())
+            )
         );
-
-        return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
             nodeRemovalExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).collect(Collectors.toList())
+            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).toList()
         );
     }
 
@@ -403,12 +404,12 @@ public class ClusterStateChanges {
                     createTestListener()
                 )
             )
-            .collect(Collectors.toList());
+            .toList();
         return runTasks(shardFailedClusterStateTaskExecutor, clusterState, entries);
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        final Map<ShardRouting, Long> entries = startedShards.stream().collect(Collectors.toMap(Function.identity(), startedShard -> {
+        final Map<ShardRouting, Long> entries = startedShards.stream().collect(toMap(Function.identity(), startedShard -> {
             final IndexMetadata indexMetadata = clusterState.metadata().index(startedShard.shardId().getIndex());
             return indexMetadata != null ? indexMetadata.primaryTerm(startedShard.shardId().id()) : 0L;
         }));
@@ -433,19 +434,17 @@ public class ClusterStateChanges {
                         createTestListener()
                     )
                 )
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 
-    private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
+    private <T extends ClusterStateTaskListener> ClusterState runTasks(
+        ClusterStateTaskExecutor<T> executor,
+        ClusterState clusterState,
+        List<T> entries
+    ) {
         try {
-            ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults().values()) {
-                if (taskResult.isSuccess() == false) {
-                    throw taskResult.getFailure();
-                }
-            }
-            return result.resultingState();
+            return ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(clusterState, executor, entries);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -465,16 +464,20 @@ public class ClusterStateChanges {
         });
     }
 
+    @SuppressWarnings("unchecked")
     private ClusterState executeClusterStateUpdateTask(ClusterState state, Runnable runnable) {
-        ClusterState[] result = new ClusterState[1];
+        ClusterState[] resultingState = new ClusterState[1];
+        doCallRealMethod().when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         doAnswer(invocationOnMock -> {
-            ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
-            result[0] = task.execute(state);
+            var task = (ClusterStateTaskListener) invocationOnMock.getArguments()[1];
+            var executor = (ClusterStateTaskExecutor<ClusterStateTaskListener>) invocationOnMock.getArguments()[3];
+            resultingState[0] = ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(state, executor, List.of(task));
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        }).when(clusterService)
+            .submitStateUpdateTask(anyString(), any(ClusterStateTaskListener.class), any(ClusterStateTaskConfig.class), any());
         runnable.run();
-        assertThat(result[0], notNullValue());
-        return result[0];
+        assertThat(resultingState[0], notNullValue());
+        return resultingState[0];
     }
 
     private ActionListener<TransportResponse.Empty> createTestListener() {

@@ -41,16 +41,13 @@ public class Task {
      */
     public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
-    public static final Set<String> HEADERS_TO_COPY = Set.of(
-        X_OPAQUE_ID_HTTP_HEADER,
-        TRACE_PARENT_HTTP_HEADER,
-        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
-    );
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+
+    public static final Set<String> HEADERS_TO_COPY = Set.of(X_OPAQUE_ID_HTTP_HEADER, TRACE_ID, X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
 
     private final long id;
 
@@ -194,6 +191,25 @@ public class Task {
      */
     public Status getStatus() {
         return null;
+    }
+
+    @Override
+    public String toString() {
+        return "Task{id="
+            + id
+            + ", type='"
+            + type
+            + "', action='"
+            + action
+            + "', description='"
+            + description
+            + "', parentTask="
+            + parentTask
+            + ", startTime="
+            + startTime
+            + ", startTimeNanos="
+            + startTimeNanos
+            + '}';
     }
 
     /**

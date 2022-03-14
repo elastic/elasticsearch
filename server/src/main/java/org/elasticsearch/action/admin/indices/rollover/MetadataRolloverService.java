@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
@@ -242,15 +242,17 @@ public class MetadataRolloverService {
             );
         }
 
+        final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
         final DataStream ds = dataStream.getDataStream();
@@ -270,11 +272,14 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor,
             now
         );
+        createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
             silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), newGeneration))
+            (builder, indexMetadata) -> builder.put(
+                ds.rollover(indexMetadata.getIndex(), newGeneration, templateV2.getDataStreamTemplate().getIndexMode())
+            )
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
@@ -412,7 +417,7 @@ public class MetadataRolloverService {
                         Locale.ROOT,
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias,
-                        template.aliases().keys(),
+                        template.aliases().keySet(),
                         template.name()
                     )
                 );
@@ -431,7 +436,7 @@ public class MetadataRolloverService {
                     + indexAbstraction.getType().getDisplayName()
                     + "] but one of ["
                     + Strings.collectionToCommaDelimitedString(
-                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).collect(Collectors.toList())
+                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).toList()
                     )
                     + "] was expected"
             );

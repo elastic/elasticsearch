@@ -14,7 +14,6 @@
           name: os
           values:
             - "centos-7&&immutable"
-            - "centos-8&&immutable"
             - "amazon&&immutable"
             - "debian-10&&immutable"
             - "debian-11&&immutable"

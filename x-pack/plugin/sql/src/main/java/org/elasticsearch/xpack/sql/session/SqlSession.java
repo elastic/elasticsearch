@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
@@ -113,8 +115,13 @@ public class SqlSession implements Session {
             return;
         }
 
-        preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
+        preAnalyze(parsed, r -> {
+            Analyzer analyzer = new Analyzer(
+                configuration,
+                functionRegistry,
+                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id)),
+                verifier
+            );
             return analyzer.analyze(parsed, verify);
         }, listener);
     }

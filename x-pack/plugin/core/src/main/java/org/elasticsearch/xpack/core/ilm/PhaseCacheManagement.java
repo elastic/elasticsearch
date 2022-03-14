@@ -18,9 +18,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
@@ -54,7 +54,7 @@ public final class PhaseCacheManagement {
         final IndexMetadata idxMeta = state.metadata().index(index);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         refreshPhaseDefinition(metadataBuilder, idxMeta, updatedPolicy);
-        return ClusterState.builder(state).metadata(metadataBuilder.build(false)).build();
+        return ClusterState.builder(state).metadata(metadataBuilder.build()).build();
     }
 
     /**
@@ -122,7 +122,7 @@ public final class PhaseCacheManagement {
     ) {
         Metadata.Builder mb = Metadata.builder(state.metadata());
         if (updateIndicesForPolicy(mb, state, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
-            return ClusterState.builder(state).metadata(mb.build(false)).build();
+            return ClusterState.builder(state).metadata(mb).build();
         }
         return state;
     }
@@ -154,7 +154,7 @@ public final class PhaseCacheManagement {
             .indices()
             .values()
             .stream()
-            .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
+            .filter(meta -> newPolicy.getName().equals(meta.getLifecyclePolicyName()))
             .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy(), licenseState))
             .collect(Collectors.toList());
 
@@ -280,8 +280,7 @@ public final class PhaseCacheManagement {
         final PhaseExecutionInfo phaseExecutionInfo;
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                 phaseDef
             )
         ) {

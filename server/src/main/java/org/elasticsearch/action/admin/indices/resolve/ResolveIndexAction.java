@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -53,6 +54,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -436,6 +439,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final IndexAbstractionResolver indexAbstractionResolver;
+        private final boolean ccsCheckCompatibility;
 
         @Inject
         public TransportAction(
@@ -450,10 +454,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+            this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
+            if (ccsCheckCompatibility) {
+                checkCCSVersionCompatibility(request);
+            }
             final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 request.indicesOptions(),

@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
@@ -50,7 +51,5 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 testClusters.configureEach {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

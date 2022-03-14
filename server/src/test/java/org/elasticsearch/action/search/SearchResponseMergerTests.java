@@ -20,11 +20,13 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -451,29 +453,30 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     public void testMergeAggs() throws InterruptedException {
+        String maxAggName = randomAlphaOfLengthBetween(5, 8);
+        String rangeAggName = randomAlphaOfLengthBetween(5, 8);
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(
+                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                    .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+            )
         );
-        String maxAggName = randomAlphaOfLengthBetween(5, 8);
-        String rangeAggName = randomAlphaOfLengthBetween(5, 8);
         int totalCount = 0;
         double maxValue = Double.MIN_VALUE;
         for (int i = 0; i < numResponses; i++) {
             double value = randomDouble();
             maxValue = Math.max(value, maxValue);
-            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
+            Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
             InternalDateRange.Factory factory = new InternalDateRange.Factory();
             int count = randomIntBetween(1, 1000);
             totalCount += count;
             InternalDateRange.Bucket bucket = factory.createBucket(
                 "bucket",
                 0D,
-                0D,
-                10000D,
                 10000D,
                 count,
                 InternalAggregations.EMPTY,
@@ -509,7 +512,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(0, mergedResponse.getHits().getHits().length);
         assertEquals(2, mergedResponse.getAggregations().asList().size());
         Max max = mergedResponse.getAggregations().get(maxAggName);
-        assertEquals(maxValue, max.getValue(), 0d);
+        assertEquals(maxValue, max.value(), 0d);
         Range range = mergedResponse.getAggregations().get(rangeAggName);
         assertEquals(1, range.getBuckets().size());
         Range.Bucket bucket = range.getBuckets().get(0);

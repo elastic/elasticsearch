@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -16,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;

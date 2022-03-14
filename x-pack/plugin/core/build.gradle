@@ -7,6 +7,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -48,6 +49,7 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(":client:rest-high-level")
+  testImplementation project(":test:x-content")
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
 
@@ -76,7 +78,7 @@ tasks.named("processResources").configure {
     inputs.properties(expansions)
     filter("tokens" : expansions, ReplaceTokens.class)
   }
-  String licenseKey = providers.systemProperty("license.key").forUseAtConfigurationTime().getOrNull()
+  String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (BuildParams.isSnapshotBuild()) {
@@ -133,6 +135,13 @@ testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  //disabling ILM history as it disturbs testDSXpackUsage test
+  setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

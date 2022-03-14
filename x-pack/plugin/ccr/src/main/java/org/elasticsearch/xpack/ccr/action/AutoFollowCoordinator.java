@@ -32,12 +32,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -305,7 +305,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     Runnable successHandler,
                     Consumer<Exception> failureHandler
                 ) {
-                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers, clusterService.state());
                     followerClient.execute(
                         PutFollowAction.INSTANCE,
                         request,
@@ -331,7 +331,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    }, newExecutor());
                 }
 
             };
@@ -369,6 +369,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         updatedFollowers.putAll(newAutoFollowers);
         removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
         this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
@@ -600,8 +605,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         )
                     );
                 } else {
-                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
-                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
+                    final IndexMetadata leaderIndexMetadata = remoteMetadata.getIndexSafe(indexToFollow);
+                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
                         String message = String.format(
                             Locale.ROOT,
                             "index [%s] cannot be followed, because soft deletes are not enabled",
@@ -615,7 +620,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             }
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
-                    } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
+                    } else if (leaderIndexMetadata.isSearchableSnapshot()) {
                         String message = String.format(
                             Locale.ROOT,
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",

@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -40,10 +41,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,14 +59,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -98,13 +100,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
+    private final List<BiConsumer<Snapshot, Version>> preRestoreChecks;
+
     public RepositoriesService(
         Settings settings,
         ClusterService clusterService,
         TransportService transportService,
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        List<BiConsumer<Snapshot, Version>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -123,6 +128,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
             threadPool::relativeTimeInMillis
         );
+        this.preRestoreChecks = preRestoreChecks;
     }
 
     /**
@@ -261,8 +267,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     publicationStep.onResponse(oldState != newState);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     /**
@@ -323,7 +334,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     listener.onResponse(null);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -385,7 +396,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -586,7 +597,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             .filter(r -> r instanceof MeteredBlobStoreRepository)
             .map(r -> (MeteredBlobStoreRepository) r)
             .map(MeteredBlobStoreRepository::statsSnapshot)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public List<RepositoryStatsSnapshot> clearRepositoriesStatsArchive(long maxVersionToClear) {
@@ -734,7 +745,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         long count = 0L;
         List<Index> indices = null;
         for (IndexMetadata indexMetadata : clusterState.metadata()) {
-            if (indexSettingsMatchRepositoryMetadata(indexMetadata.getSettings(), repositoryMetadata)) {
+            if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
                 if (indices == null) {
                     indices = new ArrayList<>();
                 }
@@ -756,8 +767,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
-        if (isSearchableSnapshotStore(indexSettings)) {
+    private static boolean indexSettingsMatchRepositoryMetadata(IndexMetadata indexMetadata, RepositoryMetadata repositoryMetadata) {
+        if (indexMetadata.isSearchableSnapshot()) {
+            final Settings indexSettings = indexMetadata.getSettings();
             final String indexRepositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
             if (Strings.hasLength(indexRepositoryUuid)) {
                 return Objects.equals(repositoryMetadata.uuid(), indexRepositoryUuid);
@@ -774,6 +786,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             "trying to modify or unregister repository that is currently used (" + reason + ')',
             "trying to modify or unregister repository [" + repository + "] that is currently used (" + reason + ')'
         );
+    }
+
+    public List<BiConsumer<Snapshot, Version>> getPreRestoreVersionChecks() {
+        return preRestoreChecks;
     }
 
     @Override

@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -71,7 +72,7 @@ public class AllocationService {
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
-    private SnapshotsInfoService snapshotsInfoService;
+    private final SnapshotsInfoService snapshotsInfoService;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -298,9 +299,8 @@ public class AllocationService {
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
-        RoutingAllocation allocation = new RoutingAllocation(
+        final Supplier<RoutingAllocation> allocationSupplier = () -> new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
@@ -308,7 +308,7 @@ public class AllocationService {
         );
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
             clusterState.metadata(),
-            allocation
+            allocationSupplier
         );
         if (autoExpandReplicaChanges.isEmpty()) {
             return clusterState;
@@ -336,7 +336,7 @@ public class AllocationService {
                 .routingTable(routingTableBuilder.build())
                 .metadata(metadataBuilder)
                 .build();
-            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocation).isEmpty();
+            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocationSupplier).isEmpty();
             return fixedState;
         }
     }
@@ -514,7 +514,7 @@ public class AllocationService {
 
     private void reroute(RoutingAllocation allocation) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
 

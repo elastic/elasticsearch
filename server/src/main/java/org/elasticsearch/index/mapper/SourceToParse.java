@@ -56,7 +56,7 @@ public class SourceToParse {
      * The {@code _id} provided on the request or calculated on the
      * coordinating node. If the index is in {@code time_series} mode then
      * the coordinating node will not calculate the {@code _id}. In that
-     * case this will be {@code null} if one isn't sent on the qurest.
+     * case this will be {@code null} if one isn't sent on the request.
      * <p>
      * Use {@link DocumentParserContext#documentDescription()} to generate
      * a description of the document for errors instead of calling this

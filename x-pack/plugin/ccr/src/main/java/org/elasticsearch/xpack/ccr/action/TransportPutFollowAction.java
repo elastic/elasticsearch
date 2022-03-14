@@ -170,7 +170,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         }
 
         if (remoteDataStream != null) {
-            // when following a backing index then the names of the backing index must be remain the same in the local
+            // when following a backing index then the names of the backing index must remain the same in the local
             // and remote cluster.
             if (request.getLeaderIndex().equals(request.getFollowerIndex()) == false) {
                 listener.onFailure(

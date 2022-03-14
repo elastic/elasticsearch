@@ -243,9 +243,6 @@ public abstract class TransportBroadcastAction<
                         }
                     }
                 }
-                if (shardsResponses.get(shardIndex) == null) {
-                    shardsResponses.set(shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
-                }
                 if (expectedOps == counterOps.incrementAndGet()) {
                     finishHim();
                 }
@@ -265,11 +262,6 @@ public abstract class TransportBroadcastAction<
         }
 
         void setFailure(ShardIterator shardIt, int shardIndex, Exception e) {
-            // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-            if (TransportActions.isShardNotAvailableException(e)) {
-                return;
-            }
-
             if ((e instanceof BroadcastShardOperationFailedException) == false) {
                 e = new BroadcastShardOperationFailedException(shardIt.shardId(), e);
             }

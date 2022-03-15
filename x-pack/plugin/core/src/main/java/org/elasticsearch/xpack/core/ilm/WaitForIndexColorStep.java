@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -130,8 +129,8 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         }
 
         if (indexRoutingTable.allPrimaryShardsActive()) {
-            for (IndexShardRoutingTable shardRouting : indexRoutingTable.getShards().values()) {
-                boolean replicaIndexIsGreen = shardRouting.replicaShards().stream().allMatch(ShardRouting::active);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                boolean replicaIndexIsGreen = indexRoutingTable.shard(i).replicaShards().stream().allMatch(ShardRouting::active);
                 if (replicaIndexIsGreen == false) {
                     return new Result(false, new Info("index is yellow; not all replica shards are active"));
                 }

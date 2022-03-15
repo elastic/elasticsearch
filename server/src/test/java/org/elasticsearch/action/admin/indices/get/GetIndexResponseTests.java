@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
 
@@ -52,7 +51,7 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
             for (int i = 0; i < aliasesNum; i++) {
                 aliasMetadataList.add(
                     GetAliasesResponseTests.createAliasMetadata(
-                        s -> aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toList()).contains(s)
+                        s -> aliasMetadataList.stream().map(AliasMetadata::alias).toList().contains(s)
                     )
                 );
             }

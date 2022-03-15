@@ -18,6 +18,12 @@ public class MultiCharSequence implements CharSequence {
     private final int[] lengths;
     private final List<CharSequence> sequenceList;
 
+    public static MultiCharSequence from(CharSequence... sequences) {
+        List<CharSequence> sequenceList = new ArrayList<>(sequences.length);
+        sequenceList.addAll(Arrays.asList(sequences));
+        return new MultiCharSequence(sequenceList);
+    }
+
     public MultiCharSequence(List<CharSequence> sequenceList) {
         this.sequenceList = sequenceList;
         this.lengths = new int[sequenceList.size()];

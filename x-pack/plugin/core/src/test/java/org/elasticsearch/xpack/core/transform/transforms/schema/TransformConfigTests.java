@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.schema;
 
-import org.elasticsearch.test.AbstractSchemaValidationTestCase;
+import org.elasticsearch.test.xcontent.AbstractSchemaValidationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xpack.core.transform.TransformField;

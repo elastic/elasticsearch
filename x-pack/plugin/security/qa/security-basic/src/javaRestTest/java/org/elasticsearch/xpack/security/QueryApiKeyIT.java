@@ -231,7 +231,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final int total = randomIntBetween(8, 12);
         final List<String> apiKeyNames = IntStream.range(0, total)
             .mapToObj(i -> String.format(Locale.ROOT, "k-%02d", i))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         final List<String> apiKeyIds = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
             apiKeyIds.add(createApiKey(apiKeyNames.get(i), null, authHeader).v1());
@@ -276,21 +276,21 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // assert sort values match the field of API key information
         if ("name".equals(sortField)) {
             assertThat(
-                apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
-                equalTo(apiKeyInfos.stream().map(m -> (String) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList()))
+                apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(),
+                equalTo(apiKeyInfos.stream().map(m -> (String) extractSortValues(m).get(0)).toList())
             );
         } else {
             assertThat(
-                apiKeyInfos.stream().map(m -> (long) m.get("creation")).collect(Collectors.toUnmodifiableList()),
-                equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList()))
+                apiKeyInfos.stream().map(m -> (long) m.get("creation")).toList(),
+                equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).toList())
             );
         }
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("id")).collect(Collectors.toUnmodifiableList()),
+            apiKeyInfos.stream().map(m -> (String) m.get("id")).toList(),
             equalTo(apiKeyIds.subList(from, total))
         );
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
+            apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(),
             equalTo(apiKeyNames.subList(from, total))
         );
 

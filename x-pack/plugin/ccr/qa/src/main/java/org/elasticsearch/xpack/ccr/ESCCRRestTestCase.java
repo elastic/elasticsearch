@@ -57,7 +57,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        final Request request = new Request("POST", "/" + index + "/_doc" + (id == null ? "" : "/" + id));
         request.setJsonEntity(Strings.toString(document));
         assertOK(client.performRequest(request));
     }

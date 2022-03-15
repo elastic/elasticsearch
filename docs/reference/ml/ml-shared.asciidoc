@@ -939,6 +939,7 @@ values are
 --
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
+* `roberta`: Use for RoBERTa-style and BART-style models
 --
 end::inference-config-nlp-tokenization[]
 
@@ -991,6 +992,15 @@ tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 The default for BERT-style tokenization is `512`.
 end::inference-config-nlp-tokenization-bert-max-sequence-length[]
+
+
+tag::inference-config-nlp-tokenization-roberta[]
+RoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-roberta[]
+
+tag::inference-config-nlp-tokenization-roberta-add-prefix-space[]
+Specifies if the tokenization should prefix a space to the tokenized input to the model.
+end::inference-config-nlp-tokenization-roberta-add-prefix-space[]
 
 tag::inference-config-nlp-tokenization-mpnet[]
 MPNet-style tokenization is to be performed with the enclosed settings.

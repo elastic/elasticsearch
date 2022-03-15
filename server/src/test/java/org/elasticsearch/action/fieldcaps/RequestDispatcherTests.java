@@ -81,7 +81,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponseTests.randomIndexResponse;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -839,9 +838,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         for (ShardId shardId : failedShards) {
             failures.put(shardId, new IllegalStateException(randomAlphaOfLength(10)));
         }
-        final List<FieldCapabilitiesIndexResponse> indexResponses = successIndices.stream()
-            .map(index -> randomIndexResponse(index, true))
-            .collect(Collectors.toList());
+        final List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
+        Map<String, List<String>> indicesWithMappingHash = new HashMap<>();
+        for (String index : successIndices) {
+            if (randomBoolean()) {
+                indicesWithMappingHash.computeIfAbsent(index, k -> new ArrayList<>()).add(index);
+            } else {
+                indexResponses.add(
+                    new FieldCapabilitiesIndexResponse(index, null, FieldCapabilitiesIndexResponseTests.randomFieldCaps(), true)
+                );
+            }
+        }
+        indexResponses.addAll(FieldCapabilitiesIndexResponseTests.randomIndexResponsesWithMappingHash(indicesWithMappingHash));
         return new FieldCapabilitiesNodeResponse(indexResponses, failures, unmatchedShards);
     }
 

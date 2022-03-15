@@ -31,7 +31,9 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -45,6 +47,9 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         configureCompileModulePath(project);
     }
 
+    // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
+    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common");
+
     static void configureCompileModulePath(Project project) {
         // first disable Gradle's builtin module path inference
         project.getTasks()
@@ -52,7 +57,8 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             .configureEach(compileTask -> compileTask.getModularity().getInferModulePath().set(false));
 
         // test:framework has split pkgs with server, libs and more. do not use module path
-        if (project.getName().contains("framework")) {
+        var projName = project.toString();
+        if (EXCLUDES.stream().anyMatch(name -> projName.contains(name))) {
             return;
         }
 
@@ -70,10 +76,15 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                 )
             );
         }).getIncoming().artifactView(it -> {
-            it.componentFilter(
-                cf -> walkResolvedComponent(project, compileClasspath.getIncoming().getResolutionResult().getRoot(), isModuleProject)
-                    .anyMatch(cf::equals)
-            );
+            it.componentFilter(cf -> {
+                var visited = new HashSet<ComponentIdentifier>();
+                return walkResolvedComponent(
+                    project,
+                    compileClasspath.getIncoming().getResolutionResult().getRoot(),
+                    isModuleProject,
+                    visited
+                ).anyMatch(cf::equals);
+            });
         }).getFiles();
 
         project.getTasks().named("compileJava", JavaCompile.class).configure(task -> {
@@ -87,24 +98,35 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             task.doFirst(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    System.out.println("%s, Module path args: %s".formatted(project, argsToString(argumentProvider.asArguments())));
-                    System.out.println("%s, Classpath: %s".formatted(project, pathToString(classpath.getAsPath())));
+                    // System.out.println("%s, Module path args: %s".formatted(project, argsToString(argumentProvider.asArguments())));
+                    // System.out.println("%s, Classpath: %s".formatted(project, pathToString(classpath.getAsPath())));
                 }
             });
         });
     }
 
-    static Stream<ComponentIdentifier> walkResolvedComponent(Project project, ResolvedComponentResult result, boolean isModuleDependency) {
+    static Stream<ComponentIdentifier> walkResolvedComponent(
+        Project project,
+        ResolvedComponentResult result,
+        boolean isModuleDependency,
+        Set<ComponentIdentifier> visited
+    ) {
         return result.getDependencies()
             .stream()
             .filter(ResolvedDependencyResult.class::isInstance)
             .map(ResolvedDependencyResult.class::cast)
             .filter(it -> {
                 var id = it.getSelected().getId();
+                if (visited.contains(id)) {
+                    return false;
+                }
+                visited.add(id);
                 return isModuleDependency
                     || (id instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
             })
-            .flatMap(it -> Stream.concat(walkResolvedComponent(project, it.getSelected(), true), Stream.of(it.getSelected().getId())));
+            .flatMap(
+                it -> Stream.concat(walkResolvedComponent(project, it.getSelected(), true, visited), Stream.of(it.getSelected().getId()))
+            );
     }
 
     static class CompileModulePathArgumentProvider implements CommandLineArgumentProvider, Named {

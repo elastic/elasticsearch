@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
-  classname 'org.elasticsearch.xpack.security.Security'
+  classname 'org.elasticsearch.xpack.plugin.security/org.elasticsearch.xpack.security.Security'
   requiresKeystore true
   extendedPlugins = ['x-pack-core']
 }
@@ -142,6 +142,10 @@ dependencies {
   testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
   testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
 }
 
 tasks.named("processInternalClusterTestResources").configure {

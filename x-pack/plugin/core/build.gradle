@@ -16,7 +16,7 @@ archivesBaseName = 'x-pack-core'
 esplugin {
   name 'x-pack-core'
   description 'Elasticsearch Expanded Pack Plugin - Core'
-  classname 'org.elasticsearch.xpack.core.XPackPlugin'
+  classname 'org.elasticsearch.xpack.plugin.core/org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController false
   requiresKeystore false
 }
@@ -61,6 +61,10 @@ dependencies {
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
 
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-requires-automatic,-missing-explicit-ctor")
 }
 
 ext.expansions = [

@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.lang.reflect.Constructor;
 import java.net.URI;
@@ -488,7 +489,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private List<Tuple<PluginInfo, Plugin>> loadBundles(Set<Bundle> bundles) {
         List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
-        Map<String, Tuple<Plugin, ClassLoader>> loaded = new HashMap<>();
+        Map<String, Tuple<Plugin, LoaderAndLayer>> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
@@ -676,36 +677,47 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return className.substring(0, index);
     }
 
+    record LoaderAndLayer(ClassLoader loader, ModuleLayer layer) {}
+
     @SuppressForbidden(reason = "I need to convert URL's to Paths")
-    static final ClassLoader moduleLoader(Bundle bundle, ClassLoader parentLoader) {
-        PrivilegedAction<ClassLoader> pa = () -> {
+    static final LoaderAndLayer moduleLoader(Bundle bundle, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {
+        PrivilegedAction<LoaderAndLayer> pa = () -> {
             assert bundle.plugin.getModuleName().isPresent();
             var moduleName = bundle.plugin.getModuleName().get();
             var paths = bundle.urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
             var finder = ModuleFinder.of(paths);
-            var parentLayer = ModuleLayer.boot();
-            var configuration = parentLayer.configuration().resolve(ModuleFinder.of(), finder, Set.of(moduleName));
-            var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentLayer), parentLoader);
+            List<ModuleLayer> pls;
+            List<Configuration> cfs;
+            if (parentLayers == null || parentLayers.isEmpty()) {
+                pls = List.of(ModuleLayer.boot());
+                cfs = List.of(ModuleLayer.boot().configuration());
+            } else {
+                pls = parentLayers;
+                cfs = parentLayers.stream().map(ModuleLayer::configuration).toList();
+            }
+            // TODO resolve AND BIND ?
+            var configuration = Configuration.resolve(ModuleFinder.of(), cfs, finder, Set.of(moduleName));
+            var controller = ModuleLayer.defineModulesWithOneLoader(configuration, pls, parentLoader);
             var layer = controller.layer();
             ClassLoader loader = layer.findLoader(moduleName);
             var mainModule = layer.findModule(moduleName).get();
             // ensure that the main class is accessible to server
             controller.addOpens(mainModule, toPackageName(bundle.plugin.getClassname()), PluginsService.class.getModule());
             logger.info("plugin module loader for {}", moduleName);
-            return loader;
+            return new LoaderAndLayer(loader, layer);
         };
         return AccessController.doPrivileged(pa);
     }
 
-    private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, ClassLoader>> loaded) {
+    private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, LoaderAndLayer>> loaded) {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
 
         // collect loaders of extended plugins
-        List<ClassLoader> extendedLoaders = new ArrayList<>();
+        List<LoaderAndLayer> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            Tuple<Plugin, ClassLoader> extendedPlugin = loaded.get(extendedPluginName);
+            Tuple<Plugin, LoaderAndLayer> extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin.v1()) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
@@ -713,36 +725,47 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             extendedLoaders.add(extendedPlugin.v2());
         }
 
-        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
+        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(
+            getClass().getClassLoader(),
+            extendedLoaders.stream().map(LoaderAndLayer::loader).toList()
+        );
         ClassLoader spiLoader = null;
         if (bundle.spiUrls != null) {
+            // TODO: should this be in it's own module/layer ? or part of painless??
             spiLoader = URLClassLoader.newInstance(bundle.spiUrls.toArray(new URL[0]), parentLoader);
         }
 
-        ClassLoader loader;
+        LoaderAndLayer lal;
         if (bundle.plugin.getModuleName().isPresent()) {
-            loader = moduleLoader(bundle, spiLoader == null ? parentLoader : spiLoader);
+            lal = moduleLoader(
+                bundle,
+                spiLoader == null ? parentLoader : spiLoader,
+                extendedLoaders.stream().map(LoaderAndLayer::layer).toList()
+            );
         } else {
-            loader = URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), spiLoader == null ? parentLoader : spiLoader);
+            lal = new LoaderAndLayer(
+                URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), spiLoader == null ? parentLoader : spiLoader),
+                null
+            );
         }
 
         if (spiLoader == null) {
             // use full implementation for plugins extending this one
-            spiLoader = loader;
+            spiLoader = lal.loader();
         }
 
         // reload SPI with any new services from the plugin
-        reloadLuceneSPI(loader);
+        reloadLuceneSPI(lal.loader());
 
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         try {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            privilegedSetContextClassLoader(loader);
+            privilegedSetContextClassLoader(lal.loader());
 
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-            if (loader != pluginClass.getClassLoader()) {
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), lal.loader());
+            if (lal.loader() != pluginClass.getClassLoader()) {
                 throw new IllegalStateException(
                     "Plugin ["
                         + name
@@ -754,7 +777,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            loaded.put(name, Tuple.tuple(plugin, spiLoader));
+            loaded.put(name, Tuple.tuple(plugin, lal));
             return plugin;
         } finally {
             privilegedSetContextClassLoader(cl);

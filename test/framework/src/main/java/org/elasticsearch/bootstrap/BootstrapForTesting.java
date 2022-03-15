@@ -187,7 +187,7 @@ public class BootstrapForTesting {
                     int i;
                     if ((i = clazz.indexOf('/')) != -1) {
                         // it's a module qualified name
-                        //this.moduleName = classname.substring(0, i);
+                        // this.moduleName = classname.substring(0, i);
                         clazz = clazz.substring(i + 1);
                     }
 

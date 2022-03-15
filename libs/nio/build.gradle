@@ -19,6 +19,9 @@ dependencies {
   }
 }
 
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor")
+}
 
 tasks.named('forbiddenApisMain').configure {
   // nio does not depend on core, so only jdk signatures should be checked

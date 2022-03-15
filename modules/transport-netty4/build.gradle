@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
  */
 esplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+  classname 'org.elasticsearch.module.transport.netty4/org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
@@ -41,6 +41,11 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
+  options.compilerArgs.add("-Xlint:-module") // module name ends with a digit
 }
 
 restResources {

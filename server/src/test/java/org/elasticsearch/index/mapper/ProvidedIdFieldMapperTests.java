@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -82,6 +83,14 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
                 valueFetcher.setNextReader(context);
                 assertEquals(List.of(id), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
             }
+        );
+    }
+
+    public void testDescription() throws IOException {
+        String id = randomAlphaOfLength(4);
+        assertThat(
+            ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(source(id, b -> {}, randomAlphaOfLength(2))),
+            equalTo("document with id '" + id + "'")
         );
     }
 

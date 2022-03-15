@@ -20,6 +20,7 @@ import java.nio.file.Path
 
 plugins {
   id 'base'
+  id 'elasticsearch.distro'
 }
 
 configurations {
@@ -129,40 +130,6 @@ def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModu
   outputs.dir "${externalTestOutputs}/modules"
 }
 
-Configuration moduleZip(Project module) {
-  Dependency dep = project.dependencies.project(path: module.path, configuration: 'zip')
-  Configuration config = project.configurations.detachedConfiguration(dep)
-  return config
-}
-
-void copyModule(TaskProvider<Sync> copyTask, Project module) {
-  copyTask.configure {
-    Configuration moduleConfig = moduleZip(module)
-
-    dependsOn moduleConfig
-    from({ zipTree(moduleConfig.singleFile) }) {
-      includeEmptyDirs false
-
-      // these are handled separately in the log4j config tasks below
-      exclude '*/config/log4j2.properties'
-      exclude 'config/log4j2.properties'
-
-      eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
-        // Copy all non config/bin files
-        // Note these might be unde a subdirectory in the case of a meta plugin
-        if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
-          details.relativePath = details.relativePath.prepend('modules', name)
-        } else if ((details.relativePath.pathString ==~ /([^\/]+\/)(config|bin)\/.*/)) {
-          // this is the meta plugin case, in which we need to remove the intermediate dir
-          String[] segments = details.relativePath.segments
-          details.relativePath = new RelativePath(true, segments.takeRight(segments.length - 1))
-        }
-      }
-    }
-  }
-}
-
 def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
   mustRunAfter('processDefaultOutputs')
 
@@ -209,9 +176,9 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
     }
   }
 
-  copyModule(processDefaultOutputsTaskProvider, module)
+  distro.copyModule(processDefaultOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
-    copyModule(processIntegTestOutputsTaskProvider, module)
+    distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
   restTestExpansions['expected.modules.count'] += 1
@@ -227,16 +194,16 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
       source xpackModule.file('src/main/java')
     }
   }
-  copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
   if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-    copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
   }
 }
 
-copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
+distro.copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
-  copyModule(processExternalTestOutputsTaskProvider, testModule)
+  distro.copyModule(processExternalTestOutputsTaskProvider, testModule)
 }
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {

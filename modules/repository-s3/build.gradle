@@ -71,10 +71,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-tasks.named("bundlePlugin").configure {
-  from('config/repository-s3') {
+esplugin.bundleSpec.from('config/repository-s3') {
     into 'config'
-  }
 }
 
 boolean useFixture = false

@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
-import org.gradle.api.tasks.bundling.Zip;
 
 import java.util.Optional;
 
@@ -111,11 +110,12 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
     protected static void addNoticeGeneration(final Project project, PluginPropertiesExtension extension) {
         final var licenseFile = extension.getLicenseFile();
         var tasks = project.getTasks();
+        var bundleSpec = extension.getBundleSpec();
         if (licenseFile != null) {
-            tasks.withType(Zip.class).named("bundlePlugin").configure(zip -> zip.from(licenseFile.getParentFile(), copySpec -> {
-                copySpec.include(licenseFile.getName());
-                copySpec.rename(s -> "LICENSE.txt");
-            }));
+            bundleSpec.from(licenseFile.getParentFile(), s -> {
+                s.include(licenseFile.getName());
+                s.rename(f -> "LICENSE.txt");
+            });
         }
 
         final var noticeFile = extension.getNoticeFile();
@@ -124,7 +124,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
                 noticeTask.setInputFile(noticeFile);
                 noticeTask.source(Util.getJavaMainSourceSet(project).get().getAllJava());
             });
-            tasks.withType(Zip.class).named("bundlePlugin").configure(task -> task.from(generateNotice));
+            bundleSpec.from(generateNotice);
         }
     }
 }

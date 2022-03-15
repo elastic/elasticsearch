@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.Tessellator;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -106,7 +107,8 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             int precision = randomIntBetween(0, 3);
             Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, randomValueOtherThanMany(g -> {
                 try {
-                    GeometryNormalizer.apply(Orientation.CCW, g);
+                    // make sure is a valid shape
+                    new GeoShapeIndexer(Orientation.CCW, "test").indexShape(g);
                     return false;
                 } catch (Exception e) {
                     return true;

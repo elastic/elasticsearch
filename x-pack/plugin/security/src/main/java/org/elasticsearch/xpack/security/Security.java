@@ -1517,8 +1517,8 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
-    ) {
+        ClusterSettings clusterSettings,
+        List<Tracer> tracers) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
@@ -1536,8 +1536,8 @@ public class Security extends Plugin
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
-                getNettySharedGroupFactory(settings)
-            )
+                getNettySharedGroupFactory(settings),
+                tracers)
         );
         httpTransports.put(
             SecurityField.NIO,
@@ -1552,7 +1552,8 @@ public class Security extends Plugin
                 ipFilter.get(),
                 getSslService(),
                 getNioGroupFactory(settings),
-                clusterSettings
+                clusterSettings,
+                tracers
             )
         );
 

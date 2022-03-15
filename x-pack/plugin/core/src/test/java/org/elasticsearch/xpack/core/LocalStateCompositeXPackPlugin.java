@@ -87,6 +87,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -392,16 +393,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-        Settings settings,
-        ThreadPool threadPool,
-        BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
-        CircuitBreakerService circuitBreakerService,
-        NamedXContentRegistry xContentRegistry,
-        NetworkService networkService,
-        HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
-    ) {
+            Settings settings,
+            ThreadPool threadPool,
+            BigArrays bigArrays,
+            PageCacheRecycler pageCacheRecycler,
+            CircuitBreakerService circuitBreakerService,
+            NamedXContentRegistry xContentRegistry,
+            NetworkService networkService,
+            HttpServerTransport.Dispatcher dispatcher,
+            ClusterSettings clusterSettings,
+            List<Tracer> tracers) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
             .forEach(
@@ -415,8 +416,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
-                        clusterSettings
-                    )
+                        clusterSettings,
+                            null)
                 )
             );
         return transports;

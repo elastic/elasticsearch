@@ -34,6 +34,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 
 import javax.net.ssl.SSLEngine;
 
@@ -83,7 +84,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
@@ -115,7 +117,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
 
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
@@ -147,7 +150,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
 
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
@@ -179,7 +183,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
 
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
@@ -206,7 +211,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
@@ -232,7 +238,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
         factory = transport.channelFactory();
         channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
@@ -267,7 +274,8 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             mock(IPFilter.class),
             sslService,
             nioGroupFactory,
-            randomClusterSettings()
+            randomClusterSettings(),
+            List.of()
         );
     }
 }

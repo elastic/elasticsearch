@@ -31,4 +31,6 @@ public interface Tracer {
     Map<String, String> getSpanHeadersById(String id);
 
     void setTraceParent(String traceId);
+
+    void addEvent(Traceable traceable, String name);
 }

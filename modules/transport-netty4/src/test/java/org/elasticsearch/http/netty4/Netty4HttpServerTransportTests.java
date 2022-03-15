@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -174,7 +175,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                List.of()
             )
         ) {
             transport.start();
@@ -223,7 +225,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 new NullDispatcher(),
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                List.of()
             )
         ) {
             transport.start();
@@ -241,7 +244,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     xContentRegistry(),
                     new NullDispatcher(),
                     clusterSettings,
-                    new SharedGroupFactory(settings)
+                    new SharedGroupFactory(settings),
+                    List.of()
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -293,7 +297,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                List.of()
             )
         ) {
             transport.start();
@@ -355,7 +360,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                List.of()
             )
         ) {
             transport.start();
@@ -424,7 +430,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 randomClusterSettings(),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                List.of()
             )
         ) {
             transport.start();
@@ -497,7 +504,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 randomClusterSettings(),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                List.of()
             )
         ) {
             transport.start();

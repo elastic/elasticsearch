@@ -26,6 +26,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -85,16 +86,16 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-        Settings settings,
-        ThreadPool threadPool,
-        BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
-        CircuitBreakerService circuitBreakerService,
-        NamedXContentRegistry xContentRegistry,
-        NetworkService networkService,
-        HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
-    ) {
+            Settings settings,
+            ThreadPool threadPool,
+            BigArrays bigArrays,
+            PageCacheRecycler pageCacheRecycler,
+            CircuitBreakerService circuitBreakerService,
+            NamedXContentRegistry xContentRegistry,
+            NetworkService networkService,
+            HttpServerTransport.Dispatcher dispatcher,
+            ClusterSettings clusterSettings,
+            List<Tracer> tracers) {
         return Collections.singletonMap(
             NIO_HTTP_TRANSPORT_NAME,
             () -> new NioHttpServerTransport(
@@ -106,7 +107,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                 xContentRegistry,
                 dispatcher,
                 getNioGroupFactory(settings),
-                clusterSettings
+                clusterSettings,
+                tracers
             )
         );
     }

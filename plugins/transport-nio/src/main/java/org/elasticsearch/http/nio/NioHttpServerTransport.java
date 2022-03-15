@@ -32,6 +32,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.PageAllocator;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
@@ -82,9 +84,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         NioGroupFactory nioGroupFactory,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        List<Tracer> tracers
     ) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracers);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.nioGroupFactory = nioGroupFactory;
 

@@ -161,8 +161,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            ) {
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    tracers) {
 
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -275,8 +275,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     assertThat(mediaTypeHeaderException.getMessage(), equalTo("Invalid media-type value on headers " + failedHeaderNames));
                 }
             },
-            clusterSettings
-        ) {
+            clusterSettings,
+                tracers) {
             @Override
             protected HttpServerChannel bind(InetSocketAddress hostAddress) {
                 return null;
@@ -325,8 +325,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                clusterSettings
-            ) {
+                clusterSettings,
+                    tracers) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
                     return null;
@@ -478,8 +478,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                clusterSettings
-            ) {
+                clusterSettings,
+                    tracers) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
                     return null;
@@ -534,8 +534,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            ) {
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    tracers) {
 
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -609,8 +609,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                clusterSettings
-            ) {
+                clusterSettings,
+                    tracers) {
 
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {

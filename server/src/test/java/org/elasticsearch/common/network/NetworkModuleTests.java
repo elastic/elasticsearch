@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -111,16 +112,16 @@ public class NetworkModuleTests extends ESTestCase {
         NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-                Settings settings,
-                ThreadPool threadPool,
-                BigArrays bigArrays,
-                PageCacheRecycler pageCacheRecycler,
-                CircuitBreakerService circuitBreakerService,
-                NamedXContentRegistry xContentRegistry,
-                NetworkService networkService,
-                HttpServerTransport.Dispatcher requestDispatcher,
-                ClusterSettings clusterSettings
-            ) {
+                    Settings settings,
+                    ThreadPool threadPool,
+                    BigArrays bigArrays,
+                    PageCacheRecycler pageCacheRecycler,
+                    CircuitBreakerService circuitBreakerService,
+                    NamedXContentRegistry xContentRegistry,
+                    NetworkService networkService,
+                    HttpServerTransport.Dispatcher requestDispatcher,
+                    ClusterSettings clusterSettings,
+                    List<Tracer> tracers) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -156,16 +157,16 @@ public class NetworkModuleTests extends ESTestCase {
 
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-                Settings settings,
-                ThreadPool threadPool,
-                BigArrays bigArrays,
-                PageCacheRecycler pageCacheRecycler,
-                CircuitBreakerService circuitBreakerService,
-                NamedXContentRegistry xContentRegistry,
-                NetworkService networkService,
-                HttpServerTransport.Dispatcher requestDispatcher,
-                ClusterSettings clusterSettings
-            ) {
+                    Settings settings,
+                    ThreadPool threadPool,
+                    BigArrays bigArrays,
+                    PageCacheRecycler pageCacheRecycler,
+                    CircuitBreakerService circuitBreakerService,
+                    NamedXContentRegistry xContentRegistry,
+                    NetworkService networkService,
+                    HttpServerTransport.Dispatcher requestDispatcher,
+                    ClusterSettings clusterSettings,
+                    List<Tracer> tracers) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -199,16 +200,16 @@ public class NetworkModuleTests extends ESTestCase {
 
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-                Settings settings,
-                ThreadPool threadPool,
-                BigArrays bigArrays,
-                PageCacheRecycler pageCacheRecycler,
-                CircuitBreakerService circuitBreakerService,
-                NamedXContentRegistry xContentRegistry,
-                NetworkService networkService,
-                HttpServerTransport.Dispatcher requestDispatcher,
-                ClusterSettings clusterSettings
-            ) {
+                    Settings settings,
+                    ThreadPool threadPool,
+                    BigArrays bigArrays,
+                    PageCacheRecycler pageCacheRecycler,
+                    CircuitBreakerService circuitBreakerService,
+                    NamedXContentRegistry xContentRegistry,
+                    NetworkService networkService,
+                    HttpServerTransport.Dispatcher requestDispatcher,
+                    ClusterSettings clusterSettings,
+                    List<Tracer> tracers) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);

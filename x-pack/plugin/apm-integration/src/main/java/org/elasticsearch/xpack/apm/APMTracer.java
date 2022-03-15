@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Traceable;
@@ -85,7 +86,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     );
 
     private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
-    private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Tuple<Span,Scope>> spans = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SecureString endpoint;
@@ -265,13 +266,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
             // 7.16.
             spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-            spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
+            spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
 
             final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
             if (xOpaqueId != null) {
                 spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
             }
-            return spanBuilder.startSpan();
+            final Span span = spanBuilder.startSpan();
+            return Tuple.tuple(span, span.makeCurrent());
         });
     }
 
@@ -313,25 +315,34 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
+    public void addEvent(Traceable traceable, String name) {
+        final Tuple<Span, Scope> tuple = spans.get(traceable.getSpanId());
+        if (tuple != null) {
+            tuple.v1().addEvent(name);
+        }
+    }
+
+    @Override
     public Map<String, String> getSpanHeadersById(String id) {
         var services = this.services;
         var span = spans.get(id);
         if (span == null || services == null) {
             return null;
         }
-        try (Scope ignore = span.makeCurrent()) {
+//        try (Scope ignore = span.makeCurrent()) {
             Map<String, String> spanHeaders = new HashMap<>();
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(Context.current(), spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
             return spanHeaders;
-        }
+//        }
     }
 
     @Override
     public void onTraceStopped(Traceable traceable) {
-        final Span span = spans.remove(traceable.getSpanId());
-        if (span != null) {
-            span.end();
+        final Tuple<Span, Scope> tuple = spans.remove(traceable.getSpanId());
+        if (tuple != null) {
+            tuple.v2().close();
+            tuple.v1().end();
         }
     }
 

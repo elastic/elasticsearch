@@ -111,8 +111,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
-            );
+                new SharedGroupFactory(settings),
+                    tracers);
         }
 
         @Override

@@ -88,8 +88,8 @@ public class Netty4BadRequestTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(Settings.EMPTY)
-            )
+                new SharedGroupFactory(Settings.EMPTY),
+                    tracers)
         ) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());

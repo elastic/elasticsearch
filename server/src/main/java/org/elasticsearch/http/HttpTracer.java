@@ -15,24 +15,28 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
 /**
- * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
+ * Http request trace logger. See {@link #maybeLogRequest(RestRequest, Exception)} for details.
  */
 class HttpTracer {
 
     private final Logger logger = LogManager.getLogger(HttpTracer.class);
+    private final List<Tracer> tracers;
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
 
-    HttpTracer(Settings settings, ClusterSettings clusterSettings) {
+    HttpTracer(Settings settings, ClusterSettings clusterSettings, List<Tracer> tracers) {
+        this.tracers = tracers;
 
         setTracerLogInclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.get(settings));
         setTracerLogExclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.get(settings));
@@ -41,18 +45,36 @@ class HttpTracer {
         clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
     }
 
+    void onTraceStarted(RestChannel channel) {
+        final String header = channel.request().header(Task.TRACE_PARENT_HTTP_HEADER);
+        this.tracers.forEach(t -> {
+            if (header != null) {
+                t.setTraceParent(header);
+            }
+            t.onTraceStarted(channel);
+        });
+    }
+
+    void onTraceStopped(RestChannel channel) {
+        this.tracers.forEach(t -> {
+            t.onTraceStopped(channel);
+        });
+    }
+
+    void onTraceEvent(RestChannel channel, String eventName) {
+        this.tracers.forEach(t -> {
+            t.addEvent(channel, eventName);
+        });
+    }
+
     /**
      * Logs the given request if request tracing is enabled and the request uri matches the current include and exclude patterns defined
      * in {@link HttpTransportSettings#SETTING_HTTP_TRACE_LOG_INCLUDE} and {@link HttpTransportSettings#SETTING_HTTP_TRACE_LOG_EXCLUDE}.
-     * If the request was logged returns a logger to log sending the response with or {@code null} otherwise.
      *
      * @param restRequest Rest request to trace
      * @param e           Exception when handling the request or {@code null} if none
-     * @return            This instance to use for logging the response via {@link #traceResponse} to this request if it was logged or
-     *                    {@code null} if the request wasn't logged
      */
-    @Nullable
-    HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
+    void maybeLogRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(
                 new ParameterizedMessage(
@@ -65,14 +87,13 @@ class HttpTracer {
                 ),
                 e
             );
-            return this;
         }
-        return null;
     }
 
     /**
-     * Logs the response to a request that was logged by {@link #maybeTraceRequest(RestRequest, Exception)}.
+     * Logs the response to a request that was logged by {@link #maybeLogRequest(RestRequest, Exception)}.
      *
+     * @param uri
      * @param restResponse  RestResponse
      * @param httpChannel   HttpChannel the response was sent on
      * @param contentLength Value of the response content length header
@@ -80,7 +101,8 @@ class HttpTracer {
      * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
      * @param success       Whether the response was successfully sent
      */
-    void traceResponse(
+    void maybeLogResponse(
+        String uri,
         RestResponse restResponse,
         HttpChannel httpChannel,
         String contentLength,
@@ -88,18 +110,20 @@ class HttpTracer {
         long requestId,
         boolean success
     ) {
-        logger.trace(
-            new ParameterizedMessage(
-                "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
-                requestId,
-                opaqueHeader,
-                restResponse.status(),
-                restResponse.contentType(),
-                contentLength,
-                httpChannel,
-                success
-            )
-        );
+        if (logger.isTraceEnabled() && TransportService.shouldTraceAction(uri, tracerLogInclude, tracerLogExclude)) {
+            logger.trace(
+                new ParameterizedMessage(
+                    "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
+                    requestId,
+                    opaqueHeader,
+                    restResponse.status(),
+                    restResponse.contentType(),
+                    contentLength,
+                    httpChannel,
+                    success
+                )
+            );
+        }
     }
 
     private void setTracerLogInclude(List<String> tracerLogInclude) {

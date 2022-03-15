@@ -28,6 +28,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.List;
 import java.util.function.Consumer;
 
 import javax.net.ssl.SSLEngine;
@@ -64,7 +66,8 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         IPFilter ipFilter,
         SSLService sslService,
         NioGroupFactory nioGroupFactory,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        List<Tracer> tracers
     ) {
         super(
             settings,
@@ -75,7 +78,8 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             xContentRegistry,
             dispatcher,
             nioGroupFactory,
-            clusterSettings
+            clusterSettings,
+            tracers
         );
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;

@@ -701,9 +701,8 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
 
             final List<Tracer> tracers = pluginComponents.stream()
-                .map(c -> c instanceof Tracer ? (Tracer) c : null)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toUnmodifiableList());
+                .map(c -> c instanceof Tracer t ? t : null)
+                .filter(Objects::nonNull).toList();
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -733,7 +732,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                tracers
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class

@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 
 import javax.net.ssl.SSLEngine;
 
@@ -76,8 +77,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -102,8 +103,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -128,8 +129,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
@@ -154,8 +155,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -175,8 +176,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
         SSLEngine defaultEngine = ch.pipeline().get(SslHandler.class).engine();
@@ -197,8 +198,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
         SSLEngine customEngine = ch.pipeline().get(SslHandler.class).engine();
@@ -228,8 +229,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
-        );
+            new SharedGroupFactory(settings),
+                List.of());
         assertNotNull(transport.configureServerChannelHandler());
     }
 }

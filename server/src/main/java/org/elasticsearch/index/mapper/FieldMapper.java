@@ -238,20 +238,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
             } catch (Exception innerException) {
                 throw new MapperParsingException(
-                    "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
+                    "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
                     e,
                     fieldType().name(),
                     fieldType().typeName(),
-                    context.sourceToParse().id()
+                    context.documentDescription()
                 );
             }
 
             throw new MapperParsingException(
-                "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
+                "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
                 e,
                 fieldType().name(),
                 fieldType().typeName(),
-                context.sourceToParse().id(),
+                context.documentDescription(),
                 valuePreview
             );
         }

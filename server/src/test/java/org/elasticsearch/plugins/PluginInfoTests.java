@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -338,7 +337,7 @@ public class PluginInfoTests extends ESTestCase {
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
-        List<String> names = infos.stream().map(PluginInfo::getName).collect(Collectors.toList());
+        List<String> names = infos.stream().map(PluginInfo::getName).toList();
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 

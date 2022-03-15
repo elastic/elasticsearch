@@ -25,7 +25,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
@@ -124,7 +123,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).toList();
     }
 
     @Override

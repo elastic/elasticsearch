@@ -72,10 +72,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
-        final List<Index> esIndices = indices.keySet()
-            .stream()
-            .map(i -> new Index(i, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+        final List<Index> esIndices = indices.keySet().stream().map(i -> new Index(i, randomAlphaOfLength(10))).toList();
         List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
@@ -230,8 +227,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 );
             }
             case 2 -> {
-                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10)))
-                    .collect(Collectors.toList());
+                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
                 return new Entry(
                     entry.snapshot(),
                     entry.includeGlobalState(),

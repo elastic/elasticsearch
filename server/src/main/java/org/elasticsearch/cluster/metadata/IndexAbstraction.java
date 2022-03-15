@@ -238,7 +238,7 @@ public interface IndexAbstraction {
 
             List<IndexMetadata> writeIndices = indices.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
 
             if (writeIndices.isEmpty() && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
                 writeIndices.add(indices.get(0));

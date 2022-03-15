@@ -62,7 +62,7 @@ public class ProfileServiceTests extends ESTestCase {
             "uid": "%s",
             "enabled": true,
             "user": {
-              "username": "foo",
+              "username": "Foo",
               "roles": [
                 "role1",
                 "role2"
@@ -162,7 +162,7 @@ public class ProfileServiceTests extends ESTestCase {
                     true,
                     lastSynchronized,
                     new Profile.ProfileUser(
-                        "foo",
+                        "Foo",
                         List.of("role1", "role2"),
                         "realm_name_1",
                         "domainA",

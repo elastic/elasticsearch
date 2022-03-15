@@ -134,7 +134,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         final RealmConfig.RealmIdentifier authenticationRealmIdentifier = randomFrom(domainRealms);
 
         final Authentication authentication = new Authentication(
-            new User("foo"),
+            new User("Foo"),
             new Authentication.RealmRef(
                 authenticationRealmIdentifier.getName(),
                 authenticationRealmIdentifier.getType(),
@@ -168,7 +168,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         assertThat(
             e3.getMessage(),
             containsString(
-                "multiple [2] profiles [" + Stream.of(uid2, uid3).sorted().collect(Collectors.joining(",")) + "] found for user [foo]"
+                "multiple [2] profiles [" + Stream.of(uid2, uid3).sorted().collect(Collectors.joining(",")) + "] found for user [Foo]"
             )
         );
     }
@@ -185,7 +185,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // The recorded realm_name_1 is no longer part of a domain.
         // Authentication for this realm still works for retrieving the same profile document
         final Authentication authentication1 = new Authentication(
-            new User("foo"),
+            new User("Foo"),
             new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName),
             null
         );
@@ -202,7 +202,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // Authentication for realm_name_2 (which is still part of domainA) does not work for retrieving the profile document
         final RealmDomain realmDomain1 = new RealmDomain("domainA", Set.of(realmIdentifier2));
         final Authentication authentication2 = new Authentication(
-            new User("foo"),
+            new User("Foo"),
             new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1),
             null
         );
@@ -215,7 +215,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // Scenario 3
         // Both recorded realm_name_1 and the authentication realm_name_2 are no longer part of a domain.
         final Authentication authentication3 = new Authentication(
-            new User("foo"),
+            new User("Foo"),
             new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName),
             null
         );

@@ -277,7 +277,7 @@ public class ProfileService {
     void searchVersionedDocumentForSubject(Subject subject, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
+                .filter(QueryBuilders.termQuery("user_profile.user.username.keyword", subject.getUser().principal()));
             if (subject.getRealm().getDomain() == null) {
                 boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
                 if (false == isFileOrNativeRealm(subject.getRealm().getType())) {

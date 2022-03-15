@@ -179,7 +179,7 @@ enum GridAggregation {
                 lats[i] = latLng.getLatDeg();
                 lons[i] = latLng.getLonDeg();
             }
-            lats[boundary.numPoints()] = boundary.getLatLon(0).getLatDeg();
+            lats[boundary.numPoints()] = lats[0];
             lons[boundary.numPoints()] = lons[0];
             final Polygon polygon = new Polygon(new LinearRing(lons, lats));
             final List<byte[]> x = featureFactory.getFeatures(GeometryNormalizer.apply(Orientation.CCW, polygon));

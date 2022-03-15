@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
 
-    private static final Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_2_0;
+    private static final Version WARNING_HANDLING_ADDED_VERSION = Version.V_8_1_1;
 
     @Before
     public void setupData() throws IOException {

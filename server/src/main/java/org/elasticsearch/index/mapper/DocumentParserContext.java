@@ -225,10 +225,6 @@ public abstract class DocumentParserContext {
         return dynamicMappers;
     }
 
-    public final boolean isShadowed(String field) {
-        return mappingLookup.isShadowed(field);
-    }
-
     public final ObjectMapper getDynamicObjectMapper(String name) {
         return dynamicObjectMappers.get(name);
     }

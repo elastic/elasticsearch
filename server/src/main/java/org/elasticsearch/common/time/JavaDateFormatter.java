@@ -28,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 class JavaDateFormatter implements DateFormatter {
 
@@ -214,11 +213,8 @@ class JavaDateFormatter implements DateFormatter {
         if (zoneId.equals(zone())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList());
-        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
-            .stream()
-            .map(p -> p.withZone(zoneId))
-            .collect(Collectors.toList());
+        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withZone(zoneId)).toList();
+        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers().stream().map(p -> p.withZone(zoneId)).toList();
         return new JavaDateFormatter(format, printer.withZone(zoneId), roundUpParsers, parsers);
     }
 
@@ -228,11 +224,8 @@ class JavaDateFormatter implements DateFormatter {
         if (locale.equals(locale())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList());
-        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
-            .stream()
-            .map(p -> p.withLocale(locale))
-            .collect(Collectors.toList());
+        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withLocale(locale)).toList();
+        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers().stream().map(p -> p.withLocale(locale)).toList();
         return new JavaDateFormatter(format, printer.withLocale(locale), roundUpParsers, parsers);
     }
 

@@ -869,8 +869,8 @@ public class SecuritySystemIndices {
         }
     }
 
-    private void defineRealmDomain(XContentBuilder builder, String realm_domain) throws IOException {
-        builder.startObject(realm_domain);
+    private void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
+        builder.startObject(fieldName);
         {
             builder.field("type", "object");
             builder.startObject("properties");

@@ -60,7 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -625,7 +624,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     private static void assertStats(IndexDiskUsageStats actualStats, IndexDiskUsageStats perFieldStats) {
-        final List<String> fields = actualStats.getFields().keySet().stream().sorted().collect(Collectors.toList());
+        final List<String> fields = actualStats.getFields().keySet().stream().sorted().toList();
         for (String field : fields) {
             IndexDiskUsageStats.PerFieldDiskUsage actualField = actualStats.getFields().get(field);
             IndexDiskUsageStats.PerFieldDiskUsage expectedField = perFieldStats.getFields().get(field);

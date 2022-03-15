@@ -30,7 +30,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -153,11 +152,20 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Exception e) {
+            public void onAllNodesAcked() {
                 if (changed) {
                     reroute(true);
                 } else {
-                    super.onAllNodesAcked(e);
+                    super.onAllNodesAcked();
+                }
+            }
+
+            @Override
+            public void onAckFailure(Exception e) {
+                if (changed) {
+                    reroute(true);
+                } else {
+                    super.onAckFailure(e);
                 }
             }
 

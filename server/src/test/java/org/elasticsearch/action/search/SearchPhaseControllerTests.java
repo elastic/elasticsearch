@@ -78,7 +78,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -406,7 +405,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(null, -1, randomBoolean());
-        return groupedSuggestion.values().stream().map(completionSuggestion::reduce).collect(Collectors.toList());
+        return groupedSuggestion.values().stream().map(completionSuggestion::reduce).toList();
     }
 
     private static AtomicArray<SearchPhaseResult> generateFetchResults(

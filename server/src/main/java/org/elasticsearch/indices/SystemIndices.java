@@ -133,7 +133,7 @@ public class SystemIndices {
                         ).getFormattedMessage()
                     )
             )
-            .collect(Collectors.toList());
+            .toList();
         if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
             throw new IllegalStateException(
                 new ParameterizedMessage(
@@ -160,7 +160,7 @@ public class SystemIndices {
             .filter(entry -> entry.getValue() > 1)
             .map(Map.Entry::getKey)
             .sorted()
-            .collect(Collectors.toList());
+            .toList();
 
         if (duplicateAliases.isEmpty() == false) {
             throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
@@ -592,7 +592,7 @@ public class SystemIndices {
     }
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).collect(Collectors.toList());
+        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
     }
 
     /**
@@ -788,7 +788,7 @@ public class SystemIndices {
             List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
                 .map(descriptor -> descriptor.getMatchingIndices(metadata))
                 .flatMap(List::stream)
-                .collect(Collectors.toList());
+                .toList();
 
             if (allIndices.isEmpty()) {
                 // if no actual indices match the pattern, we can stop here

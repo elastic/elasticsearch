@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -179,7 +178,7 @@ public class MinScoreScorerTests extends ESTestCase {
     }
 
     private static int[] randomDocs(int maxDoc, int numDocs) {
-        final List<Integer> docs = randomSubsetOf(numDocs, IntStream.range(0, maxDoc).boxed().collect(Collectors.toList()));
+        final List<Integer> docs = randomSubsetOf(numDocs, IntStream.range(0, maxDoc).boxed().toList());
         return docs.stream().mapToInt(n -> n).sorted().toArray();
     }
 
@@ -278,7 +277,7 @@ public class MinScoreScorerTests extends ESTestCase {
             .filter(v -> v.getValue() == numScorers)
             .map(Map.Entry::getKey)
             .sorted()
-            .collect(Collectors.toList());
+            .toList();
         assertThat(actualDocs, equalTo(expectedDocs));
     }
 }

@@ -252,14 +252,18 @@ For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 [%collapsible%open]
 ====
 For a `grid_agg` of `geohex`, `grid_precision` is used to calculate the
-https://h3geo.org/docs/core-library/restable[precision of the hexagonal cells].
+https://h3geo.org/docs/core-library/restable[resolution of the hexagonal cells].
 
-Hexagonal cells don't align perfectly on a vector tile, some cells may intersect
-more than one vector tile. In order to compute the resolution, we compute the
-average density of hexagonal bins and use the resolution that is closer to the
-`geotile` density.
+Hexagonal cells don't align perfectly on a vector tile and some cells may intersect
+more than one vector tile. In order to compute the H3 resolution for the precision
+`<zoom> + grid_precision`, we compare the average density of hexagonal bins at each
+resolution with the average density of tile bins and each zoom level. We use the H3
+resolution that is closer to the`geotile` density.
 
-The mapping between zoom levels and H3 resolutions is giving in the following table.
+The mapping between `<zoom> + grid_precision` and H3 resolutions is giving in the following table.
+For example if <zoom> is 3 and grid_precision is 3, hexagonal cells are created with H3
+resolution 2 (zoom level 6 row). If <zoom> is 3 and grid_precision is 4, hexagonal cells are created
+with H3 resolution 3 (zoom level 7 row)."
 
 [cols="<,<,<,<,<",options="header",]
 |=======================================================================
@@ -293,8 +297,7 @@ The mapping between zoom levels and H3 resolutions is giving in the following ta
 |27	|18014398509482000	 |15 |569707381193162	|0.03162511259
 |28	|72057594037927900	 |15 |569707381193162	|0.007906278149
 |29	|288230376151712000	 |15 |569707381193162	|0.001976569537
-|=======================================================================
-====
+|===========================================================================
 // end::grid-precision[]
 
 // tag::grid-type[]

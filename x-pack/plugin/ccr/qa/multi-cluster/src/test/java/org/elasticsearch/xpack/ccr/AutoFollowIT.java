@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -957,7 +957,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 if (isNotFoundResponseException(e)) {
                     continue;
                 }
-                logger.warn(() -> Message.createParameterizedMessage("failed to delete auto-follow pattern [{}] after test", autoFollowPattern), e);
+                logger.warn(
+                    () -> Message.createParameterizedMessage("failed to delete auto-follow pattern [{}] after test", autoFollowPattern),
+                    e
+                );
             }
         }
         for (String dataStream : dataStreams) {

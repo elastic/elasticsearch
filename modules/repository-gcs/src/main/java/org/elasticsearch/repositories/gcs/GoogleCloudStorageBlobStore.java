@@ -19,9 +19,6 @@ import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -39,6 +36,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterOutputStream;
@@ -374,7 +374,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> Message.createParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(
+                        () -> Message.createParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo),
+                        se
+                    );
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     continue;
                 } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
@@ -436,7 +439,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> Message.createParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(
+                        () -> Message.createParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo),
+                        se
+                    );
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     inputStream.reset();
                     continue;

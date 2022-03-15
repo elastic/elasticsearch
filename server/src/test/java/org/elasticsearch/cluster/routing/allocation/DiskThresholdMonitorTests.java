@@ -909,10 +909,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
+            MockLogAppender.createUnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
         );
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
+            MockLogAppender.createUnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
         );
 
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
@@ -954,12 +954,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             MockLogAppender.createSeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
         );
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "any message of another level",
-                    DiskThresholdMonitor.class.getCanonicalName(),
-                    level == Level.INFO ? Level.WARN : Level.INFO,
-                    "*"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "any message of another level",
+                DiskThresholdMonitor.class.getCanonicalName(),
+                level == Level.INFO ? Level.WARN : Level.INFO,
+                "*"
+            )
         );
 
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);

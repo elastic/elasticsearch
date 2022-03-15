@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.integration;
 
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;

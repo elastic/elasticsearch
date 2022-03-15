@@ -95,8 +95,8 @@ public class SettingsFilterTests extends ESTestCase {
         assertExpectedLogMessages(
             (testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
             MockLogAppender.createSeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
-                MockLogAppender.createUnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
-                MockLogAppender.createUnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
+            MockLogAppender.createUnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
+            MockLogAppender.createUnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
         );
     }
 

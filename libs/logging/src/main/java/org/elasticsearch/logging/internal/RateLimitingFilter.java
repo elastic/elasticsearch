@@ -71,7 +71,7 @@ public class RateLimitingFilter extends AbstractFilter implements org.elasticsea
     }
 
     public Result filter(Message message) {
-        if (message instanceof final ESLogMessage esLogMessage) { //TODO: just avoid for now
+        if (message instanceof final ESLogMessage esLogMessage) { // TODO: just avoid for now
             final String key = getKey(esLogMessage);
             return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
         } else {
@@ -113,6 +113,5 @@ public class RateLimitingFilter extends AbstractFilter implements org.elasticsea
     public void setUseXOpaqueId(boolean useXOpaqueId) {
         this.useXOpaqueId = useXOpaqueId;
     }
-
 
 }

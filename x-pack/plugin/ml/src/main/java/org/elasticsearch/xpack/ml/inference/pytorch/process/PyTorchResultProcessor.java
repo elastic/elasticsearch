@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
@@ -102,11 +102,15 @@ public class PyTorchResultProcessor {
     }
 
     private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
-        logger.trace(() -> Message.createParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
+        logger.trace(
+            () -> Message.createParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId())
+        );
         processResult(inferenceResult);
         PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
         if (pendingResult == null) {
-            logger.debug(() -> Message.createParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
+            logger.debug(
+                () -> Message.createParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId())
+            );
         } else {
             pendingResult.listener.onResponse(inferenceResult);
         }

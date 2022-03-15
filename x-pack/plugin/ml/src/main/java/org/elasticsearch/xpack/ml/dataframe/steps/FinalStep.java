@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -20,6 +17,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -98,7 +98,11 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
 
         LOGGER.debug(
-            () -> Message.createParameterizedMessage("[{}] Refreshing indices {}", config.getId(), Arrays.toString(refreshRequest.indices()))
+            () -> Message.createParameterizedMessage(
+                "[{}] Refreshing indices {}",
+                config.getId(),
+                Arrays.toString(refreshRequest.indices())
+            )
         );
 
         executeAsyncWithOrigin(parentTaskClient(), ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, listener);

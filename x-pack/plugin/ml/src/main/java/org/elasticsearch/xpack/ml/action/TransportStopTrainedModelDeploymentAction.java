@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -28,6 +25,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,7 +106,11 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         }
 
         logger.debug(
-            () -> Message.createParameterizedMessage("[{}] Received request to undeploy{}", request.getId(), request.isForce() ? " (force)" : "")
+            () -> Message.createParameterizedMessage(
+                "[{}] Received request to undeploy{}",
+                request.getId(),
+                request.isForce() ? " (force)" : ""
+            )
         );
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelsResponse -> {

@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -74,7 +73,11 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
                     attachments.put(attachment.id(), attachment);
                 } catch (ElasticsearchException | IOException e) {
                     logger().error(
-                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId),
+                        (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                            "failed to execute action [{}/{}]",
+                            ctx.watch().id(),
+                            actionId
+                        ),
                         e
                     );
                     return new EmailAction.Result.FailureWithException(action.type(), e);

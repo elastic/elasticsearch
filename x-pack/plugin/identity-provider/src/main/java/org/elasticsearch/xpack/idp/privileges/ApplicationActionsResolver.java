@@ -22,9 +22,6 @@
 
 package org.elasticsearch.xpack.idp.privileges;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -34,6 +31,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -104,10 +104,10 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
                     defaults.applicationName
                 ),
                 ex -> logger.warn(
-                        Message.createParameterizedMessage(
-                            "Failed to load application privileges actions for application [{}]",
-                            defaults.applicationName
-                        ),
+                    Message.createParameterizedMessage(
+                        "Failed to load application privileges actions for application [{}]",
+                        defaults.applicationName
+                    ),
                     ex
                 )
             )

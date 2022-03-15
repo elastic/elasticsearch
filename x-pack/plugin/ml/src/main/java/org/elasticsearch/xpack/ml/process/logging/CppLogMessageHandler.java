@@ -6,10 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.process.logging;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,6 +14,10 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -356,7 +356,10 @@ public class CppLogMessageHandler implements Closeable {
                 );
             } else {
                 LOGGER.warn(
-                    Message.createParameterizedMessage("IO failure receiving C++ log message: {}", new Object[] { bytesRef.utf8ToString() }),
+                    Message.createParameterizedMessage(
+                        "IO failure receiving C++ log message: {}",
+                        new Object[] { bytesRef.utf8ToString() }
+                    ),
                     e
                 );
             }

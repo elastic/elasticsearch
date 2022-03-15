@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.job.task;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -25,6 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -311,7 +311,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobTask,
                     ActionListener.wrap(response -> openJob(jobTask), e -> {
                         if (autodetectProcessManager.isNodeDying() == false) {
-                            logger.error(Message.createParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
+                            logger.error(
+                                Message.createParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()),
+                                e
+                            );
                             failTask(jobTask, "failed to revert to current snapshot");
                         }
                     })
@@ -338,7 +341,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             logger.debug("[{}] updated task state to failed", jobId);
             stopAssociatedDatafeedForFailedJob(jobId);
         }, e -> {
-            logger.error(Message.createParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId), e);
+            logger.error(
+                Message.createParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId),
+                e
+            );
             jobTask.markAsFailed(e);
             stopAssociatedDatafeedForFailedJob(jobId);
         }));
@@ -368,11 +374,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     e -> {
                         if (autodetectProcessManager.isNodeDying() == false) {
                             logger.error(
-                                    Message.createParameterizedMessage(
-                                        "[{}] failed to stop associated datafeed [{}] after job failure",
-                                        jobId,
-                                        runningDatafeedId
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "[{}] failed to stop associated datafeed [{}] after job failure",
+                                    jobId,
+                                    runningDatafeedId
+                                ),
                                 e
                             );
                             auditor.error(jobId, "failed to stop associated datafeed after job failure");
@@ -544,7 +550,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             if (hasFailedAtLeastOnce == false) {
                 hasFailedAtLeastOnce = true;
                 logger.error(
-                        Message.createParameterizedMessage("[{}] error reverting job to its current snapshot; attempting retry", jobTask.getJobId()),
+                    Message.createParameterizedMessage(
+                        "[{}] error reverting job to its current snapshot; attempting retry",
+                        jobTask.getJobId()
+                    ),
                     e
                 );
             }

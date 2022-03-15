@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

@@ -386,12 +386,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 );
 
                 appender.addExpectation(
-                        MockLogAppender.createUnseenEventExpectation(
-                            "received other request",
-                            traceLoggerName,
-                            Level.TRACE,
-                            "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
-                        )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "received other request",
+                        traceLoggerName,
+                        Level.TRACE,
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
+                    )
                 );
 
                 final Exception inboundException;

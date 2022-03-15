@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -17,6 +14,9 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -136,7 +136,10 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
         if (nodesOfConcern.length == 0) {
             logger.debug(
-                () -> Message.createParameterizedMessage("Unable to find executor nodes for datafeed tasks {}", request.getDatafeedTaskIds())
+                () -> Message.createParameterizedMessage(
+                    "Unable to find executor nodes for datafeed tasks {}",
+                    request.getDatafeedTaskIds()
+                )
             );
 
             taskResponseListener.onResponse(new Response(Collections.emptyMap()));

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logging.internal.testing;
 
-
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;

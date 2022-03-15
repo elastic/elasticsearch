@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -19,15 +16,18 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.logging.api.core.MockLogAppender.LoggingExpectation;
+import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -100,12 +100,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "do not warn if empty again",
-                    checkpointProviderLogger.getName(),
-                    Level.WARN,
-                    "Source did not resolve to any concrete indexes"
-                ),
+            MockLogAppender.createUnseenEventExpectation(
+                "do not warn if empty again",
+                checkpointProviderLogger.getName(),
+                Level.WARN,
+                "Source did not resolve to any concrete indexes"
+            ),
             new MockTransformAuditor.UnseenAuditExpectation(
                 "do not warn if empty again",
                 org.elasticsearch.xpack.core.common.notifications.Level.WARNING,

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -22,6 +19,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.Scheduler;
@@ -352,7 +352,11 @@ public class DeploymentManager {
                 return;
             }
             logger.debug(
-                () -> Message.createParameterizedMessage("[{}] request [{}] received failure but listener already notified", modelId, requestId),
+                () -> Message.createParameterizedMessage(
+                    "[{}] request [{}] received failure but listener already notified",
+                    modelId,
+                    requestId
+                ),
                 e
             );
         }
@@ -362,7 +366,11 @@ public class DeploymentManager {
             if (notified.get()) {
                 // Should not execute request as it has already timed out while waiting in the queue
                 logger.debug(
-                    () -> Message.createParameterizedMessage("[{}] skipping inference on request [{}] as it has timed out", modelId, requestId)
+                    () -> Message.createParameterizedMessage(
+                        "[{}] skipping inference on request [{}] as it has timed out",
+                        modelId,
+                        requestId
+                    )
                 );
                 return;
             }
@@ -399,7 +407,10 @@ public class DeploymentManager {
                     );
                 processContext.process.get().writeInferenceRequest(request.processInput());
             } catch (IOException e) {
-                logger.error(Message.createParameterizedMessage("[{}] error writing to inference process", processContext.task.getModelId()), e);
+                logger.error(
+                    Message.createParameterizedMessage("[{}] error writing to inference process", processContext.task.getModelId()),
+                    e
+                );
                 onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
             } catch (Exception e) {
                 onFailure(e);
@@ -423,7 +434,9 @@ public class DeploymentManager {
                 return;
             }
 
-            logger.debug(() -> Message.createParameterizedMessage("[{}] retrieved result for request [{}]", context.task.getModelId(), requestId));
+            logger.debug(
+                () -> Message.createParameterizedMessage("[{}] retrieved result for request [{}]", context.task.getModelId(), requestId)
+            );
             if (notified.get()) {
                 // The request has timed out. No need to spend cycles processing the result.
                 logger.debug(
@@ -436,7 +449,9 @@ public class DeploymentManager {
                 return;
             }
             InferenceResults results = inferenceResultsProcessor.processResult(tokenization, inferenceResult);
-            logger.debug(() -> Message.createParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId));
+            logger.debug(
+                () -> Message.createParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId)
+            );
             resultsListener.onResponse(results);
         }
     }

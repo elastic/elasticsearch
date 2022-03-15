@@ -8,10 +8,10 @@
 
 package org.elasticsearch.test.junit.listeners;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.Loggers;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
@@ -79,7 +79,7 @@ public class LoggingListener extends RunListener {
      */
     private static Logger resolveLogger(String loggerName) {
         if (loggerName.equalsIgnoreCase("_root")) {
-            //TODO PG do we want to have getRootLogger?
+            // TODO PG do we want to have getRootLogger?
             return LogManager.getRootLogger();
         }
         return LogManager.getLogger(loggerName);

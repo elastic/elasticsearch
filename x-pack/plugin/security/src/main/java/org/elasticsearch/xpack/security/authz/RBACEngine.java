@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +32,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -597,7 +597,9 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
-        logger.trace(() -> Message.createParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
+        logger.trace(
+            () -> Message.createParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names()))
+        );
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();

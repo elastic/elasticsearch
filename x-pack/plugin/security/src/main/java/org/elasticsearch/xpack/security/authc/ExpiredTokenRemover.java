@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
@@ -21,6 +18,9 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -123,18 +123,18 @@ final class ExpiredTokenRemover extends AbstractRunnable {
             );
             for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
                 logger.debug(
-                        Message.createParameterizedMessage("deletion failed for index [{}], id [{}]", failure.getIndex(), failure.getId()),
+                    Message.createParameterizedMessage("deletion failed for index [{}], id [{}]", failure.getIndex(), failure.getId()),
                     failure.getCause()
                 );
             }
             for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
                 logger.debug(
-                        Message.createParameterizedMessage(
-                            "search failed for index [{}], shard [{}] on node [{}]",
-                            failure.getIndex(),
-                            failure.getShardId(),
-                            failure.getNodeId()
-                        ),
+                    Message.createParameterizedMessage(
+                        "search failed for index [{}], shard [{}] on node [{}]",
+                        failure.getIndex(),
+                        failure.getShardId(),
+                        failure.getNodeId()
+                    ),
                     failure.getReason()
                 );
             }

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.repositories.azure.executors;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -74,11 +74,11 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug(
-                            Message.createParameterizedMessage(
-                                "could not schedule execution of [{}] on [{}] as executor is shut down",
-                                decoratedCommand,
-                                executorName
-                            ),
+                        Message.createParameterizedMessage(
+                            "could not schedule execution of [{}] on [{}] as executor is shut down",
+                            decoratedCommand,
+                            executorName
+                        ),
                         e
                     );
                 } else {

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,6 +20,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -389,10 +389,10 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception
                         logger.error(
-                                Message.createParameterizedMessage(
-                                    "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
-                                    policyId
-                                ),
+                            Message.createParameterizedMessage(
+                                "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
+                                policyId
+                            ),
                             ex
                         );
                     } finally {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.discovery.single;
 
-import org.elasticsearch.logging.api.core.LogEvent;
-
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,6 +16,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;

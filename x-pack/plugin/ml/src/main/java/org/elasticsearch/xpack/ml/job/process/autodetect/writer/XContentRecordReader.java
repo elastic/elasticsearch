@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;

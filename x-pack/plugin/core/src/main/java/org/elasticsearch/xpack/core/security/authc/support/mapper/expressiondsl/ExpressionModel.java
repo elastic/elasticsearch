@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
 import java.util.Collections;

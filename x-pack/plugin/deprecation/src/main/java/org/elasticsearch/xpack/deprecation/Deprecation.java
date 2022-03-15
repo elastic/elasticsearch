@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-//import org.elasticsearch.logging.internal.RateLimitingFilter;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.logging.api.core.Filter;
 import org.elasticsearch.logging.api.core.RateLimitingFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -39,7 +37,6 @@ import org.elasticsearch.xpack.deprecation.logging.RestDeprecationCacheResetActi
 import org.elasticsearch.xpack.deprecation.logging.TransportDeprecationCacheResetAction;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -115,7 +112,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
         rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
-//
+        //
         final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
             client,
             environment.settings(),

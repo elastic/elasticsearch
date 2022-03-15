@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -25,6 +22,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -436,17 +436,23 @@ public class JobManager {
                     }
                 }, e -> {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "[{}] Updating autodetect failed with an exception, job update [{}] ",
-                                jobUpdate.getJobId(),
-                                jobUpdate
-                            ),
+                        Message.createParameterizedMessage(
+                            "[{}] Updating autodetect failed with an exception, job update [{}] ",
+                            jobUpdate.getJobId(),
+                            jobUpdate
+                        ),
                         e
                     );
                 }));
             }
         } else {
-            logger.debug(()-> Message.createParameterizedMessage("[{}] No process update required for job update: {}", jobUpdate.getJobId(), jobUpdate.toString()));
+            logger.debug(
+                () -> Message.createParameterizedMessage(
+                    "[{}] No process update required for job update: {}",
+                    jobUpdate.getJobId(),
+                    jobUpdate.toString()
+                )
+            );
             auditJobUpdatedIfNotInternal(request);
         }
 

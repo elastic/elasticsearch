@@ -47,8 +47,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 
 public class SequenceSpecTests extends ESTestCase {
 

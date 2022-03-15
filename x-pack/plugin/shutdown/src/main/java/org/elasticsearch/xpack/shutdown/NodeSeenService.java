@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,6 +17,9 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 
 import java.util.Map;
 import java.util.Set;
@@ -101,7 +101,10 @@ public class NodeSeenService implements ClusterStateListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn(Message.createParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
+                    logger.warn(
+                        Message.createParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen),
+                        e
+                    );
                 }
             }, newExecutor());
         }

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 
 import java.util.Iterator;

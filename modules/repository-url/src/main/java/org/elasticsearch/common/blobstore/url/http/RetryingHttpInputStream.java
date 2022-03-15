@@ -10,9 +10,9 @@ package org.elasticsearch.common.blobstore.url.http;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -148,26 +148,26 @@ class RetryingHttpInputStream extends InputStream {
     private void maybeThrow(IOException e) throws IOException {
         if (retryCount >= maxRetries || e instanceof NoSuchFileException) {
             logger.debug(
-                    Message.createParameterizedMessage(
-                        "failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
-                        blobURI,
-                        start + totalBytesRead,
-                        retryCount,
-                        maxRetries
-                    ),
+                Message.createParameterizedMessage(
+                    "failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
+                    blobURI,
+                    start + totalBytesRead,
+                    retryCount,
+                    maxRetries
+                ),
                 e
             );
             throw addSuppressedFailures(e);
         }
 
         logger.debug(
-                Message.createParameterizedMessage(
-                    "failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
-                    blobURI,
-                    start + totalBytesRead,
-                    retryCount,
-                    maxRetries
-                ),
+            Message.createParameterizedMessage(
+                "failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
+                blobURI,
+                start + totalBytesRead,
+                retryCount,
+                maxRetries
+            ),
             e
         );
 

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -260,7 +260,9 @@ class AggregationToJsonProcessor {
 
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey().get(compositeAggDateValueSourceName));
                 if (bucketTime < startTime) {
-                    LOGGER.debug(() -> Message.createParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime));
+                    LOGGER.debug(
+                        () -> Message.createParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime)
+                    );
                     continue;
                 } else {
                     checkBucketTime = false;

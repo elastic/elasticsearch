@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -35,6 +32,9 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -192,9 +192,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 // In case the blob cache system index is unavailable, we indicate it's not ready and move on. We do not fail the request:
                 // a failure here is not fatal since the data exists in the blob store, so we can simply indicate the cache is not ready.
                 if (isExpectedCacheGetException(e)) {
-                    logger.debug(() -> Message.createParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    logger.debug(
+                        () -> Message.createParameterizedMessage("failed to retrieve cached blob from system index [{}]", index),
+                        e
+                    );
                 } else {
-                    logger.warn(() -> Message.createParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    logger.warn(
+                        () -> Message.createParameterizedMessage("failed to retrieve cached blob from system index [{}]", index),
+                        e
+                    );
                     assert false : e;
                 }
                 listener.onResponse(CachedBlob.CACHE_NOT_READY);

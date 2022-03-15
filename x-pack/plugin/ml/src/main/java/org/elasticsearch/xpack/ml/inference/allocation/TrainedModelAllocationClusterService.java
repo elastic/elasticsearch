@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.allocation;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.LoggerMessageFormat;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -31,6 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -302,7 +302,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         final String nodeId = request.getNodeId();
         TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(currentState);
         logger.trace(
-            () -> Message.createParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
+            () -> Message.createParameterizedMessage(
+                "[{}] [{}] current metadata before update {}",
+                modelId,
+                nodeId,
+                Strings.toString(metadata)
+            )
         );
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
@@ -477,7 +482,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         if (load.remainingJobs() == 0) {
             return Optional.of(
-                //TODO PG not sure we should use logging formatters..
+                // TODO PG not sure we should use logging formatters..
                 LoggerMessageFormat.format(
                     "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
                     new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
@@ -486,7 +491,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
             return Optional.of(
-                //TODO PG not sure we should use logging formatters..
+                // TODO PG not sure we should use logging formatters..
                 LoggerMessageFormat.format(
                     "This node has insufficient available memory. Available memory for ML [{} ({})], "
                         + "memory required by existing jobs and models [{} ({})], "

@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -33,6 +30,9 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -744,7 +744,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         @Override
         public void onFailure(Exception e) {
             responseReceived(countDown, false, onComplete, setup);
-            logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to set monitoring {} [{}]", type, name), e);
+            logger.error(
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to set monitoring {} [{}]", type, name),
+                e
+            );
         }
     }
 
@@ -820,7 +823,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             responseReceived(countDown, false, () -> {}, watcherSetup);
 
             if ((e instanceof IndexNotFoundException) == false) {
-                logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
+                logger.error(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                        "failed to get monitoring watch [{}]",
+                        uniqueWatchId
+                    ),
+                    e
+                );
             }
         }
 

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -34,6 +31,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -451,12 +451,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
-                        Message.createParameterizedMessage(
-                            "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
-                            request.getRepositoryName(),
-                            request.getBlobPath(),
-                            request.getBlobName()
-                        ),
+                    Message.createParameterizedMessage(
+                        "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
+                        request.getRepositoryName(),
+                        request.getBlobPath(),
+                        request.getBlobName()
+                    ),
                     exception
                 );
             }

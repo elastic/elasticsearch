@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logging.internal;
 
-import org.elasticsearch.logging.internal.LoggingOutputStream;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -146,7 +146,10 @@ public class EnsembleInferenceModel implements InferenceModel {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
         LOGGER.debug(
-            () -> Message.createParameterizedMessage("Inference called with feature names [{}]", Strings.arrayToCommaDelimitedString(featureNames))
+            () -> Message.createParameterizedMessage(
+                "Inference called with feature names [{}]",
+                Strings.arrayToCommaDelimitedString(featureNames)
+            )
         );
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];

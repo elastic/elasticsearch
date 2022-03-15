@@ -29,10 +29,10 @@ public class AsyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent
             executionService.processEventsAsync(events);
         } catch (Exception e) {
             logger.error(
-                    Message.createParameterizedMessage(
-                        "failed to process triggered events [{}]",
-                        (Object) stream(events.spliterator(), false).toArray(TriggerEvent[]::new)
-                    ),
+                Message.createParameterizedMessage(
+                    "failed to process triggered events [{}]",
+                    (Object) stream(events.spliterator(), false).toArray(TriggerEvent[]::new)
+                ),
                 e
             );
         }

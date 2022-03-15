@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,6 +16,9 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -105,7 +105,11 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
                             .prepareRefresh(indexName)
                             .execute(ActionListener.wrap(refreshed -> listener.onResponse(AcknowledgedResponse.TRUE), failure -> {
                                 logger.warn(
-                                    () -> Message.createParameterizedMessage("[{}] failed to refresh index [{}]", request.getModelId(), indexName),
+                                    () -> Message.createParameterizedMessage(
+                                        "[{}] failed to refresh index [{}]",
+                                        request.getModelId(),
+                                        indexName
+                                    ),
                                     failure
                                 );
                                 listener.onResponse(AcknowledgedResponse.TRUE);

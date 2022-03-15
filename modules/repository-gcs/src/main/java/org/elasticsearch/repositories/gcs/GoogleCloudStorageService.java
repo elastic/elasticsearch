@@ -20,14 +20,14 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -108,7 +108,11 @@ public class GoogleCloudStorageService {
             }
 
             logger.debug(
-                () -> Message.createParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName, settings.getHost())
+                () -> Message.createParameterizedMessage(
+                    "creating GCS client with client_name [{}], endpoint [{}]",
+                    clientName,
+                    settings.getHost()
+                )
             );
             final Storage storage = createClient(settings, stats);
             clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);

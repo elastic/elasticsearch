@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -56,6 +53,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -391,7 +391,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         @Override
         public void onFailure(Exception e) {
             logger.warn(
-                () -> Message.createParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
+                () -> Message.createParameterizedMessage(
+                    "snapshot blob cache maintenance task failed for cluster state update [{}]",
+                    event.source()
+                ),
                 e
             );
         }

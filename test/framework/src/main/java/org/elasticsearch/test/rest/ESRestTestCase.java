@@ -20,7 +20,6 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -49,6 +48,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -703,7 +703,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
                                     logger.warn(
-                                            Message.createParameterizedMessage("unable to remove multiple composable index templates {}", names),
+                                        Message.createParameterizedMessage(
+                                            "unable to remove multiple composable index templates {}",
+                                            names
+                                        ),
                                         e
                                     );
                                 }
@@ -712,7 +715,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
                                     } catch (ResponseException e) {
-                                        logger.warn(Message.createParameterizedMessage("unable to remove composable index template {}", name), e);
+                                        logger.warn(
+                                            Message.createParameterizedMessage("unable to remove composable index template {}", name),
+                                            e
+                                        );
                                     }
                                 }
                             }
@@ -736,7 +742,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(Message.createParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                    logger.warn(
+                                        Message.createParameterizedMessage("unable to remove multiple component templates {}", names),
+                                        e
+                                    );
                                 }
                             } else {
                                 for (String componentTemplate : names) {
@@ -744,7 +753,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                         adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                                     } catch (ResponseException e) {
                                         logger.warn(
-                                                Message.createParameterizedMessage("unable to remove component template {}", componentTemplate),
+                                            Message.createParameterizedMessage("unable to remove component template {}", componentTemplate),
                                             e
                                         );
                                     }

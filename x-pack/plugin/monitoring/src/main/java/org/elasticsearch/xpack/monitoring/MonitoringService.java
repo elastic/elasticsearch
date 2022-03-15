@@ -6,10 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +15,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -174,7 +173,10 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 scheduleExecution();
                 logger.debug("monitoring service started");
             } catch (Exception e) {
-                logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to start monitoring service"), e);
+                logger.error(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to start monitoring service"),
+                    e
+                );
                 started.set(false);
                 throw e;
             }

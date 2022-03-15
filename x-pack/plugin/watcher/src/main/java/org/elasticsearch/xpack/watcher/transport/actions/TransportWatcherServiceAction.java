@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -27,6 +24,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -102,7 +102,11 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                        Message.createParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
+                    Message.createParameterizedMessage(
+                        "could not update watcher stopped status to [{}], source [{}]",
+                        manuallyStopped,
+                        source
+                    ),
                     e
                 );
                 listener.onFailure(e);

@@ -19,18 +19,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-//import org.apache.logging.log4j.core.Appender;
-//
-//import org.apache.logging.log4j.core.LoggerContext;
-//import org.apache.logging.log4j.core.appender.AbstractAppender;
-//import org.apache.logging.log4j.core.config.Configurator;
-//import org.apache.logging.log4j.core.layout.PatternLayout;
-//import org.apache.logging.log4j.status.StatusConsoleListener;
-//import org.apache.logging.log4j.status.StatusData;
-//import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
@@ -49,11 +37,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.logging.internal.HeaderWarningAppender;
-import org.elasticsearch.logging.internal.LogConfigurator;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -85,6 +69,12 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.HeaderWarningAppender;
+import org.elasticsearch.logging.internal.LogConfigurator;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -149,13 +139,8 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -216,28 +201,28 @@ public abstract class ESTestCase extends LuceneTestCase {
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-//        for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
-//            Logger leakLogger = LogManager.getLogger(leakLoggerName);
-//            Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
-//                @Override
-//                public void append(LogEvent event) {
-//                    String message = event.getMessage().getFormattedMessage();
-//                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
-//                        synchronized (loggedLeaks) {
-//                            loggedLeaks.add(message);
-//                        }
-//                    }
-//                }
-//            };
-//            leakAppender.start();
-//            Loggers.addAppender(leakLogger, leakAppender);
-//            // shutdown hook so that when the test JVM exits, logging is shutdown too
-//            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//                leakAppender.stop();
-//                LoggerContext context = (LoggerContext) LogManager.getContext(false);
-//                Configurator.shutdown(context);
-//            }));
-//        }
+        // for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
+        // Logger leakLogger = LogManager.getLogger(leakLoggerName);
+        // Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
+        // @Override
+        // public void append(LogEvent event) {
+        // String message = event.getMessage().getFormattedMessage();
+        // if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+        // synchronized (loggedLeaks) {
+        // loggedLeaks.add(message);
+        // }
+        // }
+        // }
+        // };
+        // leakAppender.start();
+        // Loggers.addAppender(leakLogger, leakAppender);
+        // // shutdown hook so that when the test JVM exits, logging is shutdown too
+        // Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        // leakAppender.stop();
+        // LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        // Configurator.shutdown(context);
+        // }));
+        // }
 
         BootstrapForTesting.ensureInitialized();
 
@@ -395,15 +380,15 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public void setHeaderWarningAppender() {
-//        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
-//        this.headerWarningAppender.start();
-//        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+        // this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
+        // this.headerWarningAppender.start();
+        // Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
     }
 
     @After
     public void removeHeaderWarningAppender() {
         if (this.headerWarningAppender != null) {
-//            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+            // Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
         }
     }
@@ -587,7 +572,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         threadContext.stashContext();
     }
 
-   /* private static final List<StatusData> statusData = new ArrayList<>();
+    /* private static final List<StatusData> statusData = new ArrayList<>();
     static {
         // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
         StatusLogger.getLogger().setLevel(Level.WARN);
@@ -620,7 +605,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
-      /*  assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
+        /*  assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the

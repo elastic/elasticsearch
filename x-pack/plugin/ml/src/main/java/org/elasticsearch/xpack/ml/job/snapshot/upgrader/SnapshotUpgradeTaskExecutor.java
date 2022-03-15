@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -176,7 +176,10 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 task.updatePersistentTaskState(
                     new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, -1, e.getMessage()),
                     ActionListener.wrap(r -> task.markAsFailed(e), failure -> {
-                        logger.warn(Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), failure);
+                        logger.warn(
+                            Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId),
+                            failure
+                        );
                         task.markAsFailed(e);
                     })
                 );
@@ -208,7 +211,10 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(Message.createParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(
+                    Message.createParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId),
+                    e
+                );
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,
@@ -323,7 +329,10 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 );
                 return;
             }
-            logger.warn(() -> Message.createParameterizedMessage("[{}] [{}] failed to load bad snapshot for deletion", jobId, snapshotId), e);
+            logger.warn(
+                () -> Message.createParameterizedMessage("[{}] [{}] failed to load bad snapshot for deletion", jobId, snapshotId),
+                e
+            );
             task.markAsFailed(
                 new ElasticsearchStatusException(
                     "Task to upgrade job [{}] snapshot [{}] got reassigned while running leaving an unknown snapshot state. "

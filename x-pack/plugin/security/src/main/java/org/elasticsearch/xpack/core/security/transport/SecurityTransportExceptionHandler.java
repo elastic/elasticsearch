@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.transport;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TcpChannel;
 
 import java.util.function.BiConsumer;

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +22,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -91,7 +91,10 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             logger.debug(() -> Message.createParameterizedMessage("Completed reset mode request for [{}]", featureName()));
             listener.onResponse(r);
         }, e -> {
-            logger.debug(() -> Message.createParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()), e);
+            logger.debug(
+                () -> Message.createParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()),
+                e
+            );
             listener.onFailure(e);
         });
 
@@ -109,7 +112,9 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
 
                 @Override
                 protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.trace(() -> Message.createParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
+                    logger.trace(
+                        () -> Message.createParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged)
+                    );
                     return AcknowledgedResponse.of(acknowledged);
                 }
 

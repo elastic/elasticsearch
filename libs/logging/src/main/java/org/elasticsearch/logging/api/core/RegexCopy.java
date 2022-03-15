@@ -11,8 +11,7 @@ package org.elasticsearch.logging.api.core;
 import java.util.Iterator;
 
 public class RegexCopy {
-    private RegexCopy() {
-    }
+    private RegexCopy() {}
 
     public static boolean simpleMatch(String pattern, String str) {
         return simpleMatch(pattern, str, false);
@@ -38,6 +37,7 @@ public class RegexCopy {
         }
         return simpleMatchWithNormalizedStrings(pattern, str);
     }
+
     public static String toLowercaseAscii(String in) {
         StringBuilder out = new StringBuilder();
         Iterator<Integer> iter = in.codePoints().iterator();
@@ -51,6 +51,7 @@ public class RegexCopy {
         }
         return out.toString();
     }
+
     private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
         final int firstIndex = pattern.indexOf('*');
         if (firstIndex == -1) {
@@ -80,7 +81,7 @@ public class RegexCopy {
         }
         return str.regionMatches(0, pattern, 0, firstIndex)
             && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
-            || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
+                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
     }
 
 }

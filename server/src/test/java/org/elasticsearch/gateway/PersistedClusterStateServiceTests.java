@@ -1220,12 +1220,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                        MockLogAppender.createUnseenEventExpectation(
-                            "should not see warning below threshold",
-                            PersistedClusterStateService.class.getCanonicalName(),
-                            Level.WARN,
-                            "*"
-                        )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "should not see warning below threshold",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.WARN,
+                        "*"
+                    )
                 );
 
                 clusterSettings.applySettings(
@@ -1288,12 +1288,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                        MockLogAppender.createUnseenEventExpectation(
-                            "should not see warning below threshold",
-                            PersistedClusterStateService.class.getCanonicalName(),
-                            Level.WARN,
-                            "*"
-                        )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "should not see warning below threshold",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.WARN,
+                        "*"
+                    )
                 );
 
                 assertThat(currentTime.get(), lessThan(startTimeMillis + 14 * slowWriteLoggingThresholdMillis)); // ensure no overflow

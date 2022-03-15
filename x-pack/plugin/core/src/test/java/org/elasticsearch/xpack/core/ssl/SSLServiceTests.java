@@ -985,7 +985,7 @@ public class SSLServiceTests extends ESTestCase {
 
         @Override
         public void failed(Exception ex) {
-            logger.error("failed",ex);
+            logger.error("failed", ex);
 
             fail(ex.toString());
         }

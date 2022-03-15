@@ -24,6 +24,5 @@ public interface LogEvent {
 
     Map<String, String> getContextMap();
 
-
     String getMarkerName();
 }

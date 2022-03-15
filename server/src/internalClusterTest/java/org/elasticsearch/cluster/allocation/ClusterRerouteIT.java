@@ -437,12 +437,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         MockLogAppender dryRunMockLog = new MockLogAppender();
         dryRunMockLog.start();
         dryRunMockLog.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "no completed message logged on dry run",
-                    TransportClusterRerouteAction.class.getName(),
-                    Level.INFO,
-                    "allocated an empty primary*"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "no completed message logged on dry run",
+                TransportClusterRerouteAction.class.getName(),
+                Level.INFO,
+                "allocated an empty primary*"
+            )
         );
         AppenderUtils.addAppender(actionLogger, dryRunMockLog);
 
@@ -475,12 +475,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             )
         );
         allocateMockLog.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "no message for second allocate empty primary",
-                    TransportClusterRerouteAction.class.getName(),
-                    Level.INFO,
-                    "allocated an empty primary*" + nodeName2 + "*"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "no message for second allocate empty primary",
+                TransportClusterRerouteAction.class.getName(),
+                Level.INFO,
+                "allocated an empty primary*" + nodeName2 + "*"
+            )
         );
         AppenderUtils.addAppender(actionLogger, allocateMockLog);
 

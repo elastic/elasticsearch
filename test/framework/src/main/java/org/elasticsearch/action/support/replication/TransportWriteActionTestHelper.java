@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.logging.Logger;
 
 import java.util.concurrent.CountDownLatch;
 

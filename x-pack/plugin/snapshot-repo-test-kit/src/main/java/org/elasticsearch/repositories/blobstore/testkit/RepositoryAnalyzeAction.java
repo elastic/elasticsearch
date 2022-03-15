@@ -7,9 +7,6 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +33,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -584,7 +584,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         fail(repositoryVerificationException);
                     }
                 } catch (Exception e) {
-                    logger.debug(Message.createParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath), e);
+                    logger.debug(
+                        Message.createParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath),
+                        e
+                    );
                     fail(e);
                 }
             }

@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.ActiveSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;

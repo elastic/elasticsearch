@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.history;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -24,6 +21,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,16 +73,16 @@ public class ILMHistoryStore implements Closeable {
                 if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                     ElasticsearchException e = new ElasticsearchException("no ILM history template");
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "unable to index the following ILM history items:\n{}",
-                                request.requests()
-                                    .stream()
-                                    .filter(dwr -> (dwr instanceof IndexRequest))
-                                    .map(dwr -> ((IndexRequest) dwr))
-                                    .map(IndexRequest::sourceAsMap)
-                                    .map(Object::toString)
-                                    .collect(Collectors.joining("\n"))
-                            ),
+                        Message.createParameterizedMessage(
+                            "unable to index the following ILM history items:\n{}",
+                            request.requests()
+                                .stream()
+                                .filter(dwr -> (dwr instanceof IndexRequest))
+                                .map(dwr -> ((IndexRequest) dwr))
+                                .map(IndexRequest::sourceAsMap)
+                                .map(Object::toString)
+                                .collect(Collectors.joining("\n"))
+                        ),
                         e
                     );
                     throw new ElasticsearchException(e);
@@ -161,18 +161,18 @@ public class ILMHistoryStore implements Closeable {
                     processor.add(request);
                 } catch (Exception e) {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "failed add ILM history item to queue for index [{}]: [{}]",
-                                ILM_HISTORY_DATA_STREAM,
-                                item
-                            ),
+                        Message.createParameterizedMessage(
+                            "failed add ILM history item to queue for index [{}]: [{}]",
+                            ILM_HISTORY_DATA_STREAM,
+                            item
+                        ),
                         e
                     );
                 }
             });
         } catch (IOException exception) {
             logger.error(
-                    Message.createParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item),
+                Message.createParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item),
                 exception
             );
         }

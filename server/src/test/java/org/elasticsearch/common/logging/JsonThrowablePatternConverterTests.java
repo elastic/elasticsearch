@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.logging;
 
-
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;

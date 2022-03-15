@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -348,7 +348,11 @@ class AuthenticatorChain {
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
             logger.debug(
-                    Message.createParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, context.getRequest()),
+                Message.createParameterizedMessage(
+                    "Failed to store authentication [{}] for request [{}]",
+                    authentication,
+                    context.getRequest()
+                ),
                 e
             );
             final ElasticsearchSecurityException ese = context.getRequest()

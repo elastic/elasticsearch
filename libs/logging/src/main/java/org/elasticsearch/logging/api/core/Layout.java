@@ -16,18 +16,13 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.elasticsearch.logging.internal.ECSJsonLayout;
 import org.elasticsearch.logging.internal.EcsLayoutImpl;
 
-import java.io.Serializable;
-
 public interface Layout {
 
     static Layout createECSLayout(String dataset) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
-            final Configuration config = ctx.getConfiguration();
+        final Configuration config = ctx.getConfiguration();
 
-            EcsLayout layout = ECSJsonLayout.newBuilder()
-                        .setDataset(dataset)
-                        .setConfiguration(config)
-                        .build();
+        EcsLayout layout = ECSJsonLayout.newBuilder().setDataset(dataset).setConfiguration(config).build();
 
         return new EcsLayoutImpl(layout);
     }

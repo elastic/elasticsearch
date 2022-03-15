@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.core.scheduler;
 
-import org.elasticsearch.logging.Logger;
-
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;

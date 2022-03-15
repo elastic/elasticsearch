@@ -23,7 +23,7 @@ public class MockLogAppender {
 
     private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
     private final List<LoggingExpectation> expectations;
-     MockLogAppenderImpl impl;
+    MockLogAppenderImpl impl;
 
     public MockLogAppender() throws IllegalAccessException {
         /*
@@ -35,12 +35,16 @@ public class MockLogAppender {
         impl = new MockLogAppenderImpl(expectations);
     }
 
-
     public static LoggingExpectation createUnseenEventExpectation(String name, String logger, Level level, String message) {
         return new UnseenEventExpectation(name, logger, level, message);
     }
 
-    public static LoggingExpectationWithExpectSeen createEventuallySeenEventExpectation(String name, String logger, Level level, String message) {
+    public static LoggingExpectationWithExpectSeen createEventuallySeenEventExpectation(
+        String name,
+        String logger,
+        Level level,
+        String message
+    ) {
         return new EventuallySeenEventExpectation(name, logger, level, message);
     }
 
@@ -90,14 +94,15 @@ public class MockLogAppender {
 
     public interface LoggingExpectation {
         void assertMatched();
+
         void match(org.elasticsearch.logging.api.core.LogEvent event);
     }
 
-    public interface  LoggingExpectationWithExpectSeen extends LoggingExpectation {
-         void setExpectSeen() ;
+    public interface LoggingExpectationWithExpectSeen extends LoggingExpectation {
+        void setExpectSeen();
     }
 
-    public abstract static class AbstractEventExpectation implements LoggingExpectation{
+    public abstract static class AbstractEventExpectation implements LoggingExpectation {
         protected final String name;
         protected final String logger;
         protected final Level level;
@@ -111,9 +116,11 @@ public class MockLogAppender {
             this.message = message;
             this.saw = false;
         }
+
         public static boolean isSimpleMatchPattern(String str) {
             return str.indexOf('*') != -1;
         }
+
         @Override
         public void match(org.elasticsearch.logging.api.core.LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
@@ -136,7 +143,6 @@ public class MockLogAppender {
     }
 
     public static class UnseenEventExpectation extends AbstractEventExpectation {
-
 
         public UnseenEventExpectation(String name, String logger, Level level, String message) {
             super(name, logger, level, message);
@@ -167,7 +173,8 @@ public class MockLogAppender {
         public EventuallySeenEventExpectation(String name, String logger, Level level, String message) {
             super(name, logger, level, message);
         }
-@Override
+
+        @Override
         public void setExpectSeen() {
             expectSeen = true;
         }
@@ -197,8 +204,8 @@ public class MockLogAppender {
         ) {
             super(name, logger, level, message);
             this.clazz = clazz;
-            this.exceptionMessage = exceptionMessage;        }
-
+            this.exceptionMessage = exceptionMessage;
+        }
 
         @Override
         public boolean innerMatch(final org.elasticsearch.logging.api.core.LogEvent event) {
@@ -220,10 +227,9 @@ public class MockLogAppender {
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
-            this.level =  level;
+            this.level = level;
             this.pattern = Pattern.compile(pattern);
         }
-
 
         @Override
         public void match(org.elasticsearch.logging.api.core.LogEvent event) {
@@ -236,11 +242,9 @@ public class MockLogAppender {
 
         @Override
         public void assertMatched() {
-             MatcherAssert.assertThat(name, saw, CoreMatchers.equalTo(true));
+            MatcherAssert.assertThat(name, saw, CoreMatchers.equalTo(true));
         }
 
     }
-
-
 
 }

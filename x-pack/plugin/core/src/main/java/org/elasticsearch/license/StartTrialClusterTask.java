@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;

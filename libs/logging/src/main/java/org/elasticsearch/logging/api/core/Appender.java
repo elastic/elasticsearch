@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logging.api.core;
 
-
 public interface Appender {
 
     void append(LogEvent event);

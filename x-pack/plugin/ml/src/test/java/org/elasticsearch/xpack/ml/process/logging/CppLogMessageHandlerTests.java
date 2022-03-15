@@ -10,9 +10,9 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.api.core.MockLogAppender;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -167,12 +167,12 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "test2",
-                    CppLogMessageHandler.class.getName(),
-                    Level.INFO,
-                    "[test_throttling] * message 1 | repeated [1]"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "test2",
+                CppLogMessageHandler.class.getName(),
+                Level.INFO,
+                "[test_throttling] * message 1 | repeated [1]"
+            )
         );
         mockAppender.addExpectation(
             MockLogAppender.createSeenEventExpectation(
@@ -337,12 +337,12 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "test3",
-                    CppLogMessageHandler.class.getName(),
-                    Level.INFO,
-                    "[test_throttling] * message 1 | repeated [5]"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "test3",
+                CppLogMessageHandler.class.getName(),
+                Level.INFO,
+                "[test_throttling] * message 1 | repeated [5]"
+            )
         );
 
         executeLoggingTest(is, mockAppender, Level.DEBUG, "test_throttling");

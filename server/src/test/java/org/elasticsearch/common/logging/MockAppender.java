@@ -8,27 +8,23 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.api.core.Appender;
 import org.elasticsearch.logging.api.core.Filter;
 import org.elasticsearch.logging.api.core.Layout;
 import org.elasticsearch.logging.api.core.LogEvent;
 
-import java.io.Serializable;
-
 public class MockAppender implements Appender {
     public LogEvent lastEvent;
 
     public MockAppender(final String name) throws IllegalAccessException {
-//        super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
+        // super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
     }
 
-//    @Override
-//    public void append(LogEvent event) {
-//        lastEvent = event.toImmutable();
-//    }
-
+    // @Override
+    // public void append(LogEvent event) {
+    // lastEvent = event.toImmutable();
+    // }
 
     Message lastParameterizedMessage() {
         return lastEvent.getMessage();

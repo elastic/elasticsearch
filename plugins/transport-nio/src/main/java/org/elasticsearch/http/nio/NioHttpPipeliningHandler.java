@@ -12,12 +12,12 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.logging.Logger;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;

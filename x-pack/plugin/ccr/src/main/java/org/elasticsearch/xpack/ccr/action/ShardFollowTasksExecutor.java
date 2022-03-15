@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -53,6 +50,9 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -535,11 +535,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
                 if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "{} background management of retention lease [{}] failed while following",
-                                params.getFollowShardId(),
-                                retentionLeaseId
-                            ),
+                        Message.createParameterizedMessage(
+                            "{} background management of retention lease [{}] failed while following",
+                            params.getFollowShardId(),
+                            retentionLeaseId
+                        ),
                         cause
                     );
                 }
@@ -580,10 +580,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(
-                        Message.createParameterizedMessage(
-                            "failed to fetch follow shard global {} checkpoint and max sequence number",
-                            shardFollowNodeTask
-                        ),
+                    Message.createParameterizedMessage(
+                        "failed to fetch follow shard global {} checkpoint and max sequence number",
+                        shardFollowNodeTask
+                    ),
                     e
                 );
                 try {

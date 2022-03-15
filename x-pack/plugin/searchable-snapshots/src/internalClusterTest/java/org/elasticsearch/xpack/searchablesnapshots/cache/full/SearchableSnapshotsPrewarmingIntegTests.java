@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -32,6 +31,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;

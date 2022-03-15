@@ -13,12 +13,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
@@ -26,8 +22,12 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -132,25 +132,25 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
                 .replace('/', platformFileSeparator());
             mockAppender.addExpectation(
-                    MockLogAppender.createPatternSeenEventExpectation(
-                        "ssl diagnostic",
-                        DiagnosticTrustManager.class.getName(),
-                        Level.WARN,
-                        "failed to establish trust with server at \\["
-                            + Pattern.quote(webServer.getHostName())
-                            + "\\];"
-                            + " the server provided a certificate with subject name \\[CN=not-this-host\\],"
-                            + " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;"
-                            + " the session uses cipher suite \\[TLS_[A-Z0-9_]*\\] and protocol \\[TLSv[0-9.]*\\];"
-                            + " the certificate has subject alternative names \\[DNS:not\\.this\\.host\\];"
-                            + " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]"
-                            + " but the server did not provide a copy of the issuing certificate in the certificate chain;"
-                            + " the issuing certificate with fingerprint \\[[0-9a-f]{40}\\]"
-                            + " is trusted in this ssl context "
-                            + Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{")
-                            + "\\S+"
-                            + Pattern.quote(fileName + "})])")
-                    )
+                MockLogAppender.createPatternSeenEventExpectation(
+                    "ssl diagnostic",
+                    DiagnosticTrustManager.class.getName(),
+                    Level.WARN,
+                    "failed to establish trust with server at \\["
+                        + Pattern.quote(webServer.getHostName())
+                        + "\\];"
+                        + " the server provided a certificate with subject name \\[CN=not-this-host\\],"
+                        + " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;"
+                        + " the session uses cipher suite \\[TLS_[A-Z0-9_]*\\] and protocol \\[TLSv[0-9.]*\\];"
+                        + " the certificate has subject alternative names \\[DNS:not\\.this\\.host\\];"
+                        + " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]"
+                        + " but the server did not provide a copy of the issuing certificate in the certificate chain;"
+                        + " the issuing certificate with fingerprint \\[[0-9a-f]{40}\\]"
+                        + " is trusted in this ssl context "
+                        + Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{")
+                        + "\\S+"
+                        + Pattern.quote(fileName + "})])")
+                )
             );
 
             enableHttpsHostnameChecking(clientSocket);

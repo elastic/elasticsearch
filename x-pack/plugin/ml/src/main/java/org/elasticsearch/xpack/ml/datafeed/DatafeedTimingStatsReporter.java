@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 

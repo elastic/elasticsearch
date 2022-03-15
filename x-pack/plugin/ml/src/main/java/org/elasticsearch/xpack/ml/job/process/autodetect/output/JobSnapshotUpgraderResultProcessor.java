@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -84,7 +84,10 @@ public class JobSnapshotUpgraderResultProcessor {
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(Message.createParameterizedMessage("[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
+                LOGGER.warn(
+                    Message.createParameterizedMessage("[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId),
+                    e
+                );
             }
         } catch (Exception e) {
             failed = true;
@@ -109,7 +112,10 @@ public class JobSnapshotUpgraderResultProcessor {
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(Message.createParameterizedMessage("[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
+                LOGGER.error(
+                    Message.createParameterizedMessage("[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId),
+                    e
+                );
             }
         } finally {
             completionLatch.countDown();
@@ -127,7 +133,10 @@ public class JobSnapshotUpgraderResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(Message.createParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId), e);
+                    LOGGER.warn(
+                        Message.createParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId),
+                        e
+                    );
                 }
             }
         } finally {

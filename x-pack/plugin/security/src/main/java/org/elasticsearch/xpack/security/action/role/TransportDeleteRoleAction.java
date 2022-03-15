@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
-import org.elasticsearch.logging.Message;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -40,7 +39,10 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
         try {
             rolesStore.deleteRole(request, listener.delegateFailure((l, found) -> l.onResponse(new DeleteRoleResponse(found))));
         } catch (Exception e) {
-            logger.error((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to delete role [{}]", request.name()), e);
+            logger.error(
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to delete role [{}]", request.name()),
+                e
+            );
             listener.onFailure(e);
         }
     }

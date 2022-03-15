@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 class CategorizationBytesRefHash implements Releasable {

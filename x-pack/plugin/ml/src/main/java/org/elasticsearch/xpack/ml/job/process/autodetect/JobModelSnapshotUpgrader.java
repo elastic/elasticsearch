@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +17,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -118,7 +118,11 @@ public final class JobModelSnapshotUpgrader {
                     nativeStorageProvider.cleanupLocalTmpStorage(task.getDescription());
                 } catch (IOException e) {
                     logger.error(
-                            Message.createParameterizedMessage("[{}] [{}] failed to delete temporary files snapshot upgrade", jobId, snapshotId),
+                        Message.createParameterizedMessage(
+                            "[{}] [{}] failed to delete temporary files snapshot upgrade",
+                            jobId,
+                            snapshotId
+                        ),
                         e
                     );
                 }
@@ -156,7 +160,10 @@ public final class JobModelSnapshotUpgrader {
     void setTaskToFailed(String reason, ActionListener<PersistentTask<?>> listener) {
         SnapshotUpgradeTaskState taskState = new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, task.getAllocationId(), reason);
         task.updatePersistentTaskState(taskState, ActionListener.wrap(listener::onResponse, f -> {
-            logger.warn(() -> Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
+            logger.warn(
+                () -> Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()),
+                f
+            );
             listener.onFailure(f);
         }));
     }
@@ -172,7 +179,10 @@ public final class JobModelSnapshotUpgrader {
                 process = null;
                 processor = null;
             } catch (IOException e) {
-                logger.error(Message.createParameterizedMessage("[{}] failed to kill upgrade process for model snapshot [{}]", jobId, snapshotId), e);
+                logger.error(
+                    Message.createParameterizedMessage("[{}] failed to kill upgrade process for model snapshot [{}]", jobId, snapshotId),
+                    e
+                );
             }
         } else {
             logger.warn("[{}] attempt to kill upgrade process for model snapshot [{}] when no such process exists", jobId, snapshotId);
@@ -270,7 +280,10 @@ public final class JobModelSnapshotUpgrader {
             }, (flushAcknowledgement, e) -> {
                 Runnable nextStep;
                 if (e != null) {
-                    logger.error(() -> Message.createParameterizedMessage("[{}] [{}] failed to flush after writing old state", jobId, snapshotId), e);
+                    logger.error(
+                        () -> Message.createParameterizedMessage("[{}] [{}] failed to flush after writing old state", jobId, snapshotId),
+                        e
+                    );
                     nextStep = () -> setTaskToFailed(
                         "Failed to flush after writing old state due to: " + e.getMessage(),
                         ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
@@ -315,7 +328,11 @@ public final class JobModelSnapshotUpgrader {
                     logger.debug("[{}] [{}] asked for state to be persisted", jobId, snapshotId);
                 }, f -> {
                     logger.error(
-                        () -> Message.createParameterizedMessage("[{}] [{}] failed to update snapshot upgrader task to started", jobId, snapshotId),
+                        () -> Message.createParameterizedMessage(
+                            "[{}] [{}] failed to update snapshot upgrader task to started",
+                            jobId,
+                            snapshotId
+                        ),
                         f
                     );
                     shutdown(

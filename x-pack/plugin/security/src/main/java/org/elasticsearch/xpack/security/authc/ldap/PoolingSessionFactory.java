@@ -14,8 +14,6 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -23,6 +21,8 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -187,12 +187,12 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     pool.setHealthCheckIntervalMillis(healthCheckInterval);
                 } else {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "[{}] and [{}} have not been specified or are not valid distinguished names,"
-                                    + "so connection health checking is disabled",
-                                RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
-                                RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
-                            )
+                        Message.createParameterizedMessage(
+                            "[{}] and [{}} have not been specified or are not valid distinguished names,"
+                                + "so connection health checking is disabled",
+                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
+                        )
                     );
                 }
             }

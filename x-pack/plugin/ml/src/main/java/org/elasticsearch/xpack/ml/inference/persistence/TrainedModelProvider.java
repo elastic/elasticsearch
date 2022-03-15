@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -49,6 +46,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -449,7 +449,10 @@ public class TrainedModelProvider {
             assert r.getItems().length == trainedModelDefinitionDocs.size() + 1;
             if (r.getItems()[0].isFailed()) {
                 logger.error(
-                        Message.createParameterizedMessage("[{}] failed to store trained model config for inference", trainedModelConfig.getModelId()),
+                    Message.createParameterizedMessage(
+                        "[{}] failed to store trained model config for inference",
+                        trainedModelConfig.getModelId()
+                    ),
                     r.getItems()[0].getFailure().getCause()
                 );
 
@@ -464,10 +467,10 @@ public class TrainedModelProvider {
                     .findFirst()
                     .orElse(new Exception("unknown failure"));
                 logger.error(
-                        Message.createParameterizedMessage(
-                            "[{}] failed to store trained model definition for inference",
-                            trainedModelConfig.getModelId()
-                        ),
+                    Message.createParameterizedMessage(
+                        "[{}] failed to store trained model definition for inference",
+                        trainedModelConfig.getModelId()
+                    ),
                     firstFailure
                 );
                 wrappedListener.onFailure(firstFailure);
@@ -976,7 +979,10 @@ public class TrainedModelProvider {
                             continue;
                         }
                         logger.error(
-                                Message.createParameterizedMessage("[{}] search failed for models", Strings.arrayToCommaDelimitedString(modelIds)),
+                            Message.createParameterizedMessage(
+                                "[{}] search failed for models",
+                                Strings.arrayToCommaDelimitedString(modelIds)
+                            ),
                             response.getFailure()
                         );
                         listener.onFailure(

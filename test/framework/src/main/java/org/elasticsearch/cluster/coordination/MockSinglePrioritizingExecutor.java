@@ -32,17 +32,17 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
                 deterministicTaskQueue.scheduleNow(new Runnable() {
                     @Override
                     public void run() {
-                        //TODO PG CloseableThreadContext
-//                        try (
-////                            CloseableThreadContext.Instance ignored = CloseableThreadContext.put(
-////                                NODE_ID_LOG_CONTEXT_KEY,
-////                                '{' + nodeName + "}{" + nodeId + '}'
-////                            )
-//                        ) {
-//                            r.run();
-//                        } catch (KillWorkerError kwe) {
-//                            // hacks everywhere
-//                        }
+                        // TODO PG CloseableThreadContext
+                        // try (
+                        //// CloseableThreadContext.Instance ignored = CloseableThreadContext.put(
+                        //// NODE_ID_LOG_CONTEXT_KEY,
+                        //// '{' + nodeName + "}{" + nodeId + '}'
+                        //// )
+                        // ) {
+                        // r.run();
+                        // } catch (KillWorkerError kwe) {
+                        // // hacks everywhere
+                        // }
                     }
 
                     @Override

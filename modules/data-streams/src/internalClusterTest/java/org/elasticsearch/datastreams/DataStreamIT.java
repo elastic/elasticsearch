@@ -1867,7 +1867,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         Exception actualException = (Exception) e.getCause();
         assertTrue(
-            Throwables.getRootCause(actualException)
+            ExceptionsHelper.getRootCause(actualException)
                 .getMessage()
                 .contains("mapping type [_doc] must have routing required for partitioned index")
         );

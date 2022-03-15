@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -28,8 +25,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -41,9 +36,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.MockLogAppender;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -777,34 +777,34 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "no-thrashing",
-                        ApiKeyService.class.getName(),
-                        Level.WARN,
-                        "Possible thrashing for API key authentication cache,*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "no-thrashing",
+                    ApiKeyService.class.getName(),
+                    Level.WARN,
+                    "Possible thrashing for API key authentication cache,*"
+                )
             );
             apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "replace",
-                        ApiKeyService.class.getName(),
-                        Level.TRACE,
-                        "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "replace",
+                    ApiKeyService.class.getName(),
+                    Level.TRACE,
+                    "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+                )
             );
             apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "invalidate",
-                        ApiKeyService.class.getName(),
-                        Level.TRACE,
-                        "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "invalidate",
+                    ApiKeyService.class.getName(),
+                    Level.TRACE,
+                    "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+                )
             );
             apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
             apiKeyAuthCache.invalidateAll();
@@ -834,12 +834,12 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         try {
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "evict",
-                        ApiKeyService.class.getName(),
-                        Level.TRACE,
-                        "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "evict",
+                    ApiKeyService.class.getName(),
+                    Level.TRACE,
+                    "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
+                )
             );
             apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
             // Wait for the entry to expire
@@ -914,12 +914,12 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "throttling",
-                        ApiKeyService.class.getName(),
-                        Level.WARN,
-                        "Possible thrashing for API key authentication cache,*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "throttling",
+                    ApiKeyService.class.getName(),
+                    Level.WARN,
+                    "Possible thrashing for API key authentication cache,*"
+                )
             );
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();

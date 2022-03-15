@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.logging.LogManager;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.XMLCipher;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;

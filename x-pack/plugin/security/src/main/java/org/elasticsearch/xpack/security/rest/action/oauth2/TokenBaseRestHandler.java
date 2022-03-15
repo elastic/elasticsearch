@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;

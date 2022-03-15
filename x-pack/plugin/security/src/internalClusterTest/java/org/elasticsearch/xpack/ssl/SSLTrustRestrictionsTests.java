@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -169,11 +169,11 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
             logger.warn(
-                    Message.createParameterizedMessage(
-                        "unexpected handshake failure with certificate [{}] [{}]",
-                        trustedCert.certificate.getSubjectDN(),
-                        trustedCert.certificate.getSubjectAlternativeNames()
-                    ),
+                Message.createParameterizedMessage(
+                    "unexpected handshake failure with certificate [{}] [{}]",
+                    trustedCert.certificate.getSubjectDN(),
+                    trustedCert.certificate.getSubjectAlternativeNames()
+                ),
                 ex
             );
             fail("handshake should have been successful, but failed with " + ex);

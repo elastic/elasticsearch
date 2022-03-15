@@ -14,11 +14,11 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.Version;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -161,27 +161,27 @@ class S3RetryingInputStream extends InputStream {
     private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
             logger.debug(
-                    Message.createParameterizedMessage(
-                        "failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
-                        blobStore.bucket(),
-                        blobKey,
-                        start + currentOffset,
-                        attempt,
-                        maxAttempts
-                    ),
-                e
-            );
-            throw addSuppressedExceptions(e);
-        }
-        logger.debug(
                 Message.createParameterizedMessage(
-                    "failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
+                    "failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
                     blobStore.bucket(),
                     blobKey,
                     start + currentOffset,
                     attempt,
                     maxAttempts
                 ),
+                e
+            );
+            throw addSuppressedExceptions(e);
+        }
+        logger.debug(
+            Message.createParameterizedMessage(
+                "failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
+                blobStore.bucket(),
+                blobKey,
+                start + currentOffset,
+                attempt,
+                maxAttempts
+            ),
             e
         );
         attempt += 1;

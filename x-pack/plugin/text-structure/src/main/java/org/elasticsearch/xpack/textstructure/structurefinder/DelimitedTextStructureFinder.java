@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.supercsv.exception.SuperCsvException;

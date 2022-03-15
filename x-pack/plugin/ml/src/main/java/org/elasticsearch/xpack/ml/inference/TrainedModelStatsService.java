@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.inference;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -26,6 +23,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
@@ -291,7 +291,11 @@ public class TrainedModelStatsService {
             return updateRequest;
         } catch (IOException ex) {
             logger.error(
-                () -> Message.createParameterizedMessage("[{}] [{}] failed to serialize stats for update.", stats.getModelId(), stats.getNodeId()),
+                () -> Message.createParameterizedMessage(
+                    "[{}] [{}] failed to serialize stats for update.",
+                    stats.getModelId(),
+                    stats.getNodeId()
+                ),
                 ex
             );
         }

@@ -6,10 +6,6 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -17,6 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -149,7 +148,10 @@ public class SecurityRestFilter implements RestHandler {
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error(
-                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
+                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                    "failed to send failure response for uri [{}]",
+                    request.uri()
+                ),
                 inner
             );
         }

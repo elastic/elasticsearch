@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
-
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -22,13 +19,13 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-//import org.elasticsearch.logging.internal.ECSJsonLayout;
-//import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.Layout;
 import org.elasticsearch.logging.api.core.RateLimitingFilter;
@@ -50,7 +47,7 @@ import static org.elasticsearch.xpack.deprecation.Deprecation.WRITE_DEPRECATION_
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
-    private  DeprecationIndexingAppender appender;
+    private DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
     private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
@@ -70,14 +67,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
         final Consumer<IndexRequest> consumer = this.processor::add;
 
-//        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
-//        final Configuration configuration = context.getConfiguration();
-//
-//        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
-//            .setDataset("deprecation.elasticsearch")
-//            .setConfiguration(configuration)
-//            .build();
-//
+        // final LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        // final Configuration configuration = context.getConfiguration();
+        //
+        // final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
+        // .setDataset("deprecation.elasticsearch")
+        // .setConfiguration(configuration)
+        // .build();
+        //
         Layout ecsLayout = Layout.createECSLayout("deprecation.elasticsearch");
 
         this.appender = new DeprecationIndexingAppender(
@@ -134,7 +131,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     @Override
     protected void doStart() {
         logger.info("deprecation component started");
-//        this.appender.start();
+        // this.appender.start();
         AppenderUtils.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
     }
 
@@ -142,7 +139,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     protected void doStop() {
         AppenderUtils.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
         flushEnabled.set(false);
-//        this.appender.stop();
+        // this.appender.stop();
     }
 
     @Override

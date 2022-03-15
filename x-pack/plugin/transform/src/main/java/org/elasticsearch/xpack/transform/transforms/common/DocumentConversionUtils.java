@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.index.IndexRequest;
 
 import java.util.HashMap;
 import java.util.Map;

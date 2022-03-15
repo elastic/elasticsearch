@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
@@ -25,6 +22,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.license.LicensedAllocatedPersistentTask;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -158,7 +158,11 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
         DataFrameAnalyticsStep cachedCurrentStep = currentStep;
         ActionListener<Void> stepProgressListener = ActionListener.wrap(aVoid -> cachedCurrentStep.cancel(reason, timeout), e -> {
             LOGGER.error(
-                    Message.createParameterizedMessage("[{}] Error updating progress for step [{}]", taskParams.getId(), cachedCurrentStep.name()),
+                Message.createParameterizedMessage(
+                    "[{}] Error updating progress for step [{}]",
+                    taskParams.getId(),
+                    cachedCurrentStep.name()
+                ),
                 e
             );
             // We should log the error but it shouldn't stop us from stopping the task
@@ -173,7 +177,10 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
     public void setFailed(Exception error) {
         if (analyticsManager.isNodeShuttingDown()) {
             LOGGER.warn(
-                    Message.createParameterizedMessage("[{}] *Not* setting task to failed because the node is being shutdown", taskParams.getId()),
+                Message.createParameterizedMessage(
+                    "[{}] *Not* setting task to failed because the node is being shutdown",
+                    taskParams.getId()
+                ),
                 error
             );
             return;
@@ -196,12 +203,12 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 LOGGER.info("[{}] {}", getParams().getId(), message);
             },
                 e -> LOGGER.error(
-                        Message.createParameterizedMessage(
-                            "[{}] Could not update task state to [{}] with reason [{}]",
-                            getParams().getId(),
-                            DataFrameAnalyticsState.FAILED,
-                            reason
-                        ),
+                    Message.createParameterizedMessage(
+                        "[{}] Could not update task state to [{}] with reason [{}]",
+                        getParams().getId(),
+                        DataFrameAnalyticsState.FAILED,
+                        reason
+                    ),
                     e
                 )
             ));
@@ -225,7 +232,10 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
             runnable.run();
         }, indexError -> {
-            LOGGER.error(Message.createParameterizedMessage("[{}] cannot persist progress as an error occurred while indexing", jobId), indexError);
+            LOGGER.error(
+                Message.createParameterizedMessage("[{}] cannot persist progress as an error occurred while indexing", jobId),
+                indexError
+            );
             runnable.run();
         });
 
@@ -269,10 +279,10 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             executeAsyncWithOrigin(clientToUse, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
         }, e -> {
             LOGGER.error(
-                    Message.createParameterizedMessage(
-                        "[{}] cannot persist progress as an error occurred while retrieving former progress document",
-                        jobId
-                    ),
+                Message.createParameterizedMessage(
+                    "[{}] cannot persist progress as an error occurred while retrieving former progress document",
+                    jobId
+                ),
                 e
             );
             runnable.run();
@@ -286,10 +296,10 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             executeAsyncWithOrigin(clientToUse, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
         }, e -> {
             LOGGER.error(
-                    Message.createParameterizedMessage(
-                        "[{}] cannot persist progress as an error occurred while updating task progress",
-                        taskParams.getId()
-                    ),
+                Message.createParameterizedMessage(
+                    "[{}] cannot persist progress as an error occurred while updating task progress",
+                    taskParams.getId()
+                ),
                 e
             );
             runnable.run();

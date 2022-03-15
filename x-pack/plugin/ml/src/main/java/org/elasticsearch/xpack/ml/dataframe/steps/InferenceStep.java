@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -18,6 +15,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -84,7 +84,10 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
                 // no need to run inference at all so let us skip
                 // loading the model in memory.
                 LOGGER.debug(
-                    () -> Message.createParameterizedMessage("[{}] Inference step completed immediately as there are no test docs", config.getId())
+                    () -> Message.createParameterizedMessage(
+                        "[{}] Inference step completed immediately as there are no test docs",
+                        config.getId()
+                    )
                 );
                 task.getStatsHolder().getProgressTracker().updateInferenceProgress(100);
                 listener.onResponse(new StepResponse(isTaskStopping()));

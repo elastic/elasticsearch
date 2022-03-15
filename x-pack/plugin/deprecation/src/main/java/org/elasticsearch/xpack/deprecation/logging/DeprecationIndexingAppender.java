@@ -22,7 +22,6 @@ import org.elasticsearch.logging.api.core.Layout;
 import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.Serializable;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -31,14 +30,14 @@ import java.util.function.Consumer;
  * writes, but instead constructs an {@link IndexRequest} for the log message and passes that
  * to a callback.
  */
-//@Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
+// @Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class DeprecationIndexingAppender implements Appender/*extends AbstractAppender*/ {
     public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
     private String name;
     private Filter filter;
     private Layout layout;
-    private  Consumer<IndexRequest> requestConsumer = null;
+    private Consumer<IndexRequest> requestConsumer = null;
 
     /**
      * You can't start and stop an appender to toggle it, so this flag reflects whether
@@ -52,9 +51,9 @@ public class DeprecationIndexingAppender implements Appender/*extends AbstractAp
      * @param filter a filter to apply directly on the appender
      * @param layout the layout to use for formatting message. It must return a JSON string.
      * @param requestConsumer a callback to handle the actual indexing of the log message.
-//     */
+    //     */
     public DeprecationIndexingAppender(String name, Filter filter, Layout layout, Consumer<IndexRequest> requestConsumer) {
-//        super(name, filter, layout);
+        // super(name, filter, layout);
         this.name = name;
         this.filter = filter;
         this.layout = layout;

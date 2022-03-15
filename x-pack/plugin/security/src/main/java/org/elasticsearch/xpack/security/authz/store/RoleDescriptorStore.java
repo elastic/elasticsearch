@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.logging.*;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -132,7 +136,9 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
-                logger.debug(() -> Message.createParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
+                logger.debug(
+                    () -> Message.createParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles())
+                );
             }
             final Set<RoleDescriptor> effectiveDescriptors;
             Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
@@ -225,7 +231,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     }
                 } else {
                     logger.warn(
-                            Message.createParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                        Message.createParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
                         result.getFailure()
                     );
                     rolesResult.setFailure();

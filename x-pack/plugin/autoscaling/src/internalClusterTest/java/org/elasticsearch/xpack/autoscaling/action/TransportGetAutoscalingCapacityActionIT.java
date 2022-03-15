@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;

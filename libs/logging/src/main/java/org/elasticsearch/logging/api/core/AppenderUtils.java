@@ -23,26 +23,26 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.LogEventImpl;
 import org.elasticsearch.logging.internal.Util;
 
-import java.io.Serializable;
-
 public class AppenderUtils {
 
-    private AppenderUtils() {
-    }
+    private AppenderUtils() {}
 
-//    public static MockLogAppender2 addMockAppender(Logger logger) throws IllegalAccessException {
-//        MockLogAppender2 impl = new MockLogAppender2();
-//        Loggers.addAppender(logger, impl.mockLogAppender1);
-//        return impl;
-//    }
+    // public static MockLogAppender2 addMockAppender(Logger logger) throws IllegalAccessException {
+    // MockLogAppender2 impl = new MockLogAppender2();
+    // Loggers.addAppender(logger, impl.mockLogAppender1);
+    // return impl;
+    // }
 
-//    public static MockLogAppender2 addAppender(final org.elasticsearch.logging.Logger logger, MockLogAppender2 mockLogAppender) throws IllegalAccessException {
-//        Loggers.addAppender(logger, mockLogAppender.mockLogAppender1);
-//        return mockLogAppender;
-//    }
+    // public static MockLogAppender2 addAppender(final org.elasticsearch.logging.Logger logger, MockLogAppender2 mockLogAppender)
+    // throws IllegalAccessException {
+    // Loggers.addAppender(logger, mockLogAppender.mockLogAppender1);
+    // return mockLogAppender;
+    // }
 
-
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final org.elasticsearch.logging.api.core.Appender  appender) {
+    public static void addAppender(
+        final org.elasticsearch.logging.Logger logger,
+        final org.elasticsearch.logging.api.core.Appender appender
+    ) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         org.apache.logging.log4j.core.Appender appender1 = createLog4jAdapter(appender);
@@ -61,15 +61,12 @@ public class AppenderUtils {
     @SuppressWarnings("unchecked")
     private static Appender createLog4jAdapter(org.elasticsearch.logging.api.core.Appender appender) {
         org.apache.logging.log4j.core.Filter filter = createLog4jFilter(appender.filter());
-        return new AbstractAppender(appender.name(), filter,
-            (Layout<? extends Serializable>) appender.layout(),
-            false, Property.EMPTY_ARRAY ){
+        return new AbstractAppender(appender.name(), filter, (Layout<?>) appender.layout(), false, Property.EMPTY_ARRAY) {
 
             @Override
             public void append(LogEvent event) {
                 appender.append(new LogEventImpl(event));
             }
-
 
         };
     }
@@ -99,6 +96,7 @@ public class AppenderUtils {
     public static void removeAppender(final Logger logger, final org.elasticsearch.logging.api.core.Appender appender) {
         removeAppender(logger, appender.name());
     }
+
     public static void removeAppender(final Logger logger, final MockLogAppender appender) {
         removeAppender(logger, "mock");
     }

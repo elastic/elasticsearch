@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.common.settings;
 
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;

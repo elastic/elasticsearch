@@ -140,7 +140,7 @@ public class Loggers {
         }
     }
 
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender  appender) { }
+    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender appender) {}
 
     public static void addAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -154,7 +154,6 @@ public class Loggers {
         loggerConfig.addAppender(appender, null, null);
         ctx.updateLoggers();
     }
-
 
     public static void removeAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);

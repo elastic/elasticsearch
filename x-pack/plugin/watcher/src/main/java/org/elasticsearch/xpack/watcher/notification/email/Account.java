@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import java.security.AccessController;

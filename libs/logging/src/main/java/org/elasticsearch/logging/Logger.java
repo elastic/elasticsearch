@@ -63,6 +63,7 @@ public interface Logger {
 
     // -- error
     void error(Object message);
+
     void error(Message message);
 
     void error(Throwable e);
@@ -167,14 +168,13 @@ public interface Logger {
     void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
 
     void warn(String message, Object... params);
+
     void warn(Throwable e);
+
     // -- fatal
     void fatal(String message, Throwable thrown);
 
     boolean isLoggable(Level level);
-
-
-
 
     // TODO:
 }

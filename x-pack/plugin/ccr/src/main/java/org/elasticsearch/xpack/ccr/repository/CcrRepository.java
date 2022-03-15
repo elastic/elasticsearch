@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -62,6 +59,9 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
@@ -406,11 +406,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                             assert cause instanceof ElasticsearchSecurityException == false : cause;
                             if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                                 logger.warn(
-                                        Message.createParameterizedMessage(
-                                            "{} background renewal of retention lease [{}] failed during restore",
-                                            shardId,
-                                            retentionLeaseId
-                                        ),
+                                    Message.createParameterizedMessage(
+                                        "{} background renewal of retention lease [{}] failed during restore",
+                                        shardId,
+                                        retentionLeaseId
+                                    ),
                                     cause
                                 );
                             }
@@ -456,7 +456,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final ShardId leaderShardId,
         final Client remoteClient
     ) {
-        logger.trace(() -> Message.createParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId));
+        logger.trace(
+            () -> Message.createParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId)
+        );
         final TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready = syncAddRetentionLease(
             leaderShardId,
@@ -467,7 +469,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         );
         maybeAddAlready.ifPresent(addAlready -> {
             logger.trace(
-                () -> Message.createParameterizedMessage("{} retention lease [{}] already exists, requesting a renewal", shardId, retentionLeaseId),
+                () -> Message.createParameterizedMessage(
+                    "{} retention lease [{}] already exists, requesting a renewal",
+                    shardId,
+                    retentionLeaseId
+                ),
                 addAlready
             );
             final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound = syncRenewRetentionLease(
@@ -708,7 +714,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                     } catch (Exception ex) {
                                         e.addSuppressed(ex);
                                         logger.warn(
-                                            () -> Message.createParameterizedMessage("failed to execute failure callback for chunk request"),
+                                            () -> Message.createParameterizedMessage(
+                                                "failed to execute failure callback for chunk request"
+                                            ),
                                             e
                                         );
                                     }

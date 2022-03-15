@@ -208,9 +208,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
 
         @Override
         public void match(final LogEvent event) {
-            if (event.getLevel().equals(level)
-                && event.getLoggerName().equals(loggerName)
-               /* && event.getMessage() instanceof final org.elasticsearch.logging. message*/) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(loggerName)
+            /* && event.getMessage() instanceof final org.elasticsearch.logging. message*/) {
                 Message message = event.getMessage();
                 saw = message.getFormat().equals(messagePattern)
                     && Arrays.deepEquals(arguments, message.getParameters())

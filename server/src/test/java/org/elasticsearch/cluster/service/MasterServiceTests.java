@@ -1011,12 +1011,12 @@ public class MasterServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "test1 shouldn't log because it was fast enough",
-                    MasterService.class.getCanonicalName(),
-                    Level.WARN,
-                    "*took*test1*"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "test1 shouldn't log because it was fast enough",
+                MasterService.class.getCanonicalName(),
+                Level.WARN,
+                "*took*test1*"
+            )
         );
         mockAppender.addExpectation(
             MockLogAppender.createSeenEventExpectation(
@@ -1043,12 +1043,12 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "test5 should not log despite publishing slowly",
-                    MasterService.class.getCanonicalName(),
-                    Level.WARN,
-                    "*took*test5*"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "test5 should not log despite publishing slowly",
+                MasterService.class.getCanonicalName(),
+                Level.WARN,
+                "*took*test5*"
+            )
         );
         mockAppender.addExpectation(
             MockLogAppender.createSeenEventExpectation(

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ql.async;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -23,6 +20,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -260,7 +260,10 @@ public class AsyncTaskManagementService<
                     // We should only unregister after the result is saved
                     resp -> {
                         logger.trace(
-                            () -> Message.createParameterizedMessage("stored eql search results for [{}]", searchTask.getExecutionId().getEncoded())
+                            () -> Message.createParameterizedMessage(
+                                "stored eql search results for [{}]",
+                                searchTask.getExecutionId().getEncoded()
+                            )
                         );
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
@@ -296,7 +299,10 @@ public class AsyncTaskManagementService<
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
             logger.error(
-                () -> Message.createParameterizedMessage("failed to store eql search results for [{}]", searchTask.getExecutionId().getEncoded()),
+                () -> Message.createParameterizedMessage(
+                    "failed to store eql search results for [{}]",
+                    searchTask.getExecutionId().getEncoded()
+                ),
                 exc
             );
         }

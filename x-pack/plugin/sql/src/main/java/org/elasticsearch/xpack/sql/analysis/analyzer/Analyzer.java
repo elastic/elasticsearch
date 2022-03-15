@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;

@@ -900,7 +900,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             listener.actionGet();
                         } catch (Exception e) {
                             logger.trace(
-                                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("caught exception while sending to node {}", nodeA),
+                                (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                                    "caught exception while sending to node {}",
+                                    nodeA
+                                ),
                                 e
                             );
                         }
@@ -943,7 +946,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                                 // ok!
                             } catch (Exception e) {
                                 logger.error(
-                                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("caught exception while sending to node {}", node),
+                                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                                        "caught exception while sending to node {}",
+                                        node
+                                    ),
                                     e
                                 );
                                 sendingErrors.add(e);
@@ -1236,9 +1242,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
-            ///../elasticsearch/test/framework/src/main/java/org/elasticsearch/transport/AbstractSimpleTransportTestCase.java:1241: error: cannot access Logger
-            //            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
-//            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            /// ../elasticsearch/test/framework/src/main/java/org/elasticsearch/transport/AbstractSimpleTransportTestCase.java:1241: error:
+            /// cannot access Logger
+            // Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            // Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"
@@ -1340,12 +1347,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             // serviceA does not log that it sent the message
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "not seen request sent",
-                        "org.elasticsearch.transport.TransportService.tracer",
-                        Level.TRACE,
-                        "*[internal:testNotSeen]*sent to*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "not seen request sent",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    "*[internal:testNotSeen]*sent to*"
+                )
             );
             // serviceB does log that it received the request
             appender.addExpectation(
@@ -1367,19 +1374,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceA does not log that it received the response
             appender.addExpectation(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "not seen request sent",
-                        "org.elasticsearch.transport.TransportService.tracer",
-                        Level.TRACE,
-                        "*[internal:testNotSeen]*received response from*"
-                    )
+                MockLogAppender.createUnseenEventExpectation(
+                    "not seen request sent",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    "*[internal:testNotSeen]*received response from*"
+                )
             );
 
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
-//            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            // Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
             appender.stop();
         }
     }
@@ -2101,7 +2108,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("---> received exception for id {}", id),
+                    exp
+                );
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);

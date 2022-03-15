@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
@@ -17,6 +14,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -214,8 +214,11 @@ public class AnalyticsProcessManager {
                 ).getFormattedMessage();
                 LOGGER.debug(errorMsg, e);
             } else {
-                String errorMsg = Message.createParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
-                        .getFormattedMessage();
+                String errorMsg = Message.createParameterizedMessage(
+                    "[{}] Error while processing data [{}]",
+                    config.getId(),
+                    e.getMessage()
+                ).getFormattedMessage();
                 LOGGER.error(errorMsg, e);
                 processContext.setFailureReason(errorMsg);
             }
@@ -367,8 +370,11 @@ public class AnalyticsProcessManager {
                 LOGGER.info("[{}] Closed process", configId);
             } else {
                 LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
-                String errorMsg = Message.createParameterizedMessage("[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage())
-                        .getFormattedMessage();
+                String errorMsg = Message.createParameterizedMessage(
+                    "[{}] Error closing data frame analyzer process [{}]",
+                    configId,
+                    e.getMessage()
+                ).getFormattedMessage();
                 processContext.setFailureReason(errorMsg);
             }
         }

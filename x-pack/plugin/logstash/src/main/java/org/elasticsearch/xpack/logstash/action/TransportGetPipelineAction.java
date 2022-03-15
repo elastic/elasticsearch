@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.logstash.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -27,6 +24,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -76,7 +76,10 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                                 ActionListener.wrap(
                                     (r) -> {},
                                     e -> logger.warn(
-                                            Message.createParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()),
+                                        Message.createParameterizedMessage(
+                                            "clear scroll failed for scroll id [{}]",
+                                            response.getScrollId()
+                                        ),
                                         e
                                     )
                                 )

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -33,6 +30,9 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -131,7 +131,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         }, error -> {
             if (isTaskStopping() && isTaskCancelledException(error)) {
                 LOGGER.debug(
-                        Message.createParameterizedMessage("[{}] Caught task cancelled exception while task is stopping", config.getId()),
+                    Message.createParameterizedMessage("[{}] Caught task cancelled exception while task is stopping", config.getId()),
                     error
                 );
                 listener.onResponse(new StepResponse(true));

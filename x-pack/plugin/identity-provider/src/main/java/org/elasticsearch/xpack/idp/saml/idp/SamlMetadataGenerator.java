@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.idp.saml.idp;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;

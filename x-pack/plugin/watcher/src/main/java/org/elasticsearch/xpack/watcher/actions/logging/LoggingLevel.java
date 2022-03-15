@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Locale;
 

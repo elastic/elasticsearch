@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -23,6 +20,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -154,10 +154,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         ),
                         ex -> {
                             logger.error(
-                                    Message.createParameterizedMessage(
-                                        "failed to load role mappings from index [{}] skipping all mappings.",
-                                        SECURITY_MAIN_ALIAS
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "failed to load role mappings from index [{}] skipping all mappings.",
+                                    SECURITY_MAIN_ALIAS
+                                ),
                                 ex
                             );
                             listener.onResponse(Collections.emptyList());
@@ -376,7 +376,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             new ClearRealmCacheRequest().realms(realmNames),
             ActionListener.wrap(response -> {
                 logger.debug(
-                     () -> Message.createParameterizedMessage(
+                    () -> Message.createParameterizedMessage(
                         "Cleared cached in realms [{}] due to role mapping change",
                         Arrays.toString(realmNames)
                     )

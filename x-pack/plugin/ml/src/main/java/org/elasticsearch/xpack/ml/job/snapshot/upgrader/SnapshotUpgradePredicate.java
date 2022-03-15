@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;

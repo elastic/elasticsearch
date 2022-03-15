@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.junit.AfterClass;
 import org.junit.Before;

@@ -10,13 +10,12 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
 import io.netty.handler.ssl.SslHandler;
 
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
-
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.http.nio.NioHttpChannel;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
@@ -93,7 +92,10 @@ public class SSLEngineUtils {
             assert sslEngine.getWantClientAuth();
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel),
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                        "SSL Peer did not present a certificate on channel [{}]",
+                        channel
+                    ),
                     e
                 );
             } else if (logger.isDebugEnabled()) {

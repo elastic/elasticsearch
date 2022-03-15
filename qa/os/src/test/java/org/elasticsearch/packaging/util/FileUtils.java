@@ -8,8 +8,8 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.logging.Logger;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 

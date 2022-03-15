@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
@@ -26,6 +23,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -143,7 +143,9 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         ResetJobAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> Message.createParameterizedMessage("[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId));
+        logger.debug(
+            () -> Message.createParameterizedMessage("[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId)
+        );
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
@@ -168,7 +170,9 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             Job job = jobResponse.build();
             if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
                 // This means the previous reset task finished successfully as it managed to unset the blocked reason.
-                logger.debug(() -> Message.createParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId()));
+                logger.debug(
+                    () -> Message.createParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId())
+                );
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
                 // Seems like the task was removed abruptly as it hasn't unset the block on reset.

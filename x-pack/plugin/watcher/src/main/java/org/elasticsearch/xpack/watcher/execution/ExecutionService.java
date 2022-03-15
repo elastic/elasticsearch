@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -33,6 +30,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -291,7 +291,7 @@ public class ExecutionService {
             BulkItemResponse itemResponse = response.getItems()[i];
             if (itemResponse.isFailed()) {
                 logger.error(
-                        Message.createParameterizedMessage("could not store triggered watch with id [{}]", itemResponse.getId()),
+                    Message.createParameterizedMessage("could not store triggered watch with id [{}]", itemResponse.getId()),
                     itemResponse.getFailure().getCause()
                 );
             } else {
@@ -451,10 +451,10 @@ public class ExecutionService {
                     forcePutHistory(record);
                 } catch (Exception exc) {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "Error storing watch history record for watch [{}] after thread pool rejection",
-                                triggeredWatch.id()
-                            ),
+                        Message.createParameterizedMessage(
+                            "Error storing watch history record for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()
+                        ),
                         exc
                     );
                 }
@@ -462,10 +462,10 @@ public class ExecutionService {
                     deleteTrigger(triggeredWatch.id());
                 } catch (Exception exc) {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
-                                triggeredWatch.id()
-                            ),
+                        Message.createParameterizedMessage(
+                            "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()
+                        ),
                         exc
                     );
                 }

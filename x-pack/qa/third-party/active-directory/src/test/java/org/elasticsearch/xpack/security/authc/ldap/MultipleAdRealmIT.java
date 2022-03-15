@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.junit.BeforeClass;
 

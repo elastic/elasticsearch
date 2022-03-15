@@ -8,20 +8,17 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.logging.api.core.Appender;
-import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.api.core.Filter;
-import org.elasticsearch.logging.api.core.Layout;
-import org.elasticsearch.logging.api.core.LogEvent;
-//
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.Appender;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.Filter;
+import org.elasticsearch.logging.api.core.Layout;
+import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +34,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         public boolean sawUpdateAutoThrottle;
 
         MockAppender(final String name) throws IllegalAccessException {
-//            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+            // super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
         @Override
@@ -55,7 +52,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             return null;
         }
 
-//        @Override
+        // @Override
         public boolean ignoreExceptions() {
             return false;
         }
@@ -78,7 +75,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
 
     public void testUpdateAutoThrottleSettings() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
-//        mockAppender.start();
+        // mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         AppenderUtils.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
@@ -101,7 +98,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             assertEquals(settings.getMergeSchedulerConfig().isAutoThrottle(), false);
         } finally {
             AppenderUtils.removeAppender(settingsLogger, mockAppender);
-//            mockAppender.stop();
+            // mockAppender.stop();
             Loggers.setLevel(settingsLogger, (Level) null);
         }
     }
@@ -109,7 +106,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
     public void testUpdateMergeMaxThreadCount() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
-//        mockAppender.start();
+        // mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         AppenderUtils.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
@@ -133,7 +130,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             assertTrue(mockAppender.sawUpdateMaxThreadCount);
         } finally {
             AppenderUtils.removeAppender(settingsLogger, mockAppender);
-//            mockAppender.stop();
+            // mockAppender.stop();
             Loggers.setLevel(settingsLogger, (Level) null);
         }
     }

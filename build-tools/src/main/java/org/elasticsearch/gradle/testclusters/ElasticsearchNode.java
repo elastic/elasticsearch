@@ -68,7 +68,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1044,13 +1043,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
-//        try {
-//            for (Thread oThread : threads) {
-//                oThread.join(Duration.ofSeconds(30).toMillis());
-//            }
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
+        // try {
+        // for (Thread oThread : threads) {
+        // oThread.join(Duration.ofSeconds(30).toMillis());
+        // }
+        // } catch (InterruptedException e) {
+        // throw new RuntimeException(e);
+        // }
         reaperServiceProvider.get().unregister(toString());
         esProcess = null;
         // Clean up the ports file in case this is started again.

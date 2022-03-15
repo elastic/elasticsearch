@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -17,6 +14,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -166,12 +166,12 @@ class RealmsAuthenticator implements Authenticator {
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                             if (result.getException() != null) {
                                 logger.info(
-                                        Message.createParameterizedMessage(
-                                            "Authentication of [{}] was terminated by realm [{}] - {}",
-                                            authenticationToken.principal(),
-                                            realm.name(),
-                                            result.getMessage()
-                                        ),
+                                    Message.createParameterizedMessage(
+                                        "Authentication of [{}] was terminated by realm [{}] - {}",
+                                        authenticationToken.principal(),
+                                        realm.name(),
+                                        result.getMessage()
+                                    ),
                                     result.getException()
                                 );
                             } else {
@@ -192,11 +192,11 @@ class RealmsAuthenticator implements Authenticator {
                     }
                 }, (ex) -> {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "An error occurred while attempting to authenticate [{}] against realm [{}]",
-                                authenticationToken.principal(),
-                                realm.name()
-                            ),
+                        Message.createParameterizedMessage(
+                            "An error occurred while attempting to authenticate [{}] against realm [{}]",
+                            authenticationToken.principal(),
+                            realm.name()
+                        ),
                         ex
                     );
                     userListener.onFailure(ex);
@@ -233,11 +233,11 @@ class RealmsAuthenticator implements Authenticator {
             authenticatingListener.run();
         } catch (Exception e) {
             logger.debug(
-                    Message.createParameterizedMessage(
-                        "Authentication of [{}] with token [{}] failed",
-                        authenticationToken.principal(),
-                        authenticationToken.getClass().getName()
-                    ),
+                Message.createParameterizedMessage(
+                    "Authentication of [{}] with token [{}] failed",
+                    authenticationToken.principal(),
+                    authenticationToken.getClass().getName()
+                ),
                 e
             );
             listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));

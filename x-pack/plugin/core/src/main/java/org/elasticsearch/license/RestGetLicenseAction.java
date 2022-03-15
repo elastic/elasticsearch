@@ -8,10 +8,10 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.logging.DeprecationCategory;
-import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;

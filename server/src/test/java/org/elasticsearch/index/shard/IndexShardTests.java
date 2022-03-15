@@ -107,14 +107,13 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -3403,7 +3402,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AppenderUtils.addAppender(LogManager.getLogger(IndexShard.class), appender);
         try {
             appender.addExpectation(
-                 MockLogAppender.createSeenEventExpectation(
+                MockLogAppender.createSeenEventExpectation(
                     "expensive checks warning",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,

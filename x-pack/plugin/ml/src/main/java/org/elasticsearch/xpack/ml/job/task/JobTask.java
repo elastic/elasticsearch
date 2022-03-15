@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.ml.job.task;
 
+import org.elasticsearch.license.LicensedAllocatedPersistentTask;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.license.LicensedAllocatedPersistentTask;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.MachineLearning;

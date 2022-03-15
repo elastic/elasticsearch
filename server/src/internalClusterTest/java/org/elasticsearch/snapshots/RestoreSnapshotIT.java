@@ -894,7 +894,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(admin().indices().prepareClose(indexName).get());
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
+            MockLogAppender.createUnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
         );
         mockAppender.start();
         final Logger logger = LogManager.getLogger(FileRestoreContext.class);

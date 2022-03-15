@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -112,7 +112,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                 listener.onFailure(
                     new ValidationException().addValidationError(
                         Message.createParameterizedMessage("Unexpected status from response of test query: {}", response.status())
-                                .getFormattedMessage()
+                            .getFormattedMessage()
                     )
                 );
                 return;

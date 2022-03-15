@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +16,9 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -328,7 +328,13 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             assert roleName != null;
             if (logger.isDebugEnabled()) {
                 final String finalRoleName = roleName;
-                logger.debug((java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
+                logger.debug(
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                        "parsing exception for role [{}]",
+                        finalRoleName
+                    ),
+                    e
+                );
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
@@ -345,7 +351,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 );
             } else {
                 logger.error(
-                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path),
+                    (java.util.function.Supplier<?>) () -> Message.createParameterizedMessage(
+                        "invalid role definition in roles file [{}]. skipping role...",
+                        path
+                    ),
                     e
                 );
             }

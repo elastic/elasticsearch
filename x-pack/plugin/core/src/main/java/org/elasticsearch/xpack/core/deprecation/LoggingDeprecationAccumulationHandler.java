@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentLocation;
 

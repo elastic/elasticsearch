@@ -6,12 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.logging.*;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
@@ -61,7 +64,7 @@ public class JobNodeSelector {
     private static String createReason(String job, String node, String msg, Object... params) {
         String preamble = String.format(Locale.ROOT, "Not opening job [%s] on node [%s]. Reason: ", job, node);
 
-        //TODO PG not sure we should use logging formatters..
+        // TODO PG not sure we should use logging formatters..
         return preamble + LoggerMessageFormat.format(msg, params);
     }
 

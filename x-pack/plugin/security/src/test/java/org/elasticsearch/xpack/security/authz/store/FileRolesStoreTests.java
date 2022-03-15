@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
@@ -18,6 +16,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -37,6 +34,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -159,11 +159,11 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
             private void onLeaseRemovalFailure(Index index, String retentionLeaseId, Exception e) {
                 logger.warn(
-                        Message.createParameterizedMessage(
-                            "[{}] failure while removing retention lease [{}] on leader primary shards",
-                            index,
-                            retentionLeaseId
-                        ),
+                    Message.createParameterizedMessage(
+                        "[{}] failure while removing retention lease [{}] on leader primary shards",
+                        index,
+                        retentionLeaseId
+                    ),
                     e
                 );
                 final ElasticsearchException wrapper = new ElasticsearchException(e);
@@ -205,23 +205,23 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 if (cause instanceof RetentionLeaseNotFoundException) {
                     // treat as success
                     logger.trace(
-                            Message.createParameterizedMessage(
-                                "{} retention lease [{}] not found on {} while unfollowing",
-                                followerShardId,
-                                retentionLeaseId,
-                                leaderShardId
-                            ),
+                        Message.createParameterizedMessage(
+                            "{} retention lease [{}] not found on {} while unfollowing",
+                            followerShardId,
+                            retentionLeaseId,
+                            leaderShardId
+                        ),
                         e
                     );
                     listener.onResponse(ActionResponse.Empty.INSTANCE);
                 } else {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "{} failed to remove retention lease [{}] on {} while unfollowing",
-                                followerShardId,
-                                retentionLeaseId,
-                                leaderShardId
-                            ),
+                        Message.createParameterizedMessage(
+                            "{} failed to remove retention lease [{}] on {} while unfollowing",
+                            followerShardId,
+                            retentionLeaseId,
+                            leaderShardId
+                        ),
                         e
                     );
                     listener.onFailure(e);

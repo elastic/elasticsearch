@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,6 +24,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -103,7 +103,10 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn(
-                                    Message.createParameterizedMessage("failed to start reroute after deleting node [{}] shutdown", request.getNodeId()),
+                                Message.createParameterizedMessage(
+                                    "failed to start reroute after deleting node [{}] shutdown",
+                                    request.getNodeId()
+                                ),
                                 e
                             );
                             listener.onFailure(e);

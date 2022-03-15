@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
@@ -286,7 +286,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertThat(
             annotations.stream().map(Annotation::getAnnotation).collect(toList()),
             containsInAnyOrder(
-                Message.createParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage(),
+                Message.createParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId())
+                    .getFormattedMessage(),
                 annotation.getAnnotation()
             )
         );
@@ -311,7 +312,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             annotations.get(0).getAnnotation(),
             is(
                 equalTo(
-                    Message.createParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage()
+                    Message.createParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId())
+                        .getFormattedMessage()
                 )
             )
         );

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.transform.chain;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

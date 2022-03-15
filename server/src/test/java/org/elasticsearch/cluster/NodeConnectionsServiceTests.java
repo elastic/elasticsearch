@@ -359,20 +359,20 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     );
                 } else {
                     appender.addExpectation(
-                            MockLogAppender.createUnseenEventExpectation(
-                                "connecting to " + targetNode,
-                                "org.elasticsearch.cluster.NodeConnectionsService",
-                                Level.DEBUG,
-                                "connecting to " + targetNode
-                            )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "connecting to " + targetNode,
+                            "org.elasticsearch.cluster.NodeConnectionsService",
+                            Level.DEBUG,
+                            "connecting to " + targetNode
+                        )
                     );
                     appender.addExpectation(
-                            MockLogAppender.createUnseenEventExpectation(
-                                "connected to " + targetNode,
-                                "org.elasticsearch.cluster.NodeConnectionsService",
-                                Level.DEBUG,
-                                "connected to " + targetNode
-                            )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "connected to " + targetNode,
+                            "org.elasticsearch.cluster.NodeConnectionsService",
+                            Level.DEBUG,
+                            "connected to " + targetNode
+                        )
                     );
                 }
             }
@@ -416,20 +416,20 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     );
                 } else {
                     appender.addExpectation(
-                            MockLogAppender.createUnseenEventExpectation(
-                                "connecting to " + targetNode,
-                                "org.elasticsearch.cluster.NodeConnectionsService",
-                                Level.DEBUG,
-                                "connecting to " + targetNode
-                            )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "connecting to " + targetNode,
+                            "org.elasticsearch.cluster.NodeConnectionsService",
+                            Level.DEBUG,
+                            "connecting to " + targetNode
+                        )
                     );
                     appender.addExpectation(
-                            MockLogAppender.createUnseenEventExpectation(
-                                "connected to " + targetNode,
-                                "org.elasticsearch.cluster.NodeConnectionsService",
-                                Level.DEBUG,
-                                "connected to " + targetNode
-                            )
+                        MockLogAppender.createUnseenEventExpectation(
+                            "connected to " + targetNode,
+                            "org.elasticsearch.cluster.NodeConnectionsService",
+                            Level.DEBUG,
+                            "connected to " + targetNode
+                        )
                     );
                 }
                 if (newTargetNodes.get(targetNode.getId()) == null) {
@@ -445,12 +445,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             }
             for (DiscoveryNode targetNode : newTargetNodes) {
                 appender.addExpectation(
-                        MockLogAppender.createUnseenEventExpectation(
-                            "disconnected from " + targetNode,
-                            "org.elasticsearch.cluster.NodeConnectionsService",
-                            Level.DEBUG,
-                            "disconnected from " + targetNode
-                        )
+                    MockLogAppender.createUnseenEventExpectation(
+                        "disconnected from " + targetNode,
+                        "org.elasticsearch.cluster.NodeConnectionsService",
+                        Level.DEBUG,
+                        "disconnected from " + targetNode
+                    )
                 );
                 if (targetNodes.get(targetNode.getId()) == null) {
                     appender.addExpectation(

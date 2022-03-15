@@ -33,7 +33,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -54,6 +53,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -159,7 +159,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                 logger.error(
-                        Message.createParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    Message.createParameterizedMessage(
+                        "--> Unexpected bad request [{}]",
+                        FakeRestRequest.requestToString(channel.request())
+                    ),
                     cause
                 );
                 throw new AssertionError();
@@ -338,7 +341,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 logger.error(
-                        Message.createParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    Message.createParameterizedMessage(
+                        "--> Unexpected bad request [{}]",
+                        FakeRestRequest.requestToString(channel.request())
+                    ),
                     cause
                 );
                 throw new AssertionError();
@@ -403,7 +409,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 logger.error(
-                        Message.createParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    Message.createParameterizedMessage(
+                        "--> Unexpected bad request [{}]",
+                        FakeRestRequest.requestToString(channel.request())
+                    ),
                     cause
                 );
                 throw new AssertionError();
@@ -474,7 +483,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 logger.error(
-                        Message.createParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    Message.createParameterizedMessage(
+                        "--> Unexpected bad request [{}]",
+                        FakeRestRequest.requestToString(channel.request())
+                    ),
                     cause
                 );
                 throw new AssertionError("Should not have received a dispatched request");

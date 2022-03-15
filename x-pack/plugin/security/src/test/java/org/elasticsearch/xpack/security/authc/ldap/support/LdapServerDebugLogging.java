@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.Logger;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;

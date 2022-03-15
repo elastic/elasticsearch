@@ -6,11 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.Message;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +27,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -332,7 +330,11 @@ public class ModelLoadingService implements ClusterStateListener {
                 loadWithoutCaching(modelId, consumer, modelActionListener);
             } else {
                 logger.trace(
-                    () -> Message.createParameterizedMessage("[{}] (model_alias [{}]) attempting to load and cache", modelId, modelIdOrAlias)
+                    () -> Message.createParameterizedMessage(
+                        "[{}] (model_alias [{}]) attempting to load and cache",
+                        modelId,
+                        modelIdOrAlias
+                    )
                 );
                 loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
                 loadModel(modelId, consumer);
@@ -794,7 +796,7 @@ public class ModelLoadingService implements ClusterStateListener {
         return changedAliases;
     }
 
-    private void auditIfNecessary(String modelId, Supplier<Message>  msg) {
+    private void auditIfNecessary(String modelId, Supplier<Message> msg) {
         if (shouldNotAudit.contains(modelId)) {
             logger.trace(() -> Message.createParameterizedMessage("[{}] {}", modelId, msg.get().getFormattedMessage()));
             return;

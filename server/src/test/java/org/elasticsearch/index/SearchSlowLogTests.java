@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.core.LoggerContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,7 +22,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -53,14 +51,14 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     @BeforeClass
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("trace_appender");
-//        appender.start();
+        // appender.start();
         AppenderUtils.addAppender(queryLog, appender);
         AppenderUtils.addAppender(fetchLog, appender);
     }
 
     @AfterClass
     public static void cleanup() {
-//        appender.stop();
+        // appender.stop();
         AppenderUtils.removeAppender(queryLog, appender);
         AppenderUtils.removeAppender(fetchLog, appender);
     }
@@ -204,22 +202,22 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             assertNotNull(appender.getLastEventAndReset());
         }
     }
-//
-//    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
-////        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-//
-//        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
-//        IndexSettings settings1 = new IndexSettings(createIndexMetadata("index-1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-//        SearchSlowLog log1 = new SearchSlowLog(settings1);
-//        int numberOfLoggersBefore = context.getLoggers().size();
-//
-//        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
-//        IndexSettings settings2 = new IndexSettings(createIndexMetadata("index-2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-//        SearchSlowLog log2 = new SearchSlowLog(settings2);
-//
-//        int numberOfLoggersAfter = context.getLoggers().size();
-//        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
-//    }
+    //
+    // public void testMultipleSlowLoggersUseSingleLog4jLogger() {
+    //// LoggerContext context = (LoggerContext) LogManager.getContext(false);
+    //
+    // SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+    // IndexSettings settings1 = new IndexSettings(createIndexMetadata("index-1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
+    // SearchSlowLog log1 = new SearchSlowLog(settings1);
+    // int numberOfLoggersBefore = context.getLoggers().size();
+    //
+    // SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+    // IndexSettings settings2 = new IndexSettings(createIndexMetadata("index-2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
+    // SearchSlowLog log2 = new SearchSlowLog(settings2);
+    //
+    // int numberOfLoggersAfter = context.getLoggers().size();
+    // assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
+    // }
 
     private IndexMetadata createIndexMetadata(String index, Settings.Builder put) {
         return newIndexMeta(index, put.build());

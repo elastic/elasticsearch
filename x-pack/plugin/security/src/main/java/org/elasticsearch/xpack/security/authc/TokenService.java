@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
@@ -79,6 +76,9 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -610,7 +610,9 @@ public final class TokenService {
                         }
                     }, listener::onFailure));
                 } else {
-                    logger.debug(() -> Message.createParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
+                    logger.debug(
+                        () -> Message.createParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet())
+                    );
                     listener.onResponse(null);
                 }
             }
@@ -2194,7 +2196,10 @@ public final class TokenService {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> Message.createParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
+                    logger.trace(
+                        () -> Message.createParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail),
+                        esEx
+                    );
                 } else {
                     logger.trace(() -> Message.createParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
                 }
@@ -2398,7 +2403,9 @@ public final class TokenService {
         }
         createdTimeStamps.set(maxTimestamp);
         keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug(() -> Message.createParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
+        logger.debug(
+            () -> Message.createParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet())
+        );
     }
 
     private SecureString generateTokenKey() {

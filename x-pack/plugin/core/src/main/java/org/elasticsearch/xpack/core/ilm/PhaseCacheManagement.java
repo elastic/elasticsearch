@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,6 +15,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -165,7 +165,11 @@ public final class PhaseCacheManagement {
                 refreshedIndices.add(index.getIndex().getName());
             } catch (Exception e) {
                 logger.warn(
-                        Message.createParameterizedMessage("[{}] unable to refresh phase definition for updated policy [{}]", index, newPolicy.getName()),
+                    Message.createParameterizedMessage(
+                        "[{}] unable to refresh phase definition for updated policy [{}]",
+                        index,
+                        newPolicy.getName()
+                    ),
                     e
                 );
             }
@@ -233,11 +237,11 @@ public final class PhaseCacheManagement {
         final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase, licenseState);
         if (newPhaseStepKeys == null) {
             logger.debug(
-                    Message.createParameterizedMessage(
-                        "[{}] unable to parse phase definition for policy [{}] " + "to determine if it could be refreshed",
-                        index,
-                        policyId
-                    )
+                Message.createParameterizedMessage(
+                    "[{}] unable to parse phase definition for policy [{}] " + "to determine if it could be refreshed",
+                    index,
+                    policyId
+                )
             );
             return false;
         }
@@ -287,7 +291,10 @@ public final class PhaseCacheManagement {
             phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
         } catch (Exception e) {
             logger.trace(
-                    Message.createParameterizedMessage("exception reading step keys checking for refreshability, phase definition: {}", phaseDef),
+                Message.createParameterizedMessage(
+                    "exception reading step keys checking for refreshability, phase definition: {}",
+                    phaseDef
+                ),
                 e
             );
             return null;

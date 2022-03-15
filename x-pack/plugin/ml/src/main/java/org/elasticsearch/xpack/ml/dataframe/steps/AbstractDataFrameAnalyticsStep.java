@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -63,7 +63,9 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
     public final void execute(ActionListener<StepResponse> listener) {
         logger.debug(() -> Message.createParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
         if (task.isStopping() && shouldSkipIfTaskIsStopping()) {
-            logger.debug(() -> Message.createParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
+            logger.debug(
+                () -> Message.createParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name())
+            );
             listener.onResponse(new StepResponse(true));
             return;
         }

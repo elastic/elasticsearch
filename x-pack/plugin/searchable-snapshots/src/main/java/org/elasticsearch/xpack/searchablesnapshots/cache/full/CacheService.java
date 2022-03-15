@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -28,6 +25,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -408,7 +408,10 @@ public class CacheService extends AbstractLifecycleComponent {
                         try {
                             cache.invalidate(cacheFile.getCacheKey(), cacheFile);
                         } catch (RuntimeException e) {
-                            logger.warn(() -> Message.createParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                            logger.warn(
+                                () -> Message.createParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()),
+                                e
+                            );
                             assert false : e;
                         }
                     }
@@ -574,7 +577,10 @@ public class CacheService extends AbstractLifecycleComponent {
                                         shouldPersist = true;
                                     } catch (Exception e) {
                                         logger.warn(
-                                            () -> Message.createParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
+                                            () -> Message.createParameterizedMessage(
+                                                "failed to synchronize cache directory [{}]",
+                                                cacheDir
+                                            ),
                                             e
                                         );
                                         assert e instanceof IOException : e;

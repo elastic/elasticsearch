@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.store;
 
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +17,8 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 

@@ -200,12 +200,12 @@ public class ClusterApplierServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-                MockLogAppender.createUnseenEventExpectation(
-                    "test1 shouldn't see because setting is too low",
-                    ClusterApplierService.class.getCanonicalName(),
-                    Level.WARN,
-                    "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
-                )
+            MockLogAppender.createUnseenEventExpectation(
+                "test1 shouldn't see because setting is too low",
+                ClusterApplierService.class.getCanonicalName(),
+                Level.WARN,
+                "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
+            )
         );
         mockAppender.addExpectation(
             MockLogAppender.createSeenEventExpectation(

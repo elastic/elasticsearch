@@ -14,9 +14,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
 
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.packaging.test.PackagingTestCase;
 import org.elasticsearch.packaging.util.Shell;
 

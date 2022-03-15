@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -101,7 +101,9 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                     break;
                 }
                 SearchHit stateDoc = stateResponse.getHits().getAt(0);
-                logger.debug(() -> Message.createParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId()));
+                logger.debug(
+                    () -> Message.createParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId())
+                );
                 StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
             }
         }

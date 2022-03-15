@@ -7,9 +7,6 @@
 
 package org.elasticsearch.repositories.encrypted;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,6 +21,9 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
@@ -164,13 +164,13 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 }
                 if (false == ENCRYPTED_SNAPSHOT_FEATURE.check(getLicenseState())) {
                     logger.warn(
-                            Message.createParameterizedMessage(
-                                "Encrypted snapshots are not allowed for the currently installed license [{}]."
-                                    + " Snapshots to the [{}] encrypted repository are not permitted."
-                                    + " All the other operations, including restore, work without restrictions.",
-                                getLicenseState().getOperationMode().description(),
-                                metadata.name()
-                            ),
+                        Message.createParameterizedMessage(
+                            "Encrypted snapshots are not allowed for the currently installed license [{}]."
+                                + " Snapshots to the [{}] encrypted repository are not permitted."
+                                + " All the other operations, including restore, work without restrictions.",
+                            getLicenseState().getOperationMode().description(),
+                            metadata.name()
+                        ),
                         LicenseUtils.newComplianceException("encrypted snapshots")
                     );
                 }

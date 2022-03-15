@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,6 +27,9 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,7 +101,11 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         ActionListener<AcknowledgedResponse> listener
     ) {
         logger.debug(
-            () -> Message.createParameterizedMessage("[{}] Request to delete trained model{}", request.getId(), request.isForce() ? " (force)" : "")
+            () -> Message.createParameterizedMessage(
+                "[{}] Request to delete trained model{}",
+                request.getId(),
+                request.isForce() ? " (force)" : ""
+            )
         );
 
         String id = request.getId();

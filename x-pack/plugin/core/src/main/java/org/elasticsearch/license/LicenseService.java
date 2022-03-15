@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +19,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -30,6 +27,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.logging.Message;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
@@ -473,10 +473,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final ClusterState currentClusterState = event.state();
         if (currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
             if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
-                //TODO PG that usage was actually ok..
-                logger.debug(()-> Message.createParameterizedMessage(
-                    "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
-                            XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState))
+                // TODO PG that usage was actually ok..
+                logger.debug(
+                    () -> Message.createParameterizedMessage(
+                        "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
+                        XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState)
+                    )
                 );
                 return;
             }

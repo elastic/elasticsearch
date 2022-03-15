@@ -82,12 +82,12 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             connection.sendRequest(requestId, action, request, options);
         },
             childNode -> List.of(
-                    MockLogAppender.createUnseenEventExpectation(
-                        "cannot send ban",
-                        TaskCancellationService.class.getName(),
-                        Level.DEBUG,
-                        "*cannot send ban for tasks*" + childNode.getId() + "*"
-                    ),
+                MockLogAppender.createUnseenEventExpectation(
+                    "cannot send ban",
+                    TaskCancellationService.class.getName(),
+                    Level.DEBUG,
+                    "*cannot send ban for tasks*" + childNode.getId() + "*"
+                ),
                 MockLogAppender.createSeenEventExpectation(
                     "cannot remove ban",
                     TaskCancellationService.class.getName(),

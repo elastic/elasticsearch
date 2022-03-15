@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -29,6 +26,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -163,10 +163,10 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             );
                         } catch (Exception e) {
                             logger.warn(
-                                    Message.createParameterizedMessage(
-                                        "unable to refresh indices phase JSON for updated policy [{}]",
-                                        oldPolicy.getName()
-                                    ),
+                                Message.createParameterizedMessage(
+                                    "unable to refresh indices phase JSON for updated policy [{}]",
+                                    oldPolicy.getName()
+                                ),
                                 e
                             );
                             // Revert to the non-refreshed state

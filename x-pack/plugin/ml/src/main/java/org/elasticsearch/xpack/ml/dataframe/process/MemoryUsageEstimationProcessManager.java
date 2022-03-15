@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -131,13 +131,15 @@ public class MemoryUsageEstimationProcessManager {
         Iterator<MemoryUsageEstimationResult> iterator = process.readAnalyticsResults();
         if (iterator.hasNext() == false) {
             String errorMsg = Message.createParameterizedMessage("[{}] Memory usage estimation process returned no results", jobId)
-                    .getFormattedMessage();
+                .getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg);
         }
         MemoryUsageEstimationResult result = iterator.next();
         if (iterator.hasNext()) {
-            String errorMsg = Message.createParameterizedMessage("[{}] Memory usage estimation process returned more than one result", jobId)
-                    .getFormattedMessage();
+            String errorMsg = Message.createParameterizedMessage(
+                "[{}] Memory usage estimation process returned more than one result",
+                jobId
+            ).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg);
         }
         return result;

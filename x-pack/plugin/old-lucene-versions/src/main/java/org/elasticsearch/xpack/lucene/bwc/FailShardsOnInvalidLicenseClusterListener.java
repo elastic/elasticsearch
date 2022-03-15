@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.lucene.bwc;
 
-
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -90,7 +89,10 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
                 } catch (AlreadyClosedException ignored) {
                     // ignore
                 } catch (Exception e) {
-                    logger.warn(Message.createParameterizedMessage("Could not close shard {} due to invalid license", indexShard.shardId()), e);
+                    logger.warn(
+                        Message.createParameterizedMessage("Could not close shard {} due to invalid license", indexShard.shardId()),
+                        e
+                    );
                 }
             }
             shardsToFail.clear();

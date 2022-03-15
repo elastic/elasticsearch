@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -35,6 +32,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -487,12 +487,12 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
-                                task.getParams().getId(),
-                                timeout,
-                                predicate.assignmentExplanation
-                            )
+                        Message.createParameterizedMessage(
+                            "[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                            task.getParams().getId(),
+                            timeout,
+                            predicate.assignmentExplanation
+                        )
                     );
                     if (predicate.assignmentExplanation != null) {
                         cancelAnalyticsStart(
@@ -619,11 +619,11 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
-                                persistentTask.getParams().getId(),
-                                exception.getMessage()
-                            ),
+                        Message.createParameterizedMessage(
+                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                            persistentTask.getParams().getId(),
+                            exception.getMessage()
+                        ),
                         e
                     );
                     listener.onFailure(exception);
@@ -768,11 +768,11 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
-                            Message.createParameterizedMessage(
-                                "[{}] failed to create internal index [{}]",
-                                params.getId(),
-                                InferenceIndexConstants.LATEST_INDEX_NAME
-                            ),
+                        Message.createParameterizedMessage(
+                            "[{}] failed to create internal index [{}]",
+                            params.getId(),
+                            InferenceIndexConstants.LATEST_INDEX_NAME
+                        ),
                         cause
                     );
                     dfaTask.setFailed(error);

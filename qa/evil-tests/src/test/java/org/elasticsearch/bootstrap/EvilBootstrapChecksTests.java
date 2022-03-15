@@ -8,8 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;

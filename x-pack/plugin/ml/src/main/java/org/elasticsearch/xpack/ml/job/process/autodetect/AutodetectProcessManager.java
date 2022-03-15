@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +29,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -515,7 +515,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 task.updatePersistentTaskState(
                     failureBuilder.apply(e1.getMessage()),
                     ActionListener.wrap(t -> closeHandler.accept(e1), e2 -> {
-                        logger.warn(() -> Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), e2);
+                        logger.warn(
+                            () -> Message.createParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId),
+                            e2
+                        );
                         closeHandler.accept(e1);
                     })
                 );
@@ -585,7 +588,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(Message.createParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(
+                    Message.createParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId),
+                    e
+                );
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,

@@ -261,6 +261,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         assertThat(future1.actionGet().uid(), equalTo(profile1.uid()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84980")
     public void testConcurrentCreationOfNewProfiles() throws InterruptedException {
         // The profile index may or may not exist
         if (randomBoolean()) {

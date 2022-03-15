@@ -102,7 +102,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     static final Logger logger = LogManager.getLogger(RequestDispatcherTests.class);
 
     public void testHappyCluster() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
@@ -173,7 +173,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testRetryThenOk() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
@@ -295,7 +295,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testRetryButFails() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
@@ -419,7 +419,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testSuccessWithAnyMatch() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
@@ -518,7 +518,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testStopAfterAllShardsUnmatched() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
         final boolean newVersionOnly = randomBoolean();
         {
@@ -653,7 +653,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             for (int i = 0; i < lastRound; i++) {
                 int round = i;
-                List<NodeRequest> nodeRequests = sentNodeRequests.stream().filter(r -> r.round == round).collect(Collectors.toList());
+                List<NodeRequest> nodeRequests = sentNodeRequests.stream().filter(r -> r.round == round).toList();
                 if (withFilter == false) {
                     // Without filter, each index is requested once in each round.
                     ObjectIntMap<String> requestsPerIndex = new ObjectIntHashMap<>();
@@ -710,11 +710,11 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
 
         List<NodeRequest> nodeRequests(String index, int round) {
-            return sentNodeRequests.stream().filter(r -> r.round == round && r.indices().contains(index)).collect(Collectors.toList());
+            return sentNodeRequests.stream().filter(r -> r.round == round && r.indices().contains(index)).toList();
         }
 
         List<NodeRequest> nodeRequests(String index) {
-            return sentNodeRequests.stream().filter(r -> r.indices().contains(index)).collect(Collectors.toList());
+            return sentNodeRequests.stream().filter(r -> r.indices().contains(index)).toList();
         }
     }
 

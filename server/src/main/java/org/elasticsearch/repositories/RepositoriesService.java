@@ -61,7 +61,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -598,7 +597,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             .filter(r -> r instanceof MeteredBlobStoreRepository)
             .map(r -> (MeteredBlobStoreRepository) r)
             .map(MeteredBlobStoreRepository::statsSnapshot)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public List<RepositoryStatsSnapshot> clearRepositoriesStatsArchive(long maxVersionToClear) {

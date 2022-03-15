@@ -35,7 +35,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
@@ -311,7 +310,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             .stream()
             .filter(q -> q.getClass() == TermQueryBuilder.class)
             .map(q -> (TermQueryBuilder) q)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         assertTrue(tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("doc_type", "api_key"))));
         if (authentication == null) {
             return;

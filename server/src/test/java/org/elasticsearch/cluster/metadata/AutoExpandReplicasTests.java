@@ -187,7 +187,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                             n.getVersion()
                         )
                     )
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
 
                 if (randomBoolean()) {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));

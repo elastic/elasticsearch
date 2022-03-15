@@ -63,7 +63,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
         GeoPoint[][] points = { { new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2) } };
         final MultiGeoPointValues values = wrap(points);
-        final ScriptDocValues.GeoPoints script = (GeoPoints) new GeoPointDocValuesField(values, "test").getScriptDocValues();
+        final ScriptDocValues.GeoPoints script = (GeoPoints) new GeoPointDocValuesField(values, "test").toScriptDocValues();
 
         script.getSupplier().setNextDocId(1);
         assertEquals(true, script.isEmpty());
@@ -81,11 +81,11 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lon = randomLon();
         GeoPoint[][] points = { { new GeoPoint(lat, lon) } };
         final MultiGeoPointValues values = wrap(points);
-        final ScriptDocValues.GeoPoints script = (GeoPoints) new GeoPointDocValuesField(values, "test").getScriptDocValues();
+        final ScriptDocValues.GeoPoints script = (GeoPoints) new GeoPointDocValuesField(values, "test").toScriptDocValues();
         script.getSupplier().setNextDocId(0);
 
         GeoPoint[][] points2 = { new GeoPoint[0] };
-        final ScriptDocValues.GeoPoints emptyScript = (GeoPoints) new GeoPointDocValuesField(wrap(points2), "test").getScriptDocValues();
+        final ScriptDocValues.GeoPoints emptyScript = (GeoPoints) new GeoPointDocValuesField(wrap(points2), "test").toScriptDocValues();
         emptyScript.getSupplier().setNextDocId(0);
 
         final double otherLat = randomLat();
@@ -116,7 +116,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
                 points[d][i] = new GeoPoint(randomLat(), randomLon());
             }
         }
-        final ScriptDocValues.GeoPoints geoPoints = (GeoPoints) new GeoPointDocValuesField(wrap(points), "test").getScriptDocValues();
+        final ScriptDocValues.GeoPoints geoPoints = (GeoPoints) new GeoPointDocValuesField(wrap(points), "test").toScriptDocValues();
         for (int d = 0; d < points.length; d++) {
             geoPoints.getSupplier().setNextDocId(d);
             if (points[d].length > 0) {

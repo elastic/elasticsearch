@@ -41,7 +41,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -353,7 +352,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     createTestListener()
                 )
             )
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private static <T> ActionListener<T> createTestListener() {

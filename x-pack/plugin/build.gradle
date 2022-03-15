@@ -15,7 +15,7 @@ archivesBaseName = 'x-pack'
 dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(':test:framework')
+  testImplementation project(':test:yaml-rest-runner')
 }
 
 // let the yamlRestTests see the classpath of test

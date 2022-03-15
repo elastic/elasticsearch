@@ -44,4 +44,6 @@ module org.elasticsearch.xpack.plugin.security {
     exports org.elasticsearch.xpack.security.action.service to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.token to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
+
+    exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
 }

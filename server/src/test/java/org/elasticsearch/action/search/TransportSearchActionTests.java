@@ -102,7 +102,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
@@ -1289,7 +1288,7 @@ public class TransportSearchActionTests extends ESTestCase {
             } else {
                 // relocated or no longer assigned
                 relocatedContexts.add(new ShardId(indexMetadata.getIndex(), shardId));
-                targetNode = randomFrom(clusterState.nodes().getAllNodes()).getId();
+                targetNode = randomFrom(clusterState.nodes()).getId();
             }
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), shardId),
@@ -1326,7 +1325,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     .assignedShards()
                     .stream()
                     .map(ShardRouting::currentNodeId)
-                    .collect(Collectors.toList());
+                    .toList();
                 if (relocatedContexts.contains(shardId)) {
                     targetNodes.add(context.getNode());
                 }
@@ -1343,7 +1342,7 @@ public class TransportSearchActionTests extends ESTestCase {
             anotherShardId,
             new SearchContextIdForNode(
                 null,
-                randomFrom(clusterState.nodes().getAllNodes()).getId(),
+                randomFrom(clusterState.nodes()).getId(),
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)
             )
         );

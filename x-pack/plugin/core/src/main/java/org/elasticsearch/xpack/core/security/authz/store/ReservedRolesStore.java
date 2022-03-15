@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.WriteProfileDataPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -667,8 +667,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "delegate_pki",
                 GetProfileAction.NAME,
                 ActivateProfileAction.NAME,
-                // TODO: this cluster action will be replaced with a special privilege that grants write access to a subset of namespaces
-                UpdateProfileDataAction.NAME,
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",
                 // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
@@ -750,7 +748,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/",
                         ".logs-endpoint.action.responses-*",
                         ".logs-endpoint.diagnostic.collection-*",
-                        ".logs-endpoint.actions-*"
+                        ".logs-endpoint.actions-*",
+                        ".logs-osquery_manager.actions-*",
+                        ".logs-osquery_manager.action.responses-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
@@ -759,6 +759,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
+                // Osquery manager specific action responses. Kibana reads from these to display responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-osquery_manager.action.responses-*").privileges("read").build(),
+                // Osquery manager specific actions. Kibana reads and writes to this index to track new actions and display them.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "read", "write")
                     .build(),
                 // For ILM policy for APM & Endpoint packages that have delete action
@@ -780,7 +787,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("create_index", "delete_index", "read", "index")
                     .build(), },
             null,
-            new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
+            new ConfigurableClusterPrivilege[] {
+                new ManageApplicationPrivileges(Set.of("kibana-*")),
+                new WriteProfileDataPrivileges(Set.of("kibana-*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null

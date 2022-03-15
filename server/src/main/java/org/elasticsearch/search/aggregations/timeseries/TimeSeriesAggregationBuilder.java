@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -129,5 +130,10 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), keyed);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_1_0;
     }
 }

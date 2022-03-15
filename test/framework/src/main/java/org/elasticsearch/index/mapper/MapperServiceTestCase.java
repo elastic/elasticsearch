@@ -12,10 +12,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -126,6 +126,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createTimeSeriesModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+            .build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
         return createMapperService(version, mappings).documentMapper();
     }
@@ -193,7 +201,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            new IdFieldMapper(idFieldDataEnabled),
+            indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
     }
@@ -231,11 +239,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Build a {@link SourceToParse} with an id.
+     */
     protected final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
-    protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
+    protected final SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
         return source("test", id, build, routing, Map.of());
     }
@@ -517,6 +528,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public boolean isInSortOrderExecutionRequired() {
                 return false;
+            }
+
+            @Override
+            public Set<String> sourcePath(String fullName) {
+                return Set.of(fullName);
             }
 
             @Override

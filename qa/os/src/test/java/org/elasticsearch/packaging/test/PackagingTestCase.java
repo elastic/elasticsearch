@@ -311,7 +311,7 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), null, daemonize);
                 } else {
                     return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
@@ -671,7 +671,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
 
         if (es.distribution.isDocker() == false) {
-            assertThat(settings.get("http.host"), equalTo("[_local_, _site_]"));
+            assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
     }
 

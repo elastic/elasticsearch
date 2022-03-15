@@ -9,6 +9,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -62,5 +63,10 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

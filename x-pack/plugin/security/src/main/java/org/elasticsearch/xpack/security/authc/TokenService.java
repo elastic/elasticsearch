@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
@@ -90,7 +91,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -138,7 +138,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -368,14 +367,7 @@ public final class TokenService {
                 traceLog("create token", new IllegalArgumentException("originating client authentication must be provided"))
             );
         } else {
-            final Authentication tokenAuth = new Authentication(
-                authentication.getUser(),
-                authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(),
-                tokenVersion,
-                AuthenticationType.TOKEN,
-                authentication.getMetadata()
-            );
+            final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String storedAccessToken;
             final String storedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
@@ -745,7 +737,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             } else {
@@ -758,7 +750,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             }
@@ -769,21 +761,37 @@ public final class TokenService {
      * Invalidates a collection of access_token and refresh_token that were retrieved by
      * {@link TokenService#invalidateActiveTokensForRealmAndUser}
      *
-     * @param userTokens The user tokens for which access and refresh tokens should be invalidated
+     * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    private void invalidateAllTokens(Collection<UserToken> userTokens, ActionListener<TokensInvalidationResult> listener) {
+    private void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
         maybeStartTokenRemover();
+
         // Invalidate the refresh tokens first so that they cannot be used to get new
         // access tokens while we invalidate the access tokens we currently know about
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        indexInvalidation(
-            userTokens,
-            backoff,
-            "refresh_token",
-            null,
-            ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
-        );
+
+        final List<UserToken> userTokens = new ArrayList<>();
+        final List<UserToken> tokensWithRefresh = new ArrayList<>();
+
+        tokenTuples.forEach(t -> {
+            userTokens.add(t.v1());
+            if (t.v2() != null) {
+                tokensWithRefresh.add(t.v1());
+            }
+        });
+
+        if (false == tokensWithRefresh.isEmpty()) {
+            indexInvalidation(
+                tokensWithRefresh,
+                backoff,
+                "refresh_token",
+                null,
+                ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
+            );
+        } else {
+            indexInvalidation(userTokens, backoff, "access_token", null, listener);
+        }
     }
 
     /**
@@ -1806,16 +1814,20 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client")
                     .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
-                    .endObject()
-                    .endObject();
+                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                if (originatingClientAuth.getAuthenticatedBy().getDomain() != null) {
+                    builder.field("realm_domain", originatingClientAuth.getAuthenticatedBy().getDomain());
+                }
+                builder.endObject().endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName())
-                .endObject();
-            builder.endObject();
+                .field("realm", userToken.getAuthentication().getSourceRealm().getName());
+            if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
+            }
+            builder.endObject().endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when constructing a JSON document.", e);
@@ -1857,7 +1869,8 @@ public final class TokenService {
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
         @SuppressWarnings("unchecked")
-        final String hashedRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+        final Map<String, Object> refreshTokenMap = (Map<String, Object>) source.get("refresh_token");
+        final String hashedRefreshToken = refreshTokenMap != null ? (String) refreshTokenMap.get("token") : null;
         @SuppressWarnings("unchecked")
         final Map<String, Object> userTokenSource = (Map<String, Object>) ((Map<String, Object>) source.get("access_token")).get(
             "user_token"
@@ -2424,6 +2437,11 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
     void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
@@ -2435,13 +2453,13 @@ public final class TokenService {
                     clusterService.submitStateUpdateTask(
                         "publish next key to prepare key rotation",
                         new TokenMetadataPublishAction(metadata, listener),
-                        ClusterStateTaskExecutor.unbatched()
+                        newExecutor()
                     );
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
             }, listener::onFailure)),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -2534,7 +2552,7 @@ public final class TokenService {
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                }, ClusterStateTaskExecutor.unbatched());
+                }, newExecutor());
             }
         }
     }

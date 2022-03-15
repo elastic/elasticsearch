@@ -139,7 +139,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         out.writeNamedWriteable(type);
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
-        out.writeMap(this.metadata);
+        out.writeGenericMap(this.metadata);
     }
 
     /**
@@ -290,6 +290,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      * @throws IllegalArgumentException if the name is invalid
      */
     public static void validatePolicyName(String policy) {
+        if (Strings.isNullOrEmpty(policy)) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be null or empty");
+        }
         if (policy.contains(",")) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }

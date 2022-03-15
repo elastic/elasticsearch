@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.filter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -102,11 +101,7 @@ public class SecurityActionFilter implements ActionFilter {
         final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
         try {
             if (useSystemUser) {
-                securityContext.executeAsUser(
-                    SystemUser.INSTANCE,
-                    (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); },
-                    Version.CURRENT
-                );
+                securityContext.executeAsSystemUser(original -> applyInternal(task, chain, action, request, contextPreservingListener));
             } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
                 AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                     threadContext,

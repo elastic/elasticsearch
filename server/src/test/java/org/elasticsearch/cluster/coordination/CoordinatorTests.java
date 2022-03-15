@@ -44,6 +44,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -1635,6 +1636,97 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about logging",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
+    public void testReportsConnectBackProblemsDuringJoining() throws IllegalAccessException {
+        try (var cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final var partitionedNode = cluster.getAnyNode();
+            partitionedNode.disconnect();
+            cluster.stabilise();
+
+            logger.info("--> healing [{}] but blocking handshakes", partitionedNode);
+            partitionedNode.heal();
+            final var leader = cluster.getAnyLeader();
+            leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
+
+            final var mockAppender = new MockLogAppender();
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "connect-back failure",
+                    Coordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*received join request from ["
+                        + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                        + "] but could not connect back to the joining node"
+                )
+            );
+            mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                boolean matched = false;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() != Level.INFO) {
+                        return;
+                    }
+                    if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                        return;
+                    }
+
+                    var cause = event.getThrown();
+                    if (cause == null) {
+                        return;
+                    }
+                    cause = cause.getCause();
+                    if (cause == null) {
+                        return;
+                    }
+                    if (Regex.simpleMatch(
+                        "* failure when opening connection back from ["
+                            + leader.getLocalNode().descriptionWithoutAttributes()
+                            + "] to ["
+                            + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                            + "]",
+                        cause.getMessage()
+                    ) == false) {
+                        return;
+                    }
+                    if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                        return;
+                    }
+                    matched = true;
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertTrue(matched);
+                }
+            });
+            final var coordinatorLogger = LogManager.getLogger(Coordinator.class);
+            Loggers.addAppender(coordinatorLogger, mockAppender);
+            final var joinHelperLogger = LogManager.getLogger(JoinHelper.class);
+            Loggers.addAppender(joinHelperLogger, mockAppender);
+            try {
+                cluster.runFor(
+                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY,
+                    "allowing time for join attempt"
+                );
+                mockAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(joinHelperLogger, mockAppender);
+                Loggers.removeAppender(coordinatorLogger, mockAppender);
+                mockAppender.stop();
+            }
+
+            leader.clearActionBlocks();
+        }
+    }
+
     public void testDiscoveryUsesNodesFromLastClusterState() {
         try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
             cluster.runRandomly();
@@ -1924,7 +2016,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                         .<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
                                         .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))
                                 )
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(matchingNodes, hasSize(1));
 
                             assertTrue(

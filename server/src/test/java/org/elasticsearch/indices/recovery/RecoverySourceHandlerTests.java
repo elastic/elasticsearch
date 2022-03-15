@@ -16,11 +16,11 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -256,12 +256,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true, index.id())));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(10, 1000);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true, index.id())));
         }
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomLongBetween(startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
@@ -312,9 +312,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.sentOperations, equalTo(expectedOps));
-        List<Translog.Operation> sortedShippedOps = shippedOps.stream()
-            .sorted(Comparator.comparing(Translog.Operation::seqNo))
-            .collect(Collectors.toList());
+        List<Translog.Operation> sortedShippedOps = shippedOps.stream().sorted(Comparator.comparing(Translog.Operation::seqNo)).toList();
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(sortedShippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
@@ -330,7 +328,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final List<Translog.Operation> ops = new ArrayList<>();
         for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true)));
+            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true, index.id())));
         }
         final AtomicBoolean wasFailed = new AtomicBoolean();
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
@@ -464,10 +462,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat(receivedSeqNos, equalTo(sentSeqNos));
     }
 
-    private Engine.Index getIndex(final String id) {
+    private Engine.Index getIndex(String id) {
         final LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", "test", Field.Store.YES));
-        final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
+        final Field idField = IdFieldMapper.standardIdField(id);  // TODO tsdbid field could be different.
         final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
@@ -1138,12 +1136,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.getSnapshotFiles()
                 .stream()
                 .map(fileInfo -> fileInfo.metadata().name())
-                .collect(Collectors.toList());
+                .toList();
 
             final List<String> sourceFilesToRecover = shardRecoveryPlan.getSourceFilesToRecover()
                 .stream()
                 .map(StoreFileMetadata::name)
-                .collect(Collectors.toList());
+                .toList();
 
             Set<String> filesFailedToDownload = Collections.synchronizedSet(new HashSet<>());
             Set<String> filesRecoveredFromSource = Collections.synchronizedSet(new HashSet<>());
@@ -1481,7 +1479,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 .getSnapshotFiles()
                 .stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                .collect(Collectors.toList());
+                .toList();
 
             int maxConcurrentSnapshotFileDownloads = randomIntBetween(2, 4);
             CountDownLatch downloadSnapshotFileReceived = new CountDownLatch(maxConcurrentSnapshotFileDownloads);
@@ -1516,7 +1514,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             .getSnapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                            .collect(Collectors.toList());
+                            .toList();
                         assertThat(receiveFileInfoFromSnapshotCalls.incrementAndGet(), is(equalTo(1)));
                         assertThat(receiveFileInfoFromSourceCalls.get(), is(equalTo(0)));
                     }

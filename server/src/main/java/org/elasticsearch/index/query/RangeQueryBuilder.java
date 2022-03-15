@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -547,5 +548,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(format, other.format);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

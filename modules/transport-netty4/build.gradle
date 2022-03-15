@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
 
 /*
  TODOs:
@@ -109,6 +110,7 @@ tasks.named("thirdPartyAudit").configure {
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',

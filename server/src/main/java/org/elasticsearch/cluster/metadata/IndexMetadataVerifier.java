@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -99,13 +98,13 @@ public class IndexMetadataVerifier {
      * previous major version.
      */
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+        boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
                 "The index "
                     + indexMetadata.getIndex()
-                    + " was created with version ["
-                    + indexMetadata.getCreationVersion()
+                    + " has current compatibility version ["
+                    + indexMetadata.getCompatibilityVersion()
                     + "] but the minimum compatible version is ["
                     + minimumIndexCompatibilityVersion
                     + "]. It should be re-indexed in Elasticsearch "
@@ -191,7 +190,7 @@ public class IndexMetadataVerifier {
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    IdFieldMapper.NO_FIELD_DATA,
+                    indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

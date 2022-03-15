@@ -70,7 +70,13 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     /**
      * Holder for index stats used to evaluate conditions
      */
-    public record Stats(long numDocs, long indexCreated, ByteSizeValue indexSize, ByteSizeValue maxPrimaryShardSize) {}
+    public record Stats(
+        long numDocs,
+        long indexCreated,
+        ByteSizeValue indexSize,
+        ByteSizeValue maxPrimaryShardSize,
+        long maxPrimaryShardDocs
+    ) {}
 
     /**
      * Holder for evaluated condition result

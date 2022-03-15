@@ -121,7 +121,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         nodeLoadDetector = mock(NodeLoadDetector.class);
         when(nodeLoadDetector.getMlMemoryTracker()).thenReturn(mlMemoryTracker);
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
-            NodeLoad.builder("any").setUseMemory(true).incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes()).build()
+            NodeLoad.builder("any").setUseMemory(true).incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes()).build()
         );
         clusterService = mock(ClusterService.class);
         settings = Settings.EMPTY;
@@ -148,7 +148,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(432013312)
                 .setUseMemory(true)
-                .incAssignedJobMemory(
+                .incAssignedAnomalyDetectorMemory(
                     (long) (168.7 * 1024 + 0.5) + (long) (1.4 * 1024 * 1024 + 0.5) + ByteSizeValue.ofMb(256).getBytes()
                         + Job.PROCESS_MEMORY_OVERHEAD.getBytes() * 3
                 )
@@ -188,7 +188,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(bytesForML)
                 .setUseMemory(true)
-                .incAssignedJobMemory(
+                .incAssignedAnomalyDetectorMemory(
                     (long) (168.7 * 1024 + 0.5) + (long) (1.4 * 1024 * 1024 + 0.5) + ByteSizeValue.ofMb(256).getBytes() + ByteSizeValue
                         .ofMb(128)
                         .getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes() * 4
@@ -232,8 +232,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 while (forScaleUp.getFreeMemory() > Job.PROCESS_MEMORY_OVERHEAD.getBytes()) {
                     long jobSize = randomLongBetween(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), forScaleUp.getFreeMemory());
                     maxJob = Math.max(jobSize, maxJob);
-                    forScaleUp.incNumAssignedJobs().incAssignedJobMemory(jobSize);
-                    forScaleDown.incNumAssignedJobs().incAssignedJobMemory(jobSize);
+                    forScaleUp.incNumAssignedJobs().incAssignedAnomalyDetectorMemory(jobSize);
+                    forScaleDown.incNumAssignedJobs().incAssignedAnomalyDetectorMemory(jobSize);
                 }
                 // Create jobs for scale up
                 NodeLoad nodeLoadForScaleUp = forScaleUp.build();
@@ -244,7 +244,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                         break;
                     }
                     maxJob = Math.max(jobSize, maxJob);
-                    forScaleDown.incNumAssignedJobs().incAssignedJobMemory(jobSize);
+                    forScaleDown.incNumAssignedJobs().incAssignedAnomalyDetectorMemory(jobSize);
                     String waitingJob = randomAlphaOfLength(10);
                     when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(eq(waitingJob))).thenReturn(jobSize);
                     waitingJobs.add(waitingJob);
@@ -345,7 +345,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                 .setUseMemory(true)
-                .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
                 .build()
         );
         MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -460,7 +460,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                 .setUseMemory(true)
-                .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
                 .build()
         );
         MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -570,7 +570,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .setMaxJobs(10)
                 .incNumAssignedJobs()
-                .incAssignedJobMemory(ByteSizeValue.ofMb(230).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(230).getBytes())
                 .build(),
             NodeLoad.builder("not_filled").setMaxMemory(ByteSizeValue.ofMb(230).getBytes()).setMaxJobs(10).setUseMemory(true).build()
         );
@@ -634,7 +634,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                 .setUseMemory(true)
-                .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
                 .build()
         );
         MlAutoscalingDeciderService service = buildService();
@@ -701,7 +701,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                 .setUseMemory(true)
-                .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
                 .build()
         );
         MlAutoscalingDeciderService service = buildService();
@@ -763,7 +763,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             NodeLoad.builder("any")
                 .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                 .setUseMemory(true)
-                .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
                 .build()
         );
         MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -809,7 +809,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .setMaxJobs(10)
                 .incNumAssignedJobs()
-                .incAssignedJobMemory(ByteSizeValue.ofMb(230).getBytes())
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(230).getBytes())
                 .build(),
             NodeLoad.builder("not_filled").setMaxMemory(ByteSizeValue.ofMb(230).getBytes()).setMaxJobs(10).setUseMemory(true).build()
         );
@@ -848,9 +848,18 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
     public void testScaleDown() {
         List<NodeLoad> nodeLoads = Arrays.asList(
-            NodeLoad.builder("foo").setMaxMemory(DEFAULT_NODE_SIZE).incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes()).build(),
-            NodeLoad.builder("bar").setMaxMemory(DEFAULT_NODE_SIZE).incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes()).build(),
-            NodeLoad.builder("baz").setMaxMemory(DEFAULT_NODE_SIZE).incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes()).build()
+            NodeLoad.builder("foo")
+                .setMaxMemory(DEFAULT_NODE_SIZE)
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
+                .build(),
+            NodeLoad.builder("bar")
+                .setMaxMemory(DEFAULT_NODE_SIZE)
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
+                .build(),
+            NodeLoad.builder("baz")
+                .setMaxMemory(DEFAULT_NODE_SIZE)
+                .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
+                .build()
         );
 
         MlAutoscalingDeciderService service = buildService();

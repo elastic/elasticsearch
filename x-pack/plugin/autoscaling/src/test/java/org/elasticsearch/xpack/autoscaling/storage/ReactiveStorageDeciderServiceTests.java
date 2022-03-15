@@ -60,7 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -241,7 +240,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);
-        DiscoveryNode[] nodes = StreamSupport.stream(initialClusterState.nodes().spliterator(), false).toArray(DiscoveryNode[]::new);
+        DiscoveryNode[] nodes = initialClusterState.nodes().toArray(DiscoveryNode[]::new);
         boolean useReplica = randomBoolean();
         if (useReplica || randomBoolean()) {
             startShard(allocation, primaryShard, nodes[0].getId());
@@ -279,7 +278,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null, null);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
-            null,
             null,
             null,
             info,
@@ -356,7 +354,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         SnapshotShardSizeInfo shardSizeInfo = new SnapshotShardSizeInfo(shardSizeBuilder.build());
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
-            null,
             null,
             null,
             null,
@@ -449,7 +446,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
-            null,
             thresholdSettings,
             info,
             null,
@@ -522,11 +518,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public boolean canRemainWithNoNodes(ClusterState clusterState, ShardRouting shardRouting, AllocationDecider... deciders) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
-        DataTierAllocationDecider dataTierAllocationDecider = new DataTierAllocationDecider();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationDeciders,
-            dataTierAllocationDecider,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,
@@ -627,11 +621,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         AllocationDecider... deciders
     ) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
-        DataTierAllocationDecider dataTierAllocationDecider = new DataTierAllocationDecider();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationDeciders,
-            dataTierAllocationDecider,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,

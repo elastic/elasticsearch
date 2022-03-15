@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -226,6 +227,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public String getType() {
         return NAME;
     }
@@ -418,5 +424,10 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         if (super.equals(obj) == false) return false;
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
         return keyed == that.keyed && ranges.equals(that.ranges);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

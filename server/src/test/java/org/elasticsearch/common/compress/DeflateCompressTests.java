@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.compress;
 
-import org.apache.lucene.util.LineFileDocs;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.LineFileDocs;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;

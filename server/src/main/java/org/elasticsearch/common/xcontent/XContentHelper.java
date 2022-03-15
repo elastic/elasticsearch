@@ -196,14 +196,7 @@ public class XContentHelper {
      * error.
      */
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
-        // It is safe to use EMPTY here because this never uses namedObject
-        try (
-            XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                string
-            )
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -521,6 +514,32 @@ public class XContentHelper {
                 builder.endObject();
             }
             return BytesReference.bytes(builder);
+        }
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes which may be compressed.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static XContentType xContentTypeMayCompressed(BytesReference bytes) {
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            try {
+                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
+                return XContentFactory.xContentType(compressedStreamInput);
+            } catch (IOException e) {
+                assert false : "Should not happen, we're just reading bytes from memory";
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return XContentHelper.xContentType(bytes);
         }
     }
 

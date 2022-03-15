@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,9 +24,8 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     private final double min;
 
     public InternalMin(String name, double min, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.min = min;
-        this.format = formatter;
     }
 
     /**
@@ -33,7 +33,6 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
      */
     public InternalMin(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         min = in.readDouble();
     }
 
@@ -65,6 +64,11 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
         return new InternalMin(getName(), min, this.format, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

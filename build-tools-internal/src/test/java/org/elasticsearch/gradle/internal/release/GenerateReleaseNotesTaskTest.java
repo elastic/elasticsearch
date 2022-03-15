@@ -15,7 +15,6 @@ import org.junit.Test;
 import java.io.File;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -154,12 +153,12 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     public void getVersions_includesCurrentVersion() {
         // given:
         when(gitWrapper.listVersions(anyString())).thenReturn(
-            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0")
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0", "8.0.1", "8.1.0")
                 .map(QualifiedVersion::of)
         );
 
         // when:
-        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.0.0-SNAPSHOT");
+        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.2.0-SNAPSHOT");
 
         // then:
         assertThat(
@@ -173,8 +172,10 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
                     "8.0.0-beta3",
                     "8.0.0-rc1",
                     "8.0.0",
-                    "8.0.0-SNAPSHOT"
-                ).map(QualifiedVersion::of).collect(Collectors.toList()).toArray(new QualifiedVersion[] {})
+                    "8.0.1",
+                    "8.1.0",
+                    "8.2.0-SNAPSHOT"
+                ).map(QualifiedVersion::of).toArray(QualifiedVersion[]::new)
             )
         );
     }

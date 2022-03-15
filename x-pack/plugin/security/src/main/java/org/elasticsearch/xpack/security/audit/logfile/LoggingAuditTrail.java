@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -42,6 +40,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -54,6 +53,12 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -110,7 +115,6 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
@@ -278,7 +282,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         InvalidateApiKeyAction.NAME,
         DeletePrivilegesAction.NAME,
         CreateServiceAccountTokenAction.NAME,
-        DeleteServiceAccountTokenAction.NAME
+        DeleteServiceAccountTokenAction.NAME,
+        ActivateProfileAction.NAME,
+        UpdateProfileDataAction.NAME,
+        SetProfileEnabledAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -734,6 +741,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeleteServiceAccountTokenRequest) {
                     assert DeleteServiceAccountTokenAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
+                    assert ActivateProfileAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(activateProfileRequest).build();
+                } else if (msg instanceof final UpdateProfileDataRequest updateProfileDataRequest) {
+                    assert UpdateProfileDataAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateProfileDataRequest).build();
+                } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
+                    assert SetProfileEnabledAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(setProfileEnabledRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1196,17 +1212,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject();
             withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
             Grant grant = grantApiKeyRequest.getGrant();
-            builder.startObject("grant").field("type", grant.getType());
-            if (grant.getUsername() != null) {
-                builder.startObject("user")
-                    .field("name", grant.getUsername())
-                    .field("has_password", grant.getPassword() != null)
-                    .endObject(); // user
-            }
-            if (grant.getAccessToken() != null) {
-                builder.field("has_access_token", grant.getAccessToken() != null);
-            }
-            builder.endObject(); // grant
+            withGrant(builder, grant);
             builder.endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -1380,6 +1386,64 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(ActivateProfileRequest activateProfileRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "activate_user_profile");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            Grant grant = activateProfileRequest.getGrant();
+            withGrant(builder, grant);
+            builder.endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(UpdateProfileDataRequest updateProfileDataRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "update_user_profile_data");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .field("uid", updateProfileDataRequest.getUid())
+                .field("access", updateProfileDataRequest.getAccess())
+                .field("data", updateProfileDataRequest.getData())
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(SetProfileEnabledRequest setProfileEnabledRequest) throws IOException {
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            if (setProfileEnabledRequest.isEnabled()) {
+                builder.startObject()
+                    .startObject("enable")
+                    .field("uid", setProfileEnabledRequest.getUid())
+                    .endObject() // enable
+                    .endObject();
+                logEntry.with(EVENT_ACTION_FIELD_NAME, "change_enable_user_profile");
+            } else {
+                builder.startObject()
+                    .startObject("disable")
+                    .field("uid", setProfileEnabledRequest.getUid())
+                    .endObject() // disable
+                    .endObject();
+                logEntry.with(EVENT_ACTION_FIELD_NAME, "change_disable_user_profile");
+            }
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        void withGrant(XContentBuilder builder, Grant grant) throws IOException {
+            builder.startObject("grant").field("type", grant.getType());
+            if (grant.getUsername() != null) {
+                builder.startObject("user")
+                    .field("name", grant.getUsername())
+                    .field("has_password", grant.getPassword() != null)
+                    .endObject(); // user
+            }
+            if (grant.getAccessToken() != null) {
+                builder.field("has_access_token", grant.getAccessToken() != null);
+            }
+            builder.endObject();
+        }
+
         LogEntryBuilder withRestUriAndMethod(RestRequest request) {
             final int queryStringIndex = request.uri().indexOf('?');
             int queryStringLength = request.uri().indexOf('#');
@@ -1470,13 +1534,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withAuthentication(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isAuthenticatedWithApiKey()) {
+            if (authentication.isApiKey()) {
                 logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
                 String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
-                String creatorRealmName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+                final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
@@ -1485,11 +1549,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 if (authentication.getUser().isRunAs()) {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
                         .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
+                        // API key can run-as, when that happens, the following field will be _es_api_key,
+                        // not the API key owner user's realm.
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                    // TODO: API key can run-as which means we could use extra fields (#84394)
                 } else {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
+            // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
                 logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                     .with(
@@ -1694,7 +1762,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (l.isEmpty()) {
                 return Collections.singletonList("//");
             }
-            return l.stream().map(f -> f.isEmpty() ? "//" : f).collect(Collectors.toList());
+            return l.stream().map(f -> f.isEmpty() ? "//" : f).toList();
         }
 
         /**

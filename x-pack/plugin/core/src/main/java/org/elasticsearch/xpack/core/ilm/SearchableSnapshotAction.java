@@ -138,7 +138,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     // The index is already a searchable snapshot, let's see if the repository matches
                     String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
@@ -215,7 +215,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             waitForDataTierKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
                 if (lifecycleExecutionState.snapshotName() == null) {
                     // No name exists, so it must be generated

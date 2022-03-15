@@ -39,10 +39,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -84,6 +87,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -211,7 +215,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
+                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter));
             }
             success = true;
         } finally {
@@ -219,7 +223,18 @@ public class PersistedClusterStateService {
                 IOUtils.closeWhileHandlingException(closeables);
             }
         }
-        return new Writer(metadataIndexWriters, nodeId, documentPageSize, relativeTimeMillisSupplier, () -> slowWriteLoggingThreshold);
+        return new Writer(
+            metadataIndexWriters,
+            nodeId,
+            documentPageSize,
+            relativeTimeMillisSupplier,
+            () -> slowWriteLoggingThreshold,
+            getAssertOnCommit()
+        );
+    }
+
+    CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+        return Assertions.ENABLED ? this::loadOnDiskState : null;
     }
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
@@ -646,10 +661,12 @@ public class PersistedClusterStateService {
     private static class MetadataIndexWriter implements Closeable {
 
         private final Logger logger;
+        private final Path path;
         private final Directory directory;
         private final IndexWriter indexWriter;
 
-        MetadataIndexWriter(Directory directory, IndexWriter indexWriter) {
+        MetadataIndexWriter(Path path, Directory directory, IndexWriter indexWriter) {
+            this.path = path;
             this.directory = directory;
             this.indexWriter = indexWriter;
             this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
@@ -714,19 +731,24 @@ public class PersistedClusterStateService {
         boolean fullStateWritten = false;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final byte[] documentBuffer;
+        @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+        private final CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit;
 
         private Writer(
             List<MetadataIndexWriter> metadataIndexWriters,
             String nodeId,
             ByteSizeValue documentPageSize,
             LongSupplier relativeTimeMillisSupplier,
-            Supplier<TimeValue> slowWriteLoggingThresholdSupplier
+            Supplier<TimeValue> slowWriteLoggingThresholdSupplier,
+            @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+            CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit
         ) {
             this.metadataIndexWriters = metadataIndexWriters;
             this.nodeId = nodeId;
             this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
             this.slowWriteLoggingThresholdSupplier = slowWriteLoggingThresholdSupplier;
             this.documentBuffer = new byte[ByteSizeUnit.BYTES.toIntBytes(documentPageSize.getBytes())];
+            this.assertOnCommit = assertOnCommit;
         }
 
         private void ensureOpen() {
@@ -770,18 +792,13 @@ public class PersistedClusterStateService {
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
                     logger.warn(
-                        "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
-                            + "wrote full state with [{}] indices",
+                        "writing full cluster state took [{}ms] which is above the warn threshold of [{}]; {}",
                         durationMillis,
                         finalSlowWriteLoggingThreshold,
-                        stats.numIndicesUpdated
+                        stats
                     );
                 } else {
-                    logger.debug(
-                        "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices",
-                        durationMillis,
-                        stats.numIndicesUpdated
-                    );
+                    logger.debug("writing full cluster state took [{}ms]; {}", durationMillis, stats);
                 }
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
@@ -809,23 +826,13 @@ public class PersistedClusterStateService {
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
                     logger.warn(
-                        "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
-                            + "wrote global metadata [{}] and metadata for [{}] indices and skipped [{}] unchanged indices",
+                        "writing cluster state took [{}ms] which is above the warn threshold of [{}]; {}",
                         durationMillis,
                         finalSlowWriteLoggingThreshold,
-                        stats.globalMetaUpdated,
-                        stats.numIndicesUpdated,
-                        stats.numIndicesUnchanged
+                        stats
                     );
                 } else {
-                    logger.debug(
-                        "writing cluster state took [{}ms]; "
-                            + "wrote global metadata [{}] and metadata for [{}] indices and skipped [{}] unchanged indices",
-                        durationMillis,
-                        stats.globalMetaUpdated,
-                        stats.numIndicesUpdated,
-                        stats.numIndicesUnchanged
-                    );
+                    logger.debug("writing cluster state took [{}ms]; {}", durationMillis, stats);
                 }
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
@@ -864,7 +871,9 @@ public class PersistedClusterStateService {
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
             }
 
+            int numIndicesAdded = 0;
             int numIndicesUpdated = 0;
+            int numIndicesRemoved = 0;
             int numIndicesUnchanged = 0;
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
                 final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
@@ -875,7 +884,11 @@ public class PersistedClusterStateService {
                         previousVersion,
                         indexMetadata.getVersion()
                     );
-                    numIndicesUpdated++;
+                    if (previousVersion == null) {
+                        numIndicesAdded++;
+                    } else {
+                        numIndicesUpdated++;
+                    }
 
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.deleteIndexMetadata(indexMetadata.getIndexUUID());
@@ -891,6 +904,7 @@ public class PersistedClusterStateService {
 
             for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                    numIndicesRemoved++;
                     metadataIndexWriter.deleteIndexMetadata(removedIndexUUID);
                 }
             }
@@ -901,7 +915,7 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(updateGlobalMeta, numIndicesUpdated, numIndicesUnchanged);
+            return new WriterStats(false, updateGlobalMeta, numIndicesUnchanged, numIndicesAdded, numIndicesUpdated, numIndicesRemoved);
         }
 
         private static int lastPageValue(boolean isLastPage) {
@@ -977,7 +991,7 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(true, metadata.indices().size(), 0);
+            return new WriterStats(true, true, 0, 0, metadata.indices().size(), 0);
         }
 
         public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
@@ -991,6 +1005,22 @@ public class PersistedClusterStateService {
             ensureOpen();
             prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
             completeCommit();
+            assert assertOnCommit();
+        }
+
+        private boolean assertOnCommit() {
+            if (assertOnCommit != null && Randomness.get().nextInt(100) == 0) {
+                // only rarely run this assertion since reloading the whole state can be quite expensive
+                for (final var metadataIndexWriter : metadataIndexWriters) {
+                    try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {
+                        assertOnCommit.accept(metadataIndexWriter.path, directoryReader);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+
+            return true;
         }
 
         private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
@@ -1056,15 +1086,31 @@ public class PersistedClusterStateService {
             }
         }
 
-        static class WriterStats {
-            final boolean globalMetaUpdated;
-            final long numIndicesUpdated;
-            final long numIndicesUnchanged;
-
-            WriterStats(boolean globalMetaUpdated, long numIndicesUpdated, long numIndicesUnchanged) {
-                this.globalMetaUpdated = globalMetaUpdated;
-                this.numIndicesUpdated = numIndicesUpdated;
-                this.numIndicesUnchanged = numIndicesUnchanged;
+        private record WriterStats(
+            boolean isFullWrite,
+            boolean globalMetaUpdated,
+            int numIndicesUnchanged,
+            int numIndicesAdded,
+            int numIndicesUpdated,
+            int numIndicesRemoved
+        ) {
+            @Override
+            public String toString() {
+                if (isFullWrite) {
+                    return String.format(Locale.ROOT, "wrote global metadata and metadata for [%d] indices", numIndicesUpdated);
+                } else {
+                    return String.format(
+                        Locale.ROOT,
+                        """
+                            [%s] global metadata, wrote metadata for [%d] new indices and [%d] existing indices, \
+                            removed metadata for [%d] indices and skipped [%d] unchanged indices""",
+                        globalMetaUpdated ? "wrote" : "skipped writing",
+                        numIndicesAdded,
+                        numIndicesUpdated,
+                        numIndicesRemoved,
+                        numIndicesUnchanged
+                    );
+                }
             }
         }
     }

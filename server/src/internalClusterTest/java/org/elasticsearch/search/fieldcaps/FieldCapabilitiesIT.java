@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.fieldcaps;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
@@ -25,14 +23,12 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -43,6 +39,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -591,7 +588,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
-    static class ExceptionOnRewriteQueryBuilder extends AbstractQueryBuilder<ExceptionOnRewriteQueryBuilder> {
+    static class ExceptionOnRewriteQueryBuilder extends DummyQueryBuilder {
 
         public static final String NAME = "exception";
 
@@ -611,30 +608,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 ;
             }
             return this;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) {}
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            builder.endObject();
-        }
-
-        @Override
-        protected Query doToQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        @Override
-        protected boolean doEquals(ExceptionOnRewriteQueryBuilder other) {
-            return false;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
         }
 
         @Override

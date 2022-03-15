@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -151,8 +150,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
             boolean matches = caseInsensitive
                 ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
                 : value.startsWith(string);
@@ -165,8 +163,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     return null;
                 }
             }
-            int docCount = queryShardContext.searcher().getIndexReader().maxDoc();
-            return new SimpleTermCountEnum(new TermCount(value, docCount));
+            return new SimpleTermCountEnum(value);
         }
 
         @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,7 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
@@ -31,6 +31,7 @@ public final class DataTypes {
     public static final DataType SHORT            = new DataType("short",             Short.BYTES,       true, false, true);
     public static final DataType INTEGER          = new DataType("integer",           Integer.BYTES,     true, false, true);
     public static final DataType LONG             = new DataType("long",              Long.BYTES,        true, false, true);
+    public static final DataType UNSIGNED_LONG    = new DataType("unsigned_long",     Long.BYTES,        true, false, true);
     // decimal numeric
     public static final DataType DOUBLE           = new DataType("double",            Double.BYTES,      false, true, true);
     public static final DataType FLOAT            = new DataType("float",             Float.BYTES,       false, true, true);
@@ -58,6 +59,7 @@ public final class DataTypes {
         SHORT,
         INTEGER,
         LONG,
+        UNSIGNED_LONG,
         DOUBLE,
         FLOAT,
         HALF_FLOAT,
@@ -69,7 +71,7 @@ public final class DataTypes {
         BINARY,
         OBJECT,
         NESTED
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
@@ -105,6 +107,9 @@ public final class DataTypes {
         }
         if (value instanceof Long) {
             return LONG;
+        }
+        if (value instanceof BigInteger) {
+            return UNSIGNED_LONG;
         }
         if (value instanceof Boolean) {
             return BOOLEAN;
@@ -152,7 +157,7 @@ public final class DataTypes {
     }
 
     public static boolean isSigned(DataType t) {
-        return t.isNumeric();
+        return t.isNumeric() && t.equals(UNSIGNED_LONG) == false;
     }
 
     public static boolean isDateTime(DataType type) {

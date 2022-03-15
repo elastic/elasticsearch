@@ -110,6 +110,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
@@ -186,6 +188,8 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportSearchProfilesAction;
+import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
@@ -227,6 +231,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
@@ -279,7 +284,10 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestGetBuiltinPriv
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestDisableProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestEnableProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestSearchProfilesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
@@ -319,7 +327,6 @@ import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTrans
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -338,6 +345,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -406,6 +414,11 @@ public class Security extends Plugin
         "oidc",
         License.OperationMode.PLATINUM
     );
+    public static final LicensedFeature.Persistent JWT_REALM_FEATURE = LicensedFeature.persistent(
+        REALMS_FEATURE_FAMILY,
+        "jwt",
+        License.OperationMode.PLATINUM
+    );
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE = LicensedFeature.persistent(
         REALMS_FEATURE_FAMILY,
         "kerberos",
@@ -470,11 +483,11 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
 
-    public Security(Settings settings, final Path configPath) {
-        this(settings, configPath, Collections.emptyList());
+    public Security(Settings settings) {
+        this(settings, Collections.emptyList());
     }
 
-    Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
+    Security(Settings settings, List<SecurityExtension> extensions) {
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
@@ -862,8 +875,7 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations,
-                clusterService
+                destructiveOperations
             )
         );
 
@@ -1086,6 +1098,7 @@ public class Security extends Plugin
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuthenticationServiceField.RUN_AS_USER_HEADER, false));
         }
+        headers.add(new RestHeaderDefinition(JwtRealm.HEADER_CLIENT_AUTHENTICATION, false));
         return headers;
     }
 
@@ -1157,7 +1170,8 @@ public class Security extends Plugin
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
-        return Arrays.asList(
+
+        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = Arrays.asList(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1206,12 +1220,24 @@ public class Security extends Plugin
             new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
             new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
-            new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
-            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
-            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
             usageAction,
             infoAction
         );
+
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return Stream.concat(
+                actionHandlers.stream(),
+                Stream.of(
+                    new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+                    new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+                    new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+                    new ActionHandler<>(SearchProfilesAction.INSTANCE, TransportSearchProfilesAction.class),
+                    new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class)
+                )
+            ).toList();
+        } else {
+            return actionHandlers;
+        }
     }
 
     @Override
@@ -1235,7 +1261,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return emptyList();
         }
-        return Arrays.asList(
+        final List<RestHandler> restHandlers = Arrays.asList(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
             new RestClearRolesCacheAction(settings, getLicenseState()),
@@ -1282,11 +1308,24 @@ public class Security extends Plugin
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
-            new RestNodeEnrollmentAction(settings, getLicenseState()),
-            new RestGetProfileAction(settings, getLicenseState()),
-            new RestActivateProfileAction(settings, getLicenseState()),
-            new RestUpdateProfileDataAction(settings, getLicenseState())
+            new RestNodeEnrollmentAction(settings, getLicenseState())
         );
+
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return Stream.concat(
+                restHandlers.stream(),
+                Stream.of(
+                    new RestGetProfileAction(settings, getLicenseState()),
+                    new RestActivateProfileAction(settings, getLicenseState()),
+                    new RestUpdateProfileDataAction(settings, getLicenseState()),
+                    new RestSearchProfilesAction(settings, getLicenseState()),
+                    new RestEnableProfileAction(settings, getLicenseState()),
+                    new RestDisableProfileAction(settings, getLicenseState())
+                )
+            ).toList();
+        } else {
+            return restHandlers;
+        }
     }
 
     @Override

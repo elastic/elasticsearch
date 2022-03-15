@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -120,5 +121,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         }
         StringStatsAggregationBuilder other = (StringStatsAggregationBuilder) obj;
         return showDistribution == other.showDistribution;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

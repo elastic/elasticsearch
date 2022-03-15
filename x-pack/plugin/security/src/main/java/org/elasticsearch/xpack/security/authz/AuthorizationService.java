@@ -19,6 +19,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -40,8 +42,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -879,7 +879,7 @@ public class AuthorizationService {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
         // check for authentication by API key
-        if (authentication.isAuthenticatedWithApiKey()) {
+        if (authentication.isAuthenticatedAsApiKey()) {
             final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;

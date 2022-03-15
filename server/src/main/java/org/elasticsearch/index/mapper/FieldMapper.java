@@ -238,24 +238,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
             } catch (Exception innerException) {
                 throw new MapperParsingException(
-                    "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
+                    "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
                     e,
                     fieldType().name(),
                     fieldType().typeName(),
-                    context.sourceToParse().id()
+                    context.documentDescription()
                 );
             }
 
             throw new MapperParsingException(
-                "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
+                "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
                 e,
                 fieldType().name(),
                 fieldType().typeName(),
-                context.sourceToParse().id(),
+                context.documentDescription(),
                 valuePreview
             );
         }
-        multiFields.parse(this, context);
+        multiFields.parse(this, context, () -> context);
     }
 
     /**
@@ -449,7 +449,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return indexAnalyzers;
     }
 
-    public static class MultiFields implements Iterable<FieldMapper>, ToXContent {
+    public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
         private static final MultiFields EMPTY = new MultiFields(Collections.emptyMap());
 
@@ -507,16 +507,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.mappers = mappers;
         }
 
-        public void parse(FieldMapper mainField, DocumentParserContext context) throws IOException {
+        public void parse(FieldMapper mainField, DocumentParserContext context, Supplier<DocumentParserContext> multiFieldContextSupplier)
+            throws IOException {
             // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
             // of the mappings
             if (mappers.isEmpty()) {
                 return;
             }
-
             context.path().add(mainField.simpleName());
             for (FieldMapper mapper : mappers.values()) {
-                mapper.parse(context);
+                mapper.parse(multiFieldContextSupplier.get());
             }
             context.path().remove();
         }
@@ -675,7 +675,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.value = null;
             this.parser = parser;
             this.initializer = initializer;
-            this.mergeValidator = (previous, toMerge, conflicts) -> updateable || Objects.equals(previous, toMerge);
+            this.mergeValidator = updateable
+                ? (previous, toMerge, conflicts) -> true
+                : (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge);
             this.serializer = serializer;
             this.conflictSerializer = conflictSerializer;
         }

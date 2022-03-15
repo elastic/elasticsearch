@@ -52,7 +52,6 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -104,6 +103,7 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -903,9 +903,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream()
-            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-            .collect(Collectors.toUnmodifiableList());
+        List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
             assertOK(adminClient().performRequest(deleteRequest));
@@ -1400,6 +1398,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    public static void assertAcknowledged(Response response) throws IOException {
+        assertOK(response);
+        String jsonBody = EntityUtils.toString(response.getEntity());
+        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+    }
+
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(Settings settings) throws IOException {
+        updateClusterSettings(client(), settings);
+    }
+
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(RestClient client, Settings settings) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+        assertOK(response);
+    }
+
     /**
      * Permits subclasses to increase the default timeout when waiting for green health
      */
@@ -1431,6 +1453,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
         ensureHealth(client(), index, requestConsumer);
+    }
+
+    public static void ensureHealth(RestClient restClient, Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth(restClient, "", requestConsumer);
     }
 
     protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
@@ -1597,7 +1623,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        Response response = client().performRequest(new Request("GET", endpoint));
+        return getAsMap(client(), endpoint);
+    }
+
+    protected static Map<String, Object> getAsMap(RestClient client, final String endpoint) throws IOException {
+        Response response = client.performRequest(new Request("GET", endpoint));
         return responseAsMap(response);
     }
 

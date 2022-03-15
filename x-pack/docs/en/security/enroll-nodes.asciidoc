@@ -1,8 +1,8 @@
 [role="exclude"]
 
 When {es} starts for the first time, the security auto-configuration process
-binds the HTTP layer to both `_site_` and `_local_`, but only binds the
-transport layer to `_local_`. This intended behavior ensures that you can start
+binds the HTTP layer to `0.0.0.0`, but only binds the transport layer to
+localhost. This intended behavior ensures that you can start
 a single-node cluster with security enabled by default without any additional
 configuration.
 
@@ -14,10 +14,10 @@ could expire, which is why enrollment tokens aren't generated automatically.
 Additionally, only nodes on the same host can join the cluster without
 additional configuration. If you want nodes from another host to join your
 cluster, you need to set `transport.host` to a
-{ref}/modules-network.html#network-interface-values[supported value] other than
-`_local_` (such as `_site_`), or an IP address that's bound to an interface
-where other hosts can reach it. Refer to 
-{ref}/modules-network.html#transport-settings[transport settings] for more 
+{ref}/modules-network.html#network-interface-values[supported value]
+(such as uncommenting the suggested value of `0.0.0.0`), or an IP address
+that's bound to an interface where other hosts can reach it. Refer to
+{ref}/modules-network.html#transport-settings[transport settings] for more
 information.
 
 To enroll new nodes in your cluster, create an enrollment token with the

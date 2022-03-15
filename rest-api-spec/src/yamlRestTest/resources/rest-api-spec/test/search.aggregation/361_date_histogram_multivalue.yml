@@ -62,6 +62,7 @@ setup:
   - do:
       search:
         body:
+          profile: true
           query:
             match:
               date_not_indexed: "2021-04-01"
@@ -71,7 +72,7 @@ setup:
                 field: "date_not_indexed"
                 calendar_interval: "1M"
 
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 5 }
   - length: { aggregations.datehisto.buckets: 3 }
 ---
 "Multi-value without filter by filter":

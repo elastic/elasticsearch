@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
@@ -224,17 +224,27 @@ public abstract class AggregationContext implements Releasable {
     public abstract SubSearchContext subSearchContext();
 
     /**
-     *  Check if the given field is multivalued.  Can only be used on fields with points.
+     *  Check if the given field is multivalued.  This is somewhat brittle.  
      *
      * @param field Name of the field to check
      * @return true if the field contians multiple indexed values
      */
     public boolean isMultiValued(String field) throws IOException {
-        if (PointValues.size(searcher().getIndexReader(), field) == 0) {
-            // There are no points, and this method for checking multivalue will fail.
-            throw new AggregationExecutionException("Attempted to check points on non-indexed field [" + field + "]");
+        MappedFieldType fieldType = getFieldType(field);
+        for (LeafReaderContext leaf : searcher().getLeafContexts()) {
+
+            if (fieldType.isIndexed()) {
+                PointValues pointValues = leaf.reader().getPointValues(field);
+                if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
+                    return true;
+                }
+            } else if (fieldType.hasDocValues()) {
+                if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(field)) == null) {
+                    return true;
+                }
+            }
         }
-        return PointValues.size(searcher().getIndexReader(), field) > PointValues.getDocCount(searcher().getIndexReader(), field);
+        return false;
     }
 
     /**

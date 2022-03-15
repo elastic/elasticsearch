@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
@@ -277,6 +279,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             if (fieldContext.fieldType() instanceof DateFieldType == false) {
                 return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             }
+
+            // NOCOMMIT - adding this for some logging; super brittle
+            DocValueFormat format = fieldContext.fieldType().docValueFormat(null, null);
+
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**
                  * Proper dates get a real implementation of
@@ -296,6 +302,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                     // Check the search index for bounds
                     if (fieldContext.fieldType().isIndexed()) {
+                        log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
                          * search index (isSearchable) and the resolution which
@@ -321,6 +328,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     // Check the query for bounds. If the field is multivalued, we can't apply query bounds, because a document that
                     // matches the query might also have values outside the query, which would not be included in any range.
                     if (context.query() != null && false == isMultiValue) {
+                        log.trace("Attempting to apply query bound rounding");
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
@@ -424,6 +432,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     public String typeName() {
         return value();
     }
+
+    public static final Logger log = LogManager.getLogger(CoreValuesSourceType.class);
 
     /** List containing all members of the enumeration. */
     public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());

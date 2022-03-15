@@ -77,7 +77,15 @@ public class MetadataUpdateSettingsService {
                 try {
                     final var task = taskContext.getTask();
                     state = task.execute(state);
-                    taskContext.success(task);
+                    taskContext.success(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState publishedState) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            task.onFailure(e);
+                        }
+                    }, task);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }

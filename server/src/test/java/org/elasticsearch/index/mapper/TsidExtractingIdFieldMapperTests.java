@@ -488,4 +488,17 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
+
+    public void testDescription() throws IOException {
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(source(null, testCase.source, null)),
+            equalTo("a time series document")
+        );
+        for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
+            assertThat(
+                TsidExtractingIdFieldMapper.INSTANCE.documentDescription(source(null, equivalent, null)),
+                equalTo("a time series document")
+            );
+        }
+    }
 }

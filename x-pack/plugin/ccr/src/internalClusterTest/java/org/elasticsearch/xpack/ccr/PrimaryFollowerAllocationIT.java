@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
@@ -128,7 +129,9 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         // Empty follower primaries must be assigned to nodes with the remote cluster client role
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
-            for (IndexShardRoutingTable shardRoutingTable : state.routingTable().index(followerIndex)) {
+            final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final ShardRouting primaryShard = shardRoutingTable.primaryShard();
                 assertTrue(primaryShard.assignedToNode());
                 final DiscoveryNode assignedNode = state.nodes().get(primaryShard.currentNodeId());
@@ -148,7 +151,9 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             .get();
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
-            for (IndexShardRoutingTable shardRoutingTable : state.routingTable().index(followerIndex)) {
+            final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 for (ShardRouting shard : shardRoutingTable) {
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
@@ -162,7 +167,9 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         ensureFollowerGreen(followerIndex);
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
-            for (IndexShardRoutingTable shardRoutingTable : state.routingTable().index(followerIndex)) {
+            final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 for (ShardRouting shard : shardRoutingTable) {
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());

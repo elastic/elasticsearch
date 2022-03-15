@@ -532,7 +532,7 @@ public class ApiKeyService {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }).collect(Collectors.toList());
+        }).toList();
         return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
             ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
             : roleDescriptors;

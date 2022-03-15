@@ -372,7 +372,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         retentionLeases = new RetentionLeases(
             operationPrimaryTerm,
             retentionLeases.version() + 1,
-            Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())
+            Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).toList()
         );
         return retentionLease;
     }
@@ -414,7 +414,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             operationPrimaryTerm,
             retentionLeases.version() + 1,
             Stream.concat(retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false), Stream.of(retentionLease))
-                .collect(Collectors.toList())
+                .toList()
         );
         return retentionLease;
     }
@@ -437,7 +437,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             retentionLeases = new RetentionLeases(
                 operationPrimaryTerm,
                 retentionLeases.version() + 1,
-                retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false).collect(Collectors.toList())
+                retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false).toList()
             );
             currentRetentionLeases = retentionLeases;
         }

@@ -297,7 +297,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
-        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
+        List<FieldMapper> mappers = concreteFields.stream().<FieldMapper>map(MockFieldMapper::new).toList();
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);

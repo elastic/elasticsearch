@@ -80,6 +80,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -667,21 +669,61 @@ public class InstallPluginAction implements Closeable {
                 throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
-            // compute the signature of the downloaded plugin zip
-            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
-            final byte[] buffer = new byte[1024];
-            int read;
-            while ((read = fin.read(buffer)) != -1) {
-                signature.update(buffer, 0, read);
-            }
+            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
+            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
             if (signature.verify() == false) {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
         }
+    }
+
+    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
+        IOException {
+        final Timer timer = new Timer();
+
+        try {
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    reportLongSignatureVerification();
+                }
+            }, acceptableSignatureVerificationDelay());
+
+            computeSignatureForDownloadedPlugin(fin, ain, signature);
+        } finally {
+            timer.cancel();
+        }
+    }
+
+    // package private for testing
+    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
+        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+        signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
+        final byte[] buffer = new byte[1024];
+        int read;
+        while ((read = fin.read(buffer)) != -1) {
+            signature.update(buffer, 0, read);
+        }
+    }
+
+    // package private for testing
+    void reportLongSignatureVerification() {
+        terminal.println(
+            "The plugin installer is trying to verify the signature of the downloaded plugin "
+                + "but this verification is taking longer than expected. This is often because the "
+                + "plugin installer is waiting for your system to supply it with random numbers. "
+                + ((System.getProperty("os.name").startsWith("Windows") == false)
+                    ? "Ensure that your system has sufficient entropy so that reads from /dev/random do not block."
+                    : "")
+        );
+    }
+
+    // package private for testing
+    long acceptableSignatureVerificationDelay() {
+        return 5_000;
     }
 
     /**

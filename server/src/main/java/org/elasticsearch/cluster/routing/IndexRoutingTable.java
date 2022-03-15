@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.cursors.IntCursor;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,13 +24,14 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,7 +52,7 @@ import java.util.function.Predicate;
  * represented as {@link ShardRouting}.
  * </p>
  */
-public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
         ShardRouting::unassigned,
@@ -64,16 +64,17 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
 
     // note, we assume that when the index routing is created, ShardRoutings are created for all possible number of
     // shards with state set to UNASSIGNED
-    private final ImmutableOpenIntMap<IndexShardRoutingTable> shards;
+    private final IndexShardRoutingTable[] shards;
 
     private final List<ShardRouting> allActiveShards;
 
     IndexRoutingTable(Index index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
         this.index = index;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = shards;
+        this.shards = new IndexShardRoutingTable[shards.size()];
         List<ShardRouting> allActiveShards = new ArrayList<>();
         for (Map.Entry<Integer, IndexShardRoutingTable> cursor : shards.entrySet()) {
+            this.shards[cursor.getKey()] = cursor.getValue();
             allActiveShards.addAll(cursor.getValue().activeShards());
         }
         this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
@@ -99,19 +100,19 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
         }
 
         // check the number of shards
-        if (indexMetadata.getNumberOfShards() != shards().size()) {
+        if (indexMetadata.getNumberOfShards() != shards.length) {
             Set<Integer> expected = new HashSet<>();
             for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                 expected.add(i);
             }
-            for (IndexShardRoutingTable indexShardRoutingTable : this) {
+            for (IndexShardRoutingTable indexShardRoutingTable : this.shards) {
                 expected.remove(indexShardRoutingTable.shardId().id());
             }
             throw new IllegalStateException("Wrong number of shards in routing table, missing: " + expected);
         }
 
         // check the replicas
-        for (IndexShardRoutingTable indexShardRoutingTable : this) {
+        for (IndexShardRoutingTable indexShardRoutingTable : this.shards) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
             if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas()) {
                 throw new IllegalStateException(
@@ -168,11 +169,6 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
         return true;
     }
 
-    @Override
-    public Iterator<IndexShardRoutingTable> iterator() {
-        return shards.values().iterator();
-    }
-
     /**
      * Calculates the number of nodes that hold one or more shards of this index
      * {@link IndexRoutingTable} excluding the nodes with the node ids give as
@@ -183,7 +179,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
      */
     public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
         Set<String> nodes = new HashSet<>();
-        for (IndexShardRoutingTable shardRoutingTable : this) {
+        for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             for (ShardRouting shardRouting : shardRoutingTable) {
                 if (shardRouting.assignedToNode()) {
                     String currentNodeId = shardRouting.currentNodeId();
@@ -205,23 +201,23 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
         return nodes.size();
     }
 
-    public ImmutableOpenIntMap<IndexShardRoutingTable> shards() {
-        return shards;
+    public int size() {
+        return shards.length;
     }
 
-    public ImmutableOpenIntMap<IndexShardRoutingTable> getShards() {
-        return shards();
-    }
-
+    @Nullable
     public IndexShardRoutingTable shard(int shardId) {
-        return shards.get(shardId);
+        if (shardId > shards.length - 1) {
+            return null;
+        }
+        return shards[shardId];
     }
 
     /**
      * Returns <code>true</code> if all shards are primary and active. Otherwise <code>false</code>.
      */
     public boolean allPrimaryShardsActive() {
-        return primaryShardsActive() == shards().size();
+        return primaryShardsActive() == shards.length;
     }
 
     /**
@@ -231,7 +227,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
      */
     public int primaryShardsActive() {
         int counter = 0;
-        for (IndexShardRoutingTable shardRoutingTable : this) {
+        for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             if (shardRoutingTable.primaryShard().active()) {
                 counter++;
             }
@@ -244,7 +240,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
      * {@link ShardRoutingState#UNASSIGNED} state. Otherwise <code>false</code>.
      */
     public boolean allPrimaryShardsUnassigned() {
-        return primaryShardsUnassigned() == shards.size();
+        return primaryShardsUnassigned() == shards.length;
     }
 
     /**
@@ -253,7 +249,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
      */
     public int primaryShardsUnassigned() {
         int counter = 0;
-        for (IndexShardRoutingTable shardRoutingTable : this) {
+        for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             if (shardRoutingTable.primaryShard().unassigned()) {
                 counter++;
             }
@@ -269,7 +265,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
         List<ShardRouting> shards = new ArrayList<>();
-        for (IndexShardRoutingTable shardRoutingTable : this) {
+        for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             shards.addAll(shardRoutingTable.shardsWithState(state));
         }
         return shards;
@@ -290,15 +286,13 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
         IndexRoutingTable that = (IndexRoutingTable) o;
 
         if (index.equals(that.index) == false) return false;
-        if (shards.equals(that.shards) == false) return false;
-
-        return true;
+        return Arrays.equals(shards, that.shards) != false;
     }
 
     @Override
     public int hashCode() {
         int result = index.hashCode();
-        result = 31 * result + shards.hashCode();
+        result = 31 * result + Arrays.hashCode(shards);
         return result;
     }
 
@@ -321,8 +315,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
-        out.writeVInt(shards.size());
-        for (IndexShardRoutingTable indexShard : this) {
+        out.writeVInt(shards.length);
+        for (IndexShardRoutingTable indexShard : this.shards) {
             IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
         }
     }
@@ -569,21 +563,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder("-- index [" + index + "]\n");
-
-        List<IndexShardRoutingTable> ordered = new ArrayList<>();
-        for (IndexShardRoutingTable indexShard : this) {
-            ordered.add(indexShard);
-        }
-
-        CollectionUtil.timSort(ordered, (o1, o2) -> {
-            int v = o1.shardId().getIndex().getName().compareTo(o2.shardId().getIndex().getName());
-            if (v == 0) {
-                v = Integer.compare(o1.shardId().id(), o2.shardId().id());
-            }
-            return v;
-        });
-
-        for (IndexShardRoutingTable indexShard : ordered) {
+        for (IndexShardRoutingTable indexShard : shards) {
             sb.append("----shard_id [")
                 .append(indexShard.shardId().getIndex().getName())
                 .append("][")

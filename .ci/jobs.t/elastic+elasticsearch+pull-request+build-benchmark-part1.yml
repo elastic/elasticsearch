@@ -1,9 +1,9 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+build-benchmark"
-    display-name: "elastic / elasticsearch - pull request build benchmark"
-    description: "Testing of Elasticsearch pull requests - build benchmark"
-    workspace: "/dev/shm/elastic+elasticsearch+pull-request+build-bench"
+    name: "elastic+elasticsearch+pull-request+build-benchmark-part1"
+    display-name: "elastic / elasticsearch - pull request build benchmark part 1"
+    description: "Testing of Elasticsearch pull requests - build benchmark part 1"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+build-bench-1"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
@@ -25,7 +25,7 @@
           allow-whitelist-orgs-as-admins: true
           trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
           github-hooks: true
-          status-context: elasticsearch-ci/build-benchmark
+          status-context: elasticsearch-ci/build-benchmark-part1
           cancel-builds-on-update: true
           black-list-target-branches:
             - 6.8
@@ -45,5 +45,5 @@
          #!/usr/local/bin/runbld --redirect-stderr
          $WORKSPACE/.ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
          $WORKSPACE/.ci/scripts/install-gradle-profiler.sh
-         $WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-tool-update.scenarios --project-dir . --output-dir profile-out
+         $WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part1.scenarios --project-dir . --output-dir profile-out
          tar -czf build/${BUILD_NUMBER}.tar.bz2 profile-out

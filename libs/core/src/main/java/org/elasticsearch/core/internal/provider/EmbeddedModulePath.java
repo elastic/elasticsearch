@@ -9,7 +9,6 @@
 package org.elasticsearch.core.internal.provider;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -55,7 +54,7 @@ final class EmbeddedModulePath {
             mrefs = ModuleFinder.of(path).findAll();
         } catch (InvalidModuleDescriptorException e) {
             // This is a loathsome workaround for JDK-8282444, which affects Windows only
-            if (File.separatorChar == '\\' && Files.isDirectory(path) && Files.exists(path.resolve(MODULE_INFO))) {
+            if (System.getProperty("os.name").startsWith("Windows") && Files.isDirectory(path) && Files.exists(path.resolve(MODULE_INFO))) {
                 try (var is = Files.newInputStream(path.resolve(MODULE_INFO))) {
                     var md = ModuleDescriptor.read(is);
                     mrefs = Set.of(new InMemoryModuleFinder.InMemoryModuleReference(md, URI.create("module:/" + md.name())));

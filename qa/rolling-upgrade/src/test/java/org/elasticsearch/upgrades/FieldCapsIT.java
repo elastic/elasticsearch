@@ -17,16 +17,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
-import java.util.List;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Since ES 8.2, field-caps internal responses are shared between indices that have the same index mapping hash to
- * reduce the transport message size between nodes and clusters, and the memory usage to hold these internal responses.
- * As the optimization is applied for only field-caps requests without index-filter and nodes on 8.2 or later,
- * these BWC tests verify these combinations of field-caps requests: (old|new|mixed indices) and (with|without index filter)
+ * Since ES 7.16, shard-level field-caps requests are batched in node-level requests.
+ * These BWC tests verify these combinations of field-caps requests: (old|new|mixed indices) and (with|without index filter)
  */
 public class FieldCapsIT extends AbstractRollingTestCase {
     private static boolean indicesCreated = false;
@@ -37,22 +36,22 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             return;
         }
         indicesCreated = true;
-        final String redMapping = """
-             "properties": {
-               "red_field": { "type": "keyword" },
-               "yellow_field": { "type": "integer" },
-               "blue_field": { "type": "keyword" },
-               "timestamp": {"type": "date"}
-             }
-            """;
-        final String greenMapping = """
-             "properties": {
-               "green_field": { "type": "keyword" },
-               "yellow_field": { "type": "long" },
-               "blue_field": { "type": "keyword" },
-               "timestamp": {"type": "date"}
-             }
-            """;
+        final String redMapping = ""
+            + "\"properties\": {"
+            + "\"red_field\": { \"type\": \"keyword\" },"
+            + "\"yellow_field\": { \"type\": \"integer\" },"
+            + "\"blue_field\": { \"type\": \"keyword\" },"
+            + "\"timestamp\": {\"type\": \"date\"}"
+            + "}";
+
+        final String greenMapping = ""
+            + "\"properties\": {"
+            + "\"green_field\": { \"type\": \"keyword\" },"
+            + "\"yellow_field\": { \"type\": \"long\" },"
+            + "\"blue_field\": { \"type\": \"keyword\" },"
+            + "\"timestamp\": {\"type\": \"date\"}"
+            + "}";
+
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex("old_red_1", Settings.EMPTY, redMapping);
             createIndex("old_red_2", Settings.EMPTY, redMapping);
@@ -60,7 +59,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             createIndex("old_green_1", Settings.EMPTY, greenMapping);
             createIndex("old_green_2", Settings.EMPTY, greenMapping);
             createIndex("old_green_empty", Settings.EMPTY, greenMapping);
-            for (String index : List.of("old_red_1", "old_red_2", "old_green_1", "old_green_2")) {
+            for (String index : Arrays.asList("old_red_1", "old_red_2", "old_green_1", "old_green_2")) {
                 final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/1");
                 indexRequest.addParameter("refresh", "true");
                 indexRequest.setJsonEntity(
@@ -75,7 +74,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             createIndex("new_green_1", Settings.EMPTY, greenMapping);
             createIndex("new_green_2", Settings.EMPTY, greenMapping);
             createIndex("new_green_empty", Settings.EMPTY, greenMapping);
-            for (String index : List.of("new_red_1", "new_red_2", "new_green_1", "new_green_2")) {
+            for (String index : Arrays.asList("new_red_1", "new_red_2", "new_green_1", "new_green_2")) {
                 final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/1");
                 indexRequest.addParameter("refresh", "true");
                 indexRequest.setJsonEntity(
@@ -88,7 +87,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
 
     public void testOldIndicesOnly() throws Exception {
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), null);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("old_red_*"), Collections.singletonList("*"), null);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2", "old_red_empty" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -98,7 +97,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("old_*"), Collections.singletonList("*"), null);
             assertThat(
                 resp.getIndices(),
                 equalTo(new String[] { "old_green_1", "old_green_2", "old_green_empty", "old_red_1", "old_red_2", "old_red_empty" })
@@ -116,7 +115,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     public void testOldIndicesWithIndexFilter() throws Exception {
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), indexFilter);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("old_red_*"), Collections.singletonList("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -126,7 +125,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), indexFilter);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("old_*"), Collections.singletonList("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_green_1", "old_green_2", "old_red_1", "old_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -141,7 +140,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     public void testNewIndicesOnly() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), null);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("new_red_*"), Collections.singletonList("*"), null);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "new_red_empty" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -151,7 +150,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), null);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("new_*"), Collections.singletonList("*"), null);
             assertThat(
                 resp.getIndices(),
                 equalTo(new String[] { "new_green_1", "new_green_2", "new_green_empty", "new_red_1", "new_red_2", "new_red_empty" })
@@ -170,7 +169,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), indexFilter);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("new_red_*"), Collections.singletonList("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -180,7 +179,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), indexFilter);
+            FieldCapabilitiesResponse resp = fieldCaps(Collections.singletonList("new_*"), Collections.singletonList("*"), indexFilter);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_green_1", "new_green_2", "new_red_1", "new_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -194,7 +193,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
 
     public void testAllIndices() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
-        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null);
+        FieldCapabilitiesResponse resp = fieldCaps(Arrays.asList("old_*", "new_*"), Collections.singletonList("*"), null);
         assertThat(
             resp.getIndices(),
             equalTo(
@@ -227,7 +226,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     public void testAllIndicesWithIndexFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
-        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter);
+        FieldCapabilitiesResponse resp = fieldCaps(Arrays.asList("old_*", "new_*"), Collections.singletonList("*"), indexFilter);
         assertThat(
             resp.getIndices(),
             equalTo(

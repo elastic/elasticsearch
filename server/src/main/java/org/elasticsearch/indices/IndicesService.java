@@ -742,7 +742,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
             .map(engineFactoryProvider -> engineFactoryProvider.apply(idxSettings))
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
-            .collect(Collectors.toList());
+            .toList();
         if (engineFactories.isEmpty()) {
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
@@ -1654,7 +1654,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             if (filters.isEmpty()) {
                 return new AliasFilter(null, aliases);
             } else {

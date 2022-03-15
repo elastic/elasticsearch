@@ -182,7 +182,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
@@ -3054,7 +3053,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         recoveryListener,
                         l -> recoverFromLocalShards(
                             mappingUpdateConsumer,
-                            startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).collect(Collectors.toList()),
+                            startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).toList(),
                             l
                         )
                     );

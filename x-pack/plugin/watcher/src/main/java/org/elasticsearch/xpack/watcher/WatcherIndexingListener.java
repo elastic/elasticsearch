@@ -342,10 +342,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 .stream()
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)
-                .collect(Collectors.toList());
+                .sorted()
+                .toList();
 
             // sort the list so it is stable
-            Collections.sort(allocationIds);
 
             String allocationId = shardRouting.allocationId().getId();
             int idx = allocationIds.indexOf(allocationId);

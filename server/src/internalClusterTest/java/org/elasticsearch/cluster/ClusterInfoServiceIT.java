@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
@@ -283,16 +282,13 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // indices stats from remote nodes will time out, but the local node's shard will be included
         assertThat(infoAfterTimeout.shardSizes.size(), greaterThan(0));
         assertThat(infoAfterTimeout.shardDataSetSizes.size(), greaterThan(0));
-        assertThat(
-            shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null).collect(Collectors.toList()),
-            hasSize(1)
-        );
+        assertThat(shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null).toList(), hasSize(1));
         assertThat(
             shardRoutings.stream()
                 .map(ShardRouting::shardId)
                 .distinct()
                 .filter(shard -> infoAfterTimeout.getShardDataSetSize(shard).isPresent())
-                .collect(Collectors.toList()),
+                .toList(),
             hasSize(1)
         );
 

@@ -59,7 +59,7 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
 
     @Override
     public Iterator<SignificantTerms.Bucket> iterator() {
-        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).collect(Collectors.toList()).iterator();
+        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).toList().iterator();
     }
 
     @Override

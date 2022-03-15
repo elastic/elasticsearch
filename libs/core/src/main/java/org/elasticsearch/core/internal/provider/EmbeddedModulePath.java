@@ -9,6 +9,7 @@
 package org.elasticsearch.core.internal.provider;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -17,6 +18,8 @@ import java.lang.module.FindException;
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -47,7 +50,23 @@ final class EmbeddedModulePath {
      * @throws FindException if not exactly one module is found
      */
     static ModuleDescriptor descriptorFor(Path path) {
-        var mrefs = ModuleFinder.of(path).findAll();
+        Set<ModuleReference> mrefs = Set.of();
+        try {
+            mrefs = ModuleFinder.of(path).findAll();
+        } catch (InvalidModuleDescriptorException e) {
+            // This is a loathsome workaround for JDK-8282444, which affects Windows only
+            if (File.separatorChar == '\\' && Files.isDirectory(path) && Files.exists(path.resolve(MODULE_INFO))) {
+                try (var is = Files.newInputStream(path.resolve(MODULE_INFO))) {
+                    var md = ModuleDescriptor.read(is);
+                    mrefs = Set.of(new InMemoryModuleFinder.InMemoryModuleReference(md, URI.create("module:/" + md.name())));
+                } catch (IOException ioe) {
+                    e.addSuppressed(ioe);
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
+        }
         if (mrefs.isEmpty()) {
             // must be an automatic module
             return descriptorForAutomatic(path);

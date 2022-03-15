@@ -111,7 +111,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             assertNotSame(newState, clusterState); // dry-run=false
             clusterState = newState;
             RoutingTable routingTable = clusterState.routingTable();
-            assertEquals(routingTable.index("idx").shards().size(), 1);
+            assertEquals(routingTable.index("idx").size(), 1);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i);
             List<FailedShard> failedShards = Collections.singletonList(
@@ -126,7 +126,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = clusterState.routingTable();
-            assertEquals(routingTable.index("idx").shards().size(), 1);
+            assertEquals(routingTable.index("idx").size(), 1);
             if (i == retries - 1) {
                 assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
             } else {
@@ -141,7 +141,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         task.onAllNodesAcked();
         assertSame(responseRef.get().getState(), newState);
         RoutingTable routingTable = clusterState.routingTable();
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
 
@@ -150,7 +150,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         assertNotSame(newState, clusterState); // dry-run=false
         clusterState = newState;
         routingTable = clusterState.routingTable();
-        assertEquals(1, routingTable.index("idx").shards().size());
+        assertEquals(1, routingTable.index("idx").size());
         assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertEquals(0, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
     }
@@ -173,10 +173,10 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertEquals(prevRoutingTable.index("idx").shards().size(), 1);
+        assertEquals(prevRoutingTable.index("idx").size(), 1);
         assertEquals(prevRoutingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
 
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         return clusterState;
     }

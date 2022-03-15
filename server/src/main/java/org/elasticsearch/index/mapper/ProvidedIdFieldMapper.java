@@ -271,6 +271,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
+    public String documentDescription(SourceToParse source) {
+        return "document with id '" + source.id() + "'";
+    }
+
+    @Override
     public String documentDescription(ParsedDocument parsedDocument) {
         return parsedDocument.id();
     }

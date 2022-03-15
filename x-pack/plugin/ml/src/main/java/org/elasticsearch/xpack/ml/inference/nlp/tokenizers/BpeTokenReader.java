@@ -19,6 +19,13 @@ import static java.lang.Character.isWhitespace;
  * This is a char sequence tokenizer that satisfies the regex bpe regex for gpt-2
  *      "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+"
  *
+ * In plain english it checks the following:
+ *   - An ASCII apostrophe followed by one of a handful of specific letter sequences
+ *   - Optional space followed by an unbroken sequence of letters
+ *   - Optional space followed by an unbroken sequence of numbers
+ *   - Optional space followed by an unbroken sequence of characters that are neither letters, numbers nor whitespace
+ *   - Non-empty sequence of whitespace
+ *
  * It is by no means thread safe can only can parse one sequence at a time
  */
 public class BpeTokenReader {
@@ -229,16 +236,7 @@ public class BpeTokenReader {
         return c == '\'';
     }
 
-    static class CharSequenceRef implements CharSequence {
-        private final CharSequence wrapped;
-        private final int offset;
-        private final int len;
-
-        CharSequenceRef(CharSequence wrapped, int offset, int len) {
-            this.wrapped = wrapped;
-            this.offset = offset;
-            this.len = len;
-        }
+    public record CharSequenceRef(CharSequence wrapped, int offset, int len) implements CharSequence {
 
         public int getOffset() {
             return offset;

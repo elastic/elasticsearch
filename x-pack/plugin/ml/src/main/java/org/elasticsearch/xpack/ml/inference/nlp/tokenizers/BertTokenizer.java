@@ -212,7 +212,7 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
-    InnerTokenization innerTokenize(String seq) {
+    public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();
         try (TokenStream ts = wordPieceAnalyzer.tokenStream("input", seq)) {
             ts.reset();

@@ -81,4 +81,9 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
     public final TimeValue ackTimeout() {
         return request.ackTimeout();
     }
+
+    @Override
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+        assert false : "not called";
+    }
 }

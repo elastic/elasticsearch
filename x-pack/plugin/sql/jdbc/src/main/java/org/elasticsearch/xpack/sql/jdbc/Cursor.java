@@ -31,5 +31,5 @@ interface Cursor {
 
     List<String> warnings();
 
-    Cursor withoutWarnings();
+    void clearWarnings();
 }

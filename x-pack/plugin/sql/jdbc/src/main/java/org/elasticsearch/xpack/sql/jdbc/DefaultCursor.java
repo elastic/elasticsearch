@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.xpack.sql.proto.core.Tuple;
 
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.List;
 
 class DefaultCursor implements Cursor {
@@ -83,7 +82,7 @@ class DefaultCursor implements Cursor {
     }
 
     @Override
-    public Cursor withoutWarnings() {
-        return new DefaultCursor(client, cursor, columnInfos, rows, meta, Collections.emptyList());
+    public void clearWarnings() {
+        warnings.clear();
     }
 }

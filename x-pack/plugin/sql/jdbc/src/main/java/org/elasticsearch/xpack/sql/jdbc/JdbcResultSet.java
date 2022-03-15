@@ -599,7 +599,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public void clearWarnings() throws SQLException {
         checkOpen();
-        cursor = cursor.withoutWarnings();
+        cursor.clearWarnings();
     }
 
     @Override

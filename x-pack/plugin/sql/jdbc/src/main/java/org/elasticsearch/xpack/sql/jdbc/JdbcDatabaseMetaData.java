@@ -1428,8 +1428,6 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         }
 
         @Override
-        public Cursor withoutWarnings() {
-            return this;
-        }
+        public void clearWarnings() {}
     }
 }

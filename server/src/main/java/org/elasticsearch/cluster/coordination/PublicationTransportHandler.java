@@ -344,7 +344,7 @@ public class PublicationTransportHandler {
                 final boolean isVotingOnlyNode = discoveryNodes.getLocalNode().getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
                 logger.trace("handling cluster state version [{}] locally on [{}]", newState.version(), destination);
                 transportService.getThreadPool()
-                    .generic()
+                    .executor(ThreadPool.Names.CLUSTER_COORDINATION)
                     .execute(transportService.getThreadPool().getThreadContext().preserveContext(ActionRunnable.supply(listener, () -> {
                         if (isVotingOnlyNode) {
                             // Voting-only nodes publish their cluster state to other nodes in order to freshen the state held on other full

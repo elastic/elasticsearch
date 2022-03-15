@@ -1,12 +1,11 @@
 [role="xpack"]
 [[security-api-update-user-profile-data]]
 === Update user profile data API
-
-beta::[]
-
 ++++
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
+
+beta::[]
 
 Updates specific data for the user profile that's associated with the specified
 unique ID.

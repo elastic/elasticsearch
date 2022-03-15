@@ -28,6 +28,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
@@ -95,7 +96,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             long total = 0;
 
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
                 SortedDocValues tsid = DocValues.getSorted(ctx.reader(), TimeSeriesIdFieldMapper.NAME);
                 NumericDocValues timestamp = DocValues.getNumeric(ctx.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
 

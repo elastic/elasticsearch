@@ -77,8 +77,8 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        return delegate.getLeafCollector(ctx);
+    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
+        return delegate.getLeafCollector(ctx, aggCtx);
     }
 
     @Override

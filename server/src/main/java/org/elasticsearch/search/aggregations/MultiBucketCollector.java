@@ -89,9 +89,9 @@ public class MultiBucketCollector extends BucketCollector {
                 }
 
                 @Override
-                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
                     try {
-                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx);
+                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx, aggCtx);
                         if (false == leafCollector.isNoop()) {
                             return leafCollector;
                         }
@@ -169,11 +169,11 @@ public class MultiBucketCollector extends BucketCollector {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext context, AggregationExecutionContext aggCtx) throws IOException {
         final List<LeafBucketCollector> leafCollectors = new ArrayList<>(collectors.length);
         for (BucketCollector collector : collectors) {
             try {
-                LeafBucketCollector leafCollector = collector.getLeafCollector(context);
+                LeafBucketCollector leafCollector = collector.getLeafCollector(context, aggCtx);
                 if (false == leafCollector.isNoop()) {
                     leafCollectors.add(leafCollector);
                 }

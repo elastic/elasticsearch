@@ -14,7 +14,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -24,6 +23,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -60,10 +60,12 @@ public class TimeSeriesIndexSearcher {
             if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled();
             }
-            LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
+            AggregationExecutionContext context = new AggregationExecutionContext();
+            LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf, context);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
                 LeafWalker leafWalker = new LeafWalker(leaf, scorer, leafCollector);
+                context.setTsidProvider(leafWalker.scratch::get);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -148,7 +150,7 @@ public class TimeSeriesIndexSearcher {
     }
 
     private static class LeafWalker {
-        private final LeafCollector collector;
+        private final LeafBucketCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
@@ -158,7 +160,7 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, LeafCollector collector) throws IOException {
+        LeafWalker(LeafReaderContext context, Scorer scorer, LeafBucketCollector collector) throws IOException {
             this.collector = collector;
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);

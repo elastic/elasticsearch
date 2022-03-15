@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -101,7 +102,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
         public AtomicInteger count = new AtomicInteger();
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {

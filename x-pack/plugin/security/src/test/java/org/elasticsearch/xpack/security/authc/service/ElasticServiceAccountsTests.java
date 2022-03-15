@@ -345,6 +345,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
             "logs-enterprise_search.api-default",
+            "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",
             "logs-crawler-default",
             "logs-workplace_search.analytics-default",

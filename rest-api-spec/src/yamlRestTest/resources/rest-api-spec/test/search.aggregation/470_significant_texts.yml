@@ -21,25 +21,25 @@ setup:
         index: test
         refresh: true
         body:
-          - { "index": { _id: 1 } }
+          - { "index": { } }
           - { "full_text": "the apple a banana a pear the melon" }
-          - { "index": { _id: 2 } }
+          - { "index": { } }
           - { "full_text": "an apple a banana the pear" }
-          - { "index": { _id: 3 } }
+          - { "index": { } }
           - { "full_text": "the apple the banana the melon" }
-          - { "index": { _id: 4 } }
+          - { "index": { } }
           - { "full_text": "an apple a pear a melon" }
-          - { "index": { _id: 5 } }
+          - { "index": { } }
           - { "full_text": "an apple a melon" }
-          - { "index": { _id: 6 } }
+          - { "index": { } }
           - { "full_text": "elma muz armut kavun" }
-          - { "index": { _id: 7 } }
+          - { "index": { } }
           - { "full_text": "elma muz armut" }
-          - { "index": { _id: 8} }
+          - { "index": { } }
           - { "full_text": "elma armut kavun" }
-          - { "index": { _id: 9 } }
+          - { "index": { } }
           - { "full_text": "the quick brown fox" }
-          - { "index": { _id: 10 } }
+          - { "index": { } }
           - { "full_text": "jumps over the lazy dog" }
 
 

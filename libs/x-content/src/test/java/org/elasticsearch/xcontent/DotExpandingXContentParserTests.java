@@ -167,20 +167,6 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             """);
     }
 
-    public void test() throws IOException {
-        String jsonInput = """
-            {"first.dot":{"second.dot":"value",
-            "value":null}}\
-            """;
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput));
-
-        dotExpandedParser.nextToken();
-        XContentParser.Token token;
-        while ((token = dotExpandedParser.nextToken()) != null) {
-            System.out.println(token + " - " + dotExpandedParser.currentName());
-        }
-    }
-
     public void testGetTokenLocation() throws IOException {
         String jsonInput = """
             {"first.dot":{"second.dot":"value",

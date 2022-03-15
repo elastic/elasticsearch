@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -597,7 +598,7 @@ public class TokenServiceTests extends ESTestCase {
     public void testInvalidateRefreshTokenThatIsAlreadyInvalidated() throws Exception {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String rawRefreshToken = UUIDs.randomBase64UUID();
@@ -608,7 +609,7 @@ public class TokenServiceTests extends ESTestCase {
         mockFindTokenFromRefreshToken(
             rawRefreshToken,
             buildUserToken(tokenService, userTokenId, authentication),
-            new RefreshTokenStatus(true, randomAlphaOfLength(12), randomAlphaOfLength(6), false, null, null, null, null)
+            newRefreshTokenStatus(true, authentication, false, null, null, null, null)
         );
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -621,6 +622,31 @@ public class TokenServiceTests extends ESTestCase {
             assertThat(result.getPreviouslyInvalidatedTokens(), hasSize(1));
             assertThat(result.getInvalidatedTokens(), empty());
             assertThat(result.getErrors(), empty());
+        }
+    }
+
+    private RefreshTokenStatus newRefreshTokenStatus(
+        boolean invalidated,
+        Authentication authentication,
+        boolean refreshed,
+        Instant refreshInstant,
+        String supersedingTokens,
+        String iv,
+        String salt
+    ) {
+        if (authentication.getVersion().onOrAfter(TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+            return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
+        } else {
+            return new RefreshTokenStatus(
+                invalidated,
+                authentication.getUser().principal(),
+                authentication.getAuthenticatedBy().getName(),
+                refreshed,
+                refreshInstant,
+                supersedingTokens,
+                iv,
+                salt
+            );
         }
     }
 
@@ -924,9 +950,9 @@ public class TokenServiceTests extends ESTestCase {
         assertAuthentication(authentication, retrievedAuth);
     }
 
-    public void testSupercedingTokenEncryption() throws Exception {
+    public void testSupersedingTokenEncryption() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String refrehToken = UUIDs.randomBase64UUID();
         final String newAccessToken = UUIDs.randomBase64UUID();
@@ -935,10 +961,9 @@ public class TokenServiceTests extends ESTestCase {
         final byte[] salt = tokenService.getRandomBytes(TokenService.SALT_BYTES);
         final Version version = tokenService.getTokenVersionCompatibility();
         String encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv, salt);
-        RefreshTokenStatus refreshTokenStatus = new RefreshTokenStatus(
+        RefreshTokenStatus refreshTokenStatus = newRefreshTokenStatus(
             false,
-            authentication.getUser().principal(),
-            authentication.getAuthenticatedBy().getName(),
+            authentication,
             true,
             Instant.now().minusSeconds(5L),
             encryptedTokens,

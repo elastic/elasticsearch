@@ -52,11 +52,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
+public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
     @Override
-    protected Settings nodeSettings() {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
         return builder.build();

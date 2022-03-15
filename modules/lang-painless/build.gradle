@@ -7,55 +7,56 @@
  */
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
+
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'An easy, safe and fast scripting language for Elasticsearch'
-  classname 'org.elasticsearch.painless.PainlessPlugin'
+    description 'An easy, safe and fast scripting language for Elasticsearch'
+    classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
 testClusters.configureEach {
-  module ':modules:mapper-extras'
-  systemProperty 'es.scripting.update.ctx_in_params', 'false'
-  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-  systemProperty 'es.transport.cname_in_publish_address', 'true'
+    module ':modules:mapper-extras'
+    systemProperty 'es.scripting.update.ctx_in_params', 'false'
+    // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+    systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
 configurations {
-  spi
-  compileOnlyApi.extendsFrom(spi)
-  if (isEclipse) {
-    // Eclipse buildship doesn't know about compileOnlyApi
-    api.extendsFrom(spi)
-  }
+    spi
+    compileOnlyApi.extendsFrom(spi)
+    if (isEclipse) {
+        // Eclipse buildship doesn't know about compileOnlyApi
+        api.extendsFrom(spi)
+    }
 }
 
 dependencies {
-  api 'org.antlr:antlr4-runtime:4.5.3'
-  api 'org.ow2.asm:asm-util:7.2'
-  api 'org.ow2.asm:asm-tree:7.2'
-  api 'org.ow2.asm:asm-commons:7.2'
-  api 'org.ow2.asm:asm-analysis:7.2'
-  api 'org.ow2.asm:asm:7.2'
-  spi project('spi')
+    api 'org.antlr:antlr4-runtime:4.5.3'
+    api 'org.ow2.asm:asm-util:7.2'
+    api 'org.ow2.asm:asm-tree:7.2'
+    api 'org.ow2.asm:asm-commons:7.2'
+    api 'org.ow2.asm:asm-analysis:7.2'
+    api 'org.ow2.asm:asm:7.2'
+    spi project('spi')
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /asm-.*/, to: 'asm'
+    mapping from: /asm-.*/, to: 'asm'
 }
 
 restResources {
-  restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
+    restApi {
+        include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
                 'scripts_painless_execute', 'put_script', 'delete_script'
-  }
+    }
 }
 
 tasks.named("test").configure {
-  // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
-  jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
+    // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
+    jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
 tasks.named("yamlRestTestV7CompatTest").configure {
@@ -102,28 +103,26 @@ tasks.named("yamlRestTestV7CompatTest").configure {
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {
-  source = sourceSets.main.allJava
-  classpath = sourceSets.main.compileClasspath + sourceSets.main.output
-  include '**/org/elasticsearch/painless/api/'
-  destinationDir = new File(docsDir, 'apiJavadoc')
+    source = sourceSets.main.allJava
+    classpath = sourceSets.main.compileClasspath + sourceSets.main.output
+    include '**/org/elasticsearch/painless/api/'
+    destinationDir = new File(docsDir, 'apiJavadoc')
 }
 
 tasks.register("apiJavadocJar", Jar) {
-  archiveClassifier = 'apiJavadoc'
-  from apiJavadoc
+    archiveClassifier = 'apiJavadoc'
+    from apiJavadoc
 }
 
 tasks.named("assemble").configure {
-  dependsOn "apiJavadocJar"
+    dependsOn "apiJavadocJar"
 }
 tasks.named("check").configure {
-  dependsOn "apiJavadocJar"
+    dependsOn "apiJavadocJar"
 }
 
-tasks.named("bundlePlugin").configure {
-  it.into("spi") {
+esplugin.bundleSpec.into("spi") {
     from(configurations.spi)
-  }
 }
 
 /**********************************************
@@ -131,39 +130,39 @@ tasks.named("bundlePlugin").configure {
  **********************************************/
 
 sourceSets {
-  doc
+    doc
 }
 
 dependencies {
-  docImplementation project(':server')
-  docImplementation project(':modules:lang-painless')
-  docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
-  docImplementation 'org.jsoup:jsoup:1.13.1'
-  if (isEclipse) {
-    /*
-     * Eclipse isn't quite "with it" enough to understand the different
-     * source sets. This adds the dependency to all source sets so it
-     * can compile the doc java files.
-     */
-    implementation 'com.github.javaparser:javaparser-core:3.18.0'
-    implementation 'org.jsoup:jsoup:1.13.1'
-  }
+    docImplementation project(':server')
+    docImplementation project(':modules:lang-painless')
+    docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
+    docImplementation 'org.jsoup:jsoup:1.13.1'
+    if (isEclipse) {
+        /*
+         * Eclipse isn't quite "with it" enough to understand the different
+         * source sets. This adds the dependency to all source sets so it
+         * can compile the doc java files.
+         */
+        implementation 'com.github.javaparser:javaparser-core:3.18.0'
+        implementation 'org.jsoup:jsoup:1.13.1'
+    }
 }
 
 def generateContextCluster = testClusters.register("generateContextCluster") {
-  testDistribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
 }
 
 tasks.register("generateContextDoc", DefaultTestClustersTask) {
-  dependsOn sourceSets.doc.runtimeClasspath
-  useCluster generateContextCluster
-  doFirst {
-    project.javaexec {
-      mainClass = 'org.elasticsearch.painless.ContextDocGenerator'
-      classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> generateContextCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
-    }.assertNormalExitValue()
-  }
+    dependsOn sourceSets.doc.runtimeClasspath
+    useCluster generateContextCluster
+    doFirst {
+        project.javaexec {
+            mainClass = 'org.elasticsearch.painless.ContextDocGenerator'
+            classpath = sourceSets.doc.runtimeClasspath
+            systemProperty "cluster.uri", "${-> generateContextCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
+        }.assertNormalExitValue()
+    }
 }
 /**********************************************
  *           Context JSON Generation          *
@@ -173,17 +172,17 @@ def generateContextApiSpecCluster = testClusters.register("generateContextApiSpe
 }
 
 tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
-  dependsOn sourceSets.doc.runtimeClasspath
-  useCluster generateContextApiSpecCluster
-  doFirst {
-    project.javaexec {
-      mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
-      classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> generateContextApiSpecCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
-      systemProperty "jdksrc", providers.systemProperty("jdksrc").getOrNull()
-      systemProperty "packageSources", providers.systemProperty("packageSources").getOrNull()
-    }.assertNormalExitValue()
-  }
+    dependsOn sourceSets.doc.runtimeClasspath
+    useCluster generateContextApiSpecCluster
+    doFirst {
+        project.javaexec {
+            mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
+            classpath = sourceSets.doc.runtimeClasspath
+            systemProperty "cluster.uri", "${-> generateContextApiSpecCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
+            systemProperty "jdksrc", providers.systemProperty("jdksrc").getOrNull()
+            systemProperty "packageSources", providers.systemProperty("packageSources").getOrNull()
+        }.assertNormalExitValue()
+    }
 }
 
 /**********************************************
@@ -191,11 +190,11 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
  **********************************************/
 
 configurations {
-  regenerate
+    regenerate
 }
 
 dependencies {
-  regenerate 'org.antlr:antlr4:4.5.3'
+    regenerate 'org.antlr:antlr4:4.5.3'
 }
 
 String grammarPath = 'src/main/antlr'
@@ -204,86 +203,86 @@ String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
 pluginManager.withPlugin('com.diffplug.spotless') {
-  spotless {
-    java {
-      targetExclude "${outputPath}/*.java"
+    spotless {
+        java {
+            targetExclude "${outputPath}/*.java"
+        }
     }
-  }
 }
 
 tasks.register("cleanGenerated", Delete) {
-  delete fileTree(grammarPath) {
-    include '*Painless*.tokens'
-  }
-  delete fileTree(outputPath) {
-    include 'Painless*.java'
-  }
+    delete fileTree(grammarPath) {
+        include '*Painless*.tokens'
+    }
+    delete fileTree(outputPath) {
+        include 'Painless*.java'
+    }
 }
 
 tasks.register("regenLexer", JavaExec) {
-  dependsOn "cleanGenerated"
-  mainClass = 'org.antlr.v4.Tool'
-  classpath = configurations.regenerate
-  systemProperty 'file.encoding', 'UTF-8'
-  systemProperty 'user.language', 'en'
-  systemProperty 'user.country', 'US'
-  systemProperty 'user.variant', ''
-  args '-Werror',
-    '-package', 'org.elasticsearch.painless.antlr',
-    '-o', outputPath,
-    "${file(grammarPath)}/PainlessLexer.g4"
+    dependsOn "cleanGenerated"
+    mainClass = 'org.antlr.v4.Tool'
+    classpath = configurations.regenerate
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.variant', ''
+    args '-Werror',
+            '-package', 'org.elasticsearch.painless.antlr',
+            '-o', outputPath,
+            "${file(grammarPath)}/PainlessLexer.g4"
 }
 
 tasks.register("regenParser", JavaExec) {
-  dependsOn "regenLexer"
-  mainClass = 'org.antlr.v4.Tool'
-  classpath = configurations.regenerate
-  systemProperty 'file.encoding', 'UTF-8'
-  systemProperty 'user.language', 'en'
-  systemProperty 'user.country', 'US'
-  systemProperty 'user.variant', ''
-  args '-Werror',
-    '-package', 'org.elasticsearch.painless.antlr',
-    '-no-listener',
-    '-visitor',
-    // '-Xlog',
-    '-o', outputPath,
-    "${file(grammarPath)}/PainlessParser.g4"
+    dependsOn "regenLexer"
+    mainClass = 'org.antlr.v4.Tool'
+    classpath = configurations.regenerate
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.variant', ''
+    args '-Werror',
+            '-package', 'org.elasticsearch.painless.antlr',
+            '-no-listener',
+            '-visitor',
+            // '-Xlog',
+            '-o', outputPath,
+            "${file(grammarPath)}/PainlessParser.g4"
 }
 
 tasks.register("regen") {
-  dependsOn "regenParser"
-  doLast {
-    // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/PainlessLexer.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/PainlessParser.tokens", toDir: grammarPath)
-    // make the generated classes package private
-    ant.replaceregexp(match: 'public ((interface|class) \\QPainless\\E\\w+)',
-      replace: '\\1',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'Painless*.java')
+    dependsOn "regenParser"
+    doLast {
+        // moves token files to grammar directory for use with IDE's
+        ant.move(file: "${outputPath}/PainlessLexer.tokens", toDir: grammarPath)
+        ant.move(file: "${outputPath}/PainlessParser.tokens", toDir: grammarPath)
+        // make the generated classes package private
+        ant.replaceregexp(match: 'public ((interface|class) \\QPainless\\E\\w+)',
+                replace: '\\1',
+                encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'Painless*.java')
+        }
+        // make the lexer abstract
+        ant.replaceregexp(match: '(class \\QPainless\\ELexer)',
+                replace: 'abstract \\1',
+                encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'PainlessLexer.java')
+        }
+        // nuke timestamps/filenames in generated files
+        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'Painless*.java')
+        }
+        // remove tabs in antlr generated files
+        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'Painless*.java')
+        }
+        // fix line endings
+        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+            patternset(includes: 'Painless*.java')
+        }
     }
-    // make the lexer abstract
-    ant.replaceregexp(match: '(class \\QPainless\\ELexer)',
-      replace: 'abstract \\1',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'PainlessLexer.java')
-    }
-    // nuke timestamps/filenames in generated files
-    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'Painless*.java')
-    }
-    // remove tabs in antlr generated files
-    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'Painless*.java')
-    }
-    // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: 'Painless*.java')
-    }
-  }
 }
 
 /**********************************************

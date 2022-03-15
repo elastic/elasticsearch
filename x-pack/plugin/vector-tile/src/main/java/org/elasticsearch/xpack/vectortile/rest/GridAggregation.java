@@ -180,7 +180,7 @@ enum GridAggregation {
                 lons[i] = latLng.getLonDeg();
             }
             lats[boundary.numPoints()] = boundary.getLatLon(0).getLatDeg();
-            lons[boundary.numPoints()] = boundary.getLatLon(0).getLonDeg();
+            lons[boundary.numPoints()] = lons[0];
             final Polygon polygon = new Polygon(new LinearRing(lons, lats));
             final List<byte[]> x = featureFactory.getFeatures(GeometryNormalizer.apply(Orientation.CCW, polygon));
             return x.size() > 0 ? x.get(0) : null;

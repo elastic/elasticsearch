@@ -32,7 +32,7 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
-import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -189,12 +189,13 @@ public class JreHttpUrlConnection implements Closeable {
 
     private Function<String, List<String>> getHeaderFields(URLConnection con) {
         return header -> {
+            List<String> values = new LinkedList<>();
             for (Map.Entry<String, List<String>> entry : con.getHeaderFields().entrySet()) {
                 if (header.equalsIgnoreCase(entry.getKey())) {
-                    return entry.getValue();
+                    values.addAll(entry.getValue());
                 }
             }
-            return Collections.emptyList();
+            return values;
         };
     }
 

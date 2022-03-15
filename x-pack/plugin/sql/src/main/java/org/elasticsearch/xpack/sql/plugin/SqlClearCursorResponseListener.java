@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_TOOK_NANOS;
 
@@ -28,7 +29,8 @@ public class SqlClearCursorResponseListener extends RestResponseListener<SqlClea
     protected SqlClearCursorResponseListener(RestChannel channel, RestRequest request, SqlClearCursorRequest sqlRequest) {
         super(channel);
         this.request = request;
-        if (Boolean.TRUE.equals(sqlRequest.binaryCommunication())) {
+        Boolean binaryRequest = sqlRequest.binaryCommunication();
+        if (Boolean.TRUE.equals(binaryRequest) || (binaryRequest == null && Mode.isDriver(sqlRequest.mode()))) {
             responseType = XContentType.CBOR;
         } else {
             responseType = XContentType.JSON;

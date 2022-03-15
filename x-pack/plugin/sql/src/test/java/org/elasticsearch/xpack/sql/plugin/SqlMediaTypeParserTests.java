@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
@@ -131,13 +130,6 @@ public class SqlMediaTypeParserTests extends ESTestCase {
             TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
             randomBoolean(),
             TimeValue.parseTimeValue(randomTimeValue(), null, "test")
-        ).binaryCommunication(binaryCommunication);
-    }
-
-    protected SqlClearCursorRequest createClearCursorInstance(boolean binaryCommunication, Mode mode) {
-        return new SqlClearCursorRequest(
-            new RequestInfo(mode, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),
-            randomAlphaOfLengthBetween(10, 20)
         ).binaryCommunication(binaryCommunication);
     }
 }

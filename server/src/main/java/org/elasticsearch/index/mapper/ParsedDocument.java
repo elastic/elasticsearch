@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * The result of parsing a document.

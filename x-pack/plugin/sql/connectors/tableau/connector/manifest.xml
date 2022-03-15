@@ -32,7 +32,8 @@
       <customization name="CAP_SUPPORTS_SPLIT_FROM_RIGHT" value="no"/>
     </customizations>
   </connection-customization>
-  <connection-dialog file='connection-dialog.tcd'/>
+  <connection-fields file='connectionFields.xml'/>
+  <connection-metadata file='connectionMetadata.xml'/>
   <connection-resolver file="connectionResolver.tdr"/>
   <dialect file='dialect.tdd'/>
 </connector-plugin>

@@ -48,7 +48,7 @@ enum GridType {
         }
     };
 
-    /** Builds the corresponding vector tile feature  for the provided bucket */
+    /** Builds the corresponding vector tile feature for the provided bucket */
     public abstract byte[] toFeature(
         GridAggregation gridAggregation,
         InternalGeoGridBucket bucket,

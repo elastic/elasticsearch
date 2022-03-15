@@ -39,6 +39,7 @@ import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 
@@ -206,9 +207,9 @@ public class PluginBuildPlugin implements Plugin<Project> {
         configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
-        TaskProvider<Copy> explodedBundle = project.getTasks().register("explodedBundlePlugin", Copy.class, copy -> {
-            copy.with(bundleSpec);
-            copy.into(new File(project.getBuildDir(), "explodedBundle"));
+        var explodedBundle = project.getTasks().register("explodedBundlePlugin", Sync.class, sync -> {
+            sync.with(bundleSpec);
+            sync.into(new File(project.getBuildDir(), "explodedBundle"));
         });
 
         // also make the exploded bundle available as a configuration (used when depending on this project)

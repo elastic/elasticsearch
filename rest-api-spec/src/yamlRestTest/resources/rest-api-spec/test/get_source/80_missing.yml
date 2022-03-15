@@ -10,7 +10,7 @@
       catch:   missing
       get_source:
         index: test_1
-        id:    1
+        id:    "1"
 
 ---
 "Missing document with ignore":
@@ -23,5 +23,5 @@
   - do:
       get_source:
         index:  test_1
-        id:     1
+        id:     "1"
         ignore: 404

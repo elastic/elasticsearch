@@ -15,7 +15,7 @@
       index:
           index:  test
           type:   test
-          id:     1
+          id:     "1"
           body:   { field: foo bar}
 
   - do:
@@ -26,7 +26,7 @@
       explain:
         index:  test
         type:   test
-        id:     1
+        id:     "1"
         q: bar
         df: field
 
@@ -36,7 +36,7 @@
       explain:
         index:  test
         type:   test
-        id:     1
+        id:     "1"
         q: field:foo field:xyz
 
   - is_true: matched
@@ -45,7 +45,7 @@
       explain:
         index:  test
         type:   test
-        id:     1
+        id:     "1"
         q: field:foo field:xyz
         default_operator: AND
 
@@ -55,7 +55,7 @@
       explain:
         index:  test
         type:   test
-        id:     1
+        id:     "1"
         q: field:BA*
 
   - is_true: matched
@@ -64,7 +64,7 @@
       explain:
         index:  test
         type:   test
-        id:     1
+        id:     "1"
         q: number:foo
         lenient: true
 

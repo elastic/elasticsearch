@@ -44,7 +44,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       reindex:
@@ -99,7 +99,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -120,7 +120,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -141,7 +141,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] should be >= \[slices\]/
@@ -163,7 +163,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -184,7 +184,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
@@ -206,7 +206,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
@@ -279,7 +279,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { age: 23 }
   - do:
       indices.refresh: {}
@@ -405,7 +405,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /_source:false is not supported in this context/

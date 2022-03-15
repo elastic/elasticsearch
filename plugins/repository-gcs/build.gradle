@@ -294,8 +294,6 @@ def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTes
   // We have to wait for configure the cluster here as it might not have been created otherwise yet.
   testClusters {
     largeBlobYamlRestTest {
-      plugin bundlePlugin.archiveFile
-
       // force large blob uploads by setting the threshold small, forcing this code path to be tested
       systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
     }
@@ -348,7 +346,6 @@ if (useFixture) {
 
   testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
     setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
-    plugin tasks.bundlePlugin.archiveFile
     environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
   }
 }

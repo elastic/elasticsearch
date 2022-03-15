@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -239,6 +240,19 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     /**
+     * Check that the manager will try to upgrade indices where the mappings metadata is null or absent.
+     */
+    public void testManagerProcessesIndicesWithNullMetadata() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+
+        assertThat(
+            manager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings(builder -> {})))), DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
+    }
+
+    /**
      * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
      */
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
@@ -246,7 +260,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(
-            manager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings(null)))), DESCRIPTOR),
+            manager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null)))), DESCRIPTOR),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }
@@ -419,42 +433,21 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings(String version) {
-        try {
-            final XContentBuilder builder = jsonBuilder();
-
-            builder.startObject();
-            {
-                builder.startObject("_meta");
-                builder.field("version", version);
-                builder.endObject();
-
-                builder.field("dynamic", "strict");
-                builder.startObject("properties");
-                {
-                    builder.startObject("completed");
-                    builder.field("type", "boolean");
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-
-            builder.endObject();
-            return builder;
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);
-        }
+        return getMappings(builder -> builder.object("_meta", meta -> meta.field("version", version)));
     }
 
     // Prior to 7.12.0, .tasks had _meta.version: 3 so we need to be sure we can handle that
     private static XContentBuilder getMappings(int version) {
+        return getMappings(builder -> builder.object("_meta", meta -> meta.field("version", version)));
+    }
+
+    private static XContentBuilder getMappings(CheckedConsumer<XContentBuilder, IOException> metaCallback) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
             {
-                builder.startObject("_meta");
-                builder.field("version", version);
-                builder.endObject();
+                metaCallback.accept(builder);
 
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
@@ -472,4 +465,5 @@ public class SystemIndexManagerTests extends ESTestCase {
             throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);
         }
     }
+
 }

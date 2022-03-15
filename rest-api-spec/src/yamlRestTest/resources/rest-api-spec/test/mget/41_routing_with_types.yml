@@ -19,7 +19,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           body:    { foo: bar }
 
@@ -30,9 +30,9 @@
           stored_fields:  [_routing]
           body:
             docs:
-              - { _id: 1 }
-              - { _id: 1, routing: 4 }
-              - { _id: 1, routing: 5 }
+              - { _id: "1" }
+              - { _id: "1", routing: 4 }
+              - { _id: "1", routing: 5 }
 
  - is_false:  docs.0.found
  - is_false:  docs.1.found

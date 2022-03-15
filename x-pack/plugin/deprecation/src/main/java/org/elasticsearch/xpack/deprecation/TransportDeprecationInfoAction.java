@@ -122,7 +122,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 DeprecationChecker.Components components = new DeprecationChecker.Components(
                     xContentRegistry,
                     settings,
-                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN),
+                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN, true),
                     state
                 );
                 pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(deprecationIssues -> {

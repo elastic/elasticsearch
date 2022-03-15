@@ -21,20 +21,20 @@
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
       catch:        missing
       get:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: false
 
  - do:
       get:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: true
 
  - is_true: found
@@ -42,7 +42,7 @@
  - do:
       get:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: false
           refresh:  true
 

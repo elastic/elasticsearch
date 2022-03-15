@@ -59,7 +59,7 @@ tasks.register("runcli") {
   dependsOn "shadowJar"
   doLast {
     List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
-    if ('true'.equals(providers.systemProperty('debug').orElse('false').forUseAtConfigurationTime().get())) {
+    if ('true'.equals(providers.systemProperty('debug').orElse('false').get())) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
     command += ['-jar', shadowJar.archiveFile.get().asFile.absolutePath]

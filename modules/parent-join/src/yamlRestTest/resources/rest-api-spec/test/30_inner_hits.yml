@@ -18,27 +18,27 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "join_field": { "name": "question" }, "entity_type": "question" }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         routing: "1"
         body: { "join_field": { "name": "answer", "parent": 1} , "entity_type": "answer" }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "join_field": { "name": "person" }, "entity_type": "person" }
 
   - do:
       index:
         index: test
         routing: "3"
-        id: 4
+        id: "4"
         body: { "join_field": { "name": "address", "parent": 3 }, "entity_type": "address" }
 
   - do:
@@ -65,27 +65,27 @@ teardown:
     - do:
         index:
           index: test
-          id: 1
+          id: "1"
           body: { "join_field": { "name": "question" }, "entity_type": "question" }
 
     - do:
         index:
           index: test
-          id: 2
+          id: "2"
           routing: 1
           body: { "join_field": { "name": "answer", "parent": 1} , "entity_type": "answer" }
 
     - do:
         index:
           index: test
-          id: 3
+          id: "3"
           body: { "join_field": { "name": "person" }, "entity_type": "person" }
 
     - do:
         index:
           index: test
           routing: 3
-          id: 4
+          id: "4"
           body: { "join_field": { "name": "address", "parent": 3 }, "entity_type": "address" }
 
     - do:

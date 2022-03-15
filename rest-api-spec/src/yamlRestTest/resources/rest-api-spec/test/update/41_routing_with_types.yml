@@ -19,7 +19,7 @@
       update:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           body:
             doc:        { foo: baz }
@@ -29,7 +29,7 @@
       get:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           stored_fields:  _routing
 
@@ -40,7 +40,7 @@
       update:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:
             doc:        { foo: baz }
 
@@ -48,7 +48,7 @@
       update:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           _source: foo
           body:

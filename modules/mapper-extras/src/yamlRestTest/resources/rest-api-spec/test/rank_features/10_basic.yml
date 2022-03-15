@@ -21,7 +21,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           tags:
             foo: 3
@@ -33,7 +33,7 @@ setup:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body:
           tags:
             bar: 6

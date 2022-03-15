@@ -17,14 +17,14 @@
       index:
           index:  foobar
           type:   baz
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
        delete:
            index:  foobar
            type:   baz
-           id:     1
+           id:     "1"
 
  - match:   { _index:   foobar }
  - match:   { _type:    baz }

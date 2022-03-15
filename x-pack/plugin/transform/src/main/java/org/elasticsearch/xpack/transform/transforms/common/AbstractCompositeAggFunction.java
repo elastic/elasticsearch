@@ -180,7 +180,11 @@ public abstract class AbstractCompositeAggFunction implements Function {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery())
             .runtimeMappings(sourceConfig.getRuntimeMappings());
         buildSearchQuery(sourceBuilder, null, pageSize);
-        return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        return new SearchRequest(sourceConfig.getIndex()).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .source(sourceBuilder)
+            // This is done so that 2 consecutive queries return the same warnings in response headers.
+            // If the request is cached, the second time it is called the response headers are not preserved.
+            .requestCache(false);
     }
 
     @Override

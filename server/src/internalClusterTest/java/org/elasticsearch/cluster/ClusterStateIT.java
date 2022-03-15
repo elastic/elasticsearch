@@ -268,11 +268,11 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected void registerBuiltinWritables() {
-            registerMetadataCustom(
-                NodeCustom.TYPE,
-                NodeCustom::new,
-                parser -> { throw new IOException(new UnsupportedOperationException()); }
-            );
+            registerMetadataCustom(NodeCustom.TYPE, NodeCustom::new, parser -> {
+                // dummy parser just so reloading the CS doesn't throw
+                parser.skipChildren();
+                return getInstance();
+            });
         }
 
         @Override
@@ -298,11 +298,11 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected void registerBuiltinWritables() {
-            registerMetadataCustom(
-                NodeAndTransportClientCustom.TYPE,
-                NodeAndTransportClientCustom::new,
-                parser -> { throw new IOException(new UnsupportedOperationException()); }
-            );
+            registerMetadataCustom(NodeAndTransportClientCustom.TYPE, NodeAndTransportClientCustom::new, parser -> {
+                // dummy parser just so reloading the CS doesn't throw
+                parser.skipChildren();
+                return getInstance();
+            });
         }
 
         @Override

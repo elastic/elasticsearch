@@ -191,11 +191,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
         metas.put("policy", policyMetadata);
         PolicyStepsRegistry registry = new PolicyStepsRegistry(metas, null, null, REGISTRY, client, null);
-        Step actualStep = registry.getStep(
-            indexMetadata,
-            new Step.StepKey(step.getKey().getPhase(), step.getKey().getAction(), step.getKey().getName() + "-bad")
-        );
-        assertNull(actualStep);
+        Step.StepKey badStepKey = new Step.StepKey(step.getKey().getPhase(), step.getKey().getAction(), step.getKey().getName() + "-bad");
+        assertNull(registry.getStep(indexMetadata, badStepKey));
+        // repeat the test to make sure that nulls don't poison the registry's cache
+        assertNull(registry.getStep(indexMetadata, badStepKey));
     }
 
     public void testUpdateFromNothingToSomethingToNothing() throws Exception {

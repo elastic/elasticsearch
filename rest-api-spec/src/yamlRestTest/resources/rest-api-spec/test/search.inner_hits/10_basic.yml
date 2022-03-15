@@ -17,7 +17,7 @@ setup:
     - do:
         index:
           index: test
-          id:    1
+          id:    "1"
           body:
             "nested_field" : [ { "foo": "bar" } ]
 
@@ -50,7 +50,7 @@ setup:
     - do:
         index:
           index: test
-          id:    1
+          id:    "1"
           body:
             "nested_field" : [ { "foo": "bar" } ]
     - do:
@@ -73,7 +73,7 @@ setup:
     - do:
         index:
           index: test
-          id:    1
+          id:    "1"
           body:
             "nested_field" : [ { "foo": "baz" } ]
     - do:
@@ -115,7 +115,7 @@ setup:
   - do:
       index:
         index: disabled_source
-        id:    1
+        id:    "1"
         body:
           nested_field:
             field: value

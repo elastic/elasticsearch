@@ -16,7 +16,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
-String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
 repositories {

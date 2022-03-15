@@ -86,10 +86,12 @@ E.g.:
 for the following query:
 
 [source, sql]
+----
 CASE WHEN a = 1 THEN null
      WHEN a > 2 THEN 10
      WHEN a > 5 THEN 'foo'
 END
+----
 
 an error message would be returned, mentioning that *'foo'* is of data type *keyword*,
 which does not match the expected data type *integer* (based on result *10*).
@@ -105,6 +107,7 @@ interesting than every single value, CASE can create custom buckets as in the
 following example:
 
 [source, sql]
+----
 SELECT count(*) AS count,
   CASE WHEN NVL(languages, 0) = 0 THEN 'zero'
     WHEN languages = 1 THEN 'one'
@@ -115,7 +118,7 @@ SELECT count(*) AS count,
 FROM employees
 GROUP BY lang_skills
 ORDER BY lang_skills;
-
+----
 With this query, one can create normal grouping buckets for values _0, 1, 2, 3_ with
 descriptive names, and every value _>= 4_ falls into the _multilingual_ bucket.
 
@@ -281,7 +284,9 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithoutDefaultValue]
 expression. E.g.:
 
 [source, sql]
+----
 IIF(a = 1, 'one', IIF(a = 2, 'two', IIF(a = 3, 'three', 'many')))
+----
 =================
 
 

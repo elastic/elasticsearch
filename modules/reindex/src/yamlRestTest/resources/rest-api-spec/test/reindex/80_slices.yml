@@ -3,22 +3,22 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -63,22 +63,22 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -181,32 +181,32 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      5
+        id:      "5"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      6
+        id:      "6"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -304,22 +304,22 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}

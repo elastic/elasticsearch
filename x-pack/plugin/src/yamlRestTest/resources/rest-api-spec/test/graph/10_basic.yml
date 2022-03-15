@@ -21,13 +21,13 @@ setup:
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { keys: [1,2,3] }
 
   - do:
       index:
           index:  test_1
-          id:     2
+          id:     "2"
           body:   { keys: [4,5,6] }
 
   - do:

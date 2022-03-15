@@ -18,13 +18,13 @@ setup:
   - do:
       index:
           index: test1
-          id:    1
+          id:    "1"
           body:  { "foo": "bar" }
 
   - do:
       index:
           index: test2
-          id:    1
+          id:    "1"
           body:  { "foo": "baz" }
 
 ---

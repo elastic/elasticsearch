@@ -1084,7 +1084,7 @@ Total size of all file stores across all selected nodes.
 
 `total_in_bytes`::
 (integer)
-Total size, in bytes, of all file stores across all seleced nodes.
+Total size, in bytes, of all file stores across all selected nodes.
 
 `free`::
 (<<byte-units, byte units>>)

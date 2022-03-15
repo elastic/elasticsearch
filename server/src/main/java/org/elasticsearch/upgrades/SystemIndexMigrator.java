@@ -468,7 +468,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             settingsBuilder.remove("index.blocks.metadata");
         }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(Collections.singletonMap("_doc", migrationInfo.getMappings()))
+            .mappings(Collections.singletonMap(migrationInfo.getIndexType(), migrationInfo.getMappings()))
             .settings(migrationInfo.getSettings() == null ? Settings.EMPTY : settingsBuilder.build());
         metadataCreateIndexService.createIndex(createRequest, listener);
     }

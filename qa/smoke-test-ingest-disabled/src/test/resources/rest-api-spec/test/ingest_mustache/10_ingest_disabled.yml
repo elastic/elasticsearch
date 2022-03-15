@@ -75,7 +75,7 @@
       index:
         index: test
         type: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline_1"
         body: {
           field1: "1",

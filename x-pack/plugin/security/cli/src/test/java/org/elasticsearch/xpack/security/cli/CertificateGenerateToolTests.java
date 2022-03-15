@@ -266,10 +266,6 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     public void testGeneratingSignedCertificates() throws Exception {
-        assumeFalse(
-            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72639",
-            "1.8.0_292".equals(System.getProperty("java.version"))
-        );
 
         Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");

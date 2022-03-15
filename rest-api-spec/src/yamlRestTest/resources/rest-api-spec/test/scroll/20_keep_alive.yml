@@ -17,13 +17,13 @@
   - do:
       index:
         index:  test_scroll
-        id:     1
+        id:     "1"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        id:     2
+        id:     "2"
         body:   { foo: 1 }
 
   - do:

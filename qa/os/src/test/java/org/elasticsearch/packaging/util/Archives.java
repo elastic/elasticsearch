@@ -15,8 +15,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -244,25 +246,39 @@ public class Archives {
             command.add("-d");
         }
 
-        String script = String.format(
-            Locale.ROOT,
-            "expect -c \"$(cat<<EXPECT\n"
-                + "spawn -ignore HUP "
-                + String.join(" ", command)
-                + "\n"
-                + "expect \"Elasticsearch keystore password:\"\n"
-                + "send \"%s\\r\"\n"
-                + "expect eof\n"
-                + "EXPECT\n"
-                + ")\"",
-            ARCHIVE_OWNER,
-            bin.elasticsearch,
-            pidFile,
-            keystorePassword
+        // tag::noformat
+        String keystoreScript = keystorePassword == null
+            ? ""
+            : asBlock("expect \"Elasticsearch keystore password:\"",
+                "send \"" + keystorePassword + "\\r\"");
+        String checkStartupScript = daemonize
+            ? "expect eof"
+            : asBlock("expect {",
+                "  \"uncaught exception\" { send_user \"\\nStartup failed due to uncaught exception\\n\"; exit 1 }",
+                "  timeout { send_user \"\\nTimed out waiting for startup to succeed\\n\"; exit 1 }",
+                "  eof { send_user \"\\nFailed to determine if startup succeeded\\n\"; exit 1 }",
+                "  -re \"o\\.e\\.n\\.Node.*] started\"",
+                "}");
+        String expectScript = String.format(Locale.ROOT,
+            asBlock(
+                "expect - <<EXPECT",
+                "set timeout 60",
+                "spawn -ignore HUP %s",
+                "%s",
+                "%s",
+                "EXPECT"),
+            String.format(Locale.ROOT, String.join(" ", command), ARCHIVE_OWNER, bin.elasticsearch, pidFile),
+            keystoreScript,
+            checkStartupScript
         );
-
+        // end::noformat
         sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-        return sh.runIgnoreExitCode(script);
+        return sh.runIgnoreExitCode(expectScript);
+    }
+
+    /** Concatenate the supplied lines into a single string, joined by newlines with a trailing newline */
+    private static String asBlock(String... lines) {
+        return Arrays.stream(lines).collect(Collectors.joining("\n", "", "\n"));
     }
 
     public static Shell.Result runElasticsearchStartCommand(

@@ -47,6 +47,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final Settings settings;
     private final String mapping;
     private final String origin;
+    private final String indexType;
     private final SystemIndices.Feature owningFeature;
 
     private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
@@ -59,6 +60,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         Settings settings,
         String mapping,
         String origin,
+        String indexType,
         SystemIndices.Feature owningFeature
     ) {
         this.currentIndex = currentIndex;
@@ -66,6 +68,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         this.settings = settings;
         this.mapping = mapping;
         this.origin = origin;
+        this.indexType = indexType;
         this.owningFeature = owningFeature;
     }
 
@@ -116,6 +119,13 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getOrigin() {
         return origin;
+    }
+
+    /**
+     * Gets the type that should be used for the mapping of this index
+     */
+    String getIndexType() {
+        return indexType;
     }
 
     /**
@@ -220,7 +230,15 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             }
         }
 
-        return new SystemIndexMigrationInfo(currentIndex, feature.getName(), settings, mapping, descriptor.getOrigin(), feature);
+        return new SystemIndexMigrationInfo(
+            currentIndex,
+            feature.getName(),
+            settings,
+            mapping,
+            descriptor.getOrigin(),
+            descriptor.getIndexType(),
+            feature
+        );
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {

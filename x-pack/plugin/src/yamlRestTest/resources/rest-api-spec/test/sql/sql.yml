@@ -7,19 +7,19 @@ setup:
           - index:
               _index: test
               _type:  doc
-              _id:    1
+              _id:    "1"
           - str: test1
             int: 1
           - index:
               _index: test
               _type:  doc
-              _id:    2
+              _id:    "2"
           - str: test2
             int: 2
           - index:
               _index: test
               _type:  doc
-              _id:    3
+              _id:    "3"
           - str: test3
             int: 3
 

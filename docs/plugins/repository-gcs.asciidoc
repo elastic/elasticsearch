@@ -130,6 +130,19 @@ it was built when the operation started.
 [[repository-gcs-client]]
 ==== Client Settings
 
+[NOTE]
+====
+You can't use an HTTP proxy to connect a `gcs` repository to Google Cloud
+Storage in {version}. Client settings to support HTTP proxies are only available
+in 8.0 and later versions.
+
+For more information on these client settings, check the
+{ref-80}/repository-gcs.html#repository-gcs-client[8.0 documentation]. For
+upgrade instructions, check
+https://www.elastic.co/guide/en/elastic-stack/8.0/upgrading-elastic-stack.html[Upgrade
+Elastic].
+====
+
 The client used to connect to Google Cloud Storage has a number of settings available.
 Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and are specified
 inside `elasticsearch.yml`. The default client name looked up by a `gcs` repository is

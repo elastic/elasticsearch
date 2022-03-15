@@ -20,7 +20,7 @@
  - do:
       index:
           index:  index
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
@@ -28,6 +28,6 @@
           body:
               docs:
                   - _index: index
-                    _id: 1
+                    _id: "1"
 
  - match: {docs.0.term_vectors.foo.terms.bar.term_freq: 1}

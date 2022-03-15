@@ -5,19 +5,19 @@
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { id: 1, foo: bar, age: 18 }
 
   - do:
       index:
           index:  test
-          id:     42
+          id:     "42"
           body:   { id: 42, foo: bar, age: 18 }
 
   - do:
         index:
             index:  test
-            id:     172
+            id:     "172"
             body:   { id: 172, foo: bar, age: 24 }
 
   - do:
@@ -241,7 +241,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { id: 1, foo: bar, age: 18 }
 
   - do:

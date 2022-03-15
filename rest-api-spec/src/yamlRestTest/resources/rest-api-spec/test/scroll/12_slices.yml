@@ -11,25 +11,25 @@ setup:
   - do:
       index:
         index:  test_sliced_scroll
-        id:     1
+        id:     "1"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        id:     2
+        id:     "2"
         body:   { foo: 2 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        id:     3
+        id:     "3"
         body:   { foo: 3 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        id:     4
+        id:     "4"
         body:   { foo: 4 }
 
   - do:
@@ -45,7 +45,7 @@ setup:
         sort: foo
         body:
           slice:
-            id: 0
+            id: "0"
             max: 2
           query:
             match_all: {}
@@ -78,7 +78,7 @@ setup:
         sort: foo
         body:
           slice:
-            id: 1
+            id: "1"
             max: 2
           query:
             match_all: {}
@@ -116,7 +116,7 @@ setup:
           scroll: 1m
           body:
             slice:
-              id: 0
+              id: "0"
               max: 1025
             query:
               match_all: {}
@@ -135,7 +135,7 @@ setup:
           scroll: 1m
           body:
             slice:
-              id: 0
+              id: "0"
               max: 1025
             query:
               match_all: {}
@@ -158,7 +158,7 @@ setup:
         body:
           slice:
             field: foo
-            id: 0
+            id: "0"
             max: 2
           query:
             match_all: {}

@@ -4,7 +4,7 @@
       create:
           index:  test_1
           type:   test
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - match:   { _index:   test_1 }
@@ -16,7 +16,7 @@
       get:
           index:  test_1
           type:   test
-          id:     1
+          id:     "1"
 
  - match:   { _index:   test_1 }
  - match:   { _type:    test }
@@ -29,5 +29,5 @@
       create:
           index:  test_1
           type:   test
-          id:     1
+          id:     "1"
           body:   { foo: bar }

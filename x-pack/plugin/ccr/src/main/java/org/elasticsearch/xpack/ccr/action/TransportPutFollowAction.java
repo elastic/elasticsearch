@@ -268,7 +268,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
                     delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            })
+            }),
+            threadPool.getThreadContext()
         );
     }
 

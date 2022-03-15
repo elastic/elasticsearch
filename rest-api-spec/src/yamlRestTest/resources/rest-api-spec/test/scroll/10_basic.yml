@@ -6,13 +6,13 @@
   - do:
       index:
         index:  test_scroll
-        id:     42
+        id:     "42"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        id:     43
+        id:     "43"
         body:   { foo: 2 }
 
   - do:
@@ -37,7 +37,7 @@
   - do:
       index:
         index:  test_scroll
-        id:     44
+        id:     "44"
         body:   { foo: 3 }
 
   - do:
@@ -78,13 +78,13 @@
   - do:
       index:
         index:  test_scroll
-        id:     42
+        id:     "42"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        id:     43
+        id:     "43"
         body:   { foo: 2 }
 
   - do:
@@ -109,7 +109,7 @@
   - do:
       index:
         index:  test_scroll
-        id:     44
+        id:     "44"
         body:   { foo: 3 }
 
   - do:
@@ -145,13 +145,13 @@
   - do:
       index:
         index:  test_scroll
-        id:     42
+        id:     "42"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        id:     43
+        id:     "43"
         body:   { foo: 2 }
 
   - do:
@@ -176,7 +176,7 @@
   - do:
       index:
         index:  test_scroll
-        id:     44
+        id:     "44"
         body:   { foo: 3 }
 
   - do:
@@ -247,13 +247,13 @@
   - do:
       index:
         index:  test_scroll
-        id:     42
+        id:     "42"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        id:     43
+        id:     "43"
         body:   { foo: 2 }
 
   - do:
@@ -294,13 +294,13 @@
   - do:
       index:
         index:  test_scroll
-        id:     42
+        id:     "42"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        id:     43
+        id:     "43"
         body:   { foo: 2 }
 
   - do:

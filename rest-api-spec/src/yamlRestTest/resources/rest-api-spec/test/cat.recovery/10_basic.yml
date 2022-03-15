@@ -11,7 +11,7 @@
   - do:
       index:
         index:  index1
-        id:     1
+        id:     "1"
         body:   { foo: bar }
         refresh: true
   - do:

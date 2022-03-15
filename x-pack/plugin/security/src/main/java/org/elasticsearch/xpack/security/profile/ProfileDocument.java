@@ -127,7 +127,7 @@ public record ProfileDocument(
     }
 
     static String computeBaseUidForSubject(Subject subject) {
-        final MessageDigest digest = MessageDigests.md5();
+        final MessageDigest digest = MessageDigests.sha256();
         digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
         if (subject.getRealm().getDomain() != null) {
             // Must sort with comparing type first because name does not matter for file/native realms

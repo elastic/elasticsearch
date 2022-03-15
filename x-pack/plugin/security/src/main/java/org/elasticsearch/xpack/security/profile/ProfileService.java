@@ -133,9 +133,10 @@ public class ProfileService {
             return;
         }
 
-        getVersionedDocument(subject, ActionListener.wrap(versionedDocument -> {
+        searchVersionedDocumentForSubject(subject, ActionListener.wrap(versionedDocument -> {
             if (versionedDocument == null) {
-                createNewProfile(subject, ProfileDocument.fromSubject(subject), listener);
+                // The initial differentiator is 0 for new profile
+                createNewProfile(subject, ProfileDocument.computeBaseUidForSubject(subject) + "_0", listener);
             } else {
                 updateProfileForActivate(subject, versionedDocument, listener);
 
@@ -273,7 +274,7 @@ public class ProfileService {
     }
 
     // Package private for testing
-    void getVersionedDocument(Subject subject, ActionListener<VersionedDocument> listener) {
+    void searchVersionedDocumentForSubject(Subject subject, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
@@ -345,10 +346,11 @@ public class ProfileService {
         });
     }
 
-    private void createNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener) throws IOException {
+    private void createNewProfile(Subject subject, String uid, ActionListener<Profile> listener) throws IOException {
         // When the code reaches here, we are sure no existing profile matches the subject's username and realm info
         // We go ahead to create the new profile document. If there is another concurrent creation request, it should
         // attempt to create a doc with the same ID and cause version conflict which is handled.
+        final ProfileDocument profileDocument = ProfileDocument.fromSubjectWithUid(subject, uid);
         final String docId = uidToDocId(profileDocument.uid());
         final BulkRequest bulkRequest = toSingleItemBulkRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
@@ -459,7 +461,7 @@ public class ProfileService {
         }
         // New uid by increment the differentiator by 1
         final String newUid = baseUid + "_" + (differentiator + 1);
-        createNewProfile(subject, ProfileDocument.fromSubjectWithUid(subject, newUid), listener);
+        createNewProfile(subject, newUid, listener);
     }
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)

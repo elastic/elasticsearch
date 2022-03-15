@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase {
 
     protected static final String RAC_USER_NAME = "rac_user";
+    protected static final String OTHER_RAC_USER_NAME = "other_rac_user";
     protected static final String RAC_ROLE = "rac_role";
     protected static final SecureString NATIVE_RAC_USER_PASSWORD = new SecureString("native_rac_user_password".toCharArray());
 
@@ -70,7 +71,15 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + RAC_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
+        return super.configUsers()
+            + RAC_USER_NAME
+            + ":"
+            + TEST_PASSWORD_HASHED
+            + "\n"
+            + OTHER_RAC_USER_NAME
+            + ":"
+            + TEST_PASSWORD_HASHED
+            + "\n";
     }
 
     @Override
@@ -88,7 +97,7 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() + RAC_ROLE + ":" + RAC_USER_NAME + "\n";
+        return super.configUsersRoles() + RAC_ROLE + ":" + RAC_USER_NAME + "," + OTHER_RAC_USER_NAME + "\n";
     }
 
     protected Profile doActivateProfile(String username, SecureString password) {

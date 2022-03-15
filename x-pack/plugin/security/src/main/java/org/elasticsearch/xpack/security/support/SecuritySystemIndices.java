@@ -791,6 +791,7 @@ public class SecuritySystemIndices {
                                 {
                                     builder.startObject("username");
                                     builder.field("type", "search_as_you_type");
+                                    builder.field("analyzer", "keyword");
                                     builder.endObject();
 
                                     builder.startObject("roles");

@@ -92,6 +92,7 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.Optional.ofNullable;
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
@@ -300,9 +301,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     // creates a configuration to depend on the given plugin project, then wraps that configuration
     // to grab the zip as a file provider
-    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
-        Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
-            Dependency bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", "zip"));
+    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
+        var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
+            var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
             return project.getConfigurations().detachedConfiguration(bundleDependency);
         });
 
@@ -329,7 +330,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void plugin(String pluginProjectPath) {
-        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath));
+        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip"));
     }
 
     @Override
@@ -363,7 +364,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void module(String moduleProjectPath) {
-        module(maybeCreatePluginOrModuleDependency(moduleProjectPath));
+        module(maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG));
     }
 
     @Override

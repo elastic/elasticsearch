@@ -209,7 +209,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         var explodedBundle = project.getTasks().register("explodedBundlePlugin", Sync.class, sync -> {
             sync.with(bundleSpec);
-            sync.into(new File(project.getBuildDir(), "explodedBundle"));
+            sync.into(new File(project.getBuildDir(), "explodedBundle/" + extension.getName()));
         });
 
         // also make the exploded bundle available as a configuration (used when depending on this project)

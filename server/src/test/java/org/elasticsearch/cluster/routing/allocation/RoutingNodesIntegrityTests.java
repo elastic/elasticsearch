@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -424,7 +425,9 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         final Map<String, Set<ShardId>> shardsByNode = Maps.newMapWithExpectedSize(nodeCount);
         for (final var indexRoutingTable : clusterState.routingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (final var shardRouting : indexRoutingTable.shard(i)) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                     assertTrue(shardRouting.started());
                     shardsByNode.computeIfAbsent(shardRouting.currentNodeId(), ignored -> new HashSet<>()).add(shardRouting.shardId());
                 }

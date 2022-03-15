@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -197,7 +198,9 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             .getRoutingTable()
             .index(indexName);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting shard : indexRoutingTable.shard(i).shards()) {
+            final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+            for (int j = 0; j < shardRoutingTable.size(); j++) {
+                ShardRouting shard = shardRoutingTable.shard(j);
                 assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
                 if (shard.currentNodeId().equals(nodeId)) {
                     shardRoutings.add(shard);

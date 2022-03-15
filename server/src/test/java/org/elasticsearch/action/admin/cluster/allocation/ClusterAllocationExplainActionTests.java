@@ -153,7 +153,8 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                 final IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());
-                for (final ShardRouting shardRouting : indexShardRoutingTable) {
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                     if (shardRouting.primary() == false || indexRoutingTable.getIndex().getName().equals(redIndex)) {
                         // move all replicas and one primary to unassigned
                         shardBuilder.addShard(

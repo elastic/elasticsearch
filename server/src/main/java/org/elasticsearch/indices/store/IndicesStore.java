@@ -190,7 +190,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             return false;
         }
 
-        for (ShardRouting shardRouting : indexShardRoutingTable) {
+        for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+            ShardRouting shardRouting = indexShardRoutingTable.shard(j);
             // be conservative here, check on started, not even active
             if (shardRouting.started() == false) {
                 return false;
@@ -209,7 +210,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
-        for (ShardRouting shardRouting : indexShardRoutingTable) {
+        for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+            ShardRouting shardRouting = indexShardRoutingTable.shard(j);
             assert shardRouting.started() : "expected started shard but was " + shardRouting;
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
             requests.add(

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.PlainShardsIterator;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -160,7 +161,9 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
             Set<String> nodesCovered = new HashSet<>();
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                     if (nodesCovered.contains(shardRouting.currentNodeId()) == false) {
                         shards.add(shardRouting);
                         nodesCovered.add(shardRouting.currentNodeId());

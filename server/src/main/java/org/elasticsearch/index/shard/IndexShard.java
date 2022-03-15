@@ -694,7 +694,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.getShards());
+            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.size());
+            for (int j = 0; j < routingTable.size(); j++) {
+                shardRoutings.add(routingTable.shard(j));
+            }
             shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
             if (shardRoutings.stream()
                 .allMatch(

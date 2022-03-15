@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -499,7 +500,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         final IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index("test");
         for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting routing : indexRoutingTable.shard(i)) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                final ShardRouting routing = indexShardRoutingTable.shard(j);
                 if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.RELOCATING)));

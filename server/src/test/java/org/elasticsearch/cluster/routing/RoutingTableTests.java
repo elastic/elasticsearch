@@ -486,7 +486,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(indexMetadata);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardTable = indexRoutingTable.shard(i);
-            for (ShardRouting shardRouting : shardTable) {
+            for (int j = 0; j < shardTable.size(); j++) {
+                ShardRouting shardRouting = shardTable.shard(j);
                 Set<String> insyncAids = shardTable.activeShards()
                     .stream()
                     .map(shr -> shr.allocationId().getId())

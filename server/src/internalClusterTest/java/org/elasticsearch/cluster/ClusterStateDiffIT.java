@@ -309,14 +309,16 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < original.size(); i++) {
             IndexShardRoutingTable indexShardRoutingTable = original.shard(i);
             Set<String> availableNodes = Sets.newHashSet(nodes);
-            for (ShardRouting shardRouting : indexShardRoutingTable.shards()) {
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                 availableNodes.remove(shardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
                     availableNodes.remove(shardRouting.relocatingNodeId());
                 }
             }
 
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
                 availableNodes.remove(updatedShardRouting.currentNodeId());
                 if (shardRouting.relocating()) {

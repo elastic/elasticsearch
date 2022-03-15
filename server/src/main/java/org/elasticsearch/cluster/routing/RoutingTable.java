@@ -196,8 +196,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                shards.add(shardRouting);
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                shards.add(indexShardRoutingTable.shard(j));
             }
         }
         return shards;
@@ -236,7 +236,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                     if (predicate.test(shardRouting)) {
                         set.add(shardRouting.shardsIt());
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
@@ -275,7 +276,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                     if (predicate.test(shardRouting)) {
                         shards.add(shardRouting);
                         if (includeRelocationTargets && shardRouting.relocating()) {

@@ -66,6 +66,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -2142,7 +2143,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
+                final IndexShardRoutingTable indexShard = indexRoutingTable.shard(i);
+                for (int j = 0; j < indexShard.size(); j++) {
+                    ShardRouting shardRouting = indexShard.shard(j);
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);

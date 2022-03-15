@@ -10,6 +10,8 @@ package org.elasticsearch.cluster.routing;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public final class RoutingNodesHelper {
 
@@ -47,4 +49,7 @@ public final class RoutingNodesHelper {
         return shards;
     }
 
+    public static Stream<ShardRouting> asStream(IndexShardRoutingTable indexShardRoutingTable) {
+        return IntStream.range(0, indexShardRoutingTable.size()).mapToObj(indexShardRoutingTable::shard);
+    }
 }

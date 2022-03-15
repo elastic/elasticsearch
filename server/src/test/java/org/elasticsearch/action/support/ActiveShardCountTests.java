@@ -208,7 +208,8 @@ public class ActiveShardCountTests extends ESTestCase {
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int j = 0; j < shardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(j);
                 if (shardRouting.primary()) {
                     shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                         .moveToStarted();
@@ -226,10 +227,11 @@ public class ActiveShardCountTests extends ESTestCase {
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-            assert shardRoutingTable.getSize() > 2;
+            assert shardRoutingTable.size() > 2;
             int numToStart = numShardsToStart;
             // want less than half, and primary is already started
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int j = 0; j < shardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(j);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
@@ -252,9 +254,10 @@ public class ActiveShardCountTests extends ESTestCase {
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-            assert shardRoutingTable.getSize() > 2;
+            assert shardRoutingTable.size() > 2;
             int numToStart = numShardsToStart;
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int j = 0; j < shardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(j);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
@@ -281,7 +284,8 @@ public class ActiveShardCountTests extends ESTestCase {
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int j = 0; j < shardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(j);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {

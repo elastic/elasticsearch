@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -93,7 +94,9 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
 
         final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting shardRouting : indexRoutingTable.shard(i).shards()) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(j);
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(
                     shardRouting,

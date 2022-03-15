@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -80,8 +81,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(j).currentNodeId()).getName(), equalTo(node_0));
                 }
             }
         }
@@ -139,8 +141,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(0));
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(j).currentNodeId()).getName(), equalTo(node_0));
                 }
             }
         }
@@ -186,8 +189,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
         for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                if ("node1".equals(clusterState.nodes().get(shardRouting.currentNodeId()).getName())) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                if ("node1".equals(clusterState.nodes().get(indexShardRoutingTable.shard(j).currentNodeId()).getName())) {
                     numShardsOnNode1++;
                 }
             }
@@ -217,8 +221,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         indexRoutingTable = clusterState.routingTable().index("test");
         for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_1));
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
+                assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(j).currentNodeId()).getName(), equalTo(node_1));
             }
         }
 

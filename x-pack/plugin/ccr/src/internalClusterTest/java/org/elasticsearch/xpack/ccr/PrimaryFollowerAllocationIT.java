@@ -154,7 +154,8 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                for (ShardRouting shard : shardRoutingTable) {
+                for (int j = 0; j < shardRoutingTable.size(); j++) {
+                    ShardRouting shard = shardRoutingTable.shard(j);
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
                     assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataOnlyNodes));
@@ -170,7 +171,8 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                for (ShardRouting shard : shardRoutingTable) {
+                for (int j = 0; j < shardRoutingTable.size(); j++) {
+                    ShardRouting shard = shardRoutingTable.shard(j);
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
                     assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataOnlyNodes));

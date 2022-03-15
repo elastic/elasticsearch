@@ -141,6 +141,22 @@ public class Subject {
             }
     }
 
+    @Override
+    public String toString() {
+        return "Subject{"
+            + "version="
+            + version
+            + ", user="
+            + user
+            + ", realm="
+            + realm
+            + ", type="
+            + type
+            + ", metadata="
+            + metadata
+            + '}';
+    }
+
     private RoleReferenceIntersection buildRoleReferencesForUser(AnonymousUser anonymousUser) {
         if (user.equals(anonymousUser)) {
             return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles()));

@@ -323,9 +323,21 @@ public class ProfileService {
                             listener.onResponse(null);
                         } else if (hits.length == 1) {
                             final SearchHit hit = hits[0];
-                            listener.onResponse(
-                                new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
-                            );
+                            final ProfileDocument profileDocument = buildProfileDocument(hit.getSourceRef());
+                            if (subject.canAccessResourcesOf(profileDocument.subject())) {
+                                listener.onResponse(new VersionedDocument(profileDocument, hit.getPrimaryTerm(), hit.getSeqNo()));
+                            } else {
+                                final ParameterizedMessage errorMessage = new ParameterizedMessage(
+                                    "profile [{}] matches search criteria but is not accessible to "
+                                        + "the current subject with username [{}] and realm name [{}]",
+                                    profileDocument.uid(),
+                                    subject.getUser().principal(),
+                                    subject.getRealm().getName()
+                                );
+                                logger.error(errorMessage);
+                                assert false : "this should not happen";
+                                listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                            }
                         } else {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
@@ -420,6 +432,12 @@ public class ProfileService {
             if (subject.canAccessResourcesOf(versionedDocument.doc.subject())) {
                 // The profile document can be accessed by the subject. It must have just got created by another thread, i.e. racing.
                 // Still need to update it with current auth info before return.
+                logger.debug(
+                    "found existing profile document [{}] accessible to the current subject with username [{}] and realm name [{}]",
+                    versionedDocument.doc.uid(),
+                    subject.getUser().principal(),
+                    subject.getRealm().getName()
+                );
                 updateProfileForActivate(subject, versionedDocument, listener);
             } else {
                 // The profile document is NOT a match, this means either genuine hash collision or profile document

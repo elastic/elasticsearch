@@ -52,7 +52,7 @@ final class EmbeddedModulePath {
         Set<ModuleReference> mrefs = Set.of();
         try {
             mrefs = ModuleFinder.of(path).findAll();
-        } catch (InvalidModuleDescriptorException e) {
+        } catch (FindException e) {
             // This is a loathsome workaround for JDK-8282444, which affects Windows only
             if (System.getProperty("os.name").startsWith("Windows") && Files.isDirectory(path) && Files.exists(path.resolve(MODULE_INFO))) {
                 try (var is = Files.newInputStream(path.resolve(MODULE_INFO))) {

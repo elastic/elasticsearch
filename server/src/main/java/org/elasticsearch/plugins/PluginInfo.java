@@ -90,7 +90,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.elasticsearchVersion = elasticsearchVersion;
         this.javaVersion = javaVersion;
         int i;
-        if ((i = classname.indexOf('/')) != -1) {
+        if (classname != null && (i = classname.indexOf('/')) != -1) {
             // it's a module qualified name
             this.moduleName = classname.substring(0, i);
             this.classname = classname.substring(i + 1);

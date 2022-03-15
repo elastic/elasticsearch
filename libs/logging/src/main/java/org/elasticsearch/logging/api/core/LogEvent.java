@@ -11,6 +11,8 @@ package org.elasticsearch.logging.api.core;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Message;
 
+import java.util.Map;
+
 public interface LogEvent {
     Level getLevel();
 
@@ -19,4 +21,9 @@ public interface LogEvent {
     Throwable getThrown();
 
     Message getMessage();
+
+    Map<String, String> getContextMap();
+
+
+    String getMarkerName();
 }

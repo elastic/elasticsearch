@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,7 +75,7 @@ public class EvilSchedulerEngineTests extends ESTestCase {
                 assertNotNull(maybeThread.get());
                 assertThat(maybeThread.get(), not(equalTo(Thread.currentThread()))); // the error should be rethrown on another thread
                 schedulerLatch.await();
-                verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
+                verify(mockLogger, atLeastOnce()).debug(any(Supplier.class));
                 verifyNoMoreInteractions(mockLogger); // we never logged anything
             } finally {
                 engine.stop();

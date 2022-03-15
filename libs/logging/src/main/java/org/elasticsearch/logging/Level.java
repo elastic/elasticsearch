@@ -10,8 +10,10 @@ package org.elasticsearch.logging;
 
 import org.elasticsearch.logging.internal.StandardLevels;
 
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -55,6 +57,11 @@ public final class Level {
         this.name = name;
         this.severity = severity;
     }
+
+    public static Collection<Level> values() {
+        return LEVELS.values();
+    }
+
     @Override
     public String toString() {
         return this.name;

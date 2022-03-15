@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.logging.util.BiConsumer;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -41,6 +40,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction.Coordinator;
 import static org.hamcrest.Matchers.containsString;

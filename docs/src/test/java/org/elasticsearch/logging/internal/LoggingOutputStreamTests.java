@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.logging;
+package org.elasticsearch.logging.internal;
 
 import org.elasticsearch.logging.internal.LoggingOutputStream;
 import org.elasticsearch.test.ESTestCase;

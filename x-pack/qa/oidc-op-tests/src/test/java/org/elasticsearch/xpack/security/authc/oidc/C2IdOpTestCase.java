@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Message;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.hamcrest.Matchers;
@@ -212,7 +213,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
             return body.apply(response);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("HTTP Request [{}] failed", request.getURI()), e);
+            logger.warn(Message.createParameterizedMessage("HTTP Request [{}] failed", request.getURI()), e);
             throw e;
         }
     }

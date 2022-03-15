@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.apache.logging.log4j.core.LogEvent;
+
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -21,6 +21,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -1344,7 +1345,7 @@ public class SettingTests extends ESTestCase {
             ) {
                 @Override
                 public boolean innerMatch(LogEvent event) {
-                    return event.getMarker().getName().equals(" [index1]");
+                    return event.getMarkerName().equals(" [index1]");
                 }
             }
         );

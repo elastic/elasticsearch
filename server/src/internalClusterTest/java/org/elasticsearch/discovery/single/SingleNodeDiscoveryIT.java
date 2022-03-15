@@ -8,7 +8,8 @@
 
 package org.elasticsearch.discovery.single;
 
-import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.logging.api.core.LogEvent;
+
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.service.ClusterService;

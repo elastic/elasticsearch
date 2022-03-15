@@ -139,8 +139,17 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
         log4jLogger.debug(msgSupplier);
     }
 
+    public void error(Object message) {
+        log4jLogger.error(message);
+    }
+
     public void error(Message message) {
         log4jLogger.error((org.apache.logging.log4j.message.Message) message);
+    }
+
+    @Override
+    public void error(Throwable e) {
+        log4jLogger.error(e);
     }
 
     public void error(Message message, Throwable thrown) {
@@ -185,6 +194,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     public void error(String message, Object... params) {
         log4jLogger.error(message, params);
+    }
+
+    @Override
+    public void info(Object message) {
+        log4jLogger.info(message);
     }
 
     public void info(Message message) {
@@ -283,6 +297,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
         log4jLogger.trace(message, params);
     }
 
+    @Override
+    public void warn(Object message) {
+        log4jLogger.warn(message);
+    }
+
     public void warn(Message message) {
         log4jLogger.warn((org.apache.logging.log4j.message.Message) message);
     }
@@ -329,6 +348,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     public void warn(String message, Object... params) {
         log4jLogger.warn(message, params);
+    }
+
+    @Override
+    public void warn(Throwable e) {
+        log4jLogger.warn(e);
     }
 
     public void fatal(String message, Throwable thrown) {

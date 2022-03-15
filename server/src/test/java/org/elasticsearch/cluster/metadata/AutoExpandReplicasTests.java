@@ -141,7 +141,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
-                logger.info(state);
+                logger.info(state.toString());//TODO PG
                 state = cluster.applyStartedShards(
                     state,
                     state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
@@ -241,7 +241,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
-                logger.info(state);
+                logger.info(state.toString());//TODO PG log object
                 state = cluster.applyStartedShards(
                     state,
                     state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
@@ -264,7 +264,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
             );
 
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
-                logger.info(state);
+                logger.info(state.toString());//TODO PG log object
                 state = cluster.applyStartedShards(
                     state,
                     state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)

@@ -70,6 +70,9 @@ public class LogEventImpl implements Serializable,  org.elasticsearch.logging.ap
         return logEvent.getMarker();
     }
 
+    public String getMarkerName() {
+        return logEvent.getMarker() != null ? logEvent.getMarker().getName() : null;
+    }
 
     public Message getMessage() {
         return new MessageImpl(logEvent.getMessage());

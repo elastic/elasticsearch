@@ -62,7 +62,10 @@ public interface Logger {
     void debug(java.util.function.Supplier<?> msgSupplier);
 
     // -- error
+    void error(Object message);
     void error(Message message);
+
+    void error(Throwable e);
 
     void error(Message message, Throwable thrown);
 
@@ -87,6 +90,8 @@ public interface Logger {
     void error(String message, Object... params);
 
     // -- info
+    void info(Object message);
+
     void info(Message message);
 
     void info(Message message, Throwable thrown);
@@ -137,7 +142,7 @@ public interface Logger {
     void trace(String message, Object... params);
 
     // -- warn
-//    void warn(Object message); vs .toString?
+    void warn(Object message);
 
     void warn(Message message);
 
@@ -162,11 +167,14 @@ public interface Logger {
     void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
 
     void warn(String message, Object... params);
-
+    void warn(Throwable e);
     // -- fatal
     void fatal(String message, Throwable thrown);
 
     boolean isLoggable(Level level);
+
+
+
 
     // TODO:
 }

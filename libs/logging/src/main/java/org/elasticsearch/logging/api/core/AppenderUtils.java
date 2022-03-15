@@ -96,8 +96,14 @@ public class AppenderUtils {
         ctx.updateLoggers();
     }
 
-
+    public static void removeAppender(final Logger logger, final org.elasticsearch.logging.api.core.Appender appender) {
+        removeAppender(logger, appender.name());
+    }
     public static void removeAppender(final Logger logger, final MockLogAppender appender) {
+        removeAppender(logger, "mock");
+    }
+
+    private static void removeAppender(Logger logger, String appenderName) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
@@ -105,7 +111,7 @@ public class AppenderUtils {
             loggerConfig = new LoggerConfig(logger.getName(), Util.log4jLevel(logger.getLevel()), true);
             config.addLogger(logger.getName(), loggerConfig);
         }
-        loggerConfig.removeAppender("mock");
+        loggerConfig.removeAppender(appenderName);
         ctx.updateLoggers();
     }
 }

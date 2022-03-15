@@ -8,7 +8,12 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.logging.api.core.Appender;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.Filter;
+import org.elasticsearch.logging.api.core.Layout;
+import org.elasticsearch.logging.api.core.LogEvent;
+//
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.Version;
@@ -27,12 +32,32 @@ import static org.elasticsearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETT
 import static org.hamcrest.core.StringContains.containsString;
 
 public class MergeSchedulerSettingsTests extends ESTestCase {
-    private static class MockAppender extends AbstractAppender {
+    private static class MockAppender implements Appender {
         public boolean sawUpdateMaxThreadCount;
         public boolean sawUpdateAutoThrottle;
 
         MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+//            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        }
+
+        @Override
+        public Filter filter() {
+            return null;
+        }
+
+        @Override
+        public Layout layout() {
+            return null;
+        }
+
+        @Override
+        public String name() {
+            return null;
+        }
+
+//        @Override
+        public boolean ignoreExceptions() {
+            return false;
         }
 
         @Override
@@ -49,19 +74,13 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
                 sawUpdateAutoThrottle = true;
             }
         }
-
-        @Override
-        public boolean ignoreExceptions() {
-            return false;
-        }
-
     }
 
     public void testUpdateAutoThrottleSettings() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
-        mockAppender.start();
+//        mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
-        Loggers.addAppender(settingsLogger, mockAppender);
+        AppenderUtils.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
             Settings.Builder builder = Settings.builder()
@@ -81,8 +100,8 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             assertTrue(mockAppender.sawUpdateAutoThrottle);
             assertEquals(settings.getMergeSchedulerConfig().isAutoThrottle(), false);
         } finally {
-            Loggers.removeAppender(settingsLogger, mockAppender);
-            mockAppender.stop();
+            AppenderUtils.removeAppender(settingsLogger, mockAppender);
+//            mockAppender.stop();
             Loggers.setLevel(settingsLogger, (Level) null);
         }
     }
@@ -90,9 +109,9 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
     public void testUpdateMergeMaxThreadCount() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
-        mockAppender.start();
+//        mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
-        Loggers.addAppender(settingsLogger, mockAppender);
+        AppenderUtils.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
             Settings.Builder builder = Settings.builder()
@@ -113,8 +132,8 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             // Make sure we log the change:
             assertTrue(mockAppender.sawUpdateMaxThreadCount);
         } finally {
-            Loggers.removeAppender(settingsLogger, mockAppender);
-            mockAppender.stop();
+            AppenderUtils.removeAppender(settingsLogger, mockAppender);
+//            mockAppender.stop();
             Loggers.setLevel(settingsLogger, (Level) null);
         }
     }

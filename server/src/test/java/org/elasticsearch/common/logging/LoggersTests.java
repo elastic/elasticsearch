@@ -27,9 +27,9 @@ public class LoggersTests extends ESTestCase {
 
     public void testParameterizedMessageLambda() throws Exception {
         final MockAppender appender = new MockAppender("trace_appender");
-        appender.start();
+//        appender.start();
         final Logger testLogger = LogManager.getLogger(LoggersTests.class);
-        Loggers.addAppender(testLogger, appender);
+//        Loggers.addAppender(testLogger, appender); TODO PG
         Loggers.setLevel(testLogger, Level.TRACE);
 
         Throwable ex = randomException();

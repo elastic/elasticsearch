@@ -23,7 +23,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 //import org.apache.logging.log4j.core.Appender;
-//import org.apache.logging.log4j.core.LogEvent;
+//
 //import org.apache.logging.log4j.core.LoggerContext;
 //import org.apache.logging.log4j.core.appender.AbstractAppender;
 //import org.apache.logging.log4j.core.config.Configurator;

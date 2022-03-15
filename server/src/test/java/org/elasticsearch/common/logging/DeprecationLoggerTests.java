@@ -37,7 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DeprecationLoggerTests extends ESTestCase {
-
+/*
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         org.apache.logging.log4j.core.LoggerContext context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
 
@@ -88,5 +88,5 @@ public class DeprecationLoggerTests extends ESTestCase {
         } finally {
             LogManager.setFactory(originalFactory);
         }
-    }
+    }*/
 }

@@ -10,9 +10,7 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -123,6 +121,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.api.core.Appender;
+import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.Filter;
+import org.elasticsearch.logging.api.core.Layout;
+import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -2462,19 +2465,35 @@ public class InternalEngineTests extends EngineTestCase {
         assertTrue(indexResult.isCreated());
     }
 
-    private static class MockAppender extends AbstractAppender {
+    public static class MockAppender implements Appender {
         public boolean sawIndexWriterMessage;
 
         public boolean sawIndexWriterIFDMessage;
 
         MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+//            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        }
+
+
+        @Override
+        public Filter filter() {
+            return null;
+        }
+
+        @Override
+        public Layout layout() {
+            return null;
+        }
+
+        @Override
+        public String name() {
+            return null;
         }
 
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
+            if (event.getLevel() == Level.TRACE /*&& event.getMarker().getName().contains("[index][0]")*/) { // TODO PG marker
                 if (event.getLoggerName().endsWith(".IW") && formattedMessage.contains("IW: now apply all deletes")) {
                     sawIndexWriterMessage = true;
                 }
@@ -2487,96 +2506,96 @@ public class InternalEngineTests extends EngineTestCase {
 
     // #5891: make sure IndexWriter's infoStream output is
     // sent to lucene.iw with log level TRACE:
-
-    public void testIndexWriterInfoStream() throws IllegalAccessException, IOException {
-        assumeFalse("who tests the tester?", VERBOSE);
-        MockAppender mockAppender = new MockAppender("testIndexWriterInfoStream");
-        mockAppender.start();
-
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.DEBUG);
-        rootLogger = LogManager.getRootLogger();
-
-        try {
-            // First, with DEBUG, which should NOT log IndexWriter output:
-            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            engine.index(indexForDoc(doc));
-            engine.flush();
-            assertFalse(mockAppender.sawIndexWriterMessage);
-
-            // Again, with TRACE, which should log IndexWriter output:
-            Loggers.setLevel(rootLogger, Level.TRACE);
-            engine.index(indexForDoc(doc));
-            engine.flush();
-            assertTrue(mockAppender.sawIndexWriterMessage);
-            engine.close();
-        } finally {
-            Loggers.removeAppender(rootLogger, mockAppender);
-            mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
-        }
-    }
-
-    private static class MockMTAppender extends AbstractAppender {
-        private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
-
-        List<String> messages() {
-            return messages;
-        }
-
-        MockMTAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
-                messages.add(formattedMessage);
-            }
-        }
-    }
-
-    public void testMergeThreadLogging() throws IllegalAccessException, IOException {
-        MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
-        mockAppender.start();
-
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.TRACE);
-
-        LogMergePolicy lmp = newLogMergePolicy();
-        lmp.setMergeFactor(2);
-        try (Store store = createStore()) {
-            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), lmp); // fmp
-            engine.index(indexForDoc(testParsedDocument("1", null, testDocument(), B_1, null)));
-            engine.index(indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null)));
-            engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
-            engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            engine.flushAndClose();
-
-            long merges = engine.getMergeStats().getTotal();
-            if (merges > 0) {
-                List<String> threadMsgs = mockAppender.messages()
-                    .stream()
-                    .filter(line -> line.startsWith("merge thread"))
-                    .collect(Collectors.toList());
-                assertThat("messages:" + threadMsgs + ", merges=" + merges, threadMsgs.size(), greaterThanOrEqualTo(2));
-                assertThat(
-                    threadMsgs,
-                    containsInRelativeOrder(matchesRegex("^merge thread .* start$"), matchesRegex("^merge thread .* merge segment.*$"))
-                );
-            }
-        } finally {
-            Loggers.removeAppender(rootLogger, mockAppender);
-            mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
-        }
-    }
+//
+//    public void testIndexWriterInfoStream() throws IllegalAccessException, IOException {
+//        assumeFalse("who tests the tester?", VERBOSE);
+//        Appender mockAppender = new MockAppender("testIndexWriterInfoStream");
+////        mockAppender.start();
+//
+//        Logger rootLogger = LogManager.getRootLogger();
+//        Level savedLevel = rootLogger.getLevel();
+//        AppenderUtils.addAppender(rootLogger, mockAppender);
+//        Loggers.setLevel(rootLogger, Level.DEBUG);
+//        rootLogger = LogManager.getRootLogger();
+//
+//        try {
+//            // First, with DEBUG, which should NOT log IndexWriter output:
+//            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+//            engine.index(indexForDoc(doc));
+//            engine.flush();
+//            assertFalse(mockAppender.sawIndexWriterMessage);
+//
+//            // Again, with TRACE, which should log IndexWriter output:
+//            Loggers.setLevel(rootLogger, Level.TRACE);
+//            engine.index(indexForDoc(doc));
+//            engine.flush();
+//            assertTrue(mockAppender.sawIndexWriterMessage);
+//            engine.close();
+//        } finally {
+//            AppenderUtils.removeAppender(rootLogger, mockAppender);
+////            mockAppender.stop();
+//            Loggers.setLevel(rootLogger, savedLevel);
+//        }
+//    }
+//
+//    private static class MockMTAppender extends AbstractAppender {
+//        private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+//
+//        List<String> messages() {
+//            return messages;
+//        }
+//
+//        MockMTAppender(final String name) throws IllegalAccessException {
+//            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+//        }
+//
+//        @Override
+//        public void append(LogEvent event) {
+//            final String formattedMessage = event.getMessage().getFormattedMessage();
+//            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
+//                messages.add(formattedMessage);
+//            }
+//        }
+//    }
+//
+//    public void testMergeThreadLogging() throws IllegalAccessException, IOException {
+//        MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+//        mockAppender.start();
+//
+//        Logger rootLogger = LogManager.getRootLogger();
+//        Level savedLevel = rootLogger.getLevel();
+//        Loggers.addAppender(rootLogger, mockAppender);
+//        Loggers.setLevel(rootLogger, Level.TRACE);
+//
+//        LogMergePolicy lmp = newLogMergePolicy();
+//        lmp.setMergeFactor(2);
+//        try (Store store = createStore()) {
+//            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), lmp); // fmp
+//            engine.index(indexForDoc(testParsedDocument("1", null, testDocument(), B_1, null)));
+//            engine.index(indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null)));
+//            engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
+//            engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
+//            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+//            engine.flushAndClose();
+//
+//            long merges = engine.getMergeStats().getTotal();
+//            if (merges > 0) {
+//                List<String> threadMsgs = mockAppender.messages()
+//                    .stream()
+//                    .filter(line -> line.startsWith("merge thread"))
+//                    .collect(Collectors.toList());
+//                assertThat("messages:" + threadMsgs + ", merges=" + merges, threadMsgs.size(), greaterThanOrEqualTo(2));
+//                assertThat(
+//                    threadMsgs,
+//                    containsInRelativeOrder(matchesRegex("^merge thread .* start$"), matchesRegex("^merge thread .* merge segment.*$"))
+//                );
+//            }
+//        } finally {
+//            Loggers.removeAppender(rootLogger, mockAppender);
+//            mockAppender.stop();
+//            Loggers.setLevel(rootLogger, savedLevel);
+//        }
+//    }
 
     public void testSeqNoAndCheckpoints() throws IOException, InterruptedException {
         final int opCount = randomIntBetween(1, 256);
@@ -2890,39 +2909,39 @@ public class InternalEngineTests extends EngineTestCase {
         }
         return bitSet;
     }
-
-    // #8603: make sure we can separately log IFD's messages
-    public void testIndexWriterIFDInfoStream() throws IllegalAccessException, IOException {
-        assumeFalse("who tests the tester?", VERBOSE);
-        MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
-        mockAppender.start();
-
-        final Logger iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.Engine.IFD");
-
-        Loggers.addAppender(iwIFDLogger, mockAppender);
-        Loggers.setLevel(iwIFDLogger, Level.DEBUG);
-
-        try {
-            // First, with DEBUG, which should NOT log IndexWriter output:
-            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            engine.index(indexForDoc(doc));
-            engine.flush();
-            assertFalse(mockAppender.sawIndexWriterMessage);
-            assertFalse(mockAppender.sawIndexWriterIFDMessage);
-
-            // Again, with TRACE, which should only log IndexWriter IFD output:
-            Loggers.setLevel(iwIFDLogger, Level.TRACE);
-            engine.index(indexForDoc(doc));
-            engine.flush();
-            assertFalse(mockAppender.sawIndexWriterMessage);
-            assertTrue(mockAppender.sawIndexWriterIFDMessage);
-
-        } finally {
-            Loggers.removeAppender(iwIFDLogger, mockAppender);
-            mockAppender.stop();
-            Loggers.setLevel(iwIFDLogger, (Level) null);
-        }
-    }
+//
+//    // #8603: make sure we can separately log IFD's messages
+//    public void testIndexWriterIFDInfoStream() throws IllegalAccessException, IOException {
+//        assumeFalse("who tests the tester?", VERBOSE);
+//        MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
+//        mockAppender.start();
+//
+//        final Logger iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.Engine.IFD");
+//
+//        Loggers.addAppender(iwIFDLogger, mockAppender);
+//        Loggers.setLevel(iwIFDLogger, Level.DEBUG);
+//
+//        try {
+//            // First, with DEBUG, which should NOT log IndexWriter output:
+//            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+//            engine.index(indexForDoc(doc));
+//            engine.flush();
+//            assertFalse(mockAppender.sawIndexWriterMessage);
+//            assertFalse(mockAppender.sawIndexWriterIFDMessage);
+//
+//            // Again, with TRACE, which should only log IndexWriter IFD output:
+//            Loggers.setLevel(iwIFDLogger, Level.TRACE);
+//            engine.index(indexForDoc(doc));
+//            engine.flush();
+//            assertFalse(mockAppender.sawIndexWriterMessage);
+//            assertTrue(mockAppender.sawIndexWriterIFDMessage);
+//
+//        } finally {
+//            Loggers.removeAppender(iwIFDLogger, mockAppender);
+//            mockAppender.stop();
+//            Loggers.setLevel(iwIFDLogger, (Level) null);
+//        }
+//    }
 
     public void testEnableGcDeletes() throws Exception {
         try (

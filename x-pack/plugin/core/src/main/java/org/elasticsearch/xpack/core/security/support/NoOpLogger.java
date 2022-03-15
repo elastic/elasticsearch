@@ -149,7 +149,17 @@ public class NoOpLogger implements Logger {
     }
 
     @Override
+    public void error(Object message) {
+
+    }
+
+    @Override
     public void error(Message message) {
+
+    }
+
+    @Override
+    public void error(Throwable e) {
 
     }
 
@@ -205,6 +215,11 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void error(String message, Object... params) {
+
+    }
+
+    @Override
+    public void info(Object message) {
 
     }
 
@@ -329,6 +344,11 @@ public class NoOpLogger implements Logger {
     }
 
     @Override
+    public void warn(Object message) {
+
+    }
+
+    @Override
     public void warn(Message message) {
 
     }
@@ -385,6 +405,11 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void warn(String message, Object... params) {
+
+    }
+
+    @Override
+    public void warn(Throwable e) {
 
     }
 

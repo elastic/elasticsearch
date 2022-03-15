@@ -35,6 +35,7 @@ public class MockLogAppender {
         impl = new MockLogAppenderImpl(expectations);
     }
 
+
     public static LoggingExpectation createUnseenEventExpectation(String name, String logger, Level level, String message) {
         return new UnseenEventExpectation(name, logger, level, message);
     }

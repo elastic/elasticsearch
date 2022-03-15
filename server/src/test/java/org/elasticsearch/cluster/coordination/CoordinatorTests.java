@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -40,6 +39,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
+import org.elasticsearch.logging.api.core.LogEvent;
 import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -1920,8 +1920,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
                             final List<ClusterNode> matchingNodes = cluster.clusterNodes.stream()
                                 .filter(
-                                    n -> event.getContextData()
-                                        .<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
+                                    n -> event.getContextMap()
+                                        .get(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
                                         .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))
                                 )
                                 .collect(Collectors.toList());

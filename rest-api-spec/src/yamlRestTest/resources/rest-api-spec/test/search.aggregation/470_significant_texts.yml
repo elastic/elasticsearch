@@ -62,7 +62,7 @@ setup:
           aggs:
             significant_texts:
               sampler:
-                shard_size: 200
+                shard_size: 7
               aggs:
                 keywords:
                   significant_text:
@@ -107,7 +107,7 @@ setup:
           aggs:
             significant_texts:
               sampler:
-                shard_size: 200
+                shard_size: 7
               aggs:
                 keywords:
                   significant_text:
@@ -147,7 +147,7 @@ setup:
           aggs:
             significant_texts:
               sampler:
-                shard_size: 200
+                shard_size: 7
               aggs:
                 keywords:
                   significant_text:
@@ -183,7 +183,7 @@ setup:
           aggs:
             significant_texts:
               sampler:
-                shard_size: 200
+                shard_size: 7
               aggs:
                 keywords:
                   significant_text:
@@ -226,7 +226,7 @@ setup:
           aggs:
             significant_texts:
               sampler:
-                shard_size: 200
+                shard_size: 7
               aggs:
                 keywords:
                   significant_text:

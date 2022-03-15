@@ -268,14 +268,13 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         }
 
         final String username = randomAlphaOfLengthBetween(5, 12);
-        final RealmDomain realmDomain = randomFrom(AuthenticationTests.randomDomain(true), null);
-        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(false);
+        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
 
         final boolean existingCollision = randomBoolean();
         final String existingUid;
         // Manually create a collision document
         if (existingCollision) {
-            final Authentication authentication = assembleAuthentication(username, realmDomain, realmRef);
+            final Authentication authentication = assembleAuthentication(username, realmRef);
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
@@ -300,7 +299,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
-                    final Authentication authentication = assembleAuthentication(username, realmDomain, realmRef);
+                    final Authentication authentication = assembleAuthentication(username, realmRef);
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
                     profileService.activateProfile(authentication, future);
@@ -438,14 +437,19 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .get();
     }
 
-    private Authentication assembleAuthentication(String username, RealmDomain realmDomain, Authentication.RealmRef realmRef) {
-        final RealmConfig.RealmIdentifier realmIdentifier = realmDomain == null
+    private Authentication assembleAuthentication(String username, Authentication.RealmRef realmRef) {
+        final RealmConfig.RealmIdentifier realmIdentifier = realmRef.getDomain() == null
             ? new RealmConfig.RealmIdentifier(realmRef.getType(), realmRef.getName())
-            : randomFrom(realmDomain.realms());
+            : randomFrom(realmRef.getDomain().realms());
 
         return Authentication.newRealmAuthentication(
             new User(username),
-            new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), randomAlphaOfLengthBetween(3, 8), realmDomain)
+            new Authentication.RealmRef(
+                realmIdentifier.getName(),
+                realmIdentifier.getType(),
+                randomAlphaOfLengthBetween(3, 8),
+                realmRef.getDomain()
+            )
         );
     }
 }

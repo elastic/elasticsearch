@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -404,7 +403,6 @@ public interface IndexAbstraction {
             } catch (Exception e) {
                 throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
             }
-            timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
             if (result == null) {
                 String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);

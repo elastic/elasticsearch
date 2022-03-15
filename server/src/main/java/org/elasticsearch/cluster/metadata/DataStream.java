@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -167,6 +168,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *         an end time that is less than the provided timestamp. Otherwise <code>null</code> is returned.
      */
     public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
+        timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
         for (int i = indices.size() - 1; i >= 0; i--) {
             Index index = indices.get(i);
             IndexMetadata im = metadata.index(index);

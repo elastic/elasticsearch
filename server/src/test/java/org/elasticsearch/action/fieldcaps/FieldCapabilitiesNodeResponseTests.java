@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -93,6 +94,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             randomIndexResponsesWithMappingHash(mappingHashToIndices),
             randomIndexResponsesWithoutMappingHash()
         );
+        Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, Version.CURRENT);
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
@@ -128,6 +130,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
             randomIndexResponsesWithoutMappingHash()
         );
+        Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inResponse = randomNodeResponse(indexResponses);
         Version version = VersionUtils.randomVersionBetween(random(), minCompactVersion, VersionUtils.getPreviousVersion(Version.V_8_2_0));
         final FieldCapabilitiesNodeResponse outResponse = copyInstance(inResponse, version);

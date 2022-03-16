@@ -55,7 +55,12 @@ public final class EnrichCache {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
-        return cache.get(cacheKey);
+        List<Map<?, ?>> response = cache.get(cacheKey);
+        if (response != null) {
+            return deepCopy(response, false);
+        } else {
+            return null;
+        }
     }
 
     void put(SearchRequest searchRequest, List<Map<?, ?>> response) {

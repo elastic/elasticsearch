@@ -138,7 +138,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(resp -> {
                     List<Map<?, ?>> value = enrichCache.toCacheValue(resp);
                     enrichCache.put(req, value);
-                    handler.accept(value, null);
+                    handler.accept(EnrichCache.deepCopy(value, false), null);
                 }, e -> { handler.accept(null, e); }));
             }
         };

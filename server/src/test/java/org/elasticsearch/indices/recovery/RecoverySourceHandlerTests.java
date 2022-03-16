@@ -246,7 +246,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     }
 
     public void testSendSnapshotSendsOps() throws IOException {
-        TestCase tc = new TimeSeriesModeTestCase();
+        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 4096);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
@@ -254,12 +254,12 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
-            final Engine.Index index = tc.createIndexOp(i);
+            final Engine.Index index = iof.createIndexOp(i);
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true, index.id())));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(10, 1000);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
-            final Engine.Index index = tc.createIndexOp(i);
+            final Engine.Index index = iof.createIndexOp(i);
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true, index.id())));
         }
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
@@ -320,14 +320,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     }
 
     public void testSendSnapshotStopOnError() throws Exception {
-        TestCase tc = new TimeSeriesModeTestCase();
+        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 10 * 1024);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final List<Translog.Operation> ops = new ArrayList<>();
         for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
-            final Engine.Index index = tc.createIndexOp(i);
+            final Engine.Index index = iof.createIndexOp(i);
             ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true, index.id())));
         }
         final AtomicBoolean wasFailed = new AtomicBoolean();
@@ -462,14 +462,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         assertThat(receivedSeqNos, equalTo(sentSeqNos));
     }
 
-    private interface TestCase {
+    private interface IndexOpFactory {
         Engine.Index createIndexOp(int docIdent);
     }
 
-    private class StandardModeTestCase implements TestCase {
+    private class StandardModeIndexOpFactory implements IndexOpFactory {
         private final MapperService mapper;
 
-        private StandardModeTestCase() throws IOException {
+        private StandardModeIndexOpFactory() throws IOException {
             mapper = createMapperService(mapping(b -> {}));
         }
 
@@ -493,10 +493,10 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         }
     }
 
-    private class TimeSeriesModeTestCase implements TestCase {
+    private class TimeSeriesModeIndexOpFactory implements IndexOpFactory {
         private final MapperService mapper;
 
-        private TimeSeriesModeTestCase() throws IOException {
+        private TimeSeriesModeIndexOpFactory() throws IOException {
             mapper = createMapperService(
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), "time_series")

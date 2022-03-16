@@ -52,6 +52,7 @@ public class VectorTileRequestTests extends ESTestCase {
             assertThat(vectorTileRequest.getExtent(), Matchers.equalTo(VectorTileRequest.Defaults.EXTENT));
             assertThat(vectorTileRequest.getAggBuilder(), Matchers.equalTo(VectorTileRequest.Defaults.AGGS));
             assertThat(vectorTileRequest.getFieldAndFormats(), Matchers.equalTo(VectorTileRequest.Defaults.FETCH));
+            assertThat(vectorTileRequest.getGridAgg(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_AGG));
             assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_TYPE));
             assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_PRECISION));
             assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(VectorTileRequest.Defaults.EXACT_BOUNDS));
@@ -111,8 +112,16 @@ public class VectorTileRequestTests extends ESTestCase {
         );
     }
 
+    public void testFieldGridAgg() throws IOException {
+        final GridAggregation grid_agg = RandomPicks.randomFrom(random(), GridAggregation.values());
+        assertRestRequest(
+            (builder) -> { builder.field(VectorTileRequest.GRID_AGG_FIELD.getPreferredName(), grid_agg.name()); },
+            (vectorTileRequest) -> { assertThat(vectorTileRequest.getGridAgg(), Matchers.equalTo(grid_agg)); }
+        );
+    }
+
     public void testFieldGridType() throws IOException {
-        final VectorTileRequest.GRID_TYPE grid_type = RandomPicks.randomFrom(random(), VectorTileRequest.GRID_TYPE.values());
+        final GridType grid_type = RandomPicks.randomFrom(random(), GridType.values());
         assertRestRequest(
             (builder) -> { builder.field(VectorTileRequest.GRID_TYPE_FIELD.getPreferredName(), grid_type.name()); },
             (vectorTileRequest) -> { assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(grid_type)); }

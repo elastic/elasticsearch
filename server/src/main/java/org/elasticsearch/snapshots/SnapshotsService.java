@@ -368,10 +368,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     indices = List.copyOf(indexNames);
                 }
 
-                final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
-                    currentState,
-                    request.indicesOptions(),
-                    request.indices()
+                final List<String> dataStreams = new ArrayList<>(
+                    indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices())
                 );
                 dataStreams.addAll(systemDataStreamNames);
 
@@ -1346,11 +1344,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 } else {
                     // TODO: Restart snapshot on another node?
                     snapshotChanged = true;
-                    logger.warn("failing snapshot of shard [{}] on closed node [{}]", shardId, shardStatus.nodeId());
+                    logger.warn("failing snapshot of shard [{}] on departed node [{}]", shardId, shardStatus.nodeId());
                     final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                         shardStatus.nodeId(),
                         ShardState.FAILED,
-                        "node shutdown",
+                        "node left the cluster during snapshot",
                         shardStatus.generation()
                     );
                     shards.put(shardId, failedState);
@@ -1491,7 +1489,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
-            final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList());
+            final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).toList();
             final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId().entrySet()) {
@@ -1581,7 +1579,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
                     snapshot,
                     finalIndices,
-                    entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey).collect(Collectors.toList()),
+                    entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey).toList(),
                     entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                     failure,
                     threadPool.absoluteTimeInMillis(),
@@ -1637,7 +1635,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .stream()
             .filter(stateInfo -> finalIndices.containsAll(stateInfo.getIndices()))
             .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -2310,7 +2308,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         for (SnapshotId snapshotId : snapshotIds.stream()
             .filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
-            .collect(Collectors.toList())) {
+            .toList()) {
             final Version known = repositoryData.getVersion(snapshotId);
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs
             if (known == null) {

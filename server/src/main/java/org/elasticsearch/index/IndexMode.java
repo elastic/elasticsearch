@@ -18,18 +18,22 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -84,6 +88,16 @@ public enum IndexMode {
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
+        }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
         }
 
         @Override
@@ -154,6 +168,17 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            // We don't support field data on TSDB's _id
+            return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -239,6 +264,10 @@ public enum IndexMode {
     @Nullable
     public abstract CompressedXContent getDefaultMapping();
 
+    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
+
+    public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
+
     /**
      * Get timebounds
      */
@@ -252,6 +281,9 @@ public enum IndexMode {
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
 
+    /**
+     * How {@code time_series_dimension} fields are handled by indices in this mode.
+     */
     public abstract DocumentDimensions buildDocumentDimensions();
 
     public static IndexMode fromString(String value) {

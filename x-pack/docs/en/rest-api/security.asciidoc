@@ -141,6 +141,9 @@ Use the following APIs to retrieve and manage user profiles.
 * <<security-api-activiate-user-profile, Activate user profile>>
 * <<security-api-get-user-profile, Get user profile>>
 * <<security-api-update-user-profile-data, Update user profile data>>
+* <<security-api-enable-user-profile, Enable user profile>>
+* <<security-api-disable-user-profile, Disable user profile>>
+* <<security-api-search-user-profile, Search user profile>>
 
 
 include::security/activate-user-profile.asciidoc[]
@@ -165,6 +168,8 @@ include::security/delete-service-token.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
+include::security/disable-user-profile.asciidoc[]
+include::security/enable-user-profile.asciidoc[]
 include::security/enroll-kibana.asciidoc[]
 include::security/enroll-node.asciidoc[]
 include::security/get-api-keys.asciidoc[]
@@ -193,4 +198,5 @@ include::security/saml-invalidate-api.asciidoc[]
 include::security/saml-complete-logout-api.asciidoc[]
 include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]
+include::security/search-user-profile.asciidoc[]
 include::security/update-user-profile-data.asciidoc[]

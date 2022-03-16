@@ -791,6 +791,13 @@ public class SecuritySystemIndices {
                                 {
                                     builder.startObject("username");
                                     builder.field("type", "search_as_you_type");
+                                    builder.startObject("fields");
+                                    {
+                                        builder.startObject("keyword");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
                                     builder.endObject();
 
                                     builder.startObject("roles");
@@ -869,8 +876,8 @@ public class SecuritySystemIndices {
         }
     }
 
-    private void defineRealmDomain(XContentBuilder builder, String realm_domain) throws IOException {
-        builder.startObject(realm_domain);
+    private void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
+        builder.startObject(fieldName);
         {
             builder.field("type", "object");
             builder.startObject("properties");

@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
@@ -35,7 +36,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
@@ -290,6 +290,17 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         }
     }
 
+    public void testWillFilterForApiKeyId() {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(
+            new User(randomAlphaOfLengthBetween(5, 8)),
+            apiKeyId
+        );
+        final ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(randomFrom(randomSimpleQuery("name"), null), authentication);
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.idsQuery().addIds(apiKeyId)));
+    }
+
     private void testAllowedIndexFieldName(Predicate<String> predicate) {
         final String allowedField = randomFrom(
             "doc_type",
@@ -311,7 +322,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             .stream()
             .filter(q -> q.getClass() == TermQueryBuilder.class)
             .map(q -> (TermQueryBuilder) q)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         assertTrue(tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("doc_type", "api_key"))));
         if (authentication == null) {
             return;

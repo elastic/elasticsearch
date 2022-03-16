@@ -35,6 +35,10 @@ gradlePlugin {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
     }
+    distro {
+      id = 'elasticsearch.distro'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
+    }
     distroTest {
       id = 'elasticsearch.distro-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.DistroTestPlugin'
@@ -78,6 +82,10 @@ gradlePlugin {
     internalPlugin {
       id = 'elasticsearch.internal-es-plugin'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalPluginBuildPlugin'
+    }
+    internalBasePlugin {
+      id = 'elasticsearch.base-internal-es-plugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin'
     }
     internalTestArtifact {
       id = 'elasticsearch.internal-test-artifact'

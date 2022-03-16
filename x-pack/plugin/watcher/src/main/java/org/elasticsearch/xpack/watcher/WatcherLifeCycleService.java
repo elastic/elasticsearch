@@ -156,7 +156,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
             // shardrouting is not comparable, so we need some order mechanism
             .sorted(Comparator.comparing(ShardRouting::hashCode))
-            .collect(Collectors.toList());
+            .toList();
 
         if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {

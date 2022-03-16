@@ -14,6 +14,7 @@ import com.carrotsearch.hppc.LongSet;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -25,7 +26,7 @@ public class MultiSnapshotTests extends ESTestCase {
 
     public void testTrackSeqNoSimpleRange() throws Exception {
         final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
-        final List<Long> values = LongStream.range(0, 1024).boxed().collect(Collectors.toList());
+        final List<Long> values = LongStream.range(0, 1024).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(values);
         for (int i = 0; i < 1023; i++) {
             assertThat(bitSet.getAndSet(values.get(i)), equalTo(false));
@@ -63,7 +64,9 @@ public class MultiSnapshotTests extends ESTestCase {
         for (long i = 0; i < iterations; i++) {
             int batchSize = between(1, 1500);
             currentSeq -= batchSize;
-            List<Long> batch = LongStream.range(currentSeq, currentSeq + batchSize).boxed().collect(Collectors.toList());
+            List<Long> batch = LongStream.range(currentSeq, currentSeq + batchSize)
+                .boxed()
+                .collect(Collectors.toCollection(ArrayList::new));
             Randomness.shuffle(batch);
             batch.forEach(seq -> {
                 boolean existed = normalSet.add(seq) == false;

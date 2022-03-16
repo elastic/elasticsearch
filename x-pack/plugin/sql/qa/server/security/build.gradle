@@ -7,9 +7,6 @@ dependencies {
 
 Project mainProject = project
 
-// Tests are pushed down to subprojects and will be checked there.
-tasks.named("testingConventions").configure { enabled = false }
-
 subprojects {
   // Use tests from the root security qa project in subprojects
   configurations.create('testArtifacts').transitive(false)

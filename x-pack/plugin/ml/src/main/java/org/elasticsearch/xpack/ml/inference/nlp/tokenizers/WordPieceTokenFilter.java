@@ -171,16 +171,10 @@ public final class WordPieceTokenFilter extends TokenFilter {
         return false;
     }
 
-    public static class WordPieceToken extends DelimitedToken implements CharSequence {
-        public final int encoding;
+    public static class WordPieceToken extends DelimitedToken.Encoded implements CharSequence {
 
         WordPieceToken(CharSequence sequence, int encoding, int startOffset, int endOffset) {
-            super(sequence, startOffset, endOffset);
-            this.encoding = encoding;
-        }
-
-        public int getEncoding() {
-            return this.encoding;
+            super(sequence, encoding, startOffset, endOffset);
         }
 
         @Override

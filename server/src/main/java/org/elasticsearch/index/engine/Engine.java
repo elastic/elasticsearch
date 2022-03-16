@@ -358,10 +358,11 @@ public abstract class Engine implements Closeable {
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
         private final Mapping requiredMappingUpdate;
+        private final String id;
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo, String id) {
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
@@ -369,9 +370,10 @@ public abstract class Engine implements Closeable {
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
+            this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long term, long seqNo) {
+        protected Result(Operation.TYPE operationType, long version, long term, long seqNo, String id) {
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
@@ -379,9 +381,10 @@ public abstract class Engine implements Closeable {
             this.failure = null;
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
+            this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate) {
+        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
@@ -389,6 +392,7 @@ public abstract class Engine implements Closeable {
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
+            this.id = id;
         }
 
         /** whether the operation was successful, has failed or was aborted due to a mapping update */
@@ -441,6 +445,10 @@ public abstract class Engine implements Closeable {
             return operationType;
         }
 
+        public String getId() {
+            return id;
+        }
+
         void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
                 this.translogLocation = translogLocation;
@@ -472,57 +480,56 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long term, long seqNo, boolean created) {
-            super(Operation.TYPE.INDEX, version, term, seqNo);
+        public IndexResult(long version, long term, long seqNo, boolean created, String id) {
+            super(Operation.TYPE.INDEX, version, term, seqNo, id);
             this.created = created;
         }
 
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, String id) {
+            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, id);
         }
 
-        public IndexResult(Exception failure, long version, long term, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, term, seqNo);
+        public IndexResult(Exception failure, long version, long term, long seqNo, String id) {
+            super(Operation.TYPE.INDEX, failure, version, term, seqNo, id);
             this.created = false;
         }
 
-        public IndexResult(Mapping requiredMappingUpdate) {
-            super(Operation.TYPE.INDEX, requiredMappingUpdate);
+        public IndexResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
         }
 
         public boolean isCreated() {
             return created;
         }
-
     }
 
     public static class DeleteResult extends Result {
 
         private final boolean found;
 
-        public DeleteResult(long version, long term, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, term, seqNo);
+        public DeleteResult(long version, long term, long seqNo, boolean found, String id) {
+            super(Operation.TYPE.DELETE, version, term, seqNo, id);
             this.found = found;
         }
 
         /**
          * use in case of the delete operation failed before getting to internal engine
          **/
-        public DeleteResult(Exception failure, long version, long term) {
-            this(failure, version, term, UNASSIGNED_SEQ_NO, false);
+        public DeleteResult(Exception failure, long version, long term, String id) {
+            this(failure, version, term, UNASSIGNED_SEQ_NO, false, id);
         }
 
-        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, term, seqNo);
+        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found, String id) {
+            super(Operation.TYPE.DELETE, failure, version, term, seqNo, id);
             this.found = found;
         }
 
-        public DeleteResult(Mapping requiredMappingUpdate) {
-            super(Operation.TYPE.DELETE, requiredMappingUpdate);
+        public DeleteResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
             this.found = false;
         }
 
@@ -535,11 +542,11 @@ public abstract class Engine implements Closeable {
     public static class NoOpResult extends Result {
 
         NoOpResult(long term, long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, term, seqNo);
+            super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
         NoOpResult(long term, long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
+            super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 
     }

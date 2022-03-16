@@ -1021,12 +1021,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // and therefor we will have sufficient disk space on node1.
         ClusterState result = strategy.reroute(clusterState, "reroute");
         assertThat(result, equalTo(clusterState));
-        assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().relocatingNodeId(), nullValue());
-        assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().state(), equalTo(RELOCATING));
-        assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().relocatingNodeId(), equalTo("node2"));
+        assertThat(result.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
+        assertThat(result.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(result.routingTable().index("test").shard(0).primaryShard().relocatingNodeId(), nullValue());
+        assertThat(result.routingTable().index("test").shard(1).primaryShard().state(), equalTo(RELOCATING));
+        assertThat(result.routingTable().index("test").shard(1).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(result.routingTable().index("test").shard(1).primaryShard().relocatingNodeId(), equalTo("node2"));
     }
 
     public void testWatermarksEnabledForSingleDataNode() {
@@ -1104,7 +1104,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         ClusterState result = strategy.reroute(clusterState, "reroute");
 
-        ShardRouting shardRouting = result.routingTable().index("test").getShards().get(0).primaryShard();
+        ShardRouting shardRouting = result.routingTable().index("test").shard(0).primaryShard();
         assertThat(shardRouting.state(), equalTo(UNASSIGNED));
         assertThat(shardRouting.currentNodeId(), nullValue());
         assertThat(shardRouting.relocatingNodeId(), nullValue());

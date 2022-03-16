@@ -240,7 +240,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     private static List<String> addresses(final DiscoveryNode... seedNodes) {
-        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
+        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toCollection(ArrayList::new));
     }
 
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
@@ -555,7 +555,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             List<String> seedNodes = new CopyOnWriteArrayList<>(
                 randomSubsetOf(
                     randomIntBetween(1, discoverableNodes.size()),
-                    discoverableNodes.stream().map(d -> d.getAddress().toString()).collect(Collectors.toList())
+                    discoverableNodes.stream().map(d -> d.getAddress().toString()).toList()
                 )
             );
             Collections.shuffle(seedNodes, random());

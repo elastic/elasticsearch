@@ -24,7 +24,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
-import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
+import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -174,7 +174,7 @@ allprojects {
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
 
-  plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
+  plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
       compileOnly project(":server")
       testImplementation project(":test:framework")

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.vectors.action;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -37,11 +39,18 @@ class KnnSearchRequestBuilder {
     static final String ROUTING_PARAM = "routing";
 
     static final ParseField KNN_SECTION_FIELD = new ParseField("knn");
+    static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ObjectParser<KnnSearchRequestBuilder, Void> PARSER;
 
     static {
         PARSER = new ObjectParser<>("knn-search");
         PARSER.declareField(KnnSearchRequestBuilder::knnSearch, KnnSearch::parse, KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareFieldArray(
+            KnnSearchRequestBuilder::filter,
+            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+            FILTER_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
         PARSER.declareField(
             (p, request, c) -> request.fetchSource(FetchSourceContext.fromXContent(p)),
             SearchSourceBuilder._SOURCE_FIELD,
@@ -86,6 +95,7 @@ class KnnSearchRequestBuilder {
     private final String[] indices;
     private String routing;
     private KnnSearch knnSearch;
+    private List<QueryBuilder> filters;
 
     private FetchSourceContext fetchSource;
     private List<FieldAndFormat> fields;
@@ -101,6 +111,10 @@ class KnnSearchRequestBuilder {
      */
     private void knnSearch(KnnSearch knnSearch) {
         this.knnSearch = knnSearch;
+    }
+
+    private void filter(List<QueryBuilder> filter) {
+        this.filters = filter;
     }
 
     /**
@@ -152,17 +166,22 @@ class KnnSearchRequestBuilder {
         if (knnSearch == null) {
             throw new IllegalArgumentException("missing required [" + KNN_SECTION_FIELD.getPreferredName() + "] section in search body");
         }
-        knnSearch.build(sourceBuilder);
+
+        KnnVectorQueryBuilder queryBuilder = knnSearch.buildQuery();
+        if (filters != null) {
+            queryBuilder.addFilterQueries(this.filters);
+        }
+
+        sourceBuilder.query(queryBuilder);
+        sourceBuilder.size(knnSearch.k);
 
         sourceBuilder.fetchSource(fetchSource);
         sourceBuilder.storedFields(storedFields);
-
         if (fields != null) {
             for (FieldAndFormat field : fields) {
                 sourceBuilder.fetchField(field);
             }
         }
-
         if (docValueFields != null) {
             for (FieldAndFormat field : docValueFields) {
                 sourceBuilder.docValueField(field.field, field.format);
@@ -221,7 +240,7 @@ class KnnSearchRequestBuilder {
             this.numCands = numCands;
         }
 
-        void build(SearchSourceBuilder builder) {
+        public KnnVectorQueryBuilder buildQuery() {
             // We perform validation here instead of the constructor because it makes the errors
             // much clearer. Otherwise, the error message is deeply nested under parsing exceptions.
             if (k < 1) {
@@ -236,8 +255,7 @@ class KnnSearchRequestBuilder {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
 
-            builder.query(new KnnVectorQueryBuilder(field, queryVector, numCands));
-            builder.size(k);
+            return new KnnVectorQueryBuilder(field, queryVector, numCands);
         }
 
         @Override

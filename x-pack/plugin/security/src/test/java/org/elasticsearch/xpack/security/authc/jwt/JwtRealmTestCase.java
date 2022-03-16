@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jwt.SignedJWT;
@@ -15,6 +14,7 @@ import com.nimbusds.openid.connect.sdk.Nonce;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAu
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
@@ -67,7 +68,9 @@ import static org.mockito.Mockito.when;
 public abstract class JwtRealmTestCase extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmTestCase.class);
 
-    record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm) {}
+    record JwtRealmNameAndSettingsBuilder(String name, Settings.Builder settingsBuilder) {}
+
+    record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm, JwtRealmNameAndSettingsBuilder realmNameAndSettings) {}
 
     record MinMax(int min, int max) {
         MinMax {
@@ -91,7 +94,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     @After
     public void shutdown() throws Exception {
         if (this.jwtIssuerAndRealms != null) {
-            this.jwtIssuerAndRealms.stream().filter(p -> p.realm != null).forEach(p -> p.realm.close());
+            this.jwtIssuerAndRealms.forEach(jwtIssuerAndRealm -> {
+                jwtIssuerAndRealm.realm.close(); // Close HTTPS client (if any)
+                jwtIssuerAndRealm.issuer.close(); // Close HTTPS server (if any)
+            });
         }
         this.resourceWatcherService.close();
         terminate(this.threadPool);
@@ -118,7 +124,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         MinMax usersRange,
         MinMax rolesRange,
         MinMax jwtCacheSizeRange,
-        MinMax userCacheSizeRange
+        MinMax userCacheSizeRange,
+        boolean createHttpsServer
     ) throws Exception {
         assertThat(realmsRange.min(), is(greaterThanOrEqualTo(1)));
         assertThat(authzRange.min(), is(greaterThanOrEqualTo(0)));
@@ -142,13 +149,22 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final int jwtCacheSize = randomIntBetween(jwtCacheSizeRange.min(), jwtCacheSizeRange.max());
             final int usersCacheSize = randomIntBetween(userCacheSizeRange.min(), userCacheSizeRange.max());
 
-            final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount);
-            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, authzCount, jwtCacheSize, usersCacheSize);
-            this.jwtIssuerAndRealms.add(new JwtIssuerAndRealm(jwtIssuer, jwtRealm));
+            final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
+            // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
+            try {
+                final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(jwtIssuer, authzCount);
+                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, realmNameAndSettingsBuilder);
 
-            // verify exception before initialize()
-            final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
-            assertThat(exception.getMessage(), equalTo("Realm has not been initialized"));
+                // verify exception before initialize()
+                final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
+                assertThat(exception.getMessage(), equalTo("Realm has not been initialized"));
+
+                final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmNameAndSettingsBuilder);
+                this.jwtIssuerAndRealms.add(jwtIssuerAndRealm);
+            } catch (Throwable t) {
+                jwtIssuer.close();
+                throw t;
+            }
         }
         allRealms.forEach(realm -> realm.initialize(allRealms, this.licenseState)); // JWT realms and authz realms
         this.jwtIssuerAndRealms.forEach(p -> p.realm.ensureInitialized()); // verify no exception after initialize()
@@ -160,8 +176,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final int algsCount,
         final int audiencesCount,
         final int userCount,
-        final int roleCount
-    ) throws JOSEException {
+        final int roleCount,
+        final boolean createHttpsServer
+    ) throws Exception {
         final String issuer = "iss" + (i + 1) + "_" + randomIntBetween(0, 9999);
 
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
@@ -190,16 +207,12 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
         final List<String> audiences = IntStream.range(0, audiencesCount).mapToObj(j -> issuer + "_aud" + (j + 1)).toList();
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
-        return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users);
+
+        // Decide if public PKC JWKSet will be hosted in a local file or an HTTPS URL. If HTTPS URL, tell issuer to set up an HTTPS server.
+        return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users, createHttpsServer);
     }
 
-    protected JwtRealm createJwtRealm(
-        final List<Realm> allRealms, // JWT realms and authz realms
-        final JwtIssuer jwtIssuer,
-        final int authzCount,
-        final int jwtCacheSize,
-        final int usersCacheSize
-    ) throws Exception {
+    protected JwtRealmNameAndSettingsBuilder createJwtRealmSettings(final JwtIssuer jwtIssuer, final int authzCount) throws Exception {
         final String authcRealmName = "realm_" + jwtIssuer.issuer;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
@@ -207,7 +220,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final Settings.Builder authcSettings = Settings.builder()
             .put(this.globalSettings)
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), jwtIssuer.algorithmsCsv())
+            .put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
+                String.join(",", jwtIssuer.algorithmsAll)
+            )
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.audiences))
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
@@ -227,12 +243,21 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             );
         }
-        if ((jwtIssuer.getJwkSetPkc() != null) || (randomBoolean())) {
-            // always set non-empty JWKSet, or optionally set null if empty
-            authcSettings.put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                super.saveJwkSetToTempFile(jwtIssuer.getJwkSetPkc(), true)
-            );
+        if (Strings.hasText(jwtIssuer.encodedJwkSetPkcPublic)) {
+            final String jwkSetPath; // file or HTTPS URL
+            if (jwtIssuer.httpsServer == null) {
+                jwkSetPath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
+            } else {
+                authcSettings.putList(
+                    RealmSettings.getFullSettingKey(
+                        new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, authcRealmName),
+                        SSLConfigurationSettings.CAPATH_SETTING_REALM
+                    ),
+                    JwtIssuerHttpsServer.CERT_PATH.toString()
+                );
+                jwkSetPath = jwtIssuer.httpsServer.url;
+            }
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH), jwkSetPath);
         }
         if (randomBoolean()) {
             // principal claim name is required, but principal claim pattern is optional
@@ -262,18 +287,16 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         }
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {
-            // always set if non-empty
+        if (Strings.hasText(jwtIssuer.encodedJwkSetHmac)) {
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_JWKSET),
-                JwtUtil.serializeJwkSet(jwtIssuer.getJwkSetHmac(), false)
+                jwtIssuer.encodedJwkSetHmac
             );
         }
-        if (jwtIssuer.algAndJwkHmacOidc != null) {
-            // always set if non-empty
+        if (Strings.hasText(jwtIssuer.encodedKeyHmacOidc)) {
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_KEY),
-                new String(jwtIssuer.algAndJwkHmacOidc.jwk().toOctetSequenceKey().toByteArray(), StandardCharsets.UTF_8)
+                jwtIssuer.encodedKeyHmacOidc
             );
         }
         if (clientAuthenticationType.equals(ClientAuthenticationType.SHARED_SECRET)) {
@@ -285,27 +308,34 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             );
         }
         authcSettings.setSecureSettings(secureSettings);
+        return new JwtRealmNameAndSettingsBuilder(authcRealmName, authcSettings);
+    }
 
-        final RealmConfig authcConfig = super.buildRealmConfig(
-            JwtRealmSettings.TYPE,
-            authcRealmName,
-            authcSettings.build(),
-            (allRealms.size() + 1)
+    protected JwtRealm createJwtRealm(
+        final List<Realm> allRealms, // JWT realms and authz realms
+        final JwtIssuer jwtIssuer,
+        final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder
+    ) {
+        final String authcRealmName = realmNameAndSettingsBuilder.name;
+        final Settings settings = realmNameAndSettingsBuilder.settingsBuilder.build();
+        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, authcRealmName, settings, (allRealms.size() + 1));
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
+        final List<String> authzRealmNames = settings.getAsList(
+            RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE))
         );
-        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(authcSettings.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper((authzRealmNames.length >= 1) ? Map.of() : jwtIssuer.users);
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.users : Map.of());
 
         // If authz names is not set, register the users here in the JWT authc realm.
         final JwtRealm jwtRealm = new JwtRealm(authcConfig, sslService, userRoleMapper);
         allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.
-        if (authzRealmNames.length >= 1) {
-            final int selected = randomIntBetween(0, authzRealmNames.length - 1);
-            for (int i = 0; i < authzRealmNames.length; i++) {
-                final RealmConfig authzConfig = this.buildRealmConfig("authz", authzRealmNames[i], Settings.EMPTY, allRealms.size() + 1);
+        if (authzRealmNames.isEmpty() == false) {
+            final String selected = randomFrom(authzRealmNames);
+            for (final String authzRealmName : authzRealmNames) {
+                final RealmConfig authzConfig = this.buildRealmConfig("authz", authzRealmName, Settings.EMPTY, allRealms.size() + 1);
                 final MockLookupRealm authzRealm = new MockLookupRealm(authzConfig);
-                if (i == selected) {
+                if (authzRealmName.equals(selected)) {
                     jwtIssuer.users.values().forEach(authzRealm::registerUser);
                 }
                 allRealms.add(authzRealm);
@@ -518,7 +548,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user) throws Exception {
-        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.getAllAlgJwkPairs());
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.algAndJwksAll);
         LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -544,4 +574,5 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPair.jwk(), SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
         return signedJWT;
     }
+
 }

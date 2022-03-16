@@ -149,7 +149,7 @@ include::systemd.asciidoc[]
 
 [[deb-check-running]]
 
-:os-dir:       /etc/elasticsearch
+:es-conf:       /etc/elasticsearch
 :slash:        /
 
 include::check-running.asciidoc[]

@@ -72,7 +72,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
@@ -580,7 +579,7 @@ public class TokenServiceTests extends ESTestCase {
         final String accessToken = tokenFuture.get().getAccessToken();
         final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);
-        mockFindTokenFromRefreshToken(rawRefreshToken, buildUserToken(tokenService, userTokenId, authentication), null);
+        mockFindTokenFromRefreshToken(rawRefreshToken, buildUserToken(tokenService, userTokenId, authentication, Map.of()), null);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, accessToken);
@@ -608,7 +607,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(accessToken);
         mockFindTokenFromRefreshToken(
             rawRefreshToken,
-            buildUserToken(tokenService, userTokenId, authentication),
+            buildUserToken(tokenService, userTokenId, authentication, Map.of()),
             newRefreshTokenStatus(true, authentication, false, null, null, null, null)
         );
 
@@ -1033,13 +1032,14 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     private void mockGetTokenFromId(TokenService tokenService, String accessToken, Authentication authentication, boolean isExpired) {
-        mockGetTokenFromId(tokenService, accessToken, authentication, isExpired, client);
+        mockGetTokenFromId(tokenService, accessToken, authentication, Map.of(), isExpired, client);
     }
 
     public static void mockGetTokenFromId(
         TokenService tokenService,
         String userTokenId,
         Authentication authentication,
+        Map<String, Object> metadata,
         boolean isExpired,
         Client client
     ) {
@@ -1058,7 +1058,7 @@ public class TokenServiceTests extends ESTestCase {
             if (possiblyHashedUserTokenId.equals(request.id().replace("token_", ""))) {
                 when(response.isExists()).thenReturn(true);
                 Map<String, Object> sourceMap = new HashMap<>();
-                final UserToken userToken = buildUserToken(tokenService, userTokenId, authentication);
+                final UserToken userToken = buildUserToken(tokenService, userTokenId, authentication, metadata);
                 try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     userToken.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     Map<String, Object> accessTokenMap = new HashMap<>();
@@ -1076,7 +1076,12 @@ public class TokenServiceTests extends ESTestCase {
         }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
-    protected static UserToken buildUserToken(TokenService tokenService, String userTokenId, Authentication authentication) {
+    protected static UserToken buildUserToken(
+        TokenService tokenService,
+        String userTokenId,
+        Authentication authentication,
+        Map<String, Object> metadata
+    ) {
         final Version tokenVersion = tokenService.getTokenVersionCompatibility();
         final String possiblyHashedUserTokenId;
         if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
@@ -1085,20 +1090,13 @@ public class TokenServiceTests extends ESTestCase {
             possiblyHashedUserTokenId = userTokenId;
         }
 
-        final Authentication tokenAuth = new Authentication(
-            authentication.getUser(),
-            authentication.getAuthenticatedBy(),
-            authentication.getLookedUpBy(),
-            tokenVersion,
-            AuthenticationType.TOKEN,
-            authentication.getMetadata()
-        );
+        final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
         final UserToken userToken = new UserToken(
             possiblyHashedUserTokenId,
             tokenVersion,
             tokenAuth,
             tokenService.getExpirationTime(),
-            authentication.getMetadata()
+            metadata
         );
         return userToken;
     }

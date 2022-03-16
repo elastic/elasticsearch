@@ -19,6 +19,7 @@ import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -76,7 +77,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     ),
-                    new HealthIndicatorImpact(2, "Snapshots in corrupted repositories cannot be restored. Data loss is possible.")
+                    new SimpleHealthIndicatorImpact(2, "Snapshots in corrupted repositories cannot be restored. Data loss is possible.")
                 )
             )
         );

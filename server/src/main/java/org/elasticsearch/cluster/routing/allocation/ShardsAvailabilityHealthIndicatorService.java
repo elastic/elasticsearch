@@ -21,6 +21,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -224,7 +225,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     getTruncatedIndicesString(primaries),
                     replicas.indicesWithUnavailableShards.size() == 1 ? "is" : "are"
                 );
-                impact = new HealthIndicatorImpact(2, impactDescription);
+                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
             } else if (primaries.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
@@ -233,7 +234,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(primaries)
                 );
-                impact = new HealthIndicatorImpact(2, impactDescription);
+                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
             } else if (replicas.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
@@ -242,7 +243,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     replicas.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(replicas)
                 );
-                impact = new HealthIndicatorImpact(3, impactDescription);
+                impact = new SimpleHealthIndicatorImpact(3, impactDescription);
             } else {
                 impact = HealthIndicatorImpact.EMPTY;
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -107,7 +108,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         "started_replicas",
                         availableReplicas.size()
                     ),
-                    new HealthIndicatorImpact(
+                    new SimpleHealthIndicatorImpact(
                         3,
                         "Redundancy for 1 index [yellow-index] is currently disrupted. Fault tolerance and search scalability are reduced."
                     )
@@ -127,7 +128,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
-                    new HealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                    new SimpleHealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                 )
             )
         );
@@ -179,7 +180,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "This cluster has 1 unavailable replica.",
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
-                    new HealthIndicatorImpact(
+                    new SimpleHealthIndicatorImpact(
                         3,
                         "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are "
                             + "reduced."
@@ -248,7 +249,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
-                    new HealthIndicatorImpact(2, "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results.")
+                    new SimpleHealthIndicatorImpact(
+                        2,
+                        "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results."
+                    )
                 )
             )
         );

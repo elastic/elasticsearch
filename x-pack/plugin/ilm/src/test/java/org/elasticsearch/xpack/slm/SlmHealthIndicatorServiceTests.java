@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -67,7 +68,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "SLM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
-                    new HealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
+                    new SimpleHealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
                 )
             )
         );

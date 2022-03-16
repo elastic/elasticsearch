@@ -16,6 +16,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -53,7 +54,9 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         DiscoveryNode masterNode = nodes.getMasterNode();
 
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
-        HealthIndicatorImpact impact = masterNode == null ? new HealthIndicatorImpact(1, NO_MASTER_IMPACT) : HealthIndicatorImpact.EMPTY;
+        HealthIndicatorImpact impact = masterNode == null
+            ? new SimpleHealthIndicatorImpact(1, NO_MASTER_IMPACT)
+            : HealthIndicatorImpact.EMPTY;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
 
         return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, (builder, params) -> {

@@ -2063,7 +2063,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 exception.getMessage(),
                 equalTo(
                     "failed to parse field [foo] of type [long] in a time series document at "
-                        + "2021-04-28T00:01:00.000Z. Preview of field's value: 'true'"
+                        + "[2021-04-28T00:01:00.000Z]. Preview of field's value: 'true'"
                 )
             );
         }

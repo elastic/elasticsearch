@@ -43,12 +43,12 @@ public enum ByteUtils {
         return (long) LITTLE_ENDIAN_LONG.get(arr, offset);
     }
 
-    /** Write a long in little-endian format. */
+    /** Write a long in big-endian format. */
     public static void writeLongBE(long l, byte[] arr, int offset) {
         BIG_ENDIAN_LONG.set(arr, offset, l);
     }
 
-    /** Write a long in little-endian format. */
+    /** Write a long in big-endian format. */
     public static long readLongBE(byte[] arr, int offset) {
         return (long) BIG_ENDIAN_LONG.get(arr, offset);
     }

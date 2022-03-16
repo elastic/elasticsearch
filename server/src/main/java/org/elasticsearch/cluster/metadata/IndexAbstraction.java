@@ -151,7 +151,7 @@ public interface IndexAbstraction {
             this.concreteIndexName = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? indexMetadata.getAliases().keySet().stream().toList() : null;
+            this.aliases = indexMetadata.getAliases() != null ? List.copyOf(indexMetadata.getAliases().keySet()) : null;
             this.dataStream = dataStream;
         }
 
@@ -232,28 +232,26 @@ public interface IndexAbstraction {
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
             this.referenceIndexMetadatas = new ArrayList<>(indices.size());
+            boolean isSystem = true;
+            Index widx = null;
             for (IndexMetadata imd : indices) {
                 this.referenceIndexMetadatas.add(imd.getIndex());
+                if (Boolean.TRUE.equals(imd.getAliases().get(aliasName).writeIndex())) {
+                    if (widx != null) {
+                        throw new IllegalStateException("write indices size can only be 0 or 1, but is at least 2");
+                    }
+                    widx = imd.getIndex();
+                }
+                isSystem = isSystem && imd.isSystem();
             }
 
-            List<IndexMetadata> writeIndices = indices.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toCollection(ArrayList::new));
-
-            if (writeIndices.isEmpty() && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(indices.get(0));
+            if (widx == null && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                widx = indices.get(0).getIndex();
             }
-
-            if (writeIndices.size() == 0) {
-                this.writeIndex = null;
-            } else if (writeIndices.size() == 1) {
-                this.writeIndex = writeIndices.get(0).getIndex();
-            } else {
-                throw new IllegalStateException("write indices size can only be 0 or 1, but is [" + writeIndices.size() + "]");
-            }
+            this.writeIndex = widx;
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
-            this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
+            this.isSystem = isSystem;
             dataStreamAlias = false;
         }
 

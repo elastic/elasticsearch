@@ -380,7 +380,10 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchDoesNotRequireContentTypeForRequestsWithoutContent() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         assertFalse(channel.getSendResponseCalled());
@@ -390,10 +393,13 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchFailsWithPlainText() {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(content),
-            null
-        ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray(content), null)
+            .withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain")))
+            .build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
         restController.registerHandler(
             new Route(GET, "/foo"),
@@ -408,10 +414,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchUnsupportedContentType() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), null)
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), null)
             .withPath("/")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("application/x-www-form-urlencoded")))
             .build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
 
         assertFalse(channel.getSendResponseCalled());
@@ -422,10 +431,13 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchWorksWithNewlineDelimitedJson() {
         final String mediaType = "application/x-ndjson";
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(content),
-            null
-        ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mediaType))).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray(content), null)
+            .withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mediaType)))
+            .build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -450,10 +462,13 @@ public class RestControllerTests extends ESTestCase {
         final String mediaType = randomFrom("application/json", "application/smile");
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> contentTypeHeader = Collections.singletonList(mediaType);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray(content),
             RestRequest.parseContentType(contentTypeHeader)
         ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -475,10 +490,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWithContentStreamNoContentType() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), null)
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), null)
             .withPath("/foo")
             .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -497,10 +515,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testNonStreamingXContentCausesErrorResponse() throws IOException {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
             XContentType.YAML
         ).withPath("/foo").build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -519,10 +540,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testUnknownContentWithContentStream() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray("aaaabbbbb"),
             null
         ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("foo/bar"))).build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -895,6 +919,10 @@ public class RestControllerTests extends ESTestCase {
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         builder.withPath(path);
         builder.withContent(new BytesArray(content), xContentType);
-        return builder.build();
+        if (randomBoolean()) {
+            return builder.build();
+        } else {
+            return new RestRequest(builder.build());
+        }
     }
 }

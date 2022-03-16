@@ -194,9 +194,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         if (indexRoutingTable == null) {
             throw new IndexNotFoundException(index);
         }
-        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                shards.add(shardRouting);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                shards.add(indexShardRoutingTable.shard(copy));
             }
         }
         return shards;
@@ -233,8 +234,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 continue;
                 // we simply ignore indices that don't exists (make sense for operations that use it currently)
             }
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                     if (predicate.test(shardRouting)) {
                         set.add(shardRouting.shardsIt());
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
@@ -271,8 +274,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 continue;
                 // we simply ignore indices that don't exists (make sense for operations that use it currently)
             }
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                     if (predicate.test(shardRouting)) {
                         shards.add(shardRouting);
                         if (includeRelocationTargets && shardRouting.relocating()) {
@@ -302,7 +307,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (indexRoutingTable == null) {
                 throw new IndexNotFoundException(index);
             }
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                 ShardRouting primary = indexShardRoutingTable.primaryShard();
                 if (primary.active()) {
                     set.add(primary.shardsIt());
@@ -462,11 +468,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     // ignore index missing failure, its closed...
                     continue;
                 }
-                int currentNumberOfReplicas = indexRoutingTable.shards().get(0).size() - 1; // remove the required primary
+                int currentNumberOfReplicas = indexRoutingTable.shard(0).size() - 1; // remove the required primary
                 IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
                 // re-add all the shards
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    builder.addIndexShard(indexShardRoutingTable);
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    builder.addIndexShard(indexRoutingTable.shard(i));
                 }
                 if (currentNumberOfReplicas < numberOfReplicas) {
                     // now, add "empty" ones

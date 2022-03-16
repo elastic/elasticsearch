@@ -18,7 +18,11 @@ public interface Tracer {
     /**
      * Called when the {@link Traceable} activity starts.
      */
-    void onTraceStarted(Traceable traceable);
+    default void onTraceStarted(Traceable traceable) {
+        this.onTraceStarted(traceable, null);
+    }
+
+    void onTraceStarted(Traceable traceable, String traceparent);
 
     /**
      * Called when the {@link Traceable} activity ends.
@@ -29,8 +33,6 @@ public interface Tracer {
      * Retrieve context related headers for the span of the given id.
      */
     Map<String, String> getSpanHeadersById(String id);
-
-    void setTraceParent(String traceId);
 
     void addEvent(Traceable traceable, String name);
 }

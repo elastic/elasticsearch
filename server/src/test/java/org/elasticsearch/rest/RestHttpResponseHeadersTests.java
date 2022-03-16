@@ -80,7 +80,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, tracers);
+        RestController restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());

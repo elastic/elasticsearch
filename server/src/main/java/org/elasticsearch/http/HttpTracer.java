@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -46,13 +47,15 @@ class HttpTracer {
     }
 
     void onTraceStarted(RestChannel channel) {
-        final String header = channel.request().header(Task.TRACE_PARENT_HTTP_HEADER);
-        this.tracers.forEach(t -> {
-            if (header != null) {
-                t.setTraceParent(header);
+        final List<String> headerValues = channel.request().getAllHeaderValues(Task.TRACE_PARENT_HTTP_HEADER);
+        if (headerValues != null && headerValues.size() == 1) {
+            String traceparent = headerValues.get(0);
+            if (traceparent.length() >= 55) {
+                this.tracers.forEach(t -> t.onTraceStarted(channel, traceparent));
             }
-            t.onTraceStarted(channel);
-        });
+        } else {
+            this.tracers.forEach(t -> t.onTraceStarted(channel));
+        }
     }
 
     void onTraceStopped(RestChannel channel) {

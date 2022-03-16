@@ -29,7 +29,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -92,15 +91,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final List<Tracer> tracers;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService,
-        List<Tracer> tracers) {
+        UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -109,7 +106,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        this.tracers = tracers;
         registerHandlerNoWrap(
             RestRequest.Method.GET,
             "/favicon.ico",
@@ -504,7 +500,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         final String traceId = traceparent.substring(3, 35);
                         threadContext.putHeader(Task.TRACE_ID, traceId);
                         threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, traceparent);
-                        tracers.forEach(t -> t.setTraceParent(traceparent));
                     }
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));

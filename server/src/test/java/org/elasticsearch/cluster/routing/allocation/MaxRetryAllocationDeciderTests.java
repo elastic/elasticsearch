@@ -72,10 +72,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertEquals(prevRoutingTable.index("idx").shards().size(), 1);
+        assertEquals(prevRoutingTable.index("idx").size(), 1);
         assertEquals(prevRoutingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
 
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         return clusterState;
     }
@@ -98,7 +98,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
-            assertEquals(routingTable.index("idx").shards().size(), 1);
+            assertEquals(routingTable.index("idx").size(), 1);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i + 1);
             assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), containsString("boom" + i));
@@ -116,7 +116,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
         assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), containsString("boom"));
@@ -128,7 +128,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         routingTable = newState.routingTable();
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertEquals(0, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
         assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), containsString("boom"));
@@ -148,7 +148,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
-            assertEquals(routingTable.index("idx").shards().size(), 1);
+            assertEquals(routingTable.index("idx").size(), 1);
             assertEquals(i + 1, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
             assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
             assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), containsString("boom"));
@@ -167,7 +167,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertEquals(retries, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
         assertEquals(UNASSIGNED, routingTable.index("idx").shard(0).shards().get(0).state());
         assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), containsString("boom"));
@@ -191,7 +191,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
-            assertEquals(routingTable.index("idx").shards().size(), 1);
+            assertEquals(routingTable.index("idx").size(), 1);
             ShardRouting unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
             assertEquals(unassignedPrimary.state(), INITIALIZING);
             assertEquals(unassignedPrimary.unassignedInfo().getNumFailedAllocations(), i + 1);
@@ -220,7 +220,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
-            assertEquals(routingTable.index("idx").shards().size(), 1);
+            assertEquals(routingTable.index("idx").size(), 1);
             ShardRouting unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
             assertEquals(unassignedPrimary.unassignedInfo().getNumFailedAllocations(), retries);
             assertEquals(unassignedPrimary.state(), UNASSIGNED);
@@ -260,7 +260,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = newState;
         routingTable = newState.routingTable();
         // good we are initializing and we are maintaining failure information
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         ShardRouting unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
         assertEquals(unassignedPrimary.unassignedInfo().getNumFailedAllocations(), retries);
         assertEquals(unassignedPrimary.state(), INITIALIZING);
@@ -280,7 +280,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         routingTable = clusterState.routingTable();
 
         // all counters have been reset to 0 ie. no unassigned info
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         assertNull(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo());
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), STARTED);
 
@@ -297,7 +297,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
-        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(routingTable.index("idx").size(), 1);
         unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
         assertEquals(unassignedPrimary.unassignedInfo().getNumFailedAllocations(), 1);
         assertEquals(unassignedPrimary.state(), UNASSIGNED);

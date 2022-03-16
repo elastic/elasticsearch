@@ -137,7 +137,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 message.append(", ");
             }
             message.append("[").append(invalid).append("]");
-            final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
+            final List<String> keys = scoredParams.stream().map(Tuple::v2).toList();
             if (keys.isEmpty() == false) {
                 message.append(" -> did you mean ");
                 if (keys.size() == 1) {

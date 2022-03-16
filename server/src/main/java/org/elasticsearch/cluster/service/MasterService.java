@@ -267,7 +267,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 final var contextPreservingAckListener = executionResult.getContextPreservingAckListener();
                 if (contextPreservingAckListener != null) {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
-                    contextPreservingAckListener.onAllNodesAcked(null);
+                    contextPreservingAckListener.onAckSuccess();
                 }
                 executionResult.onClusterStateUnchanged(newClusterState);
             }
@@ -581,12 +581,20 @@ public class MasterService extends AbstractLifecycleComponent {
             return listener.mustAck(discoveryNode);
         }
 
-        public void onAllNodesAcked(@Nullable Exception e) {
+        public void onAckSuccess() {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onAllNodesAcked(e);
+                listener.onAllNodesAcked();
+            } catch (Exception inner) {
+                logger.error("exception thrown by listener while notifying on all nodes acked", inner);
+            }
+        }
+
+        public void onAckFailure(@Nullable Exception e) {
+            try (ThreadContext.StoredContext ignore = context.get()) {
+                listener.onAckFailure(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error("exception thrown by listener while notifying on all nodes acked", inner);
+                logger.error("exception thrown by listener while notifying on all nodes acked or failed", inner);
             }
         }
 
@@ -686,7 +694,12 @@ public class MasterService extends AbstractLifecycleComponent {
             if (ackTimeoutCallback != null) {
                 ackTimeoutCallback.cancel();
             }
-            contextPreservingAckListener.onAllNodesAcked(lastFailure);
+            final var failure = lastFailure;
+            if (failure == null) {
+                contextPreservingAckListener.onAckSuccess();
+            } else {
+                contextPreservingAckListener.onAckFailure(failure);
+            }
         }
 
         public void onTimeout() {

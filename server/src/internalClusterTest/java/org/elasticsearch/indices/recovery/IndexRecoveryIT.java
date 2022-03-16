@@ -1565,7 +1565,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
-            .collect(Collectors.toList());
+            .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
         internalCluster().stopRandomDataNode();
@@ -1681,7 +1681,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
-            .collect(Collectors.toList());
+            .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
@@ -1713,7 +1713,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
                             .map(s -> s.getStats().getStore().getReservedSize().getBytes())
-                            .collect(Collectors.toList()),
+                            .toList(),
                         everyItem(equalTo(StoreStats.UNKNOWN_RESERVED_BYTES))
                     );
                 }

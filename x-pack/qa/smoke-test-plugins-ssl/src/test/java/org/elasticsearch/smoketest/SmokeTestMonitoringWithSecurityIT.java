@@ -27,7 +27,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;

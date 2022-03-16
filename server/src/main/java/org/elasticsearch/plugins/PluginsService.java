@@ -83,11 +83,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     );
 
     public List<Setting<?>> getPluginSettings() {
-        return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).collect(Collectors.toList());
+        return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).toList();
     }
 
     public List<String> getPluginSettingsFilter() {
-        return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
+        return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).toList();
     }
 
     /**
@@ -206,7 +206,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (pluginInfos.isEmpty()) {
             logger.info("no " + type + "s loaded");
         } else {
-            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().collect(Collectors.toList())) {
+            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
         }
@@ -408,12 +408,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        logger.trace(
-            () -> "findBundles("
-                + type
-                + ") returning: "
-                + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
-        );
+        logger.trace(() -> "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().toList());
 
         return bundles;
     }
@@ -858,6 +853,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).toList();
     }
 }

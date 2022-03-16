@@ -72,7 +72,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("started_primaries", 2, "started_replicas", 1),
                     new SimpleHealthIndicatorImpact(
                         3,
-                        "Redundancy for 1 index [unreplicated-index] is currently disrupted. Fault tolerance and search scalability are reduced."
+                        "Redundancy for 1 index [unreplicated-index] is currently disrupted. Fault tolerance and search scalability are "
+                            + "reduced."
                     )
                 )
             )
@@ -256,7 +257,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("creating_primaries", 1),
                     new SimpleHealthIndicatorImpact(
                         3,
-                        "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are reduced."
+                        "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are "
+                            + "reduced."
                     )
                 )
             )
@@ -279,7 +281,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("restarting_primaries", 1),
                     new SimpleHealthIndicatorImpact(
                         3,
-                        "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are reduced."
+                        "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are "
+                            + "reduced."
                     )
                 )
             )

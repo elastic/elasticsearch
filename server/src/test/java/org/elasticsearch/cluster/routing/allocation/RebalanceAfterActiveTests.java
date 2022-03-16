@@ -131,13 +131,13 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         // we only allow one relocation at a time
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(5));
-        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
+        for (int shardId = 0; shardId < clusterState.routingTable().index("test").size(); shardId++) {
             int num = 0;
-            final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(i);
-            for (int j = 0; j < shardRoutingTable.size(); j++) {
-                ShardRouting routing = shardRoutingTable.shard(j);
+            final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting routing = shardRoutingTable.shard(copy);
                 if (routing.state() == RELOCATING || routing.state() == INITIALIZING) {
-                    assertEquals(routing.getExpectedShardSize(), sizes[i]);
+                    assertEquals(routing.getExpectedShardSize(), sizes[shardId]);
                     num++;
                 }
             }

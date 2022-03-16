@@ -393,8 +393,8 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                     ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
                     if (docShard.id() == shard) {
                         final IndexShardRoutingTable indexShardRoutingTable = state.routingTable().shardRoutingTable("test", shard);
-                        for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                            ShardRouting shardRouting = indexShardRoutingTable.shard(j);
+                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                            ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                             GetResponse response = client().prepareGet("test", id)
                                 .setPreference("_only_nodes:" + shardRouting.currentNodeId())
                                 .get();

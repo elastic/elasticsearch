@@ -581,8 +581,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * If any of the peer-recovery retention leases need renewal, it's a good opportunity to renew them all.
          */
         boolean renewalNeeded = false;
-        for (int i = 0; i < routingTable.size(); i++) {
-            final ShardRouting shardRouting = routingTable.shard(i);
+        for (int copy = 0; copy < routingTable.size(); copy++) {
+            final ShardRouting shardRouting = routingTable.shard(copy);
             if (shardRouting.assignedToNode() == false) {
                 continue;
             }
@@ -602,8 +602,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         }
         if (renewalNeeded) {
-            for (int i = 0; i < routingTable.size(); i++) {
-                final ShardRouting shardRouting = routingTable.shard(i);
+            for (int copy = 0; copy < routingTable.size(); copy++) {
+                final ShardRouting shardRouting = routingTable.shard(copy);
                 if (shardRouting.assignedToNode()) {
                     final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
                     if (retentionLease != null) {

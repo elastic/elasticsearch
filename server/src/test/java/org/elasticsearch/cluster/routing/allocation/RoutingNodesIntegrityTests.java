@@ -424,10 +424,10 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         final Map<String, Set<ShardId>> shardsByNode = Maps.newMapWithExpectedSize(nodeCount);
         for (final var indexRoutingTable : clusterState.routingTable()) {
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                     assertTrue(shardRouting.started());
                     shardsByNode.computeIfAbsent(shardRouting.currentNodeId(), ignored -> new HashSet<>()).add(shardRouting.shardId());
                 }

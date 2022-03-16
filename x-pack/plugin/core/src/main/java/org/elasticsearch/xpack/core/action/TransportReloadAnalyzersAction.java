@@ -160,10 +160,10 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         for (String index : concreteIndices) {
             Set<String> nodesCovered = new HashSet<>();
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                     if (nodesCovered.contains(shardRouting.currentNodeId()) == false) {
                         shards.add(shardRouting);
                         nodesCovered.add(shardRouting.currentNodeId());

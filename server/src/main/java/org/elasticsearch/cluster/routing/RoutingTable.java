@@ -194,10 +194,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         if (indexRoutingTable == null) {
             throw new IndexNotFoundException(index);
         }
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                shards.add(indexShardRoutingTable.shard(j));
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                shards.add(indexShardRoutingTable.shard(copy));
             }
         }
         return shards;
@@ -234,10 +234,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 continue;
                 // we simply ignore indices that don't exists (make sense for operations that use it currently)
             }
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                     if (predicate.test(shardRouting)) {
                         set.add(shardRouting.shardsIt());
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
@@ -274,10 +274,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 continue;
                 // we simply ignore indices that don't exists (make sense for operations that use it currently)
             }
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                    ShardRouting shardRouting = indexShardRoutingTable.shard(j);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                     if (predicate.test(shardRouting)) {
                         shards.add(shardRouting);
                         if (includeRelocationTargets && shardRouting.relocating()) {

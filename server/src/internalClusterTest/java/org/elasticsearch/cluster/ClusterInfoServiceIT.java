@@ -223,8 +223,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .index("test")
             .shard(0);
         final List<ShardRouting> shardRoutings = new ArrayList<>(indexShardRoutingTable.size());
-        for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-            shardRoutings.add(indexShardRoutingTable.shard(j));
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            shardRoutings.add(indexShardRoutingTable.shard(copy));
         }
 
         InternalTestCluster internalTestCluster = internalCluster();

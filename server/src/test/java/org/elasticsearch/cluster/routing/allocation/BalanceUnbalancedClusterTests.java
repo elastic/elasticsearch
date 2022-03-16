@@ -59,10 +59,10 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
         }
         Map<String, Integer> counts = new HashMap<>();
         final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                String s = indexShardRoutingTable.shard(j).currentNodeId();
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                String s = indexShardRoutingTable.shard(copy).currentNodeId();
                 Integer count = counts.get(s);
                 if (count == null) {
                     count = 0;

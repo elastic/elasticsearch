@@ -499,10 +499,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // ensure that no shard is actually allocated on the unlucky node
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         final IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index("test");
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-            for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                final ShardRouting routing = indexShardRoutingTable.shard(j);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                final ShardRouting routing = indexShardRoutingTable.shard(copy);
                 if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.RELOCATING)));

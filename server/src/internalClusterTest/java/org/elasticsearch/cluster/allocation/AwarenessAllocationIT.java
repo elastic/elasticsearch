@@ -327,10 +327,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         Map<String, Integer> counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < indexShardRoutingTable.size(); j++) {
-                    counts.merge(clusterState.nodes().get(indexShardRoutingTable.shard(j).currentNodeId()).getName(), 1, Integer::sum);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    counts.merge(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }

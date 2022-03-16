@@ -2142,10 +2142,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> nodes = new HashSet<>();
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                final IndexShardRoutingTable indexShard = indexRoutingTable.shard(i);
-                for (int j = 0; j < indexShard.size(); j++) {
-                    ShardRouting shardRouting = indexShard.shard(j);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    ShardRouting shardRouting = indexShard.shard(copy);
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);

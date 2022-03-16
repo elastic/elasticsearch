@@ -43,8 +43,8 @@ public class ReplicationGroup {
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
-        for (int j = 0; j < routingTable.size(); j++) {
-            ShardRouting shard = routingTable.shard(j);
+        for (int copy = 0; copy < routingTable.size(); copy++) {
+            ShardRouting shard = routingTable.shard(copy);
             if (shard.unassigned()) {
                 assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
                 skippedShards.add(shard);

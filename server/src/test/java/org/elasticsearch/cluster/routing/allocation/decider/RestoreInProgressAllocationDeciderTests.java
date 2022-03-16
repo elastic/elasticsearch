@@ -125,10 +125,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");
             IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < shardRoutingTable.size(); j++) {
-                    ShardRouting shardRouting = shardRoutingTable.shard(j);
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = shardRoutingTable.shard(copy);
                     if (shardRouting.primary()) {
                         newIndexRoutingTable.addShard(primary);
                     } else {

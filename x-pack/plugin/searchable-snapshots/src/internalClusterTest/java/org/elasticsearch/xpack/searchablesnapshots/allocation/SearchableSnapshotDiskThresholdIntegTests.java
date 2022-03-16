@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage.FULL_COPY;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -96,35 +95,37 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         for (int i = 0; i < nbIndices; i++) {
             final String index = "index-" + i;
             var thread = new Thread(() -> {
-                createIndex(
-                    index,
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                        .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                        .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-                        .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), DataTier.DATA_HOT)
-                        .build()
-                );
-                int nbDocs = 100;
-                try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
-                    while (true) {
-                        waitForDocs(nbDocs, indexer);
-                        indexer.assertNoFailures();
-                        assertNoFailures(
-                            client().admin().indices().prepareForceMerge().setFlush(true).setIndices(index).setMaxNumSegments(1).get()
-                        );
-                        Map<String, Long> storeSize = sizeOfShardsStores(index);
-                        if (storeSize.get(index) > WATERMARK_BYTES + 1024L) {
-                            break;
+                try {
+                    createIndex(
+                        index,
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                            .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                            .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                            .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), DataTier.DATA_HOT)
+                            .build()
+                    );
+                    int nbDocs = 100;
+                    try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
+                        while (true) {
+                            waitForDocs(nbDocs, indexer);
+                            indexer.assertNoFailures();
+                            assertNoFailures(
+                                client().admin().indices().prepareForceMerge().setFlush(true).setIndices(index).setMaxNumSegments(1).get()
+                            );
+                            Map<String, Long> storeSize = sizeOfShardsStores(index);
+                            if (storeSize.get(index) > WATERMARK_BYTES) {
+                                break;
+                            }
+                            int moreDocs = scaledRandomIntBetween(100, 1_000);
+                            indexer.continueIndexing(moreDocs);
+                            nbDocs += moreDocs;
                         }
-                        int moreDocs = scaledRandomIntBetween(100, 1_000);
-                        indexer.continueIndexing(moreDocs);
-                        nbDocs += moreDocs;
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
                     }
-                } catch (Exception e) {
-                    throw new AssertionError(e);
                 } finally {
                     latch.countDown();
                 }
@@ -157,7 +158,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             .get()
             .getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(nbIndices));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
 
         final Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
@@ -173,7 +174,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
                 .put(
                     FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                    ByteSizeValue.ofBytes(indicesStoresSizes.values().stream().mapToLong(value -> value).sum() + 1024L)
+                    ByteSizeValue.ofBytes(Math.min(indicesStoresSizes.values().stream().mapToLong(value -> value).sum(), 5 * 1024L * 1024L))
                 );
         }
         final String otherDataNode = internalCluster().startNode(otherDataNodeSettings.build());
@@ -181,7 +182,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         final String otherDataNodeId = internalCluster().getInstance(NodeEnvironment.class, otherDataNode).nodeId();
         logger.info("--> reducing disk size of node [{}/{}] so that all shards can fit on the node", otherDataNode, otherDataNodeId);
-        final long totalSpace = indicesStoresSizes.values().stream().mapToLong(size -> size).sum() + WATERMARK_BYTES + 1L;
+        final long totalSpace = indicesStoresSizes.values().stream().mapToLong(size -> size).sum() + WATERMARK_BYTES + 1024L;
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");

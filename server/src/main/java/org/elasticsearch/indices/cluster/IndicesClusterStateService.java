@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -72,10 +73,12 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -108,6 +111,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
     private final NodeClient client;
+
+    private volatile LinkedList<Tuple<Index, IndexSettings>> indexEntriesToDelete = new LinkedList();
+    private volatile boolean indexDeletionProcessing = false;
+    private final Object deleteMutex = new Object();
 
     @Inject
     public IndicesClusterStateService(
@@ -329,30 +336,59 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 }
             }
             if (indexSettings != null) {
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
-                    }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        final TimeValue timeout = TimeValue.timeValueMinutes(30);
-                        try {
-                            // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store
-                            // to the master. If we can't acquire the locks here immediately there might be a shard of this index still
-                            // holding on to the lock due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the
-                            // lock is released so it's guaranteed to be deleted by the time we get the lock
-                            indicesService.processPendingDeletes(index, indexSettings, timeout);
-                        } catch (ShardLockObtainFailedException exc) {
-                            logger.warn("[{}] failed to lock all shards for index - timed out after [{}]]", index, timeout);
-                        } catch (InterruptedException e) {
-                            logger.warn("[{}] failed to lock all shards for index - interrupted", index);
-                        }
+                Tuple<Index, IndexSettings> tuple = new Tuple<>(index, indexSettings);
+                synchronized (deleteMutex) {
+                    if (logger.isTraceEnabled()) {
+                        logger.debug("add index [{}] to deleting queue", index.getName());
                     }
-                });
+                    indexEntriesToDelete.add(tuple);
+                }
+
+                if (indexDeletionProcessing == false && indexEntriesToDelete.size() > 0) {
+                    asyncProcessDeletes();
+                }
             }
         }
+    }
+
+    private void asyncProcessDeletes() {
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                //noop
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                indexDeletionProcessing = true;
+
+                while (true) {
+                    Tuple<Index, IndexSettings> tuple;
+                    synchronized (deleteMutex) {
+                        tuple = indexEntriesToDelete.poll();
+                        if (tuple == null) {
+                            indexDeletionProcessing = false;
+                            break;
+                        }
+                    }
+
+                    Index index = tuple.v1();
+                    IndexSettings indexSettings = tuple.v2();
+
+                    try {
+                        indicesService.processPendingDeletes(index, indexSettings, new TimeValue(30, TimeUnit.MINUTES));
+                    } catch (ShardLockObtainFailedException exc) {
+                        logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
+                    } catch (InterruptedException e) {
+                        logger.warn("[{}] failed to lock all shards for index - interrupted", index);
+                    } catch (Exception e) {
+                        //TODO add the index back to queue, and try to delete later?
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+                    }
+                }
+            }
+        });
     }
 
     /**

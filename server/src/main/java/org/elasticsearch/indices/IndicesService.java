@@ -992,37 +992,11 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexSettings indexSettings,
         final IndexDeletionAllowedPredicate predicate
     ) throws IOException {
-        boolean success = false;
-        try {
-            // we are trying to delete the index store here - not a big deal if the lock can't be obtained
-            // the store metadata gets wiped anyway even without the lock this is just best effort since
-            // every shards deletes its content under the shard lock it owns.
-            logger.debug("{} deleting index store reason [{}]", index, reason);
-            if (predicate.apply(index, indexSettings)) {
-                // its safe to delete all index metadata and shard data
-                nodeEnv.deleteIndexDirectorySafe(
-                    index,
-                    0,
-                    indexSettings,
-                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
-                );
-            }
-            success = true;
-        } catch (ShardLockObtainFailedException ex) {
-            logger.debug(
-                () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
-                ex
-            );
-        } catch (Exception ex) {
-            logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
-        } finally {
-            if (success == false) {
-                addPendingDelete(index, indexSettings);
-            }
-            // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
-            // we should in the future rather write a tombstone rather than wiping the metadata.
-            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
-        }
+        // just add to pendingDelete and the real deletion would be proceeded in other thread
+        addPendingDelete(index, indexSettings);
+        // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
+        // we should in the future rather write a tombstone rather than wiping the metadata.
+        MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
     }
 
     /**

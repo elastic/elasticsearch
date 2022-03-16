@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,6 +44,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage.FULL_COPY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -69,9 +70,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(LocalStateSearchableSnapshots.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateSearchableSnapshots.class);
     }
 
     @Override
@@ -90,7 +89,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
-        final int nbIndices = randomIntBetween(2, 5);
+        final int nbIndices = randomIntBetween(1, 5);
         final Thread[] threads = new Thread[nbIndices];
         final CountDownLatch latch = new CountDownLatch(nbIndices);
 
@@ -112,11 +111,17 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                 try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
                     while (true) {
                         waitForDocs(nbDocs, indexer);
+                        indexer.assertNoFailures();
+                        assertNoFailures(
+                            client().admin().indices().prepareForceMerge().setFlush(true).setIndices(index).setMaxNumSegments(1).get()
+                        );
                         Map<String, Long> storeSize = sizeOfShardsStores(index);
-                        if (storeSize.get(index) > WATERMARK_BYTES) {
+                        if (storeSize.get(index) > WATERMARK_BYTES + 1024L) {
                             break;
                         }
-                        nbDocs += scaledRandomIntBetween(100, 5_000);
+                        int moreDocs = scaledRandomIntBetween(100, 1_000);
+                        indexer.continueIndexing(moreDocs);
+                        nbDocs += moreDocs;
                     }
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -174,21 +179,28 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final String otherDataNode = internalCluster().startNode(otherDataNodeSettings.build());
         ensureStableCluster(3);
 
-        ClusterInfoServiceUtils.refresh(masterInfoService);
-
         final String otherDataNodeId = internalCluster().getInstance(NodeEnvironment.class, otherDataNode).nodeId();
-        logger.info("--> reducing disk size of node [{}/{}] so that no shards can fit on the node", otherDataNode, otherDataNodeId);
-        final long totalSpace = indicesStoresSizes.values().stream().mapToLong(value -> value).min().getAsLong() + WATERMARK_BYTES - 1L;
+        logger.info("--> reducing disk size of node [{}/{}] so that all shards can fit on the node", otherDataNode, otherDataNodeId);
+        final long totalSpace = indicesStoresSizes.values().stream().mapToLong(size -> size).sum() + WATERMARK_BYTES + 1L;
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
-        logger.info("--> cluster info are not refreshed yet so the cold/frozen indices are allocated even if they don't fit on the node");
-        final int nbMounts = randomIntBetween(1, 50);
-        final CountDownLatch mountLatch = new CountDownLatch(nbMounts);
-        for (int i = 0; i < nbMounts; i++) {
+        logger.info("--> refreshing cluster info");
+        ClusterInfoServiceUtils.refresh(masterInfoService);
+
+        assertThat(
+            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
+            equalTo(totalSpace)
+        );
+
+        final CountDownLatch mountLatch = new CountDownLatch(indicesStoresSizes.size());
+        final String prefix = "mounted-";
+
+        logger.info("--> mounting [{}] indices with [{}] prefix", indicesStoresSizes.size(), prefix);
+        for (String index : indicesStoresSizes.keySet()) {
             client().execute(
                 MountSearchableSnapshotAction.INSTANCE,
                 new MountSearchableSnapshotRequest(
-                    "mounted-" + i,
+                    prefix + index,
                     repository,
                     snapshot,
                     randomFrom(indicesStoresSizes.keySet()),
@@ -202,7 +214,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         }
         mountLatch.await();
 
-        // TODO Indices should not be allocated so quickly without checking the node disk usage first
+        // The cold/frozen data node has enough disk space to hold all the shards
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
             assertThat(
@@ -210,6 +222,47 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     .allShards()
                     .stream()
                     .filter(shardRouting -> state.metadata().index(shardRouting.shardId().getIndex()).isSearchableSnapshot())
+                    .allMatch(
+                        shardRouting -> shardRouting.state() == ShardRoutingState.STARTED
+                            && otherDataNodeId.equals(shardRouting.currentNodeId())
+                    ),
+                equalTo(true)
+            );
+        });
+
+        final CountDownLatch extraLatch = new CountDownLatch(indicesStoresSizes.size());
+        final String extraPrefix = "extra-";
+
+        logger.info("--> mounting [{}] indices with [{}] prefix", indicesStoresSizes.size(), extraPrefix);
+        for (String index : indicesStoresSizes.keySet()) {
+            client().execute(
+                MountSearchableSnapshotAction.INSTANCE,
+                new MountSearchableSnapshotRequest(
+                    extraPrefix + index,
+                    repository,
+                    snapshot,
+                    randomFrom(indicesStoresSizes.keySet()),
+                    Settings.EMPTY,
+                    Strings.EMPTY_ARRAY,
+                    false,
+                    storage
+                ),
+                ActionListener.wrap(response -> extraLatch.countDown(), e -> extraLatch.countDown())
+            );
+        }
+        extraLatch.await();
+
+        // TODO Indices should not be allocated without checking the node disk usage first
+        assertBusy(() -> {
+            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            assertThat(
+                state.routingTable()
+                    .allShards()
+                    .stream()
+                    .filter(
+                        shardRouting -> shardRouting.shardId().getIndexName().startsWith(extraPrefix)
+                            && state.metadata().index(shardRouting.shardId().getIndex()).isSearchableSnapshot()
+                    )
                     .allMatch(
                         shardRouting -> shardRouting.state() == ShardRoutingState.STARTED
                             && otherDataNodeId.equals(shardRouting.currentNodeId())

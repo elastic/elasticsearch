@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -180,15 +179,14 @@ public final class InternalRealms {
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
-        final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
+        return RealmSettings.getRealmSettings(globalSettings)
             .keySet()
             .stream()
             .filter(id -> realmTypes.contains(id.getType()))
             .map(id -> new RealmConfig(id, globalSettings, env, null))
             .map(RoleMappingFileBootstrapCheck::create)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        return checks;
+            .toList();
     }
 
 }

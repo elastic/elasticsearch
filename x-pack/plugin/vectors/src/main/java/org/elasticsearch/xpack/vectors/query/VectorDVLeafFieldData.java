@@ -15,7 +15,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -53,7 +53,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public DocValuesField<?> getScriptField(String name) {
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
         try {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);

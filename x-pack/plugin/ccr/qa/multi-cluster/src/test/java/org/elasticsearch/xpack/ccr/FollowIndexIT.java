@@ -261,15 +261,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             );
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
-                index(
-                    client(),
-                    leaderIndexName,
-                    Integer.toString(i),
-                    "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(i * 10),
-                    "dim",
-                    "foobar"
-                );
+                index(client(), leaderIndexName, null, "@timestamp", basetime + TimeUnit.SECONDS.toMillis(i * 10), "dim", "foobar");
             }
             refresh(leaderIndexName);
             verifyDocuments(client(), leaderIndexName, numDocs);
@@ -306,31 +298,30 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             pauseFollow(followIndexName);
             resumeFollow(followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
-                int id = numDocs;
                 index(
                     leaderClient,
                     leaderIndexName,
-                    Integer.toString(id),
+                    null,
                     "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(id * 10),
+                    basetime + TimeUnit.SECONDS.toMillis(numDocs * 10),
                     "dim",
                     "foobar"
                 );
                 index(
                     leaderClient,
                     leaderIndexName,
-                    Integer.toString(id + 1),
+                    null,
                     "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(id * 10 + 10),
+                    basetime + TimeUnit.SECONDS.toMillis(numDocs * 10 + 10),
                     "dim",
                     "foobar"
                 );
                 index(
                     leaderClient,
                     leaderIndexName,
-                    Integer.toString(id + 2),
+                    null,
                     "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(id * 10 + 20),
+                    basetime + TimeUnit.SECONDS.toMillis(numDocs * 10 + 20),
                     "dim",
                     "foobar"
                 );

@@ -268,7 +268,7 @@ public class ClusterBootstrapService {
                         "node ["
                             + matchingNode
                             + "] matches multiple requirements: "
-                            + bootstrapRequirements.stream().filter(r -> matchesRequirement(matchingNode, r)).collect(Collectors.toList())
+                            + bootstrapRequirements.stream().filter(r -> matchesRequirement(matchingNode, r)).toList()
                     );
                 }
             }

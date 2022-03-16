@@ -97,7 +97,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
     ) {
         String elasticsearchVersion = VersionProperties.getElasticsearch();
         yamlRestTestImplementation.defaultDependencies(
-            deps -> deps.add(dependencyHandler.create("org.elasticsearch.test:framework:" + elasticsearchVersion))
+            deps -> deps.add(dependencyHandler.create("org.elasticsearch.test:yaml-rest-runner:" + elasticsearchVersion))
         );
 
         restTestSpecs.defaultDependencies(

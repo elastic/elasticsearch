@@ -135,8 +135,8 @@ public class OperationRouting {
                     indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
             } else {
-                for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                    set.add(indexShard);
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    set.add(indexRoutingTable.shard(i));
                 }
             }
         }

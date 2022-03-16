@@ -221,7 +221,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 builder.startArray(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
                 final List<FieldPermissionsDefinition.FieldGrantExcludeGroup> sortedFieldSecurity = this.fieldSecurity.stream()
                     .sorted()
-                    .collect(Collectors.toUnmodifiableList());
+                    .toList();
                 for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : sortedFieldSecurity) {
                     builder.startObject();
                     if (nonEmpty(group.getGrantedFields())) {

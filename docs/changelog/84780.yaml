@@ -1,0 +1,7 @@
+pr: 84780
+summary: Fix `NullPointerException` in `SystemIndexMetadataUpgradeService` hidden
+  alias handling
+area: Infra/Core
+type: bug
+issues:
+ - 81411

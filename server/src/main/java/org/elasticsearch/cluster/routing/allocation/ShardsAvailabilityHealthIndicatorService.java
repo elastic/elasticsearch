@@ -76,8 +76,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (IndexShardRoutingTable shardRouting : indexShardRouting) {
                 status.addPrimary(shardRouting.primaryShard(), shutdown);
-                for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, shutdown);
+                if (shardRouting.replicaShards().size() > 0) {
+                    for (ShardRouting replicaShard : shardRouting.replicaShards()) {
+                        status.addReplica(replicaShard, shutdown);
+                    }
+                } else {
+                    status.noReplicas(shardRouting.primaryShard().getIndexName());
                 }
             }
         }
@@ -86,7 +90,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     private static class ShardAllocationCounts {
-        private boolean available = true;
+        private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
         private int unassigned = 0;
         private int unassigned_new = 0;
         private int unassigned_restarting = 0;
@@ -94,6 +98,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int started = 0;
         private int relocating = 0;
         private LinkedHashSet<String> indicesWithUnavailableShards = new LinkedHashSet<>();
+        private boolean expectZero = false; // In the case that there is no replication for a shard this will be true
 
         public void increment(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
@@ -148,6 +153,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         public void addReplica(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             replicas.increment(routing, shutdowns);
+        }
+
+        public void noReplicas(String indexName) {
+            replicas.expectZero = true;
+            replicas.indicesWithUnavailableShards.add(indexName);
         }
 
         public HealthStatus getStatus() {
@@ -217,15 +227,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         public HealthIndicatorImpact getImpact() {
             final HealthIndicatorImpact impact;
-            if (primaries.available == false && replicas.available == false) {
+            if (primaries.available == false && (replicas.expectZero || replicas.available == false)) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "%s [%s] %s unavailable. You are at risk of losing the data in these indices.",
-                    replicas.indicesWithUnavailableShards.size() == 1 ? "Index" : "Indices",
+                    "%s [%s] %s unavailable. You are at risk of losing the data in %s.",
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "Index" : "Indices",
                     getTruncatedIndicesString(primaries),
-                    replicas.indicesWithUnavailableShards.size() == 1 ? "is" : "are"
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "is" : "are",
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "this index" : "these indices"
                 );
-                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+                impact = new SimpleHealthIndicatorImpact(1, impactDescription);
             } else if (primaries.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
@@ -235,7 +246,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     getTruncatedIndicesString(primaries)
                 );
                 impact = new SimpleHealthIndicatorImpact(2, impactDescription);
-            } else if (replicas.available == false) {
+            } else if (replicas.expectZero || replicas.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Redundancy for %d %s [%s] is currently disrupted. Fault tolerance and search scalability are reduced.",
@@ -249,6 +260,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             return impact;
         }
+
     }
 
     private static String getTruncatedIndicesString(ShardAllocationCounts shardAllocationCounts) {

@@ -9,8 +9,21 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 public interface HealthIndicatorImpact extends ToXContentObject {
 
-    HealthIndicatorImpact EMPTY = (builder, params) -> builder.startObject().endObject();
+    HealthIndicatorImpact EMPTY = new HealthIndicatorImpact() {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().endObject();
+        }
+
+        @Override
+        public String toString() {
+            return "Empty Impact";
+        }
+    };
 }

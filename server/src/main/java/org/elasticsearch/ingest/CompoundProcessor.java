@@ -149,6 +149,8 @@ public class CompoundProcessor implements Processor {
                 }
             });
         } catch (Exception e) {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metric.postIngest(ingestTimeInNanos);
             executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
         }
     }

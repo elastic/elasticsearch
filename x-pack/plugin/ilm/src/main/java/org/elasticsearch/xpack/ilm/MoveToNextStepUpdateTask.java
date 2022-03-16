@@ -53,7 +53,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        LifecycleExecutionState indexILMData = currentState.getMetadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState indexILMData = indexMetadata.getLifecycleExecutionState();
         if (policy.equals(indexMetadata.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(indexILMData))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
             return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, nextStepKey, nowSupplier, stepRegistry, false);

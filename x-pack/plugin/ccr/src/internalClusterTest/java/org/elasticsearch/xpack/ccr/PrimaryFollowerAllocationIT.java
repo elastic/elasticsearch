@@ -152,9 +152,10 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                for (ShardRouting shard : shardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                    ShardRouting shard = shardRoutingTable.shard(copy);
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
                     assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataOnlyNodes));
@@ -168,9 +169,10 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(followerIndex);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                for (ShardRouting shard : shardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                    ShardRouting shard = shardRoutingTable.shard(copy);
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
                     assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataOnlyNodes));

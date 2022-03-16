@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -210,7 +212,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
 
-        final List<ShardRouting> shardRoutings = client().admin()
+        final IndexShardRoutingTable indexShardRoutingTable = client().admin()
             .cluster()
             .prepareState()
             .clear()
@@ -219,8 +221,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .getState()
             .getRoutingTable()
             .index("test")
-            .shard(0)
-            .shards();
+            .shard(0);
+        final List<ShardRouting> shardRoutings = new ArrayList<>(indexShardRoutingTable.size());
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            shardRoutings.add(indexShardRoutingTable.shard(copy));
+        }
 
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(

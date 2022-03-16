@@ -9,7 +9,6 @@
 package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectCollection;
-import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;

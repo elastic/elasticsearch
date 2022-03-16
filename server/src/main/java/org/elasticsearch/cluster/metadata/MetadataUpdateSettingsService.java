@@ -283,7 +283,7 @@ public class MetadataUpdateSettingsService {
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(false));
+            listener.onResponse(AcknowledgedResponse.FALSE);
         }
 
         @Override

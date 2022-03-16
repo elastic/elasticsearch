@@ -265,7 +265,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         };
     }
 
-    private Token convertToken(JsonToken token) {
+    private static Token convertToken(JsonToken token) {
         if (token == null) {
             return null;
         }

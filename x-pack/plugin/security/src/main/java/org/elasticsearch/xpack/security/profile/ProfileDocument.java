@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.profile;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -22,14 +22,18 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.REALM_REF_PARSER;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 
 public record ProfileDocument(
     String uid,
@@ -90,8 +94,20 @@ public record ProfileDocument(
         return builder;
     }
 
+    public Subject subject() {
+        return new Subject(
+            new User(user.username, user.roles.toArray(String[]::new), user.fullName, user.email, Map.of(), user.active),
+            user.realm
+        );
+    }
+
     static ProfileDocument fromSubject(Subject subject) {
-        final String uid = "u_" + UUIDs.randomBase64UUID();
+        final String baseUid = computeBaseUidForSubject(subject);
+        return fromSubjectWithUid(subject, baseUid + "_0"); // initial differentiator is 0
+    }
+
+    static ProfileDocument fromSubjectWithUid(Subject subject, String uid) {
+        assert uid.startsWith(computeBaseUidForSubject(subject) + "_");
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             uid,
@@ -108,6 +124,29 @@ public record ProfileDocument(
             Map.of(),
             null
         );
+    }
+
+    static String computeBaseUidForSubject(Subject subject) {
+        final MessageDigest digest = MessageDigests.sha256();
+        digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
+        if (subject.getRealm().getDomain() != null) {
+            // Must sort with comparing type first because name does not matter for file/native realms
+            subject.getRealm().getDomain().realms().stream().sorted((o1, o2) -> {
+                int result = o1.getType().compareTo(o2.getType());
+                return (result == 0) ? o1.getName().compareTo(o2.getName()) : result;
+            }).forEach(realmIdentifier -> {
+                digest.update(realmIdentifier.getType().getBytes(StandardCharsets.UTF_8));
+                if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
+                    digest.update(realmIdentifier.getName().getBytes(StandardCharsets.UTF_8));
+                }
+            });
+        } else {
+            digest.update(subject.getRealm().getType().getBytes(StandardCharsets.UTF_8));
+            if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
+                digest.update(subject.getRealm().getName().getBytes(StandardCharsets.UTF_8));
+            }
+        }
+        return "u_" + Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
     }
 
     public static ProfileDocument fromXContent(XContentParser parser) {

@@ -585,6 +585,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (ia.isHidden()) {
                             attributes.add("hidden");
                         }
+                        if (ia.isSystem()) {
+                            attributes.add("system");
+                        }
                         final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
                         if (isFrozen) {
                             attributes.add("frozen");

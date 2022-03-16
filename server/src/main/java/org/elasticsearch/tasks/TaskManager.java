@@ -143,7 +143,7 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
-            taskTracer.onTaskRegistered(task);
+            taskTracer.onTaskRegistered(threadContext, task);
         }
         return task;
     }
@@ -196,7 +196,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        taskTracer.onTaskRegistered(task);
+        taskTracer.onTaskRegistered(threadPool.getThreadContext(), task);
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time bannedParents is empty.
         if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {

@@ -100,7 +100,7 @@ public class ApmIT extends SecurityIntegTestCase {
 
         APMTracer.CAPTURING_SPAN_EXPORTER.clear();
 
-        taskTracer.onTaskRegistered(testTask);
+        taskTracer.onTaskRegistered(transportService.getThreadPool().getThreadContext(), testTask);
         taskTracer.onTaskUnregistered(testTask);
 
         final List<SpanData> capturedSpans = APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans();

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.tracing;
 
-import java.util.Map;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 /**
  * Represents a distributed tracing system that keeps track of the start and end of various activities in the cluster.
@@ -18,21 +18,12 @@ public interface Tracer {
     /**
      * Called when the {@link Traceable} activity starts.
      */
-    default void onTraceStarted(Traceable traceable) {
-        this.onTraceStarted(traceable, null);
-    }
-
-    void onTraceStarted(Traceable traceable, String traceparent);
+    void onTraceStarted(ThreadContext threadContext, Traceable traceable);
 
     /**
      * Called when the {@link Traceable} activity ends.
      */
     void onTraceStopped(Traceable traceable);
 
-    /**
-     * Retrieve context related headers for the span of the given id.
-     */
-    Map<String, String> getSpanHeadersById(String id);
-
-    void addEvent(Traceable traceable, String name);
+    void onTraceEvent(Traceable traceable, String eventName);
 }

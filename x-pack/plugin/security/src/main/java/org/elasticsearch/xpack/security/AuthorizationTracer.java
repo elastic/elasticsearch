@@ -37,7 +37,7 @@ public class AuthorizationTracer {
     public Runnable startTracing(Traceable traceable) {
         for (Tracer tracer : tracers) {
             try {
-                tracer.onTraceStarted(traceable);
+                tracer.onTraceStarted(threadContext, traceable);
             } catch (Exception e) {
                 assert false : e;
                 logger.warn(

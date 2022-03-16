@@ -178,4 +178,14 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             }
         }
     }
+
+    @Override
+    public void startTrace(ThreadContext threadContext) {
+        this.tracer.onTraceStarted(threadContext, this);
+    }
+
+    @Override
+    public void stopTrace() {
+        this.tracer.onTraceStopped(this);
+    }
 }

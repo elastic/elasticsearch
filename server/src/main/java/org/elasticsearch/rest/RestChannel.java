@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,4 +63,8 @@ public interface RestChannel extends Traceable {
             req.uri()
         );
     }
+
+    void startTrace(ThreadContext threadContext);
+
+    void stopTrace();
 }

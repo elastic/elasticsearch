@@ -46,16 +46,8 @@ class HttpTracer {
         clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
     }
 
-    void onTraceStarted(RestChannel channel) {
-        final List<String> headerValues = channel.request().getAllHeaderValues(Task.TRACE_PARENT_HTTP_HEADER);
-        if (headerValues != null && headerValues.size() == 1) {
-            String traceparent = headerValues.get(0);
-            if (traceparent.length() >= 55) {
-                this.tracers.forEach(t -> t.onTraceStarted(channel, traceparent));
-            }
-        } else {
-            this.tracers.forEach(t -> t.onTraceStarted(channel));
-        }
+    void onTraceStarted(ThreadContext threadContext, RestChannel channel) {
+        this.tracers.forEach(t -> t.onTraceStarted(threadContext, channel));
     }
 
     void onTraceStopped(RestChannel channel) {
@@ -66,7 +58,7 @@ class HttpTracer {
 
     void onTraceEvent(RestChannel channel, String eventName) {
         this.tracers.forEach(t -> {
-            t.addEvent(channel, eventName);
+            t.onTraceEvent(channel, eventName);
         });
     }
 

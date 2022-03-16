@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -24,12 +22,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -75,55 +67,5 @@ public class APM extends Plugin implements NetworkPlugin {
             APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING,
             APMTracer.APM_SAMPLE_RATE_SETTING
         );
-    }
-
-    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
-        return List.of(new TransportInterceptor() {
-            @Override
-            public AsyncSender interceptSender(AsyncSender sender) {
-                return new ApmTransportInterceptor(sender, threadContext);
-            }
-        });
-    }
-
-    private class ApmTransportInterceptor implements TransportInterceptor.AsyncSender {
-
-        private final TransportInterceptor.AsyncSender sender;
-        private final ThreadContext threadContext;
-
-        ApmTransportInterceptor(TransportInterceptor.AsyncSender sender, ThreadContext threadContext) {
-            this.sender = sender;
-            this.threadContext = threadContext;
-        }
-
-        @Override
-        public <T extends TransportResponse> void sendRequest(
-            Transport.Connection connection,
-            String action,
-            TransportRequest request,
-            TransportRequestOptions options,
-            TransportResponseHandler<T> handler
-        ) {
-            try (var ignored = withParentContext(String.valueOf(request.getParentTask().getId()))) {
-                sender.sendRequest(connection, action, request, options, handler);
-            }
-        }
-
-        private Releasable withParentContext(String parentTaskId) {
-            var aTracer = tracer.get();
-            if (aTracer == null) {
-                return null;
-            }
-            if (aTracer.isEnabled() == false) {
-                return null;
-            }
-            var headers = aTracer.getSpanHeadersById(parentTaskId);
-            if (headers == null) {
-                return null;
-            }
-            final Releasable releasable = threadContext.removeRequestHeaders(TRACE_HEADERS);
-            threadContext.putHeader(headers);
-            return releasable;
-        }
     }
 }

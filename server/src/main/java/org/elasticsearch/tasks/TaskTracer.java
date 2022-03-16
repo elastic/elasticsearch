@@ -11,6 +11,7 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tracing.Tracer;
 
 import java.util.List;
@@ -28,10 +29,10 @@ public class TaskTracer {
         }
     }
 
-    public void onTaskRegistered(Task task) {
+    public void onTaskRegistered(ThreadContext threadContext, Task task) {
         for (Tracer tracer : tracers) {
             try {
-                tracer.onTraceStarted(task);
+                tracer.onTraceStarted(threadContext, task);
             } catch (Exception e) {
                 assert false : e;
                 logger.warn(

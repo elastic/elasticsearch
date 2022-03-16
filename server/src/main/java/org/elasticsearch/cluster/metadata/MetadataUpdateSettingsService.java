@@ -278,7 +278,7 @@ public class MetadataUpdateSettingsService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.of(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
         }
 
         @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -225,16 +224,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     getTruncatedIndicesString(primaries),
                     replicas.indicesWithUnavailableShards.size() == 1 ? "is" : "are"
                 );
-                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+                impact = new HealthIndicatorImpact(2, impactDescription);
             } else if (primaries.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "Cannot add data to %d %s [%s] currently. Searches might return incomplete results.",
+                    "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
                     primaries.indicesWithUnavailableShards.size(),
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(primaries)
                 );
-                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
+                impact = new HealthIndicatorImpact(2, impactDescription);
             } else if (replicas.available == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
@@ -243,7 +242,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     replicas.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(replicas)
                 );
-                impact = new SimpleHealthIndicatorImpact(3, impactDescription);
+                impact = new HealthIndicatorImpact(3, impactDescription);
             } else {
                 impact = HealthIndicatorImpact.EMPTY;
             }

@@ -13,7 +13,6 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
@@ -61,7 +60,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 YELLOW,
                 "SLM is not running",
                 createDetails(slmMetadata),
-                new SimpleHealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
+                new HealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
             );
         } else {
             return createIndicator(GREEN, "SLM is running", createDetails(slmMetadata), HealthIndicatorImpact.EMPTY);

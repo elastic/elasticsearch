@@ -13,7 +13,6 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -61,7 +60,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 YELLOW,
                 "ILM is not running",
                 createDetails(ilmMetadata),
-                new SimpleHealthIndicatorImpact(3, "Indices are not being rolled over, which could lead to future instability.")
+                new HealthIndicatorImpact(3, "Indices are not being rolled over, which could lead to future instability.")
             );
         } else {
             return createIndicator(GREEN, "ILM is running", createDetails(ilmMetadata), HealthIndicatorImpact.EMPTY);

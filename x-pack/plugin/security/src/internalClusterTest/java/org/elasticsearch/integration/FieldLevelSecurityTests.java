@@ -284,7 +284,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
 
-        // user1 has no access to field1, so the query should not match with the document:
+        // user1 has no access to field2, so the query should not match with the document:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(matchQuery("field2", "value2"))
@@ -399,7 +399,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(builder));
 
         client().prepareIndex("test")
-            .setSource("field1", "value1", "vector", new float[] { 0.0f, 0.0f, 0.0f })
+            .setSource("field1", "value1", "field2", "value2", "vector", new float[] { 0.0f, 0.0f, 0.0f })
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
@@ -430,6 +430,26 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
         assertNull(response.getHits().getAt(0).field("vector"));
+
+        // user1 can access field1, so the filtered query should match with the document:
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+            QueryBuilders.matchQuery("field1", "value1")
+        );
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(filterQuery1)
+            .get();
+        assertHitCount(response, 1);
+
+        // user1 cannot access field2, so the filtered query should not match with the document:
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+            QueryBuilders.matchQuery("field2", "value2")
+        );
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(filterQuery2)
+            .get();
+        assertHitCount(response, 0);
     }
 
     public void testPercolateQueryWithIndexedDocWithFLS() {

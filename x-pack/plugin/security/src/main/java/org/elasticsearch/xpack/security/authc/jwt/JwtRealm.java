@@ -126,9 +126,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        this.jwksAlgsHmac = this.parseJwksAlgsHmac();
-        this.jwksAlgsPkc = this.parseJwksAlgsPkc();
-        this.verifyAnyAvailableJwkAndAlgPair();
+        // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
+        try {
+            this.jwksAlgsHmac = this.parseJwksAlgsHmac();
+            this.jwksAlgsPkc = this.parseJwksAlgsPkc();
+            this.verifyAnyAvailableJwkAndAlgPair();
+        } catch (Throwable t) {
+            this.close();
+            throw t;
+        }
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
@@ -213,8 +219,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private void verifyAnyAvailableJwkAndAlgPair() {
         assert this.jwksAlgsHmac != null : "HMAC not initialized";
         assert this.jwksAlgsPkc != null : "PKC not initialized";
-        if (((this.jwksAlgsHmac.jwks.isEmpty()) && (this.jwksAlgsPkc.jwks.isEmpty()))
-            || ((this.jwksAlgsHmac.algs.isEmpty()) && (this.jwksAlgsPkc.algs.isEmpty()))) {
+        if (this.jwksAlgsHmac.isEmpty() && this.jwksAlgsPkc.isEmpty()) {
             final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
             throw new SettingsException(msg);
         }

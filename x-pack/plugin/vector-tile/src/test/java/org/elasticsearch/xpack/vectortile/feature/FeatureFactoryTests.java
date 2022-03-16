@@ -106,7 +106,8 @@ public class FeatureFactoryTests extends ESTestCase {
         final int x = randomIntBetween(2, (1 << z) - 1);
         final int y = randomIntBetween(2, (1 << z) - 1);
         final int extent = randomIntBetween(1 << 8, 1 << 14);
-        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        final int padPixels = randomIntBetween(0, extent);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
             final List<byte[]> byteFeatures = builder.getFeatures(provider.apply(r));
@@ -174,7 +175,8 @@ public class FeatureFactoryTests extends ESTestCase {
             final int x = randomIntBetween(0, (1 << z) - 1);
             final int y = randomIntBetween(0, (1 << z) - 1);
             final int extent = randomIntBetween(128, 8012);
-            final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+            int padPixels = randomIntBetween(0, extent);
+            final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
             try {
                 builder.getFeatures(geometry);
             } catch (StackOverflowError error) {
@@ -188,7 +190,8 @@ public class FeatureFactoryTests extends ESTestCase {
         final int x = randomIntBetween(0, (1 << z) - 1);
         final int y = randomIntBetween(0, (1 << z) - 1);
         final int extent = randomIntBetween(128, 8012);
-        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        int padPixels = randomIntBetween(0, extent);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         final double minX = Math.max(-180, rectangle.getMinX() - 1);
         final double maxX = Math.min(180, rectangle.getMaxX() + 1);
@@ -208,7 +211,8 @@ public class FeatureFactoryTests extends ESTestCase {
         final int x = randomIntBetween(0, (1 << z) - 1);
         final int y = randomIntBetween(0, (1 << z) - 1);
         final int extent = randomIntBetween(128, 8012);
-        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        int padPixels = randomIntBetween(0, extent);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         // within geometries
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1)), iterableWithSize(1));
@@ -246,7 +250,7 @@ public class FeatureFactoryTests extends ESTestCase {
         // make sure we can parse big polygons
         final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
         final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
-        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
 }

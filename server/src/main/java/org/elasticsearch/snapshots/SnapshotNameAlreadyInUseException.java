@@ -9,25 +9,19 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
- * Thrown on the attempt to create a snapshot with invalid name
+ * Thrown on the attempt to create a snapshot with a name that is taken by a snapshot in progress and a snapshot that already exists.
  */
-public class InvalidSnapshotNameException extends SnapshotException {
+public class SnapshotNameAlreadyInUseException extends InvalidSnapshotNameException {
 
-    public InvalidSnapshotNameException(final String repositoryName, final String snapshotName, String desc) {
+    public SnapshotNameAlreadyInUseException(final String repositoryName, final String snapshotName, String desc) {
         super(repositoryName, snapshotName, "Invalid snapshot name [" + snapshotName + "], " + desc);
     }
 
-    public InvalidSnapshotNameException(StreamInput in) throws IOException {
+    public SnapshotNameAlreadyInUseException(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
     }
 }

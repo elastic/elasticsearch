@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -62,7 +62,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
             @Override
             public void onFailure(Exception e) {
-                if (snapshotAlreadyCreated(e)) {
+                if (e instanceof SnapshotNameAlreadyInUseException) {
                     logger.warn(e.getMessage());
                     // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is triggered
                     // by a master restart or a failover which can result in a double invocation of this step.
@@ -130,14 +130,6 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                 listener.onResponse(false);
             }
         }, listener::onFailure));
-    }
-
-    private boolean snapshotAlreadyCreated(Exception exception) {
-        return (exception instanceof InvalidSnapshotNameException invalidSnapshotNameException)
-            && switch (invalidSnapshotNameException.getReason()) {
-            case ALREADY_IN_PROGRESS, ALREADY_EXISTS -> true;
-            default -> false;
-            };
     }
 
     @Override

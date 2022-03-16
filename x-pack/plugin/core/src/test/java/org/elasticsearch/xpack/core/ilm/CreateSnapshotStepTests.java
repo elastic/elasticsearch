@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.snapshots.InvalidSnapshotNameException;
+import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -230,11 +230,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 ) {
                     @Override
                     void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
-                        InvalidSnapshotNameException.Reason reason = randomFrom(
-                            InvalidSnapshotNameException.Reason.ALREADY_EXISTS,
-                            InvalidSnapshotNameException.Reason.ALREADY_IN_PROGRESS
-                        );
-                        listener.onFailure(new InvalidSnapshotNameException(repository, snapshotName, reason));
+                        listener.onFailure(new SnapshotNameAlreadyInUseException(repository, snapshotName, "simulated"));
                     }
                 };
                 doubleInvocationStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {

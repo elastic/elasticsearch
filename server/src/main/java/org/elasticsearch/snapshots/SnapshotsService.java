@@ -444,7 +444,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static void ensureSnapshotNameNotRunning(SnapshotsInProgress runningSnapshots, String repositoryName, String snapshotName) {
         if (runningSnapshots.forRepo(repositoryName).stream().anyMatch(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, InvalidSnapshotNameException.Reason.ALREADY_IN_PROGRESS);
+            throw new SnapshotNameAlreadyInUseException(repositoryName, snapshotName, "snapshot with the same name is already in-progress");
         }
     }
 
@@ -570,10 +570,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static void ensureSnapshotNameAvailableInRepo(RepositoryData repositoryData, String snapshotName, Repository repository) {
         // check if the snapshot name already exists in the repository
         if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(
+            throw new SnapshotNameAlreadyInUseException(
                 repository.getMetadata().name(),
                 snapshotName,
-                InvalidSnapshotNameException.Reason.ALREADY_EXISTS
+                "snapshot with the same name already exists"
             );
         }
     }
@@ -835,32 +835,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static void validate(final String repositoryName, final String snapshotName) {
         if (Strings.hasLength(snapshotName) == false) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, InvalidSnapshotNameException.Reason.EMPTY);
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "cannot be empty");
         }
         if (snapshotName.contains(" ")) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, InvalidSnapshotNameException.Reason.WHITESPACE);
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "must not contain whitespace");
         }
         if (snapshotName.contains(",")) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, InvalidSnapshotNameException.Reason.COMMA);
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "must not contain ','");
         }
         if (snapshotName.contains("#")) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, InvalidSnapshotNameException.Reason.HASHTAG);
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "must not contain '#'");
         }
         if (snapshotName.charAt(0) == '_') {
-            throw new InvalidSnapshotNameException(
-                repositoryName,
-                snapshotName,
-                InvalidSnapshotNameException.Reason.STARTS_WITH_UNDERSCORE
-            );
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "must not start with '_'");
         }
         if (snapshotName.toLowerCase(Locale.ROOT).equals(snapshotName) == false) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, InvalidSnapshotNameException.Reason.NOT_LOWERCASE);
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "must be lowercase");
         }
         if (Strings.validFileName(snapshotName) == false) {
             throw new InvalidSnapshotNameException(
                 repositoryName,
                 snapshotName,
-                InvalidSnapshotNameException.Reason.INVALID_FILENAME_CHARS
+                "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
             );
         }
     }

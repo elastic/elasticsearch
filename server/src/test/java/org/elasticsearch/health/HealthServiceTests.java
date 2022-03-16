@@ -52,8 +52,8 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testDuplicateIndicatorNamess() {
         // Same component, same indicator name, should throw exception:
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null);
-        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, HealthIndicatorImpact.EMPTY);
+        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, HealthIndicatorImpact.EMPTY);
         expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2)));
     }
 

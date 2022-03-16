@@ -252,7 +252,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     private static String getTruncatedIndicesString(ShardAllocationCounts shardAllocationCounts) {
-        final int maxIndices = 2;
+        final int maxIndices = 10;
         String truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards.stream()
             .limit(maxIndices)
             .collect(joining(", "));

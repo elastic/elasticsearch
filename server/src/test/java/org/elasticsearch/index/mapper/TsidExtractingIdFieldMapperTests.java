@@ -517,7 +517,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         IndexableField timestamp = new LongPoint("@timestamp", 231431434);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(timestamp)),
-            equalTo("a time series document at 1970-01-03T16:17:11.434Z")
+            equalTo("a time series document at [1970-01-03T16:17:11.434Z]")
         );
         ParsedDocument d = parse(null, mapperService(), testCase.randomSource());
         IndexableField tsid = d.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
@@ -527,7 +527,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         );
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(tsid, timestamp)),
-            equalTo("a time series document with dimensions " + testCase.expectedTsid + " at 1970-01-03T16:17:11.434Z")
+            equalTo("a time series document with dimensions " + testCase.expectedTsid + " at [1970-01-03T16:17:11.434Z]")
         );
     }
 

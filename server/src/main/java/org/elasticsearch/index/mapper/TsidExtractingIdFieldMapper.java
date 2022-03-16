@@ -173,7 +173,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampField != null) {
             String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(timestampField.numericValue().longValue());
-            description.append(" at ").append(timestamp);
+            description.append(" at [").append(timestamp).append(']');
         }
         return description.toString();
     }

@@ -262,10 +262,8 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     public void testConcurrentCreationOfNewProfiles() throws InterruptedException {
-        // The profile index may or may not exist
-        if (randomBoolean()) {
-            indexDocument();
-        }
+        // Ensure the index exists because racing on creating and writing to the index could fail with UnavailableShardsException
+        indexDocument();
 
         final String username = randomAlphaOfLengthBetween(5, 12);
         final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());

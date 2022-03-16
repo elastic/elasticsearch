@@ -61,11 +61,14 @@ import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,6 +93,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.nio.file.Files.walk;
 import static java.util.Objects.requireNonNull;
 import static java.util.Optional.ofNullable;
 import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
@@ -525,7 +529,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         copyExtraConfigFiles();
 
         createConfiguration();
-
         if (plugins.isEmpty() == false) {
             if (getVersion().onOrAfter("7.6.0")) {
                 logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
@@ -790,6 +793,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
             && Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false) {
+            System.out.println("getDistroDir().resolve(\"bin\").resolve(tool) = " + getDistroDir().resolve("bin").resolve(tool));
             throw new TestClustersException(
                 "Can't run bin script: `" + tool + "` does not exist. " + "Is this the distribution you expect it to be ?"
             );
@@ -1232,7 +1236,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
+        try (Stream<Path> stream = walk(sourceRoot)) {
             stream.forEach(source -> {
                 Path relativeDestination = sourceRoot.relativize(source);
                 if (relativeDestination.getNameCount() <= 1) {
@@ -1428,13 +1432,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Classpath
     public FileCollection getInstalledClasspath() {
-        return pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar"));
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getInstalledFiles() {
-        return pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar") == false);
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false);
     }
 
     @Classpath

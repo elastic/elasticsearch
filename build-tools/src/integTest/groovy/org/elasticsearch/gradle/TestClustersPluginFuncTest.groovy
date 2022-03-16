@@ -11,6 +11,7 @@ package org.elasticsearch.gradle
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
+import spock.lang.IgnoreRest
 import spock.lang.Unroll
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedClasspathMockedDistributionDownload
@@ -119,10 +120,11 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         inputProperty << ["distributionClasspath", "distributionFiles"]
     }
 
+    @IgnoreRest
     @Unroll
-    def "test cluster modules #propertyName change is detected"() {
+    def "test cluster #pluginType #propertyName change is detected"() {
         given:
-        addSubProject("test-module") << """
+        addSubProject("test-$pluginType") << """
             plugins {
                 id 'elasticsearch.esplugin'
             }
@@ -131,9 +133,9 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
             configurations.testImplementation.dependencies.clear()
             
             esplugin {
-                name = 'test-module'
+                name = 'test-$pluginType'
                 classname 'org.acme.TestModule'
-                description = "test module description"
+                description = "test $pluginType description"
             }
             
             version = "1.0"
@@ -143,7 +145,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
             testClusters {
               myCluster {
                 testDistribution = 'default'
-                module ':test-module'
+                $pluginType ':test-$pluginType'
               }
             }
 
@@ -153,12 +155,12 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh')) {
+        withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh', '--stacktrace')) {
             build()
         }
         fileChange.delegate = this
         fileChange.call(this)
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', 'guh')) {
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', 'guh', '--stacktrace')) {
             build()
         }
 
@@ -170,9 +172,11 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertEsLogContains("myCluster", "Stopping node")
 
         where:
-        propertyName         | fileChange
-        "installedFiles"     | { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
-        "installedClasspath" | { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
+        pluginType | propertyName         | fileChange
+        'module'   | "installedFiles"     | { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        'plugin'   | "installedFiles"     | { def testClazz -> testClazz.file("test-plugin/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        'module'   | "installedClasspath" | { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
+        'plugin'   | "installedClasspath" | { def testClazz -> testClazz.file("test-plugin/src/main/java/SomeClass.java") << "class SomeClass {}" }
     }
 
     def "can declare test cluster in lazy evaluated task configuration block"() {

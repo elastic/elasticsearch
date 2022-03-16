@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -174,12 +173,12 @@ public class EmailServiceTests extends ESTestCase {
             "htmlbody",
             Collections.emptyMap()
         );
-        assertTrue(EmailService.recipientDomainsInAllowList(email, Set.of("*")));
-        assertFalse(EmailService.recipientDomainsInAllowList(email, Set.of()));
-        assertFalse(EmailService.recipientDomainsInAllowList(email, Set.of("")));
-        assertTrue(EmailService.recipientDomainsInAllowList(email, Set.of("other.com", "bar.com")));
-        assertTrue(EmailService.recipientDomainsInAllowList(email, Set.of("other.com", "*.com")));
-        assertTrue(EmailService.recipientDomainsInAllowList(email, Set.of("*.CoM")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("*")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of()));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "*.com")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("*.CoM")));
 
         // Invalid email in CC doesn't blow up
         email = new Email(
@@ -196,7 +195,7 @@ public class EmailServiceTests extends ESTestCase {
             "htmlbody",
             Collections.emptyMap()
         );
-        assertFalse(EmailService.recipientDomainsInAllowList(email, Set.of("other.com", "bar.com")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
 
         // Check CC
         email = new Email(
@@ -213,8 +212,8 @@ public class EmailServiceTests extends ESTestCase {
             "htmlbody",
             Collections.emptyMap()
         );
-        assertTrue(EmailService.recipientDomainsInAllowList(email, Set.of("other.com", "bar.com")));
-        assertFalse(EmailService.recipientDomainsInAllowList(email, Set.of("bar.com")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("bar.com")));
 
         // Check BCC
         email = new Email(
@@ -231,8 +230,8 @@ public class EmailServiceTests extends ESTestCase {
             "htmlbody",
             Collections.emptyMap()
         );
-        assertTrue(EmailService.recipientDomainsInAllowList(email, Set.of("other.com", "bar.com")));
-        assertFalse(EmailService.recipientDomainsInAllowList(email, Set.of("bar.com")));
+        assertTrue(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("other.com", "bar.com")));
+        assertFalse(EmailService.recipientDomainsInAllowList(email, org.elasticsearch.core.Set.of("bar.com")));
     }
 
     public void testSendEmailWithDomainNotInAllowList() throws Exception {

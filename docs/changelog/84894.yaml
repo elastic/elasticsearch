@@ -1,0 +1,6 @@
+pr: 84894
+summary: Add list of allowed domains for Watcher email action
+area: Watcher
+type: enhancement
+issues:
+ - 84739

@@ -5,7 +5,7 @@
 <titleabbrev>Data streams</titleabbrev>
 ++++
 
-A data stream lets you store append-only time series
+A data stream lets you store append-only timestamped
 data across multiple indices while giving you a single named resource for
 requests. Data streams are well-suited for logs, events, metrics, and other
 continuously generated data.
@@ -119,7 +119,7 @@ documents directly to a data stream. Instead, use the
 If needed, you can <<update-delete-docs-in-a-backing-index,update or delete
 documents>> by submitting requests directly to the document's backing index.
 
-TIP: If you frequently update or delete existing time series data, use an index
+TIP: If you frequently update or delete existing timestamped data, use an index
 alias with a write index instead of a data stream. See
 <<manage-time-series-data-without-data-streams>>.
 

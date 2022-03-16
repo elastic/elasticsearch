@@ -208,7 +208,7 @@ PUT _index_template/my-index-template
   "composed_of": [ "my-mappings", "my-settings" ],
   "priority": 500,
   "_meta": {
-    "description": "Template for my time series data",
+    "description": "Template for my timestamped data",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }
@@ -272,7 +272,7 @@ For an example, see <<data-stream-privileges>>.
 // tag::time-series-alias-tip[]
 Prior to {es} 7.9, you'd typically use an
 <<manage-time-series-data-without-data-streams,index alias with a write index>>
-to manage time series data. Data streams replace this functionality, require
+to manage timestamped data. Data streams replace this functionality, require
 less maintenance, and automatically integrate with <<data-tiers,data tiers>>.
 // end::time-series-alias-tip[]
 

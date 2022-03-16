@@ -251,7 +251,7 @@ node.roles: [ data_content ]
 [[data-hot-node]]
 ==== Hot data node
 
-Hot data nodes store time series data as it enters {es}. The hot tier must be fast for
+Hot data nodes store timestamped data as it enters {es}. The hot tier must be fast for
 both reads and writes, and requires more hardware resources (such as SSD drives).
 
 To create a dedicated hot node, set:

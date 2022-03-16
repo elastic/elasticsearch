@@ -74,7 +74,7 @@ index's name.
 [[_using_date_math_with_the_rollover_api]]
 .Use date math with index alias rollovers
 ****
-If you use an index alias for time series data, you can use
+If you use an index alias for timestamped data, you can use
 <<date-math-index-names,date math>> in the index name to track the rollover
 date. For example, you can create an alias that points to an index named
 `<my-index-{now/d}-000001>`. If you create the index on May 6, 2099, the index's

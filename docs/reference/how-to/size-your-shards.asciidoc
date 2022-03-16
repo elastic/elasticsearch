@@ -102,9 +102,9 @@ deleted indices directly from the file system and free up resources.
 
 [discrete]
 [[use-ds-ilm-for-time-series]]
-==== Use data streams and {ilm-init} for time series data
+==== Use data streams and {ilm-init} for timestamped data
 
-<<data-streams,Data streams>> let you store time series data across multiple,
+<<data-streams,Data streams>> let you store timestamped data across multiple,
 time-based backing indices. You can use <<index-lifecycle-management,{ilm}
 ({ilm-init})>> to automatically manage these backing indices.
 
@@ -144,7 +144,7 @@ efficient to search. Searching fifty 1GB shards will take substantially more
 resources than searching a single 50GB shard containing the same data.
 
 There are no hard limits on shard size, but experience shows that shards
-between 10GB and 50GB typically work well for logs and time series data. You
+between 10GB and 50GB typically work well for logs and timestamped data. You
 may be able to use larger shards depending on your network and use case.
 Smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
@@ -325,7 +325,7 @@ warm phase.
 ==== Combine smaller indices
 
 You can also use the <<docs-reindex,reindex API>> to combine indices
-with similar mappings into a single large index. For time series data, you could
+with similar mappings into a single large index. For timestamped data, you could
 reindex indices for short time periods into a new index covering a
 longer period. For example, you could reindex daily indices from October with a
 shared index pattern, such as `my-index-2099.10.11`, into a monthly

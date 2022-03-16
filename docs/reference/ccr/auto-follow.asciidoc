@@ -1,7 +1,7 @@
 [role="xpack"]
 [[ccr-auto-follow]]
 === Manage auto-follow patterns
-To replicate time series indices, you configure an auto-follow pattern so that
+To replicate timestamped indices, you configure an auto-follow pattern so that
 each new index in the series is replicated automatically. Whenever the name of
 a new index on the remote cluster matches the auto-follow pattern, a
 corresponding follower index is added to the local cluster.

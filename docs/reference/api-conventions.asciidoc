@@ -82,7 +82,7 @@ include::rest-api/cron-expressions.asciidoc[]
 [[api-date-math-index-names]]
 === Date math support in index and index alias names
 
-Date math name resolution lets you to search a range of time series indices or
+Date math name resolution lets you to search a range of timestamped indices or
 index aliases rather than searching all of your indices and filtering the
 results. Limiting the number of searched indices reduces cluster load and
 improves search performance. For example, if you are searching for errors in

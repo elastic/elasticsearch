@@ -14,7 +14,7 @@ NOTE: Starting in Curator version 5.7, Curator ignores {ilm-init} managed indice
 
 [discrete]
 [[ilm-existing-indices-apply]]
-=== Apply policies to existing time series indices
+=== Apply policies to existing timestamped indices
 
 The simplest way to transition to managing your periodic indices with {ilm-init} is
 to <<apply-policy-template, configure an index template>> to apply a lifecycle policy to new indices.

@@ -237,8 +237,8 @@ POST _aliases
 
 include::{es-repo-dir}/indices/aliases.asciidoc[tag=write-index-defaults]
 
-TIP: We recommend using data streams to store append-only time series data. If
-you frequently update or delete existing time series data, use an index alias
+TIP: We recommend using data streams to store append-only timestamped data. If
+you frequently update or delete existing timestamped data, use an index alias
 with a write index instead. See
 <<manage-time-series-data-without-data-streams>>.
 

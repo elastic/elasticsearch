@@ -1,7 +1,7 @@
 [[use-elasticsearch-for-time-series-data]]
-== Use {es} for time series data
+== Use {es} for timestamped data
 
-{es} offers features to help you store, manage, and search time series data,
+{es} offers features to help you store, manage, and search timestamped data,
 such as logs and metrics. Once in {es}, you can analyze and visualize your data
 using {kib} and other {stack} features.
 
@@ -20,7 +20,7 @@ Use high-performance nodes in the hot and warm tiers for faster
 indexing and faster searches on your most recent data. Use slower, less
 expensive nodes in the cold and frozen tiers to reduce costs.
 
-The content tier is not typically used for time series data. However, it's
+The content tier is not typically used for timestamped data. However, it's
 required to create system indices and other indices that aren't part of a data
 stream.
 

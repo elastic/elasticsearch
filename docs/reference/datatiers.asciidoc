@@ -6,17 +6,17 @@ A _data tier_ is a collection of nodes with the same data role that
 typically share the same hardware profile:
 
 * <<content-tier, Content tier>> nodes handle the indexing and query load for content such as a product catalog.
-* <<hot-tier, Hot tier>> nodes handle the indexing load for time series data such as logs or metrics
+* <<hot-tier, Hot tier>> nodes handle the indexing load for timestamped data such as logs or metrics
 and hold your most recent, most-frequently-accessed data.
-* <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
+* <<warm-tier, Warm tier>> nodes hold timestamped data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier,Cold tier>> nodes hold time series data that is accessed
+* <<cold-tier,Cold tier>> nodes hold timestamped data that is accessed
 infrequently and not normally updated. To save space, you can keep
 <<fully-mounted,fully mounted indices>> of
 <<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
 indices eliminate the need for replicas, reducing required disk space by
 approximately 50% compared to the regular indices.
-* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed 
+* <<frozen-tier, Frozen tier>> nodes hold timestamped data that is accessed 
 rarely and never updated. The frozen tier stores <<partially-mounted,partially
 mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
 This extends the storage capacity even further — by up to 20 times compared to
@@ -26,7 +26,7 @@ When you index documents directly to a specific index, they remain on content ti
 
 When you index documents to a data stream, they initially reside on hot tier nodes.
 You can configure <<index-lifecycle-management, {ilm}>> ({ilm-init}) policies
-to automatically transition your time series data through the hot, warm, and cold tiers
+to automatically transition your timestamped data through the hot, warm, and cold tiers
 according to your performance, resiliency and data retention requirements.
 
 [discrete]
@@ -34,7 +34,7 @@ according to your performance, resiliency and data retention requirements.
 === Content tier
 
 Data stored in the content tier is generally a collection of items such as a product catalog or article archive.
-Unlike time series data, the value of the content remains relatively constant over time,
+Unlike timestamped data, the value of the content remains relatively constant over time,
 so it doesn't make sense to move it to a tier with different performance characteristics as it ages.
 Content data typically has long data retention requirements, and you want to be able to retrieve
 items quickly regardless of how old they are.
@@ -42,7 +42,7 @@ items quickly regardless of how old they are.
 Content tier nodes are usually optimized for query performance--they prioritize processing power over IO throughput
 so they can process complex searches and aggregations and return results quickly.
 While they are also responsible for indexing, content data is generally not ingested at as high a rate
-as time series data such as logs and metrics. From a resiliency perspective the indices in this
+as timestamped data such as logs and metrics. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
 The content tier is required. System indices and other indices that aren't part
@@ -52,8 +52,8 @@ of a data stream are automatically allocated to the content tier.
 [[hot-tier]]
 === Hot tier
 
-The hot tier is the {es} entry point for time series data and holds your most-recent,
-most-frequently-searched time series data.
+The hot tier is the {es} entry point for timestamped data and holds your most-recent,
+most-frequently-searched timestamped data.
 Nodes in the hot tier need to be fast for both reads and writes,
 which requires more hardware resources and faster storage (SSDs).
 For resiliency, indices in the hot tier should be configured to use one or more replicas.
@@ -65,7 +65,7 @@ data stream>> are automatically allocated to the hot tier.
 [[warm-tier]]
 === Warm tier
 
-Time series data can move to the warm tier once it is being queried less frequently
+Timestamped data can move to the warm tier once it is being queried less frequently
 than the recently-indexed data in the hot tier.
 The warm tier typically holds data from recent weeks.
 Updates are still allowed, but likely infrequent.
@@ -76,7 +76,7 @@ For resiliency, indices in the warm tier should be configured to use one or more
 [[cold-tier]]
 === Cold tier
 
-When you no longer need to search time series data regularly, it can move from
+When you no longer need to search timestamped data regularly, it can move from
 the warm tier to the cold tier. While still searchable, this tier is typically
 optimized for lower storage costs rather than search speed.
 

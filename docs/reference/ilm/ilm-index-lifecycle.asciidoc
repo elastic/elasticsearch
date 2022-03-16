@@ -20,7 +20,7 @@ are applicable, what actions are performed in each phase,
 and when it transitions between phases.
 
 You can manually apply a lifecycle policy when you create an index.
-For time series indices, you need to associate the lifecycle policy with
+For timestamped indices, you need to associate the lifecycle policy with
 the index template used to create new indices in the series.
 When an index rolls over, a manually-applied policy isn't automatically applied to the new index.
 

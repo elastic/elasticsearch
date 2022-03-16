@@ -14,7 +14,7 @@ data is replicated to one or more read-only _follower_ indices. Before you can a
 When the leader index receives writes, the follower indices pull changes from
 the leader index on the remote cluster. You can manually create follower
 indices, or configure auto-follow patterns to automatically create follower
-indices for new time series indices.
+indices for new timestamped indices.
 
 You configure {ccr} clusters in a uni-directional or bi-directional setup:
 

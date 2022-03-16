@@ -57,11 +57,11 @@ In this guide, you'll learn how to:
 
 * Configure a <<remote-clusters,remote cluster>> with a leader index
 * Create a follower index on a local cluster
-* Create an auto-follow pattern to automatically follow time series indices
+* Create an auto-follow pattern to automatically follow timestamped indices
 that are periodically created in a remote cluster
 
 You can manually create follower indices to replicate specific indices on a
-remote cluster, or configure auto-follow patterns to replicate rolling time series indices.
+remote cluster, or configure auto-follow patterns to replicate rolling timestamped indices.
 
 TIP: If you want to replicate data across clusters in the cloud, you can
 link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
@@ -251,14 +251,14 @@ POST /server-metrics-follower/_ccr/unfollow
 ====
 
 [[ccr-getting-started-auto-follow]]
-==== Create an auto-follow pattern to replicate time series indices
+==== Create an auto-follow pattern to replicate timestamped indices
 You use <<ccr-auto-follow,auto-follow patterns>> to automatically create new
-followers for rolling time series indices. Whenever the name of a new index on
+followers for rolling timestamped indices. Whenever the name of a new index on
 the remote cluster matches the auto-follow pattern, a corresponding follower
 index is added to the local cluster.
 
 An auto-follow pattern specifies the remote cluster you want to replicate from,
-and one or more index patterns that specify the rolling time series indices you
+and one or more index patterns that specify the rolling timestamped indices you
 want to replicate.
 
 // tag::ccr-create-auto-follow-pattern-tag[]

@@ -9,14 +9,12 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -121,12 +119,9 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                  * fields are expensive to decode and the overhead of iterating per
                  * filter causes us to decode doc counts over and over again.
                  */
-                Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
-                for (LeafReaderContext c : context.searcher().getLeafContexts()) {
-                    if (c.reader().docFreq(term) > 0) {
-                        valid = false;
-                        return;
-                    }
+                if (context.hasDocCountField()) {
+                    valid = false;
+                    return;
                 }
             }
             filters.add(mergedFilter);

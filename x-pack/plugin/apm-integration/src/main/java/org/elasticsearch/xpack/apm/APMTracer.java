@@ -14,7 +14,6 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
@@ -89,7 +88,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     );
 
     private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
-    private final Map<String, Tuple<Span,Runnable>> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Tuple<Span, Runnable>> spans = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SecureString endpoint;
@@ -232,8 +231,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
             // services might be in shutdown state by this point, but this is handled by the open telemetry internally
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
-            Context parentContext = getParentSpanContext(services.openTelemetry);
+            Context parentContext = getParentSpanContext();
             if (parentContext != null) {
+                if (traceable.getSpanName().startsWith("GET") || traceable.getSpanName().startsWith("POST")) {
+                    String traceParentHeader = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
+                    String traceStateHeader = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+                    LOGGER.warn("BADGER {} {}", traceParentHeader, traceStateHeader);
+                }
                 spanBuilder.setParent(parentContext);
             }
 
@@ -276,14 +280,15 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
             }
             final Span span = spanBuilder.startSpan();
-            Releasable previousContext;
-            try (Scope ignore = span.makeCurrent()) {
-                Map<String, String> spanHeaders = new HashMap<>();
-                services.openTelemetry.getPropagators().getTextMapPropagator().inject(Context.current(), spanHeaders, Map::put);
-                spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
-                previousContext = threadContext.removeRequestHeaders(TRACE_HEADERS);
-                threadContext.putHeader(spanHeaders);
-            }
+
+            final Map<String, String> spanHeaders = new HashMap<>();
+            final Context contextForNewSpan = Context.current().with(span);
+            services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
+            spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
+
+            Releasable previousContext = threadContext.removeRequestHeaders(TRACE_HEADERS);
+            threadContext.putHeader(spanHeaders);
+
             return Tuple.tuple(span, previousContext::close);
         });
     }
@@ -294,13 +299,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
     }
 
-    private Context getParentSpanContext(OpenTelemetry openTelemetry) {
-        // If we already have a non-root span context that should be the parent
-        if (Context.current() != Context.root()) {
-            return Context.current();
-        }
-
-        // If not let us check for a parent context in the thread context
+    private Context getParentSpanContext() {
+        // Check for a parent context in the thread context
         String traceParentHeader = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
         String traceStateHeader = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
         if (traceParentHeader != null) {
@@ -310,7 +310,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             if (traceStateHeader != null) {
                 traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
             }
-            return openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), traceContextMap, new MapKeyGetter());
+            return services.openTelemetry.getPropagators()
+                .getTextMapPropagator()
+                .extract(Context.current(), traceContextMap, new MapKeyGetter());
         }
         return null;
     }

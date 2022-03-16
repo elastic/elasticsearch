@@ -50,7 +50,7 @@ public interface RestChannel extends Traceable {
 
     @Override
     default String getSpanName() {
-        return this.request().path();
+        return this.request().method() + " " + this.request().path();
     }
 
     @Override

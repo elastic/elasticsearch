@@ -8,9 +8,16 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -21,7 +28,9 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -44,6 +53,8 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * Shards allocated on nodes scheduled for restart (using nodes shutdown API) will not degrade this indicator health.
  */
 public class ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
+
+    private static final Logger LOGGER = LogManager.getLogger(ShardsAvailabilityHealthIndicatorService.class);
 
     public static final String NAME = "shards_availability";
 
@@ -72,15 +83,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), shutdown);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, shutdown);
+                    status.addReplica(replicaShard, state, shutdown);
                 }
             }
         }
 
         return createIndicator(status.getStatus(), status.getSummary(), status.getDetails());
     }
+
+    private static record Diagnosis(String identifier, String troubleshootingURL) {}
+    private static final Diagnosis UNKNOWN = new Diagnosis("UNKNOWN", "");
+    private static final Diagnosis TIER_ROLE_CLASH = new Diagnosis("TIER_CLASH", "https://"); // TODO: Need a URL for this
 
     private static class ShardAllocationCounts {
         private boolean available = true;
@@ -91,7 +106,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int started = 0;
         private int relocating = 0;
 
-        public void increment(ShardRouting routing, NodesShutdownMetadata shutdowns) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -104,7 +119,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
+                        LOGGER.info("Diagnosis: " + diagnoseReason(routing, state));
                     }
+                    LOGGER.info("Found unassigned info: " + routing.unassignedInfo());
                 }
                 case INITIALIZING -> initializing++;
                 case STARTED -> started++;
@@ -131,16 +148,87 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return routing.primary() && routing.active() == false && getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW;
     }
 
+    /**
+     * Diagnose well known error states that we know will never result in a successful allocation.
+     * @return Diagnosis result to be returned with actions for a user to take
+     */
+    private static Diagnosis diagnoseReason(ShardRouting routing, ClusterState state) {
+        return Optional.ofNullable(state.metadata().index(routing.index()))
+            .map(indexMetadata -> {
+                // Check: Data Tier conflicts with required attributes
+                if (UnassignedInfo.AllocationStatus.DECIDERS_NO == routing.unassignedInfo().getLastAllocationStatus()) {
+                    List<String> tierPreference = indexMetadata.getTierPreference();
+                    if (tierPreference.size() > 0) {
+                        Optional<DiscoveryNode> discoveryNode = allocateBasedOnTiersAndFilters(state, indexMetadata);
+                        if (discoveryNode.isPresent() == false) {
+                            return TIER_ROLE_CLASH;
+                        } else {
+                            LOGGER.debug(
+                                "Tier Check Outcome for [{}]: Found a viable node for tier: {}",
+                                routing.shardId(),
+                                discoveryNode.get().getId()
+                            );
+                        }
+                    } else {
+                        LOGGER.debug(
+                            "Tier Check Outcome for [{}]: Unknown - No tier configured: [{}]] from setting: All settings: [{}]",
+                            routing.shardId(),
+                            tierPreference,
+                            indexMetadata.getSettings()
+                        );
+                    }
+                } else {
+                    LOGGER.debug(
+                        "Tier Check Outcome for [{}]: Unknown - status: {}",
+                        routing.shardId(),
+                        routing.unassignedInfo().getLastAllocationStatus()
+                    );
+                }
+                return UNKNOWN;
+            })
+            .orElse(UNKNOWN);
+    }
+
+    /**
+     * Determines if a shard can be allocated to any node based on JUST tier preference and node filtering rules.
+     */
+    private static Optional<DiscoveryNode> allocateBasedOnTiersAndFilters(ClusterState state, IndexMetadata indexMetadata) {
+        List<String> tierPreference = indexMetadata.getTierPreference();
+        DiscoveryNodeFilters requireFilters = indexMetadata.requireFilters();
+        DiscoveryNodeFilters includeFilters = indexMetadata.includeFilters();
+        DiscoveryNodeFilters excludeFilters = indexMetadata.excludeFilters();
+
+        return state.nodes().getDataNodes().values().stream()
+            .filter(node -> {
+                if (node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
+                    return true;
+                } else {
+                    for (String tierName : tierPreference) {
+                        for (DiscoveryNodeRole role : node.getRoles()) {
+                            if (role.roleName().equals(tierName)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            })
+            .filter(node -> {if (requireFilters != null) return requireFilters.match(node); else return true;})
+            .filter(node -> {if (includeFilters != null) return includeFilters.match(node); else return true;})
+            .filter(node -> {if (excludeFilters != null) return excludeFilters.match(node); else return true;})
+            .findAny();
+    }
+
     private static class ShardAllocationStatus {
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
 
-        public void addPrimary(ShardRouting routing, NodesShutdownMetadata shutdowns) {
-            primaries.increment(routing, shutdowns);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
+            primaries.increment(routing, state, shutdowns);
         }
 
-        public void addReplica(ShardRouting routing, NodesShutdownMetadata shutdowns) {
-            replicas.increment(routing, shutdowns);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
+            replicas.increment(routing, state, shutdowns);
         }
 
         public HealthStatus getStatus() {

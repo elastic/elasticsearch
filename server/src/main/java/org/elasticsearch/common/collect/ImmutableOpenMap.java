@@ -10,14 +10,9 @@ package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
-import com.carrotsearch.hppc.predicates.ObjectPredicate;
-import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractCollection;
 import java.util.AbstractSet;

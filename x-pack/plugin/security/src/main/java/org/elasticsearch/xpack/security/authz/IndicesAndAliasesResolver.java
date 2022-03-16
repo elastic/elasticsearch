@@ -63,10 +63,6 @@ class IndicesAndAliasesResolver {
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
-    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return nameExpressionResolver;
-    }
-
     public Predicate<String> getRestrictedIndicesPredicate() {
         return Automatons.predicate(nameExpressionResolver.getSystemNameAutomaton());
     }

@@ -37,6 +37,11 @@ import java.util.function.Supplier;
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final FieldType FIELD_TYPE = new FieldType();
+    /**
+     * Maximum length of the {@code _tsid} in the {@link #documentDescription}.
+     */
+    static final int DESCRIPTION_TSID_LIMIT = 1000;
+
     static {
         FIELD_TYPE.setTokenized(false);
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -168,6 +173,9 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         IndexableField tsidField = context.doc().getField(TimeSeriesIdFieldMapper.NAME);
         if (tsidField != null) {
             String tsid = TimeSeriesIdFieldMapper.decodeTsid(tsidField.binaryValue()).toString();
+            if (tsid.length() > DESCRIPTION_TSID_LIMIT) {
+                tsid = tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
+            }
             description.append(" with dimensions ").append(tsid);
         }
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);

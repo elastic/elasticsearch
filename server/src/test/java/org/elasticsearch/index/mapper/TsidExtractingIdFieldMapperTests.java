@@ -394,6 +394,21 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             })
         );
 
+        String huge = "foo ".repeat(200);
+        items.add(
+            new TestCase(
+                "huge",
+                "XsFI2ajoxid9Tfl3gIomE34BAAA",
+                "{k1=" + huge + ", k2=" + huge.substring(0, 191) + "...}",
+                b -> {
+                    b.field("@timestamp", "2022-01-01T01:00:00Z");
+                    b.field("r1", "cat");
+                    b.field("k1", huge);
+                    b.field("k2", huge);
+                }
+            )
+        );
+
         return items.stream().map(td -> new Object[] { td }).toList();
     }
 

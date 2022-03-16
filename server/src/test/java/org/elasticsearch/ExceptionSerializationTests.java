@@ -837,7 +837,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
 
         for (final Tuple<Integer, Class<? extends ElasticsearchException>> tuple : ElasticsearchException.classes()) {
-            System.out.println(tuple);
             assertNotNull(tuple.v1());
             assertEquals((int) reverse.get(tuple.v2()), (int) tuple.v1());
         }

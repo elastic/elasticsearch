@@ -349,11 +349,6 @@ value that matches the `geo_bounding_box` query.
 `<field>`::
 Field value. Only returned for fields in the `fields` parameter.
 ======
-// tag::feature-id[]
-`id`::
-(integer) Unique ID for the feature within the layer.
-// end::feature-id[]
-
 // tag::feature-type[]
 `type`::
 (integer) Identifier for the feature's geometry type. Values are:
@@ -398,8 +393,6 @@ include::search-vector-tile-api.asciidoc[tag=geometry]
 Sub-aggregation results for the cell. Only returned for sub-aggregations in the
 `aggs` parameter.
 ======
-include::search-vector-tile-api.asciidoc[tag=feature-id]
-
 include::search-vector-tile-api.asciidoc[tag=feature-type]
 =====
 ====
@@ -496,8 +489,6 @@ partial or empty.
 (integer) Milliseconds it took {es} to run the search. See the search API's
 <<search-api-took,`took`>> response property.
 ======
-include::search-vector-tile-api.asciidoc[tag=feature-id]
-
 include::search-vector-tile-api.asciidoc[tag=feature-type]
 =====
 ====
@@ -602,7 +593,6 @@ tile contains the following data:
           "name": "NEMO Science Museum",
           "price": 1750
         },
-        "id": 0,
         "type": 1
       },
       {
@@ -618,7 +608,6 @@ tile contains the following data:
           "name": "Nederlands Scheepvaartmuseum",
           "price": 1650
         },
-        "id": 0,
         "type": 1
       },
       {
@@ -634,7 +623,6 @@ tile contains the following data:
           "name": "Amsterdam Centre for Architecture",
           "price": 0
         },
-        "id": 0,
         "type": 1
       }
     ]
@@ -677,7 +665,6 @@ tile contains the following data:
           "min_price.value": 0.0,
           "avg_price.value": 1133.3333333333333
         },
-        "id": 0,
         "type": 3
       }
     ]
@@ -745,7 +732,6 @@ tile contains the following data:
           "timed_out": false,
           "took": 2
         },
-        "id": 0,
         "type": 3
       }
     ]

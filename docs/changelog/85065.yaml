@@ -1,0 +1,4 @@
+pr: 85065
+summary: bound force merge segment size
+area: index force merge
+type: enhancement

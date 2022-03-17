@@ -419,6 +419,9 @@
                 },
                 "executions": {
                   "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
                 }
               }
             },
@@ -450,6 +453,9 @@
                 },
                 "executions": {
                   "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
                 }
               }
             }
@@ -468,6 +474,10 @@
             "failures": {
               "type": "alias",
               "path": "kibana.node_rules.failures"
+            },
+            "timeouts": {
+              "type": "alias",
+              "path": "kibana.node_rules.timeouts"
             },
             "executions": {
               "type": "alias",
@@ -532,6 +542,10 @@
             "executions": {
               "type": "alias",
               "path": "kibana.node_actions.executions"
+            },
+            "timeouts": {
+              "type": "alias",
+              "path": "kibana.node_actions.timeouts"
             },
             "timestamp": {
               "type": "alias",

@@ -94,6 +94,9 @@
             },
             "executions": {
               "type": "long"
+            },
+            "timeouts": {
+              "type": "long"
             }
           }
         },
@@ -202,6 +205,9 @@
               "type": "long"
             },
             "executions": {
+              "type": "long"
+            },
+            "timeouts": {
               "type": "long"
             }
           }

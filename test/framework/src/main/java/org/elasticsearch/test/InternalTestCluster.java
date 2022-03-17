@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -1417,15 +1417,16 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSeqNos() throws Exception {
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
-            for (var indexRoutingTable : state.routingTable().indicesRouting().entrySet()) {
-                for (var indexShardRoutingTable : indexRoutingTable.getValue().shards().values()) {
+            for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                     ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; // just ignore - shard movement
                     }
                     final SeqNoStats primarySeqNoStats;
-                    final ObjectLongMap<String> syncGlobalCheckpoints;
+                    final Map<String, Long> syncGlobalCheckpoints;
                     try {
                         primarySeqNoStats = primaryShard.seqNoStats();
                         syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();
@@ -1468,7 +1469,8 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
-                for (var indexShardRoutingTable : indexRoutingTable.shards().values()) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                     ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {

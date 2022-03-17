@@ -60,7 +60,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
@@ -297,7 +297,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
-        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
+        List<FieldMapper> mappers = concreteFields.stream().<FieldMapper>map(MockFieldMapper::new).toList();
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
@@ -471,7 +471,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                     public LeafFieldData load(LeafReaderContext context) {
                         return new LeafFieldData() {
                             @Override
-                            public DocValuesField<?> getScriptField(String name) {
+                            public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                                 return new DelegateDocValuesField(new ScriptDocValues<String>(new ScriptDocValues.Supplier<String>() {
                                     String value;
 
@@ -595,7 +595,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     leafDocLookup.setDocument(doc);
                                     scriptDocValues = leafDocLookup.get(field);
                                 } else {
-                                    scriptDocValues = indexFieldData.load(context).getScriptField("test").getScriptDocValues();
+                                    scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
                                     ;
                                 }
                                 scriptDocValues.getSupplier().setNextDocId(doc);

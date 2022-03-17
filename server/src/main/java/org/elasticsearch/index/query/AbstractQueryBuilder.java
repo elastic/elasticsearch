@@ -251,14 +251,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return getWriteableName();
     }
 
-    static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
+    protected static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder query : queries) {
             out.writeNamedWriteable(query);
         }
     }
 
-    static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+    protected static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
         int size = in.readVInt();
         List<QueryBuilder> queries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {

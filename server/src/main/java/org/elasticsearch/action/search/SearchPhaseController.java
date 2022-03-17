@@ -57,7 +57,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -438,7 +437,7 @@ public final class SearchPhaseController {
             );
         }
         int total = queryResults.size();
-        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).collect(Collectors.toList());
+        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).toList();
         String errorMsg = "must have at least one non-empty search result, got 0 out of " + total;
         assert queryResults.isEmpty() == false : errorMsg;
         if (queryResults.isEmpty()) {

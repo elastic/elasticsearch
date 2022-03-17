@@ -109,7 +109,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
                 .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
 
             for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
@@ -169,6 +169,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * @return the finalized aggregations
      */
     public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
-        return internalAggregations;
+        return from(
+            internalAggregations.aggregations.stream()
+                .map(agg -> ((InternalAggregation) agg).finalizeSampling(samplingContext))
+                .collect(Collectors.toList())
+        );
     }
 }

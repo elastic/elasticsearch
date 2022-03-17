@@ -107,6 +107,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -132,7 +133,6 @@ public class ClusterStateChanges {
     private final TransportCreateIndexAction transportCreateIndexAction;
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-    private final JoinTaskExecutor joinTaskExecutor;
 
     @SuppressWarnings("unchecked")
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
@@ -309,7 +309,6 @@ public class ClusterStateChanges {
         );
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -350,7 +349,7 @@ public class ClusterStateChanges {
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
-            joinTaskExecutor,
+            new JoinTaskExecutor(allocationService, (s, p, r) -> {}, clusterState.term()),
             clusterState,
             List.of(
                 JoinTask.singleNode(
@@ -364,7 +363,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            joinTaskExecutor,
+            new JoinTaskExecutor(allocationService, (s, p, r) -> {}, clusterState.term() + between(1, 10)),
             clusterState,
             List.of(
                 JoinTask.completingElection(

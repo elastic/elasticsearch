@@ -326,7 +326,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             .values()
             .stream()
             .map(DiscoveryNode::getName)
-            .collect(Collectors.toList());
+            .toList();
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 
         createIndex(

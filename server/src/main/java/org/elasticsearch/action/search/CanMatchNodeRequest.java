@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Node-level request used during can-match phase
@@ -197,7 +196,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     }
 
     public List<ShardSearchRequest> createShardSearchRequests() {
-        return shards.stream().map(this::createShardSearchRequest).collect(Collectors.toList());
+        return shards.stream().map(this::createShardSearchRequest).toList();
     }
 
     public ShardSearchRequest createShardSearchRequest(Shard r) {
@@ -242,7 +241,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     @Override
     public String getDescription() {
         // Shard id is enough here, the request itself can be found by looking at the parent task description
-        return "shardIds[" + shards.stream().map(slr -> slr.shardId).collect(Collectors.toList()) + "]";
+        return "shardIds[" + shards.stream().map(slr -> slr.shardId).toList() + "]";
     }
 
 }

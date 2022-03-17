@@ -175,13 +175,9 @@ public class CompoundProcessor implements Processor {
                 }
             } catch (Exception e) {
                 metric.postIngest(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.ingestFailed();
+                executeOnFailureOuter(0, ingestDocument, handler, processor, metric, e);
+                currentProcessor++;
                 if (ignoreFailure == false) {
-                    if (onFailureProcessors.isEmpty()) {
-                        handler.accept(null, newCompoundProcessorException(e, processor, ingestDocument));
-                    } else {
-                        executeOnFailure(0, ingestDocument, newCompoundProcessorException(e, processor, ingestDocument), handler);
-                    }
                     return;
                 }
             }
@@ -198,34 +194,47 @@ public class CompoundProcessor implements Processor {
             final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
             final IngestDocument finalIngestDocument = ingestDocument;
             finalMetric.preIngest();
-            finalProcessor.execute(ingestDocument, (result, e) -> {
-                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
-                finalMetric.postIngest(ingestTimeInNanos);
+            try {
+                finalProcessor.execute(ingestDocument, (result, e) -> {
+                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
+                    finalMetric.postIngest(ingestTimeInNanos);
 
-                if (e != null) {
-                    finalMetric.ingestFailed();
-                    if (ignoreFailure) {
-                        innerExecute(finalProcessorNumber, finalIngestDocument, handler);
+                    if (e != null) {
+                        executeOnFailureOuter(0, finalIngestDocument, handler, finalProcessor, finalMetric, e);
                     } else {
-                        IngestProcessorException compoundProcessorException = newCompoundProcessorException(
-                            e,
-                            finalProcessor,
-                            finalIngestDocument
-                        );
-                        if (onFailureProcessors.isEmpty()) {
-                            handler.accept(null, compoundProcessorException);
+                        if (result != null) {
+                            innerExecute(finalProcessorNumber, result, handler);
                         } else {
-                            executeOnFailure(0, finalIngestDocument, compoundProcessorException, handler);
+                            handler.accept(null, null);
                         }
                     }
-                } else {
-                    if (result != null) {
-                        innerExecute(finalProcessorNumber, result, handler);
-                    } else {
-                        handler.accept(null, null);
-                    }
-                }
-            });
+                });
+            } catch (Exception e) {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                finalMetric.postIngest(ingestTimeInNanos);
+                executeOnFailureOuter(0, finalIngestDocument, handler, finalProcessor, finalMetric, e);
+            }
+        }
+    }
+
+    private void executeOnFailureOuter(
+        int currentProcessor,
+        IngestDocument ingestDocument,
+        BiConsumer<IngestDocument, Exception> handler,
+        Processor processor,
+        IngestMetric metric,
+        Exception e
+    ) {
+        metric.ingestFailed();
+        if (ignoreFailure) {
+            innerExecute(currentProcessor + 1, ingestDocument, handler);
+        } else {
+            IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
+            if (onFailureProcessors.isEmpty()) {
+                handler.accept(null, compoundProcessorException);
+            } else {
+                executeOnFailure(0, ingestDocument, compoundProcessorException, handler);
+            }
         }
     }
 

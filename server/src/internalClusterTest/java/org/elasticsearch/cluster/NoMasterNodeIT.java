@@ -42,7 +42,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -326,7 +325,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             .map(shardRouting -> shardRouting.currentNodeId())
             .map(nodeId -> clusterState.getState().nodes().resolveNode(nodeId))
             .map(DiscoveryNode::getName)
-            .collect(Collectors.toList());
+            .toList();
 
         client().execute(
             AddVotingConfigExclusionsAction.INSTANCE,

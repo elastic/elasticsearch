@@ -24,6 +24,8 @@ public class XContentFactory {
 
     public static final int GUESS_HEADER_LENGTH = 20;
 
+    private XContentFactory() {}
+
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.xcontent.XContentType#JSON}.
      */
@@ -149,7 +151,6 @@ public class XContentFactory {
         if (YamlXContent.yamlXContent.detectContent(content)) {
             return XContentType.YAML;
         }
-
         // CBOR is not supported
 
         // fallback for JSON
@@ -288,7 +289,7 @@ public class XContentFactory {
         if (SmileXContent.smileXContent.detectContent(bytes, offset, length)) {
             return XContentType.SMILE;
         }
-        if (length > 2 && first == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-') {
+        if (YamlXContent.yamlXContent.detectContent(bytes, offset, length)) {
             return XContentType.YAML;
         }
         if (CborXContent.cborXContent.detectContent(bytes, offset, length)) {

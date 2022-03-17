@@ -468,14 +468,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Nested document:
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
         assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
         assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(ProvidedIdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
         assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
@@ -1536,7 +1536,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper builtDocMapper = createDocumentMapper(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1548,7 +1548,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1557,7 +1557,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper docMapper = createDocumentMapper(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -2028,6 +2028,45 @@ public class DocumentParserTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo("All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]")
         );
+    }
+
+    public void testDocumentDescriptionInTsdb() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "long").endObject();
+                b.startObject("uid").field("type", "keyword").field("time_series_dimension", true).endObject();
+            })
+        ).documentMapper();
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("failed to parse field [foo] of type [long] in a time series document. Preview of field's value: 'true'")
+            );
+        }
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("@timestamp", "2021-04-28T00:01:00Z").field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "failed to parse field [foo] of type [long] in a time series document at "
+                        + "[2021-04-28T00:01:00.000Z]. Preview of field's value: 'true'"
+                )
+            );
+        }
     }
 
     /**

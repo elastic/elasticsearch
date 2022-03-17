@@ -83,6 +83,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -388,11 +389,15 @@ public abstract class EngineTestCase extends ESTestCase {
         BytesReference source,
         Mapping mappingUpdate,
         boolean recoverySource
-    ) { // TODO try with TsdbIdFieldMapper
-        Field uidField = new Field("_id", Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+    ) {
+        Field idField = new Field(
+            "_id",
+            Uid.encodeId(id),
+            randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE
+        );
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
+        document.add(idField);
         document.add(versionField);
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);

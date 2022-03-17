@@ -17,6 +17,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -107,6 +108,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -1517,6 +1519,7 @@ public class InternalEngineTests extends EngineTestCase {
      * we are testing an edge case here where we have a fully deleted segment that is retained but has all it's IDs pruned away.
      */
     public void testLookupVersionWithPrunedAwayIds() throws IOException {
+        FieldType idFieldType = randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE;
         try (Directory dir = newDirectory()) {
             IndexWriterConfig indexWriterConfig = new IndexWriterConfig(Lucene.STANDARD_ANALYZER);
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
@@ -1533,7 +1536,7 @@ public class InternalEngineTests extends EngineTestCase {
                 )
             ) {
                 org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
-                doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+                doc.add(new Field(IdFieldMapper.NAME, "1", idFieldType));
                 doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, -1));
                 doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 1));
                 doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1));
@@ -5467,7 +5470,11 @@ public class InternalEngineTests extends EngineTestCase {
             )
         ) {
             final String id = "id";
-            final Field uidField = new Field("_id", id, ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+            final Field uidField = new Field(
+                "_id",
+                id,
+                randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE
+            );
             final Field versionField = new NumericDocValuesField("_version", 0);
             final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
             final LuceneDocument document = new LuceneDocument();

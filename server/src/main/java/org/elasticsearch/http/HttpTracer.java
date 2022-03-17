@@ -51,15 +51,11 @@ class HttpTracer {
     }
 
     void onTraceStopped(RestChannel channel) {
-        this.tracers.forEach(t -> {
-            t.onTraceStopped(channel);
-        });
+        this.tracers.forEach(t -> t.onTraceStopped(channel));
     }
 
     void onTraceEvent(RestChannel channel, String eventName) {
-        this.tracers.forEach(t -> {
-            t.onTraceEvent(channel, eventName);
-        });
+        this.tracers.forEach(t -> t.onTraceEvent(channel, eventName));
     }
 
     /**

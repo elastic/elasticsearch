@@ -462,8 +462,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             channel = innerChannel;
         }
 
-        onTraceStarted(threadContext, channel);
-
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 

@@ -302,8 +302,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
-            copyRestHeaders(request, threadContext);
-            channel.startTrace(threadContext);
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
@@ -438,6 +436,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         try {
+            copyRestHeaders(request, threadContext);
+            channel.startTrace(threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));

@@ -43,8 +43,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Traceable;
@@ -88,7 +86,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     );
 
     private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
-    private final Map<String, Tuple<Span, Runnable>> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SecureString endpoint;
@@ -233,11 +231,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
             Context parentContext = getParentSpanContext();
             if (parentContext != null) {
-                if (traceable.getSpanName().startsWith("GET") || traceable.getSpanName().startsWith("POST")) {
-                    String traceParentHeader = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
-                    String traceStateHeader = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
-                    LOGGER.warn("BADGER {} {}", traceParentHeader, traceStateHeader);
-                }
                 spanBuilder.setParent(parentContext);
             }
 
@@ -286,10 +279,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
 
-            Releasable previousContext = threadContext.removeRequestHeaders(TRACE_HEADERS);
+            // Ignore the result here, we don't need to restore the threadContext
+            threadContext.removeRequestHeaders(TRACE_HEADERS);
             threadContext.putHeader(spanHeaders);
 
-            return Tuple.tuple(span, previousContext::close);
+            return span;
         });
     }
 
@@ -319,18 +313,22 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void onTraceStopped(Traceable traceable) {
-        final var spanTuple = spans.remove(traceable.getSpanId());
-        if (spanTuple != null) {
-            spanTuple.v1().end();
-            spanTuple.v2().run();
+        final var span = spans.remove(traceable.getSpanId());
+        if (span != null) {
+            span.end();
         }
+        // TODO: geoip-downloader[c] isn't getting stopped?
+//        LOGGER.warn(
+//            "Active spans after stopped trace: {}",
+//            spans.values().stream().map(Tuple::v1).map(span -> ((ReadWriteSpan) span).getName()).toList()
+//        );
     }
 
     @Override
     public void onTraceEvent(Traceable traceable, String eventName) {
-        final var spanTuple = spans.get(traceable.getSpanId());
-        if (spanTuple != null) {
-            spanTuple.v1().addEvent(eventName);
+        final var span = spans.get(traceable.getSpanId());
+        if (span != null) {
+            span.addEvent(eventName);
         }
     }
 

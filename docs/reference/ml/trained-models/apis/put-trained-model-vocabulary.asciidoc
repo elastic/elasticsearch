@@ -47,7 +47,8 @@ The model vocabulary. Must not be empty.
 
 `merges`::
 (Optional, array)
-The model merges. Must be provided for RoBERTa and BART style models.
+The model merges used in byte-pair encoding. The merges must be sub-token pairs, space delimited, and in order of
+preference. Example: ["f o", "fo o"]. Must be provided for RoBERTa and BART style models.
 
 [[ml-put-trained-model-vocabulary-example]]
 == {api-examples-title}

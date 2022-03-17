@@ -59,7 +59,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 }
 
                 java.target("src/**/*.java");
-
                 java.removeUnusedImports();
 
                 // We enforce a standard order for imports
@@ -72,6 +71,13 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // order, apply this one last, otherwise non-empty blank lines can creep
                 // in.
                 java.trimTrailingWhitespace();
+
+                // When running build benchmarks we alter the source in some scenarios.
+                // The gradle-profiler unfortunately does not generate compliant formatted
+                // sources so we ignore that altered file when running build benchmarks
+                if(Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
+                    java.ignoreErrorForPath("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
+                }
             });
 
             project.getTasks().named("precommit").configure(precommitTask -> precommitTask.dependsOn("spotlessJavaCheck"));

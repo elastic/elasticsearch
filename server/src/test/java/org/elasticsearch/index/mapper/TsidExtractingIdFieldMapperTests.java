@@ -9,6 +9,8 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -59,6 +62,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         @Override
         public String toString() {
             return name;
+        }
+
+        public CheckedConsumer<XContentBuilder, IOException> randomSource() {
+            return randomFrom(Stream.concat(Stream.of(source), equivalentSources.stream()).toList());
         }
     }
 
@@ -566,16 +573,36 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testSourceDescription() throws IOException {
+        assertThat(TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext()), equalTo("a time series document"));
+        IndexableField timestamp = new LongPoint("@timestamp", 231431434);
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(source(null, testCase.source, null)),
-            equalTo("a time series document")
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(timestamp)),
+            equalTo("a time series document at [1970-01-03T16:17:11.434Z]")
         );
-        for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
-            assertThat(
-                TsidExtractingIdFieldMapper.INSTANCE.documentDescription(source(null, equivalent, null)),
-                equalTo("a time series document")
-            );
+        ParsedDocument d = parse(null, mapperService(), testCase.randomSource());
+        IndexableField tsid = d.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(tsid)),
+            equalTo("a time series document with dimensions " + testCase.expectedTsid)
+        );
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(tsid, timestamp)),
+            equalTo("a time series document with dimensions " + testCase.expectedTsid + " at [1970-01-03T16:17:11.434Z]")
+        );
+    }
+
+    private TestDocumentParserContext documentParserContext(IndexableField... fields) throws IOException {
+        TestDocumentParserContext ctx = new TestDocumentParserContext(
+            mapperService().mappingLookup(),
+            MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
+            null,
+            null,
+            source(null, testCase.randomSource(), null)
+        );
+        for (IndexableField f : fields) {
+            ctx.doc().add(f);
         }
+        return ctx;
     }
 
     public void testParsedDescription() throws IOException {

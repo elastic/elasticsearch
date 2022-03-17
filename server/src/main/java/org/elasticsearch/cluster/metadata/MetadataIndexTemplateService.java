@@ -466,7 +466,7 @@ public class MetadataIndexTemplateService {
                 return true;
             }
             return false;
-        }).map(Map.Entry::getKey).collect(Collectors.toList());
+        }).map(Map.Entry::getKey).toList();
 
         if (templatesStillUsing.size() > 0) {
             throw new IllegalArgumentException(
@@ -529,7 +529,7 @@ public class MetadataIndexTemplateService {
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
-            .collect(Collectors.toList());
+            .toList();
 
         if (missingComponentTemplates.size() > 0) {
             throw new InvalidIndexTemplateException(
@@ -1339,7 +1339,7 @@ public class MetadataIndexTemplateService {
             .map(ComponentTemplate::template)
             .map(Template::settings)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
 
         Settings.Builder templateSettings = Settings.builder();
         componentSettings.forEach(templateSettings::put);
@@ -1402,7 +1402,7 @@ public class MetadataIndexTemplateService {
             .map(ComponentTemplate::template)
             .map(Template::aliases)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(ArrayList::new));
 
         // Add the actual index template's aliases to the end if they exist
         Optional.ofNullable(template.template()).map(Template::aliases).ifPresent(aliases::add);
@@ -1558,7 +1558,7 @@ public class MetadataIndexTemplateService {
                 .values()
                 .stream()
                 .map(MetadataIndexTemplateService::toAlias)
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 

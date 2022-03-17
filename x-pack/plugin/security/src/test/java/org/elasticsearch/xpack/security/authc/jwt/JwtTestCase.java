@@ -148,13 +148,19 @@ public abstract class JwtTestCase extends ESTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()),
-                randomBoolean() ? null : randomFrom("^(.*)$", "^([^@]+)@example\\.com$")
+                randomBoolean() ? null : randomFrom("^(.+)$", "^([^@]+)@example\\.com$")
             )
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), randomFrom("group", "roles", "other"))
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getPattern()),
-                randomBoolean() ? null : randomFrom("^(.*)$", "^Group-(.*)$")
+                randomBoolean() ? null : randomFrom("^(.+)$", "^Group-(.+)$")
             )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_DN.getClaim()), randomFrom("dn", "subjectDN"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_DN.getPattern()), "^CN=(.+?),?.*$")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_MAIL.getClaim()), randomFrom("mail", "email"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_MAIL.getPattern()), randomBoolean() ? null : "^.+$")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_NAME.getClaim()), randomFrom("name", "fullname"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_NAME.getPattern()), randomBoolean() ? null : "^.+$")
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.POPULATE_USER_METADATA), populateUserMetadata)
             // Client settings for incoming connections
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)

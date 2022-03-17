@@ -531,6 +531,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Set<String> sourcePath(String fullName) {
+                return Set.of(fullName);
+            }
+
+            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }

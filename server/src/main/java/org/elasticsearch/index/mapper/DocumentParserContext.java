@@ -215,6 +215,15 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Description on the document being parsed used in error messages. Not
+     * called unless there is an error.
+     */
+    public final String documentDescription() {
+        IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        return idMapper.documentDescription(this);
+    }
+
+    /**
      * Add a new mapper dynamically created while parsing.
      */
     public final void addDynamicMapper(Mapper mapper) {

@@ -82,6 +82,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
     final ClaimParser claimParserGroups;
+    final ClaimParser claimParserDn;
+    final ClaimParser claimParserMail;
+    final ClaimParser claimParserName;
     final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
     final Cache<BytesKey, ExpiringUser> jwtCache;
@@ -98,6 +101,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
         this.claimParserPrincipal = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_PRINCIPAL, realmConfig, true);
         this.claimParserGroups = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_GROUPS, realmConfig, false);
+        this.claimParserDn = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_DN, realmConfig, false);
+        this.claimParserMail = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_MAIL, realmConfig, false);
+        this.claimParserName = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_NAME, realmConfig, false);
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
@@ -453,17 +459,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            final List<String> groups = this.claimParserGroups.getClaimValues(claimsSet);
-            final Map<String, Object> userMetadata;
-            try {
-                userMetadata = this.populateUserMetadata ? JwtUtil.toUserMetadata(jwt) : Map.of();
-            } catch (Exception e) {
-                final String msg = "Realm [" + super.name() + "] parse metadata failed for principal=[" + principal + "].";
-                final AuthenticationResult<User> unsuccessful = AuthenticationResult.unsuccessful(msg, e);
-                LOGGER.debug(msg, e);
-                listener.onResponse(unsuccessful);
-                return;
-            }
 
             // Roles listener: Log roles from delegated authz lookup or role mapping, and cache User if JWT cache is enabled.
             final ActionListener<AuthenticationResult<User>> logAndCacheListener = ActionListener.wrap(result -> {
@@ -484,13 +479,31 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Delegated role lookup or Role mapping: Use the above listener to log roles and cache User.
             if (this.delegatedAuthorizationSupport.hasDelegation()) {
                 this.delegatedAuthorizationSupport.resolve(principal, logAndCacheListener);
-            } else {
-                final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, null, groups, userMetadata, super.config);
-                this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
-                    final User user = new User(principal, rolesSet.toArray(Strings.EMPTY_ARRAY), null, null, userData.getMetadata(), true);
-                    logAndCacheListener.onResponse(AuthenticationResult.success(user));
-                }, logAndCacheListener::onFailure));
+                return;
             }
+
+            // User metadata: If enabled, extract metadata from JWT claims set. Use it in UserRoleMapper.UserData and User constructors.
+            final Map<String, Object> userMetadata;
+            try {
+                userMetadata = this.populateUserMetadata ? JwtUtil.toUserMetadata(jwt) : Map.of();
+            } catch (Exception e) {
+                final String msg = "Realm [" + super.name() + "] parse metadata failed for principal=[" + principal + "].";
+                final AuthenticationResult<User> unsuccessful = AuthenticationResult.unsuccessful(msg, e);
+                LOGGER.debug(msg, e);
+                listener.onResponse(unsuccessful);
+                return;
+            }
+
+            // Role resolution: Handle role mapping in JWT Realm.
+            final List<String> groups = this.claimParserGroups.getClaimValues(claimsSet);
+            final String dn = this.claimParserDn.getClaimValue(claimsSet);
+            final String mail = this.claimParserMail.getClaimValue(claimsSet);
+            final String name = this.claimParserName.getClaimValue(claimsSet);
+            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, super.config);
+            this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
+                final User user = new User(principal, rolesSet.toArray(Strings.EMPTY_ARRAY), name, mail, userData.getMetadata(), true);
+                logAndCacheListener.onResponse(AuthenticationResult.success(user));
+            }, logAndCacheListener::onFailure));
         } else {
             final String className = (authenticationToken == null) ? "null" : authenticationToken.getClass().getCanonicalName();
             final String msg = "Realm [" + super.name() + "] does not support AuthenticationToken [" + className + "].";

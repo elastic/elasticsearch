@@ -522,10 +522,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
                 builder.startObject(indexRoutingTable.getIndex().getName());
                 builder.startObject("shards");
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        shardRouting.toXContent(builder, params);
+                    for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                        indexShardRoutingTable.shard(copy).toXContent(builder, params);
                     }
                     builder.endArray();
                 }

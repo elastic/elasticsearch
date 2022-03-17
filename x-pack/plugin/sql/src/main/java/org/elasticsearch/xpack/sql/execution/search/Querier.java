@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -134,13 +135,11 @@ public class Querier {
         if (cfg.task() != null && cfg.task().isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
         } else if (query.isAggsOnly()) {
-            ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
+                client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
             } else {
-                l = new CompositeActionListener(listener, client, cfg, output, query, search);
+                searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
             }
-            client.search(search, l);
         } else {
             searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
@@ -452,6 +451,8 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            CompositeAggregationBuilder aggregation = CompositeAggCursor.getCompositeBuilder(request.source());
+            boolean mightProducePartialPages = CompositeAggCursor.couldProducePartialPages(aggregation);
 
             Supplier<CompositeAggRowSet> makeRowSet = isPivot
                 ? () -> new PivotRowSet(
@@ -459,15 +460,19 @@ public class Querier {
                     initBucketExtractors(response),
                     mask,
                     response,
+                    aggregation.size(),
                     query.sortingColumns().isEmpty() ? query.limit() : -1,
-                    null
+                    null,
+                    mightProducePartialPages
                 )
                 : () -> new SchemaCompositeAggRowSet(
                     schema,
                     initBucketExtractors(response),
                     mask,
                     response,
-                    query.sortingColumns().isEmpty() ? query.limit() : -1
+                    aggregation.size(),
+                    query.sortingColumns().isEmpty() ? query.limit() : -1,
+                    mightProducePartialPages
                 );
 
             BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
@@ -492,13 +497,14 @@ public class Querier {
                 );
 
             CompositeAggCursor.handle(
+                client,
                 response,
                 request.source(),
                 makeRowSet,
                 makeCursor,
                 () -> client.search(request, this),
                 listener,
-                schema
+                mightProducePartialPages
             );
         }
     }

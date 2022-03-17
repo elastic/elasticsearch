@@ -55,7 +55,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().create("compileOnly");
-        RestTestUtil.setupTestDependenciesDefaults(project, testSourceSet);
+        RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
         eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));

@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -317,7 +316,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         List<String> eagerFieldNames = StreamSupport.stream(mapperService.getEagerGlobalOrdinalsFields().spliterator(), false)
             .map(MappedFieldType::name)
-            .collect(Collectors.toList());
+            .toList();
         assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
     }
 

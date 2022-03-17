@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
@@ -726,9 +725,7 @@ public class FollowersCheckerTests extends ESTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         followersChecker.setCurrentNodes(discoveryNodes);
-        List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
-            .map(cr -> cr.node())
-            .collect(Collectors.toList());
+        List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear()).map(cr -> cr.node()).toList();
         List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
         Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isMasterNode() == false));
         assertEquals(sortedFollowerTargets, followerTargets);

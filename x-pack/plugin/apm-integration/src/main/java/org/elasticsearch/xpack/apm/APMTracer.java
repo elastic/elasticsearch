@@ -7,38 +7,19 @@
 
 package org.elasticsearch.xpack.apm;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.context.propagation.TextMapGetter;
-import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
-import io.opentelemetry.sdk.OpenTelemetrySdk;
-import io.opentelemetry.sdk.common.CompletableResultCode;
-import io.opentelemetry.sdk.resources.Resource;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
-import io.opentelemetry.sdk.trace.SpanProcessor;
-import io.opentelemetry.sdk.trace.data.SpanData;
-import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
-import io.opentelemetry.sdk.trace.export.SpanExporter;
-import io.opentelemetry.sdk.trace.samplers.Sampler;
-import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -47,21 +28,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Traceable;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
@@ -69,14 +44,7 @@ import static org.elasticsearch.xpack.apm.APM.TRACE_HEADERS;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
-    private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
-
-    public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
-
     static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
-    static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
-    static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
-    static final Setting<Float> APM_SAMPLE_RATE_SETTING = Setting.floatSetting("xpack.apm.tracing.sample_rate", 1.0f, Dynamic, NodeScope);
     static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
         "xpack.apm.tracing.names.include",
         Collections.emptyList(),
@@ -89,35 +57,24 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final SecureString endpoint;
-    private final SecureString token;
 
     private volatile boolean enabled;
-    private volatile float sampleRate;
     private volatile APMServices services;
 
     private List<String> includeNames;
 
-    public void setSampleRate(float sampleRate) {
-        this.sampleRate = sampleRate;
-    }
-
     /**
      * This class is required to make all open telemetry services visible at once
      */
-    private record APMServices(SdkTracerProvider provider, Tracer tracer, OpenTelemetry openTelemetry) {}
+    private record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.endpoint = APM_ENDPOINT_SETTING.get(settings);
-        this.token = APM_TOKEN_SETTING.get(settings);
         this.enabled = APM_ENABLED_SETTING.get(settings);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
-        this.sampleRate = APM_SAMPLE_RATE_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_SAMPLE_RATE_SETTING, this::setSampleRate);
     }
 
     public boolean isEnabled() {
@@ -163,46 +120,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private void createApmServices() {
         assert enabled;
 
-        var acquired = shutdownPermits.tryAcquire();
-        if (acquired == false) {
-            return;// doStop() is already executed
-        }
-
-        final String endpoint = this.endpoint.toString();
-        final String token = this.token.toString();
-
-        var provider = AccessController.doPrivileged(
-            (PrivilegedAction<SdkTracerProvider>) () -> SdkTracerProvider.builder()
-                .setResource(
-                    Resource.create(
-                        Attributes.of(
-                            ResourceAttributes.SERVICE_NAME,
-                            "elasticsearch",
-                            ResourceAttributes.SERVICE_NAMESPACE,
-                            clusterService.getClusterName().value(),
-                            ResourceAttributes.SERVICE_INSTANCE_ID,
-                            clusterService.getNodeName(),
-                            ResourceAttributes.SERVICE_VERSION,
-                            Version.CURRENT.toString(),
-                            ResourceAttributes.DEPLOYMENT_ENVIRONMENT,
-                            "dev"
-                        )
-                    )
-                )
-                // TODO make dynamic
-                .setSampler(Sampler.traceIdRatioBased(this.sampleRate))
-                .addSpanProcessor(createSpanProcessor(endpoint, token))
-                .build()
-        );
-
-        var openTelemetry = OpenTelemetrySdk.builder()
-            .setTracerProvider(provider)
-            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-            .build();
+        var openTelemetry = GlobalOpenTelemetry.get();
         var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
 
         assert this.services == null;
-        this.services = new APMServices(provider, tracer, openTelemetry);
+        this.services = new APMServices(tracer, openTelemetry);
     }
 
     private void destroyApmServices() {
@@ -212,7 +134,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
         spans.clear();// discard in-flight spans
-        services.provider.shutdown().whenComplete(shutdownPermits::release);
     }
 
     @Override
@@ -317,11 +238,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (span != null) {
             span.end();
         }
-        // TODO: geoip-downloader[c] isn't getting stopped?
-//        LOGGER.warn(
-//            "Active spans after stopped trace: {}",
-//            spans.values().stream().map(Tuple::v1).map(span -> ((ReadWriteSpan) span).getName()).toList()
-//        );
     }
 
     @Override
@@ -329,73 +245,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = spans.get(traceable.getSpanId());
         if (span != null) {
             span.addEvent(eventName);
-        }
-    }
-
-    private static SpanProcessor createSpanProcessor(String endpoint, String token) {
-        SpanProcessor processor = SimpleSpanProcessor.create(CAPTURING_SPAN_EXPORTER);
-        if (Strings.hasLength(endpoint) == false || Strings.hasLength(token) == false) {
-            return processor;
-        }
-
-        final OtlpGrpcSpanExporter exporter = AccessController.doPrivileged(
-            (PrivilegedAction<OtlpGrpcSpanExporter>) () -> OtlpGrpcSpanExporter.builder()
-                .setEndpoint(endpoint)
-                .addHeader("Authorization", "Bearer " + token)
-                .build()
-        );
-        return SpanProcessor.composite(
-            processor,
-            AccessController.doPrivileged(
-                (PrivilegedAction<BatchSpanProcessor>) () -> BatchSpanProcessor.builder(exporter)
-                    .setScheduleDelay(100, TimeUnit.MILLISECONDS)
-                    .build()
-            )
-        );
-    }
-
-    public static class CapturingSpanExporter implements SpanExporter {
-
-        private final Queue<SpanData> capturedSpans = ConcurrentCollections.newQueue();
-
-        public void clear() {
-            capturedSpans.clear();
-        }
-
-        public List<SpanData> getCapturedSpans() {
-            return List.copyOf(capturedSpans);
-        }
-
-        public Stream<SpanData> findSpan(Predicate<SpanData> predicate) {
-            return getCapturedSpans().stream().filter(predicate);
-        }
-
-        public Stream<SpanData> findSpanByName(String name) {
-            return findSpan(span -> Objects.equals(span.getName(), name));
-        }
-
-        public Stream<SpanData> findSpanBySpanId(String spanId) {
-            return findSpan(span -> Objects.equals(span.getSpanId(), spanId));
-        }
-
-        public Stream<SpanData> findSpanByParentSpanId(String parentSpanId) {
-            return findSpan(span -> Objects.equals(span.getParentSpanId(), parentSpanId));
-        }
-
-        @Override
-        public CompletableResultCode export(Collection<SpanData> spans) {
-            capturedSpans.addAll(spans);
-            return CompletableResultCode.ofSuccess();
-        }
-
-        @Override
-        public CompletableResultCode flush() {
-            return CompletableResultCode.ofSuccess();
-        }
-
-        @Override
-        public CompletableResultCode shutdown() {
-            return CompletableResultCode.ofSuccess();
         }
     }
 

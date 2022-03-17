@@ -17,48 +17,50 @@ esplugin {
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-api-metrics:${versions.opentelemetry}-alpha"
+  // implementation "io.opentelemetry:opentelemetry-api-metrics:${versions.opentelemetry}-alpha"
   implementation "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-sdk:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}-alpha"
+  // implementation "io.opentelemetry:opentelemetry-sdk:${versions.opentelemetry}"
+  // implementation "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
+  // implementation "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
+  // implementation "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}-alpha"
   implementation "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
-  implementation "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
-  // required to use OTLP (to get OtlpGrpcSpanExporter)
-  implementation "io.opentelemetry:opentelemetry-exporter-otlp-trace:${versions.opentelemetry}"
-  // required by OTLP (to get GrpcExporter, Marshaller etc)
-  implementation "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
-  // required by OTLP common & trace
-  implementation "io.grpc:grpc-api:1.42.1"
-  implementation "io.grpc:grpc-stub:1.42.1"
-  implementation "io.grpc:grpc-core:1.42.1"
-  implementation "io.grpc:grpc-context:1.42.1"
-  // netty HTTP client is used for gRPC calls to Elastic's APM server
-  implementation "io.grpc:grpc-netty:1.42.1"
-  // okio and okhttp are required by GrpcExporter as the default implementation, but we don't use it
-  implementation "com.squareup.okhttp3:okhttp:3.14.9"
-  implementation "com.squareup.okio:okio:1.17.2"
-  // required by io.grpc
-  implementation 'io.perfmark:perfmark-api:0.24.0'
-  implementation 'io.perfmark:perfmark-impl:0.24.0'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
-  // required by grpc-netty
-  api "io.netty:netty-buffer:${versions.netty}"
-  api "io.netty:netty-transport:${versions.netty}"
-  api "io.netty:netty-common:${versions.netty}"
-  api "io.netty:netty-codec:${versions.netty}"
-  api "io.netty:netty-codec-http:${versions.netty}"
-  api "io.netty:netty-codec-http2:${versions.netty}"
-  api "io.netty:netty-handler:${versions.netty}"
-  api "io.netty:netty-resolver:${versions.netty}"
-  runtimeOnly 'com.google.guava:guava:31.0.1-jre'
+  // implementation "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
+  // // required to use OTLP (to get OtlpGrpcSpanExporter)
+  // implementation "io.opentelemetry:opentelemetry-exporter-otlp-trace:${versions.opentelemetry}"
+  // // required by OTLP (to get GrpcExporter, Marshaller etc)
+  // implementation "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
+  // // required by OTLP common & trace
+  // implementation "io.grpc:grpc-api:1.42.1"
+  // implementation "io.grpc:grpc-stub:1.42.1"
+  // implementation "io.grpc:grpc-core:1.42.1"
+  // implementation "io.grpc:grpc-context:1.42.1"
+  // // netty HTTP client is used for gRPC calls to Elastic's APM server
+  // implementation "io.grpc:grpc-netty:1.42.1"
+  // // okio and okhttp are required by GrpcExporter as the default implementation, but we don't use it
+  // implementation "com.squareup.okhttp3:okhttp:3.14.9"
+  // implementation "com.squareup.okio:okio:1.17.2"
+  // // required by io.grpc
+  // implementation 'io.perfmark:perfmark-api:0.24.0'
+  // implementation 'io.perfmark:perfmark-impl:0.24.0'
+  // runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  // // required by grpc-netty
+  // api "io.netty:netty-buffer:${versions.netty}"
+  // api "io.netty:netty-transport:${versions.netty}"
+  // api "io.netty:netty-common:${versions.netty}"
+  // api "io.netty:netty-codec:${versions.netty}"
+  // api "io.netty:netty-codec-http:${versions.netty}"
+  // api "io.netty:netty-codec-http2:${versions.netty}"
+  // api "io.netty:netty-handler:${versions.netty}"
+  // api "io.netty:netty-resolver:${versions.netty}"
+  // runtimeOnly 'com.google.guava:guava:31.0.1-jre'
 
   compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('security')))) {
     exclude group: 'com.google.guava', module: 'guava'
   }
+
+  runtimeOnly 'co.elastic.apm:elastic-apm-agent:1.29.0'
 }
 
 // no unit-test for now

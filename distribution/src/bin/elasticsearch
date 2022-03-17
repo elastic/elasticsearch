@@ -107,6 +107,11 @@ for i in "${!ARG_LIST[@]}"; do
   fi
 done
 
+# HACK HACK HACK
+# This is here to avoid running Java commands before this point with
+# unwanted arguments
+ES_JAVA_OPTS="$ES_JAVA_OPTS $ES_SERVER_OPTS"
+
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   exec \

@@ -214,7 +214,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -698,11 +697,12 @@ public class Node implements Closeable {
                         repositoriesServiceReference::get
                     ).stream()
                 )
-                .collect(Collectors.toList());
+                .toList();
 
             final List<Tracer> tracers = pluginComponents.stream()
                 .map(c -> c instanceof Tracer t ? t : null)
-                .filter(Objects::nonNull).toList();
+                .filter(Objects::nonNull)
+                .toList();
 
             ActionModule actionModule = new ActionModule(
                 settings,

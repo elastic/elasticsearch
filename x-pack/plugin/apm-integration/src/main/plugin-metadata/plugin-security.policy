@@ -15,3 +15,10 @@ grant {
     permission java.lang.RuntimePermission "getClassLoader";
     permission java.net.SocketPermission "*", "connect,resolve";
 };
+
+grant codeBase "${codebase.elastic-apm-agent}" {
+  permission java.lang.RuntimePermission "setFactory";
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.net.SocketPermission "*", "connect,resolve";
+};

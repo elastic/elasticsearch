@@ -25,7 +25,7 @@ public class VersionConflictEngineException extends EngineException {
     ) {
         this(
             shardId,
-            id,
+            "[" + id + "]",
             "required seqNo ["
                 + compareAndWriteSeqNo
                 + "], primary term ["

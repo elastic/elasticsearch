@@ -705,7 +705,7 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(
                             shardId,
-                            get.id(),
+                            "[" + get.id() + "]",
                             get.versionType().explainConflictForReads(versionValue.version, get.version())
                         );
                     }
@@ -1567,7 +1567,7 @@ public class InternalEngine extends Engine {
             } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
                     shardId,
-                    delete.id(),
+                    "[" + delete.id() + "]",
                     delete.versionType().explainConflictForWrites(currentVersion, delete.version(), true)
                 );
                 plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());

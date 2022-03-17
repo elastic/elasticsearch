@@ -36,12 +36,9 @@ public class LifecycleExecutionStateUtils {
         IndexMetadata existingIndexMetadata = clusterState.metadata().index(index);
         assert existingIndexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
 
-        ClusterState.Builder builder = ClusterState.builder(clusterState);
-        builder.metadata(
-            Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap()))
-        );
-        return builder.build();
+        Metadata metadata = Metadata.builder(clusterState.metadata())
+                .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())).build();
+        return ClusterState.builder(clusterState).metadata(metadata).build();
     }
 
 }

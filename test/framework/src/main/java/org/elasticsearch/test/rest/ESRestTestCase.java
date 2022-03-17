@@ -1962,10 +1962,22 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    protected FieldCapabilitiesResponse fieldCaps(List<String> indices, List<String> fields, QueryBuilder indexFilter) throws IOException {
+    protected FieldCapabilitiesResponse fieldCaps(
+        List<String> indices,
+        List<String> fields,
+        QueryBuilder indexFilter,
+        String fieldTypes,
+        String fieldFilters
+    ) throws IOException {
         Request request = new Request("POST", "/_field_caps");
         request.addParameter("index", String.join(",", indices));
         request.addParameter("fields", String.join(",", fields));
+        if (fieldTypes != null) {
+            request.addParameter("types", fieldTypes);
+        }
+        if (fieldFilters != null) {
+            request.addParameter("filters", fieldFilters);
+        }
         if (indexFilter != null) {
             XContentBuilder body = JsonXContent.contentBuilder();
             body.startObject();

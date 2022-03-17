@@ -61,12 +61,12 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             throw new InitializePolicyException(policyName, index.getName(), e);
         }
 
-        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        newCustomData.setIndexCreationDate(indexMetadata.getCreationDate());
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
+        newLifecycleState.setIndexCreationDate(indexMetadata.getCreationDate());
         return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
             clusterState,
             indexMetadataBuilder.build(),
-            newCustomData.build()
+            newLifecycleState.build()
         );
     }
 

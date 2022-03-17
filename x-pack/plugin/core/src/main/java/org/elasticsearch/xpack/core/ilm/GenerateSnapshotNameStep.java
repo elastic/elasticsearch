@@ -75,9 +75,9 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             );
         }
 
-        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        newCustomData.setSnapshotIndexName(index.getName());
-        newCustomData.setSnapshotRepository(snapshotRepository);
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
+        newLifecycleState.setSnapshotIndexName(index.getName());
+        newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
             String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
@@ -93,10 +93,10 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
                 throw validationException;
             }
 
-            newCustomData.setSnapshotName(snapshotName);
+            newLifecycleState.setSnapshotName(snapshotName);
         }
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata, newCustomData.build());
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata, newLifecycleState.build());
     }
 
     @Override

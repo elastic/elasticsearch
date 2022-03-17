@@ -65,6 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -347,21 +348,45 @@ public class CompositeRolesStore {
     }
 
     public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
-        final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
-        final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
-            listener,
-            roleReferences.size()
-        );
+        tryGetRoleDescriptorForInternalUser(subject).ifPresentOrElse(
+            roleDescriptor -> listener.onResponse(List.of(Set.of(roleDescriptor))),
+            () -> {
+                final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
+                final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
+                    listener,
+                    roleReferences.size()
+                );
 
-        roleReferences.forEach(roleReference -> {
-            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
-                if (rolesRetrievalResult.isSuccess()) {
-                    groupedActionListener.onResponse(rolesRetrievalResult.getRoleDescriptors());
-                } else {
-                    groupedActionListener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
-                }
-            }, groupedActionListener::onFailure));
-        });
+                roleReferences.forEach(roleReference -> {
+                    roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
+                        if (rolesRetrievalResult.isSuccess()) {
+                            groupedActionListener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+                        } else {
+                            groupedActionListener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+                        }
+                    }, groupedActionListener::onFailure));
+                });
+            }
+        );
+    }
+
+    private Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+        final User user = subject.getUser();
+        if (SystemUser.is(user)) {
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the system user and we should never try to get its role descriptors"
+            );
+        }
+        if (XPackUser.is(user)) {
+            return Optional.of(XPackUser.ROLE_DESCRIPTOR);
+        }
+        if (XPackSecurityUser.is(user)) {
+            return Optional.of(XPackSecurityUser.ROLE_DESCRIPTOR);
+        }
+        if (AsyncSearchUser.is(user)) {
+            return Optional.of(AsyncSearchUser.ROLE_DESCRIPTOR);
+        }
+        return Optional.empty();
     }
 
     public static void buildRoleFromDescriptors(

@@ -27,6 +27,44 @@ enough masterless master-eligible nodes to complete an election. If neither of
 these occur quickly enough then the node will retry after
 `discovery.find_peers_interval` which defaults to `1s`.
 
+Once a master is elected, it will normally remain as the elected master until
+it is deliberately stopped. It may also stop acting as the master if
+<<cluster-fault-detection,fault detection>> determines the cluster to be
+faulty. When a node stops being the elected master, it begins the discovery
+process again.
+
+[[modules-discovery-troubleshooting]]
+[TIP]
+.Troubleshooting discovery
+===============================================
+The discovery process usually completes quickly, and the master usually remains
+elected for a long period of time. If the cluster has no master for more than a
+few seconds, or the master is unstable, then the logs on each node will contain
+information explaining why:
+
+* All nodes repeatedly log messages indicating that a master cannot be
+discovered or elected using a logger called
+`org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
+default this happens every 10 seconds.
+
+* If a node wins the election then it logs a message containing the string
+`elected-as-master`. If this happens repeatedly then this indicates the master
+is unstable.
+
+* When a node discovers a master, or believes the master to have failed, it
+logs a message containing the string `master node changed`.
+
+* If a node is unable to discover or elect a master for several minutes then it
+starts to report additional detail about the failures in its logs. Be sure to
+capture log messages for at least five minutes after the master was lost.
+
+If your cluster does not have a stable master then many of its features will
+not work correctly, and it may report many kinds of error to clients and in its
+logs. However, you must focus on the master instability ahead of all other
+issues. Until the master is stable there is no point in trying to understand or
+resolve any other problems in your cluster.
+===============================================
+
 [[built-in-hosts-providers]]
 ==== Seed hosts providers
 

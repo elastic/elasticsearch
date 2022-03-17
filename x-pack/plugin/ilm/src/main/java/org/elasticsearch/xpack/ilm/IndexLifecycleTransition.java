@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyException;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionStateUtils;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -135,7 +136,7 @@ public final class IndexLifecycleTransition {
             forcePhaseDefinitionRefresh
         );
 
-        return newClusterStateWithLifecycleState(state, idxMeta, newLifecycleState);
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta, newLifecycleState);
     }
 
     /**
@@ -196,7 +197,7 @@ public final class IndexLifecycleTransition {
             );
         }
 
-        return newClusterStateWithLifecycleState(clusterState, idxMeta, failedState.build());
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, idxMeta, failedState.build());
     }
 
     /**
@@ -250,7 +251,7 @@ public final class IndexLifecycleTransition {
                 // manual retries don't update the retry count
                 retryStepState.setFailedStepRetryCount(lifecycleState.failedStepRetryCount());
             }
-            newState = newClusterStateWithLifecycleState(currentState, indexMetadata, retryStepState.build());
+            newState = LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(currentState, indexMetadata, retryStepState.build());
         } else {
             throw new IllegalArgumentException(
                 "cannot retry an action for an index [" + index + "] that has not encountered an error when running a Lifecycle Policy"
@@ -400,23 +401,6 @@ public final class IndexLifecycleTransition {
     }
 
     /**
-     * Given a cluster state, index metadata, and lifecycle state, return a new cluster state where
-     * the lifecycle state will be associated with the given index metadata.
-     */
-    public static ClusterState newClusterStateWithLifecycleState(
-        ClusterState clusterState,
-        IndexMetadata indexMetadata,
-        LifecycleExecutionState lifecycleState
-    ) {
-        ClusterState.Builder builder = ClusterState.builder(clusterState);
-        builder.metadata(
-            Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap()))
-        );
-        return builder.build();
-    }
-
-    /**
      * Conditionally updates cluster state with new step info. The new cluster state is only
      * built if the step info has changed, otherwise the same old <code>clusterState</code> is
      * returned
@@ -440,7 +424,7 @@ public final class IndexLifecycleTransition {
         }
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(lifecycleState);
         newState.setStepInfo(stepInfoString);
-        return newClusterStateWithLifecycleState(clusterState, indexMetadata, newState.build());
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata, newState.build());
     }
 
     /**

@@ -58,14 +58,19 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -2916,6 +2921,48 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 }
             );
+        }
+    }
+
+    public void testParentFactoryValidation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.clear();
+                addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
+                indexWriter.addDocument(document);
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
+                    "composite",
+                    List.of(new TermsValuesSourceBuilder("term").field("term-field"))
+                );
+                FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
+                    .subAggregation(compositeBuilder);
+                // should not throw
+                createAggregator(goodParentFilter, indexSearcher, keywordField("term-field"));
+
+                RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
+                    .subAggregation(compositeBuilder);
+
+                // Should not throw
+                createAggregator(goodParentRandom, indexSearcher, keywordField("term-field"));
+
+                RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
+                    .subAggregation(goodParentFilter);
+                // Should not throw
+                createAggregator(goodParentRandomFilter, indexSearcher, keywordField("term-field"));
+
+                DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
+                    .field("time")
+                    .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
+
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> createAggregator(badParent, indexSearcher, keywordField("term-field"), longField("time"))
+                );
+            }
         }
     }
 

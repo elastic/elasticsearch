@@ -987,7 +987,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testGetWithSearcherWrapper() throws Exception {
         engine.refresh("warm_up");
-        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.index(indexForDoc(createParsedDoc("1", idFieldType, null)));
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(NO_OPS_PERFORMED));
         MapperService mapperService = createMapperService();
         MappingLookup mappingLookup = mapperService.mappingLookup();
@@ -1005,7 +1005,7 @@ public class InternalEngineTests extends EngineTestCase {
         // refresh triggered, as we did not track translog location until the first realtime get.
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
 
-        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.index(indexForDoc(createParsedDoc("1", idFieldType, null)));
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, searcher -> searcher)) {
             assertTrue(get.exists());
             assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
@@ -1014,7 +1014,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L)); // no refresh; just read from translog
 
         if (randomBoolean()) {
-            engine.index(indexForDoc(createParsedDoc("1", null)));
+            engine.index(indexForDoc(createParsedDoc("1", idFieldType, null)));
         }
         try (
             Engine.GetResult get = engine.get(
@@ -1071,7 +1071,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertThat("no refresh, just read from translog or in-memory segment", engine.lastRefreshedCheckpoint(), equalTo(0L));
 
-        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.index(indexForDoc(createParsedDoc("1", idFieldType, null)));
         try (
             Engine.GetResult get = engine.get(
                 new Engine.Get(true, true, "1"),
@@ -1671,7 +1671,15 @@ public class InternalEngineTests extends EngineTestCase {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
+                ParsedDocument doc = testParsedDocument(
+                    Integer.toString(i),
+                    idFieldType,
+                    null,
+                    testDocument(),
+                    B_1,
+                    null,
+                    useRecoverySource
+                );
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
                 if (useRecoverySource == false) {
@@ -1680,7 +1688,15 @@ public class InternalEngineTests extends EngineTestCase {
             }
             for (int i = 0; i < numDocs; i++) {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
+                ParsedDocument doc = testParsedDocument(
+                    Integer.toString(i),
+                    idFieldType,
+                    null,
+                    testDocument(),
+                    B_1,
+                    null,
+                    useRecoverySource
+                );
                 if (randomBoolean()) {
                     engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
                     liveDocs.remove(doc.id());
@@ -1740,7 +1756,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             if (numSegments == 1) {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument("dummy", null, testDocument(), B_1, null, useRecoverySource);
+                ParsedDocument doc = testParsedDocument("dummy", idFieldType, null, testDocument(), B_1, null, useRecoverySource);
                 engine.index(indexForDoc(doc));
                 if (useRecoverySource == false) {
                     liveDocsWithSource.add(doc.id());
@@ -4629,7 +4645,7 @@ public class InternalEngineTests extends EngineTestCase {
             boolean isIndexing = randomBoolean();
             int copies = frequently() ? 1 : between(2, 4);
             for (int c = 0; c < copies; c++) {
-                final ParsedDocument doc = EngineTestCase.createParsedDoc(id, null);
+                final ParsedDocument doc = EngineTestCase.createParsedDoc(id, idFieldType, null);
                 if (isIndexing) {
                     operations.add(
                         new Engine.Index(
@@ -5070,7 +5086,7 @@ public class InternalEngineTests extends EngineTestCase {
         int numOps = between(10, 100);
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(1, 10));
-            ParsedDocument doc = createParsedDoc(id, null);
+            ParsedDocument doc = createParsedDoc(id, idFieldType, null);
             Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
             switch (type) {
                 case INDEX -> {
@@ -6461,7 +6477,7 @@ public class InternalEngineTests extends EngineTestCase {
         int numOps = between(1, 500);
         for (int i = 0; i < numOps; i++) {
             long currentMaxSeqNoOfUpdates = engine.getMaxSeqNoOfUpdatesOrDeletes();
-            ParsedDocument doc = createParsedDoc(Integer.toString(between(1, 100)), null);
+            ParsedDocument doc = createParsedDoc(Integer.toString(between(1, 100)), idFieldType, null);
             if (randomBoolean()) {
                 Engine.IndexResult result = engine.index(indexForDoc(doc));
                 if (liveDocIds.add(doc.id()) == false) {
@@ -6768,7 +6784,7 @@ public class InternalEngineTests extends EngineTestCase {
             while (stopped.get() == false) {
                 String id = Integer.toString(randomIntBetween(1, 100));
                 try {
-                    engine.index(indexForDoc(createParsedDoc(id, null)));
+                    engine.index(indexForDoc(createParsedDoc(id, idFieldType, null)));
                     indexedDocs.release();
                 } catch (IOException e) {
                     throw new AssertionError(e);
@@ -7017,7 +7033,7 @@ public class InternalEngineTests extends EngineTestCase {
             iw.set(new ThrowingIndexWriter(dir, iwc));
             return iw.get();
         }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
-            engine.index(new Engine.Index(newUid("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
+            engine.index(new Engine.Index(newUid("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", idFieldType, null)));
             final Engine.Delete op = new Engine.Delete("0", newUid("0"), primaryTerm.get());
             consumer.accept(engine, op);
             iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
@@ -7031,8 +7047,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testIndexThrottling() throws Exception {
-        final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", null)));
-        final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", null)));
+        final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", idFieldType, null)));
+        final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", idFieldType, null)));
         doAnswer(invocation -> {
             try {
                 assertTrue(engine.throttleLockIsHeldByCurrentThread());
@@ -7090,7 +7106,7 @@ public class InternalEngineTests extends EngineTestCase {
                 Set<String> ids = new HashSet<>();
                 for (int i = 0; i < numDocs; i++) {
                     String id = Integer.toString(i);
-                    engine.index(indexForDoc(createParsedDoc(id, null)));
+                    engine.index(indexForDoc(createParsedDoc(id, idFieldType, null)));
                     ids.add(id);
                 }
                 final int refreshCountBeforeGet = refreshCount.get();
@@ -7101,7 +7117,7 @@ public class InternalEngineTests extends EngineTestCase {
                         phaser.arriveAndAwaitAdvance();
                         int iters = randomIntBetween(1, 10);
                         for (int i = 0; i < iters; i++) {
-                            ParsedDocument doc = createParsedDoc(randomFrom(ids), null);
+                            ParsedDocument doc = createParsedDoc(randomFrom(ids), idFieldType, null);
                             try (
                                 Engine.GetResult getResult = engine.get(
                                     newGet(true, doc),
@@ -7119,7 +7135,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 phaser.arriveAndAwaitAdvance();
                 for (int i = 0; i < numDocs; i++) {
-                    engine.index(indexForDoc(createParsedDoc("more-" + i, null)));
+                    engine.index(indexForDoc(createParsedDoc("more-" + i, idFieldType, null)));
                 }
                 for (Thread getter : getters) {
                     getter.join();
@@ -7163,7 +7179,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
             try (InternalEngine engine = createEngine(config)) {
                 if (randomBoolean()) {
-                    engine.index(indexForDoc(createParsedDoc("id", null)));
+                    engine.index(indexForDoc(createParsedDoc("id", idFieldType, null)));
                 }
                 threadPool.executor(ThreadPool.Names.REFRESH)
                     .execute(
@@ -7295,7 +7311,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(randomInt(numDocs));
                 if (randomBoolean()) {
-                    operations.add(indexForDoc(createParsedDoc(id, null)));
+                    operations.add(indexForDoc(createParsedDoc(id, idFieldType, null)));
                 } else {
                     operations.add(new Engine.Delete(id, newUid(id), primaryTerm.get()));
                 }

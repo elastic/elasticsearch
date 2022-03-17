@@ -1,0 +1,5 @@
+pr: 85068
+summary: Extra testing and some cleanups for filtering on field caps
+area: Mapping
+type: tech debt
+issues: []

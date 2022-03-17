@@ -21,7 +21,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<GetScriptLanguageResponse> {
     private static int MAX_VALUES = 4;
@@ -111,7 +110,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
             updated.add(randomValueOtherThanMany(updated::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)));
             return updated;
         } else {
-            List<String> sorted = strings.stream().sorted().collect(Collectors.toList());
+            List<String> sorted = strings.stream().sorted().toList();
             int toRemove = randomInt(sorted.size() - 1);
             Set<String> updated = new HashSet<>();
             for (int i = 0; i < sorted.size(); i++) {

@@ -2030,6 +2030,45 @@ public class DocumentParserTests extends MapperServiceTestCase {
         );
     }
 
+    public void testDocumentDescriptionInTsdb() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "long").endObject();
+                b.startObject("uid").field("type", "keyword").field("time_series_dimension", true).endObject();
+            })
+        ).documentMapper();
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("failed to parse field [foo] of type [long] in a time series document. Preview of field's value: 'true'")
+            );
+        }
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("@timestamp", "2021-04-28T00:01:00Z").field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "failed to parse field [foo] of type [long] in a time series document at "
+                        + "[2021-04-28T00:01:00.000Z]. Preview of field's value: 'true'"
+                )
+            );
+        }
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      */

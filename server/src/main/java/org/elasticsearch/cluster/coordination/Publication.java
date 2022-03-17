@@ -87,7 +87,7 @@ public abstract class Publication {
         return publicationTargets.stream()
             .filter(PublicationTarget::isSuccessfullyCompleted)
             .map(PublicationTarget::getDiscoveryNode)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public boolean isCommitted() {

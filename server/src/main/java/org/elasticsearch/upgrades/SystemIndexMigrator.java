@@ -155,7 +155,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             List<String> closedIndices = migrationQueue.stream()
                 .filter(SystemIndexMigrationInfo::isCurrentIndexClosed)
                 .map(SystemIndexMigrationInfo::getCurrentIndexName)
-                .collect(Collectors.toList());
+                .toList();
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
                     new IllegalStateException(

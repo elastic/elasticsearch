@@ -38,15 +38,18 @@ configurations {
   }
 }
 
-tasks.named("bundlePlugin").configure {
-  dependsOn configurations.nativeBundle
-  from {
-    configurations.nativeBundle.files.collect { zipTree(it) }
-  }
+esplugin.bundleSpec.from {
+  configurations.nativeBundle.files.collect { zipTree(it) }
+}
 
-  // We don't ship the individual nativeBundle licenses - instead
-  // they get combined into the top level NOTICES file we ship
-  exclude 'platform/licenses/**'
+// We don't ship the individual nativeBundle licenses - instead
+// they get combined into the top level NOTICES file we ship
+esplugin.bundleSpec.exclude 'platform/licenses/**'
+
+["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
+    tasks.named(bundleTaskName).configure {
+        dependsOn configurations.nativeBundle
+    }
 }
 
 dependencies {

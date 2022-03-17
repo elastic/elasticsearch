@@ -773,7 +773,10 @@ public class AuthorizationService {
                                     authentication,
                                     itemAction,
                                     request,
-                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex)),
+                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(
+                                        List.of(resolvedIndex),
+                                        indicesAndAliasesResolver.getRestrictedIndicesPredicate()
+                                    ),
                                     null
                                 )
                             );
@@ -960,7 +963,11 @@ public class AuthorizationService {
                     failureConsumer.accept(e);
                 }
             } else {
-                handleFailure(result.isAuditable(), result.getFailureContext(), null);
+                handleFailure(
+                    result.isAuditable(),
+                    result.getFailureContext(indicesAndAliasesResolver.getRestrictedIndicesPredicate()),
+                    null
+                );
             }
         }
 

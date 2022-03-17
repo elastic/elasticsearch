@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.client.HttpClient.ResponseWithWarnings;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -75,8 +76,15 @@ class JdbcHttpClient {
             conCfg.indexIncludeFrozen(),
             conCfg.binaryCommunication()
         );
-        SqlQueryResponse response = httpClient.query(sqlRequest);
-        return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
+        ResponseWithWarnings<SqlQueryResponse> response = httpClient.query(sqlRequest);
+        return new DefaultCursor(
+            this,
+            response.response().cursor(),
+            toJdbcColumnInfo(response.response().columns()),
+            response.response().rows(),
+            meta,
+            response.warnings()
+        );
     }
 
     /**
@@ -91,7 +99,7 @@ class JdbcHttpClient {
             new RequestInfo(Mode.JDBC),
             conCfg.binaryCommunication()
         );
-        SqlQueryResponse response = httpClient.query(sqlRequest);
+        SqlQueryResponse response = httpClient.query(sqlRequest).response();
         return new Tuple<>(response.cursor(), response.rows());
     }
 

@@ -21,6 +21,7 @@ Whether ILM's history index is enabled. If enabled, ILM will record the
 history of actions taken as part of ILM policies to the `ilm-history-*`
 indices. Defaults to `true`.
 
+[[indices-lifecycle-poll-interval]]
 `indices.lifecycle.poll_interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>) 
 How often {ilm} checks for indices that meet policy criteria. Defaults to `10m`.

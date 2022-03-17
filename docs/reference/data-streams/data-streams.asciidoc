@@ -126,3 +126,4 @@ alias with a write index instead of a data stream. See
 include::set-up-a-data-stream.asciidoc[]
 include::use-a-data-stream.asciidoc[]
 include::change-mappings-and-settings.asciidoc[]
+include::tsds.asciidoc[]

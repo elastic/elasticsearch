@@ -95,16 +95,10 @@ The following parameters are accepted by `ip` fields:
     (default).
 
 `time_series_dimension`::
+preview:[] (Optional, Boolean)
 +
 --
-experimental:[]
-(Optional, Boolean)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 include::keyword.asciidoc[tag=dimension]
-====
 --
 
 [[query-ip-fields]]

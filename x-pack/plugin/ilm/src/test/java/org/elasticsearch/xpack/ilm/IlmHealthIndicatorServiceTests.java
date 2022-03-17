@@ -68,7 +68,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "ILM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
-                    new SimpleHealthIndicatorImpact(3, "Indices are not being rolled over, which could lead to future instability.")
+                    new SimpleHealthIndicatorImpact(3, "TODO: Indices are not being rolled over, which could lead to future instability.")
                 )
             )
         );

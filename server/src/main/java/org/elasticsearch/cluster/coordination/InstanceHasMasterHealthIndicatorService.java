@@ -27,7 +27,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
     private static final String NO_MASTER_IMPACT =
-        "The cluster cannot create, delete, or rebalance indices, and is likely to be very unstable";
+        "TODO: The cluster cannot create, delete, or rebalance indices, and is likely to be very unstable";
 
     private final ClusterService clusterService;
 

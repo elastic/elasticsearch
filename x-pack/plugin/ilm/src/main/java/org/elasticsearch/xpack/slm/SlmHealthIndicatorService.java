@@ -61,7 +61,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 YELLOW,
                 "SLM is not running",
                 createDetails(slmMetadata),
-                new SimpleHealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
+                new SimpleHealthIndicatorImpact(3, "TODO: Scheduled snapshots are not happening, which could lead to future data loss.")
             );
         } else {
             return createIndicator(GREEN, "SLM is running", createDetails(slmMetadata), HealthIndicatorImpact.EMPTY);

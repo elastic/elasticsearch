@@ -95,7 +95,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     limitSize(corrupted, 10)
                 )
             ),
-            new SimpleHealthIndicatorImpact(2, "Snapshots in corrupted repositories cannot be restored. Data loss is possible.")
+            new SimpleHealthIndicatorImpact(2, "TODO: Snapshots in corrupted repositories cannot be restored. Data loss is possible.")
         );
     }
 

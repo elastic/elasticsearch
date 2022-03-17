@@ -61,7 +61,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 YELLOW,
                 "ILM is not running",
                 createDetails(ilmMetadata),
-                new SimpleHealthIndicatorImpact(3, "Indices are not being rolled over, which could lead to future instability.")
+                new SimpleHealthIndicatorImpact(3, "TODO: Indices are not being rolled over, which could lead to future instability.")
             );
         } else {
             return createIndicator(GREEN, "ILM is running", createDetails(ilmMetadata), HealthIndicatorImpact.EMPTY);

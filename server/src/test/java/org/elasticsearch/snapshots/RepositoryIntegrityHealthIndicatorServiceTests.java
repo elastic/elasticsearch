@@ -77,7 +77,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     ),
-                    new SimpleHealthIndicatorImpact(2, "Snapshots in corrupted repositories cannot be restored. Data loss is possible.")
+                    new SimpleHealthIndicatorImpact(
+                        2,
+                        "TODO: Snapshots in corrupted repositories cannot be restored. Data loss is " + "possible."
+                    )
                 )
             )
         );

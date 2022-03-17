@@ -68,7 +68,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "SLM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
-                    new SimpleHealthIndicatorImpact(3, "Scheduled snapshots are not happening, which could lead to future data loss.")
+                    new SimpleHealthIndicatorImpact(3, "TODO: Scheduled snapshots are not happening, which could lead to future data loss.")
                 )
             )
         );

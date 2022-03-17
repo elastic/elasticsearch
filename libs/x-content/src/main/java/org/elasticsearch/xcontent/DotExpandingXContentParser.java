@@ -100,7 +100,8 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
-        public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+            throws IOException {
             throw new UnsupportedOperationException();
         }
 

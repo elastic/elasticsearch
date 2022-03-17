@@ -135,7 +135,7 @@ public final class IndexLifecycleTransition {
             forcePhaseDefinitionRefresh
         );
 
-        return newClusterStateWithLifecycleState(index, state, newLifecycleState);
+        return newClusterStateWithLifecycleState(idxMeta, state, newLifecycleState);
     }
 
     /**
@@ -196,7 +196,7 @@ public final class IndexLifecycleTransition {
             );
         }
 
-        return newClusterStateWithLifecycleState(index, clusterState, failedState.build());
+        return newClusterStateWithLifecycleState(idxMeta, clusterState, failedState.build());
     }
 
     /**
@@ -250,7 +250,7 @@ public final class IndexLifecycleTransition {
                 // manual retries don't update the retry count
                 retryStepState.setFailedStepRetryCount(lifecycleState.failedStepRetryCount());
             }
-            newState = newClusterStateWithLifecycleState(indexMetadata.getIndex(), currentState, retryStepState.build());
+            newState = newClusterStateWithLifecycleState(indexMetadata, currentState, retryStepState.build());
         } else {
             throw new IllegalArgumentException(
                 "cannot retry an action for an index [" + index + "] that has not encountered an error when running a Lifecycle Policy"
@@ -400,20 +400,18 @@ public final class IndexLifecycleTransition {
     }
 
     /**
-     * Given a cluster state and lifecycle state, return a new state using the new lifecycle state for the given index.
+     * Given a cluster state, index metadata, and lifecycle state, return a new cluster state where
+     * the lifecycle state will be associated with the given index metadata.
      */
     public static ClusterState newClusterStateWithLifecycleState(
-        Index index,
+        IndexMetadata indexMetadata,
         ClusterState clusterState,
         LifecycleExecutionState lifecycleState
     ) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         builder.metadata(
             Metadata.builder(clusterState.getMetadata())
-                .put(
-                    IndexMetadata.builder(clusterState.getMetadata().index(index))
-                        .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())
-                )
+                .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap()))
         );
         return builder.build();
     }
@@ -442,7 +440,7 @@ public final class IndexLifecycleTransition {
         }
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(lifecycleState);
         newState.setStepInfo(stepInfoString);
-        return newClusterStateWithLifecycleState(index, clusterState, newState.build());
+        return newClusterStateWithLifecycleState(indexMetadata, clusterState, newState.build());
     }
 
     /**

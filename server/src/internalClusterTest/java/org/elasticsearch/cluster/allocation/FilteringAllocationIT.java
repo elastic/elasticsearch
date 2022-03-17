@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -79,9 +80,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> verify all are allocated on node1 now");
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_0));
                 }
             }
         }
@@ -138,9 +140,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(0));
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_0));
                 }
             }
         }
@@ -185,9 +188,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                if ("node1".equals(clusterState.nodes().get(shardRouting.currentNodeId()).getName())) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                if ("node1".equals(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName())) {
                     numShardsOnNode1++;
                 }
             }
@@ -216,9 +220,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> verify all shards are allocated on node_1 now");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         indexRoutingTable = clusterState.routingTable().index("test");
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting shardRouting : indexRoutingTable.shard(i)) {
-                assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_1));
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_1));
             }
         }
 

@@ -457,7 +457,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                     + "] field ["
                     + name()
                     + "] in doc ["
-                    + context.sourceToParse().id()
+                    + context.documentDescription()
                     + "] has more dimensions "
                     + "than defined in the mapping ["
                     + dims
@@ -474,7 +474,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                     + "] field ["
                     + name()
                     + "] in doc ["
-                    + context.sourceToParse().id()
+                    + context.documentDescription()
                     + "] has a different number of dimensions "
                     + "["
                     + index

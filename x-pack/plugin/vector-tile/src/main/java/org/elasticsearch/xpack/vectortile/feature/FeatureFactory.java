@@ -13,6 +13,8 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -37,6 +39,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.simplify.TopologyPreservingSimplifier;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -56,6 +59,8 @@ public class FeatureFactory {
     private final CoordinateSequenceFilter sequenceFilter;
     // pixel precision of the tile in the mercator projection.
     private final double pixelPrecision;
+    // optimization for points and rectangles
+    private final SimpleFeatureFactory simpleFeatureFactory;
 
     /**
      * The vector-tile feature factory will produce tiles as features based on the tile specification.
@@ -80,8 +85,33 @@ public class FeatureFactory {
         this.builder = new JTSGeometryBuilder(geomFactory);
         this.clipTile = geomFactory.toGeometry(clipEnvelope);
         this.sequenceFilter = new MvtCoordinateSequenceFilter(tileEnvelope, extent);
+        this.simpleFeatureFactory = new SimpleFeatureFactory(z, x, y, extent);
     }
 
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided point
+     */
+    public byte[] point(double lon, double lat) throws IOException {
+        return simpleFeatureFactory.point(lon, lat);
+    }
+
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided rectangle
+     */
+    public byte[] box(double minLon, double maxLon, double minLat, double maxLat) throws IOException {
+        return simpleFeatureFactory.box(minLon, maxLon, minLat, maxLat);
+    }
+
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided points
+     */
+    public byte[] points(List<GeoPoint> multiPoint) {
+        return simpleFeatureFactory.points(multiPoint);
+    }
+
+    /**
+     * Returns a List {@code byte[]} containing the mvt representation of the provided geometry
+     */
     public List<byte[]> getFeatures(Geometry geometry) {
         // Get geometry in spherical mercator
         final org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);

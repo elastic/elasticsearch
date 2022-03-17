@@ -110,9 +110,16 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
             }
             List<TokenizationResult.Tokens> tokenizations = new ArrayList<>(labels.length);
             int seqId = 0;
+            NlpTokenizer.InnerTokenization firstSequenceTokenization = tokenizer.innerTokenize(inputs.get(0));
             for (String label : labels) {
                 tokenizations.add(
-                    tokenizer.tokenize(inputs.get(0), LoggerMessageFormat.format(null, hypothesisTemplate, label), truncate, seqId++)
+                    tokenizer.tokenize(
+                        inputs.get(0),
+                        firstSequenceTokenization,
+                        LoggerMessageFormat.format(null, hypothesisTemplate, label),
+                        truncate,
+                        seqId++
+                    )
                 );
             }
             TokenizationResult result = tokenizer.buildTokenizationResult(tokenizations);

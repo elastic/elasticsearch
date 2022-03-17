@@ -171,32 +171,35 @@ public abstract class TransportBroadcastAction<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        transportService.sendRequest(
+                        sendShardRequest(
                             node,
-                            transportShardAction,
                             shardRequest,
-                            new TransportResponseHandler<ShardResponse>() {
-                                @Override
-                                public ShardResponse read(StreamInput in) throws IOException {
-                                    return readShardResponse(in);
-                                }
-
-                                @Override
-                                public void handleResponse(ShardResponse response) {
-                                    onOperation(shard, shardIndex, response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException e) {
-                                    onOperation(shard, shardIt, shardIndex, e);
-                                }
-                            }
+                            ActionListener.wrap(r -> onOperation(shard, shardIndex, r), e -> onOperation(shard, shardIt, shardIndex, e))
                         );
                     }
                 } catch (Exception e) {
                     onOperation(shard, shardIt, shardIndex, e);
                 }
             }
+        }
+
+        protected void sendShardRequest(DiscoveryNode node, ShardRequest shardRequest, ActionListener<ShardResponse> listener) {
+            transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
+                @Override
+                public ShardResponse read(StreamInput in) throws IOException {
+                    return readShardResponse(in);
+                }
+
+                @Override
+                public void handleResponse(ShardResponse response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException e) {
+                    listener.onFailure(e);
+                }
+            });
         }
 
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {

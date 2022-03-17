@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.Index;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
@@ -30,6 +31,11 @@ public class LifecycleExecutionStateUtils {
         IndexMetadata indexMetadata,
         LifecycleExecutionState lifecycleState
     ) {
+        // the index associated with this indexMetadata must already exist
+        Index index = indexMetadata.getIndex();
+        IndexMetadata existingIndexMetadata = clusterState.metadata().index(index);
+        assert existingIndexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         builder.metadata(
             Metadata.builder(clusterState.getMetadata())

@@ -15,7 +15,7 @@ setup:
               uuid:
                 type: keyword
               name:
-                type: keyword
+                type: keywordg
               metric:
                 type: long
   - do:
@@ -23,18 +23,18 @@ setup:
         index: test
         refresh: true
         body:
-          - { "index": { } }
-          - { "timestamp": "2021-10-01", "metric": 1, "name": "first", "uuid": "0002" }
-          - { "index": { } }
-          - { "timestamp": "2021-10-02", "metric": 2, "name": "first", "uuid": "0002" }
-          - { "index": { } }
-          - { "timestamp": "2021-10-01", "metric": 1, "name": "second", "uuid": "0001" }
-          - { "index": { } }
-          - { "timestamp": "2021-10-02", "metric": 3, "name": "second", "uuid": "0001" }
-          - { "index": { } }
-          - { "timestamp": "2021-10-01", "metric": 1, "name": "third", "uuid": "0003" }
-          - { "index": { } }
-          - { "timestamp": "2021-10-02", "metric": 1, "name": "third", "uuid": "0003" }
+          - { index: {} }
+          - { timestamp: "2021-10-01", metric: 1, name: "first", uuid: "0002" }
+          - { index": {} }
+          - { timestamp: "2021-10-02", metric: 2, name: "first", uuid: "0002" }
+          - { index": {} }
+          - { timestamp: "2021-10-01", metric: 1, name: "second", uuid: "0001" }
+          - { index": {} }
+          - { timestamp: "2021-10-02", metric: 3, name: "second", uuid: "0001" }
+          - { index": {} }
+          - { timestamp: "2021-10-01", metric: 1, name: "third", uuid: "0003" }
+          - { index": {} }
+          - { timestamp: "2021-10-02", metric: 1, name: "third", uuid: "0003" }
 
 ---
 "sort on top metrics keyword desc":

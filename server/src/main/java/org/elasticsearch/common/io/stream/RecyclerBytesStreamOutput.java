@@ -129,29 +129,18 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
             tmp.setVersion(getVersion());
             writeable.writeTo(tmp);
-            final int size = tmp.size();
+            int size = tmp.size();
             writeVInt(size);
-            final int bytesInLastPage;
-            final int remainder = size % pageSize;
-            final int adjustment;
-            if (remainder != 0) {
-                adjustment = 1;
-                bytesInLastPage = remainder;
-            } else {
-                adjustment = 0;
-                bytesInLastPage = pageSize;
-            }
-            final int pageCount = (size / tmp.pageSize) + adjustment;
-            for (int i = 0; i < pageCount - 1; i++) {
-                Recycler.V<BytesRef> p = tmp.pages.get(i);
+            int tmpPage = 0;
+            while (size > 0) {
+                final Recycler.V<BytesRef> p = tmp.pages.get(tmpPage);
                 final BytesRef b = p.v();
-                writeBytes(b.bytes, b.offset, b.length);
-                tmp.pages.set(i, null).close();
+                final int writeSize = Math.min(size, b.length);
+                writeBytes(b.bytes, b.offset, writeSize);
+                tmp.pages.set(tmpPage, null).close();
+                size -= writeSize;
+                tmpPage++;
             }
-            Recycler.V<BytesRef> p = tmp.pages.get(pageCount - 1);
-            final BytesRef b = p.v();
-            writeBytes(b.bytes, b.offset, bytesInLastPage);
-            tmp.pages.set(pageCount - 1, null).close();
         }
     }
 

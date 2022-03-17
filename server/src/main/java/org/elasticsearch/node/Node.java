@@ -765,7 +765,6 @@ public class Node implements Closeable {
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            final ReadinessService readinessService = new ReadinessService(clusterService, environment);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
@@ -994,8 +993,12 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
-                b.bind(ReadinessService.class).toInstance(readinessService);
             });
+
+            if (ReadinessService.enabled(environment)) {
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+            }
+
             injector = modules.createInjector();
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
@@ -1136,7 +1139,9 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
-        injector.getInstance(ReadinessService.class).start();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -1255,6 +1260,11 @@ public class Node implements Closeable {
             writePortsFile(environment, "transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile(environment, "http", http.boundAddress());
+
+            if (ReadinessService.enabled(environment)) {
+                ReadinessService readiness = injector.getInstance(ReadinessService.class);
+                readiness.addBoundAddressListener(address -> writePortsFile(environment, "readiness", address));
+            }
         }
 
         logger.info("started");
@@ -1277,7 +1287,9 @@ public class Node implements Closeable {
         }
         logger.info("stopping ...");
 
-        injector.getInstance(ReadinessService.class).stop();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).stop();
+        }
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1358,7 +1370,9 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
-        toClose.add(injector.getInstance(ReadinessService.class));
+        if (ReadinessService.enabled(environment)) {
+            toClose.add(injector.getInstance(ReadinessService.class));
+        }
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

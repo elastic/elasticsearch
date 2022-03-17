@@ -79,7 +79,7 @@
 #
 # Enable an unauthenticated TCP readiness endpoint on localhost
 #
-#readiness.port: 9400
+#readiness.port: 9399
 #
 # ---------------------------------- Various -----------------------------------
 #

@@ -143,15 +143,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    public void setReadinessPorts(String ports) {
-        String[] portsArray = ports.split(",");
-        if (portsArray.length != nodes.size()) {
-            throw new IllegalArgumentException("Number of readiness ports must match the number of nodes");
-        }
-
-        int counter = 0;
-        for (ElasticsearchNode node : nodes) {
-            node.setting("readiness.port", portsArray[counter++]);
+    public void setReadinessEnabled(boolean enabled) {
+        if (enabled) {
+            for (ElasticsearchNode node : nodes) {
+                node.setting("readiness.port", "0"); // ephemeral port
+            }
         }
     }
 

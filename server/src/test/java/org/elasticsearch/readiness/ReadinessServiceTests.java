@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.Set;
@@ -107,6 +108,36 @@ public class ReadinessServiceTests extends ESTestCase {
         threadpool.shutdownNow();
     }
 
+    public void testEphemeralSocket() throws Exception {
+        Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
+        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
+        try (ServerSocketChannel channel = tempService.setupSocket()) {
+            assertTrue(channel.isOpen());
+            assertTrue(tempService.boundAddress().publishAddress().getPort() > 0);
+        }
+    }
+
+    public void testBoundPortDoesntChange() throws Exception {
+        Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
+        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
+        tempService.start();
+        tempService.startListener();
+
+        ServerSocketChannel channel = tempService.serverChannel();
+        assertTrue(channel.isOpen());
+        assertTrue(tempService.boundAddress().publishAddress().getPort() > 0);
+
+        int port = tempService.boundAddress().publishAddress().getPort();
+
+        tempService.stop();
+        assertNull(tempService.serverChannel());
+        tempService.start();
+        tempService.startListener();
+        assertEquals(port, ((InetSocketAddress) tempService.serverChannel().getLocalAddress()).getPort());
+        tempService.stop();
+        tempService.close();
+    }
+
     public void testSocketChannelCreation() throws Exception {
         try (ServerSocketChannel channel = readinessService.setupSocket()) {
             assertTrue(channel.isOpen());
@@ -114,13 +145,13 @@ public class ReadinessServiceTests extends ESTestCase {
     }
 
     public void testEnabled() {
-        ReadinessService service = new ReadinessService(clusterService, newEnvironment(Settings.EMPTY));
-        assertFalse(service.enabled());
-        assertTrue(readinessService.enabled());
+        Environment environment = newEnvironment(Settings.EMPTY);
+        assertFalse(ReadinessService.enabled(environment));
+        assertTrue(ReadinessService.enabled(env));
     }
 
     public void testStartStop() {
-        assertTrue(readinessService.enabled());
+        assertTrue(ReadinessService.enabled(env));
         readinessService.start();
         readinessService.startListener();
         assertNotNull(readinessService.serverChannel());

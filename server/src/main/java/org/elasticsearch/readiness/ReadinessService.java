@@ -31,12 +31,11 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.node.Node.WRITE_PORTS_FILE_SETTING;
-import static org.elasticsearch.node.Node.writePortsFile;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -47,6 +46,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private volatile ServerSocketChannel serverChannel;
     private CountDownLatch listenerThreadLatch;
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
+    private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
@@ -61,8 +61,12 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         return this.serverChannel != null;
     }
 
-    // package private for testing
-    boolean enabled() {
+    /**
+     * Checks to see if the readiness service is enabled in the current environment
+     * @param environment
+     * @return
+     */
+    public static boolean enabled(Environment environment) {
         return PORT.get(environment.settings()) != -1;
     }
 
@@ -71,24 +75,41 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         return serverChannel;
     }
 
+    /**
+     * Returns the current bound address for the readiness service.
+     * If Elasticsearch was never ready, this method will return null.
+     * @return the bound address for the readiness service
+     */
     public BoundTransportAddress boundAddress() {
-        TransportAddress publishAddress = new TransportAddress(boundSocket.get());
+        InetSocketAddress boundAddress = boundSocket.get();
+        if (boundAddress == null) {
+            return null;
+        }
+        TransportAddress publishAddress = new TransportAddress(boundAddress);
         return new BoundTransportAddress(new TransportAddress[] { publishAddress }, publishAddress);
     }
 
     ServerSocketChannel setupSocket() {
         assert PORT.get(environment.settings()) >= 0;
+        InetAddress localhost = InetAddress.getLoopbackAddress();
+        int portNumber = PORT.get(environment.settings());
 
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            InetAddress localhost = InetAddress.getLoopbackAddress();
-            int portNumber = PORT.get(environment.settings());
-
             try {
-                InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
                 serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
-                serverChannel.bind(socketAddress);
+                if (boundSocket.get() != null) {
+                    serverChannel.bind(boundSocket.get());
+                } else {
+                    InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
+                    serverChannel.bind(socketAddress);
 
-                boundSocket.set(socketAddress);
+                    boundSocket.set((InetSocketAddress) serverChannel.getLocalAddress());
+
+                    BoundTransportAddress boundAddress = boundAddress();
+                    for (BoundAddressListener listener : boundAddressListeners) {
+                        listener.addressBound(boundAddress);
+                    }
+                }
             } catch (Exception e) {
                 throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
             }
@@ -102,15 +123,12 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     @Override
     protected void doStart() {
         // Mark the service as active, we'll start the listener when ES is ready
-        this.active = enabled();
-        if (active == false) {
-            logger.debug("Readiness service is not enabled");
-        }
+        this.active = true;
     }
 
     // package private for testing
     synchronized void startListener() {
-        assert enabled();
+        assert enabled(environment);
 
         if (this.serverChannel != null || this.active == false) {
             return;
@@ -135,23 +153,17 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }, "elasticsearch[readiness-service]").start();
 
         logger.info("readiness service up and running on {}", boundAddress().publishAddress());
-
-        if (WRITE_PORTS_FILE_SETTING.get(environment.settings())) {
-            writePortsFile(environment, "readiness", boundAddress());
-        }
     }
 
     @Override
     protected void doStop() {
         this.active = false;
-        if (enabled()) {
-            stopListener();
-        }
+        stopListener();
     }
 
     // package private for testing
     synchronized void stopListener() {
-        assert enabled();
+        assert enabled(environment);
         try {
             if (this.serverChannel != null) {
                 this.serverChannel.close();
@@ -170,10 +182,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (enabled() == false) {
-            return;
-        }
-
         ClusterState clusterState = event.state();
 
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
@@ -191,5 +199,28 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         } else {
             stopListener();
         }
+    }
+
+    /**
+     * Add a listener for bound readiness service address.
+     * @param listener
+     */
+    public void addBoundAddressListener(BoundAddressListener listener) {
+        boundAddressListeners.add(listener);
+    }
+
+    /**
+     * A listener to be notified when the readiness service establishes the port it's listening on.
+     * The {@link #addressBound(BoundTransportAddress)} method is called after the readiness service socket
+     * is up and listening.
+     */
+    public interface BoundAddressListener {
+        /**
+         * This method is going to be called only the first time the address is bound. The readiness service
+         * always binds to the same port it did initially. Subsequent changes to ready from not-ready states will
+         * not send this notification.
+         * @param address
+         */
+        void addressBound(BoundTransportAddress address);
     }
 }

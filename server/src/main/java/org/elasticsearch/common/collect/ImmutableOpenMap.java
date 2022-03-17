@@ -9,7 +9,6 @@
 package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectCollection;
-import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
@@ -123,10 +122,10 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
     @Override
     public Set<Map.Entry<KType, VType>> entrySet() {
         Set<Map.Entry<KType, VType>> es;
-        return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
+        return (es = entrySet) == null ? (entrySet = new EntrySet<>(map)) : es;
     }
 
-    private final class ImmutableEntry implements Map.Entry<KType, VType> {
+    private static final class ImmutableEntry<KType, VType> implements Map.Entry<KType, VType> {
         private final KType key;
         private final VType value;
 
@@ -165,12 +164,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
     }
 
-    private final class ConversionIterator implements Iterator<Map.Entry<KType, VType>> {
+    private static final class ConversionIterator<KType, VType> implements Iterator<Map.Entry<KType, VType>> {
 
         private final Iterator<ObjectObjectCursor<KType, VType>> original;
 
-        ConversionIterator() {
-            this.original = map.iterator();
+        ConversionIterator(Iterator<ObjectObjectCursor<KType, VType>> original) {
+            this.original = original;
         }
 
         @Override
@@ -184,7 +183,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             if (obj == null) {
                 return null;
             }
-            return new ImmutableEntry(obj.key, obj.value);
+            return new ImmutableEntry<>(obj.key, obj.value);
         }
 
         @Override
@@ -193,20 +192,30 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
     }
 
-    private final class EntrySet extends AbstractSet<Map.Entry<KType, VType>> {
+    private static final class EntrySet<KType, VType> extends AbstractSet<Map.Entry<KType, VType>> {
+        private final ObjectObjectHashMap<KType, VType> map;
+
+        private EntrySet(ObjectObjectHashMap<KType, VType> map) {
+            this.map = map;
+        }
+
+        @Override
         public int size() {
             return map.size();
         }
 
+        @Override
         public void clear() {
             throw new UnsupportedOperationException("removal is unsupported");
         }
 
+        @Override
         public Iterator<Map.Entry<KType, VType>> iterator() {
-            return new ConversionIterator();
+            return new ConversionIterator<>(map.iterator());
         }
 
         @SuppressWarnings("unchecked")
+        @Override
         public boolean contains(Object o) {
             if (o instanceof Map.Entry<?, ?> == false) {
                 return false;
@@ -220,57 +229,69 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             return Objects.equals(val, e.getValue());
         }
 
+        @Override
         public boolean remove(Object o) {
             throw new UnsupportedOperationException("removal is not supported");
         }
 
+        @Override
         public Spliterator<Map.Entry<KType, VType>> spliterator() {
             return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
         }
 
+        @Override
         public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
             map.forEach((Consumer<? super ObjectObjectCursor<KType, VType>>) ooCursor -> {
-                ImmutableEntry entry = new ImmutableEntry(ooCursor.key, ooCursor.value);
+                ImmutableEntry<KType, VType> entry = new ImmutableEntry<>(ooCursor.key, ooCursor.value);
                 action.accept(entry);
             });
         }
     }
 
+    private static final class KeySet<KType, VType> extends AbstractSet<KType> {
+
+        private final ObjectObjectHashMap<KType, VType>.KeysContainer keys;
+
+        private KeySet(ObjectObjectHashMap<KType, VType>.KeysContainer keys) {
+            this.keys = keys;
+        }
+
+        @Override
+        public Iterator<KType> iterator() {
+            final Iterator<ObjectCursor<KType>> iterator = keys.iterator();
+            return new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public KType next() {
+                    return iterator.next().value;
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        @Override
+        public int size() {
+            return keys.size();
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public boolean contains(Object o) {
+            return keys.contains((KType) o);
+        }
+    };
+
     @Override
     public Set<KType> keySet() {
-        return new AbstractSet<>() {
-            @Override
-            public Iterator<KType> iterator() {
-                final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
-                return new Iterator<KType>() {
-                    @Override
-                    public boolean hasNext() {
-                        return iterator.hasNext();
-                    }
-
-                    @Override
-                    public KType next() {
-                        return iterator.next().value;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-                };
-            }
-
-            @Override
-            public int size() {
-                return map.size();
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean contains(Object o) {
-                return map.containsKey((KType) o);
-            }
-        };
+        return new KeySet<>(map.keys());
     }
 
     @Override
@@ -450,12 +471,8 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             map.clear();
         }
 
-        public ObjectCollection<KType> keys() {
-            return map.keys();
-        }
-
-        public ObjectContainer<VType> values() {
-            return map.values();
+        public Set<KType> keys() {
+            return new KeySet<>(map.keys());
         }
 
         @SuppressWarnings("unchecked")

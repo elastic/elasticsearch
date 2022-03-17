@@ -1909,9 +1909,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final Subject subject = mock(Subject.class);
         when(subject.getUser()).thenReturn(SystemUser.INSTANCE);
-        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future1 = new PlainActionFuture<>();
-        compositeRolesStore.getRoleDescriptorsList(subject, future1);
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, future1::actionGet);
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
         assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
 
         when(subject.getUser()).thenReturn(XPackSecurityUser.INSTANCE);

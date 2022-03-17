@@ -24,13 +24,57 @@ public class BinaryOptionalMathProcessor implements Processor {
     public enum BinaryOptionalMathOperation implements BiFunction<Number, Number, Number> {
 
         ROUND((l, r) -> {
-            double tenAtScale = Math.pow(10., r.longValue());
+            long rLong = r.longValue();
+            if (l instanceof Long || l instanceof Integer) {
+                long lLong = l.longValue();
+                if (lLong == 0L || rLong >= 0) {
+                    return lLong;
+                }
+
+                long digitsToRound = -rLong;
+                int digits = (int) (Math.log10(Math.abs(l.doubleValue())) + 1);
+                if (digits <= digitsToRound) {
+                    return 0L;
+                }
+
+                long divider = (long) Math.pow(10, digitsToRound);
+                long middleResult = lLong / divider;
+                long remainder = lLong % divider;
+                if (remainder >= 5 * (long) Math.pow(10, digitsToRound - 1)) {
+                    middleResult++;
+                } else if (remainder <= -5 * (long) Math.pow(10, digitsToRound - 1)) {
+                    middleResult--;
+                }
+
+                long result = middleResult * divider;
+                if (Long.signum(result) == Long.signum(lLong)) {
+                    return result;
+                }// otherwise there was an overflow on long values, fall back to floating point implementation.
+
+            }
+            double tenAtScale = Math.pow(10., rLong);
             double middleResult = l.doubleValue() * tenAtScale;
             int sign = middleResult > 0 ? 1 : -1;
             return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
         }),
         TRUNCATE((l, r) -> {
-            double tenAtScale = Math.pow(10., r.longValue());
+            long rLong = r.longValue();
+            if (l instanceof Long || l instanceof Integer) {
+                long lLong = l.longValue();
+                if (lLong == 0L || rLong >= 0) {
+                    return lLong;
+                }
+
+                long digitsToTruncate = -rLong;
+                int digits = (int) (Math.log10(Math.abs(l.doubleValue())) + 1);
+                if (digits <= digitsToTruncate) {
+                    return 0L;
+                }
+
+                long divider = (long) Math.pow(10, digitsToTruncate);
+                return (lLong / divider) * divider;
+            }
+            double tenAtScale = Math.pow(10., rLong);
             double g = l.doubleValue() * tenAtScale;
             return (((l.doubleValue() < 0) ? Math.ceil(g) : Math.floor(g)) / tenAtScale);
         });

@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -2131,6 +2132,102 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 )
             );
         }, keywordFt, dummyFt);
+    }
+
+    /**
+     * When collecting one bucket we use the filter-by-filter implementation
+     * whether or not we use the {@code _doc_count} field.
+     */
+    public void testOneBucket() throws IOException {
+        boolean hasDocCountField = randomBoolean();
+        long totalDocs = 500;
+        long[] totalCount = new long[] { 0 };
+        BytesRef value = new BytesRef("stuff");
+        MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
+        debugTestCase(new TermsAggregationBuilder("t").field("k"), new MatchAllDocsQuery(), iw -> {
+            for (int d = 0; d < totalDocs; d++) {
+                List<IndexableField> doc = new ArrayList<>();
+                doc.add(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE));
+                doc.add(new SortedSetDocValuesField("k", value));
+                if (hasDocCountField) {
+                    int count = between(1, 100);
+                    totalCount[0] += count;
+                    doc.add(DocCountFieldMapper.field(count));
+                } else {
+                    totalCount[0]++;
+                }
+                iw.addDocument(doc);
+            }
+        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("stuff")));
+            assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(totalCount[0])));
+
+            assertEquals(impl, StringTermsAggregatorFromFilters.class);
+            assertMap(
+                debug,
+                matchesMap().entry(
+                    "t",
+                    matchesMap().entry("delegate", "FilterByFilterAggregator")
+                        .entry(
+                            "delegate_debug",
+                            matchesMap().extraOk().entry("segments_with_doc_count_field", hasDocCountField ? greaterThan(0) : equalTo(0))
+                        )
+                )
+            );
+        }, keywordFt);
+    }
+
+    public void testFewBuckets() throws IOException {
+        randomizeAggregatorImpl = false;
+        boolean hasDocCountField = randomBoolean();
+        long totalDocs = 500;
+        long[] totalCounts = new long[] { 0, 0, 0 };
+        BytesRef[] values = new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c") };
+        MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
+        debugTestCase(new TermsAggregationBuilder("t").field("k").order(BucketOrder.key(true)), new MatchAllDocsQuery(), iw -> {
+            for (int d = 0; d < totalDocs; d++) {
+                BytesRef value = values[d % values.length];
+                List<IndexableField> doc = new ArrayList<>();
+                doc.add(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE));
+                doc.add(new SortedSetDocValuesField("k", value));
+                if (hasDocCountField) {
+                    int count = between(1, 100);
+                    totalCounts[d % totalCounts.length] += count;
+                    doc.add(DocCountFieldMapper.field(count));
+                } else {
+                    totalCounts[d % totalCounts.length]++;
+                }
+                iw.addDocument(doc);
+            }
+        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("a", "b", "c")));
+            assertThat(
+                r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()),
+                equalTo(List.of(totalCounts[0], totalCounts[1], totalCounts[2]))
+            );
+
+            if (hasDocCountField) {
+                assertEquals(GlobalOrdinalsStringTermsAggregator.LowCardinality.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry("t", matchesMap().extraOk().entry("result_strategy", "terms").entry("collection_strategy", "dense"))
+                );
+            } else {
+                assertEquals(impl, StringTermsAggregatorFromFilters.class);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "t",
+                        matchesMap().entry("delegate", "FilterByFilterAggregator")
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().extraOk()
+                                    .entry("segments_with_doc_count_field", hasDocCountField ? greaterThan(0) : equalTo(0))
+                            )
+                    )
+                );
+            }
+        }, keywordFt);
     }
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

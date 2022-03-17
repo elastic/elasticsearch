@@ -727,7 +727,6 @@ tile contains the following data:
           "name": "NEMO Science Museum",
           "price": 1750
         },
-        "id": 0,
         "type": 1
       },
       {
@@ -744,7 +743,6 @@ tile contains the following data:
           "name": "Nederlands Scheepvaartmuseum",
           "price": 1650
         },
-        "id": 0,
         "type": 1
       },
       {
@@ -761,7 +759,6 @@ tile contains the following data:
           "name": "Amsterdam Centre for Architecture",
           "price": 0
         },
-        "id": 0,
         "type": 1
       }
     ]
@@ -804,7 +801,6 @@ tile contains the following data:
           "min_price.value": 0.0,
           "avg_price.value": 1133.3333333333333
         },
-        "id": 0,
         "type": 3
       }
     ]
@@ -872,7 +868,6 @@ tile contains the following data:
           "timed_out": false,
           "took": 2
         },
-        "id": 0,
         "type": 3
       }
     ]

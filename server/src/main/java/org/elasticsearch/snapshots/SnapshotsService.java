@@ -1344,11 +1344,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 } else {
                     // TODO: Restart snapshot on another node?
                     snapshotChanged = true;
-                    logger.warn("failing snapshot of shard [{}] on closed node [{}]", shardId, shardStatus.nodeId());
+                    logger.warn("failing snapshot of shard [{}] on departed node [{}]", shardId, shardStatus.nodeId());
                     final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                         shardStatus.nodeId(),
                         ShardState.FAILED,
-                        "node shutdown",
+                        "node left the cluster during snapshot",
                         shardStatus.generation()
                     );
                     shards.put(shardId, failedState);

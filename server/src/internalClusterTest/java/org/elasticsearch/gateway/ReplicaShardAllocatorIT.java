@@ -11,6 +11,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -465,12 +466,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         final ClusterService clusterService = internalCluster().clusterService();
         assertBusy(() -> {
             Index index = resolveIndex(indexName);
-            Set<String> activeRetentionLeaseIds = clusterService.state()
-                .routingTable()
-                .index(index)
-                .shard(0)
-                .shards()
-                .stream()
+            Set<String> activeRetentionLeaseIds = RoutingNodesHelper.asStream(clusterService.state().routingTable().index(index).shard(0))
                 .map(shardRouting -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId()))
                 .collect(Collectors.toSet());
             for (String node : internalCluster().nodesInclude(indexName)) {

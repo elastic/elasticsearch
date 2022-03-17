@@ -170,6 +170,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * @return the finalized aggregations
      */
     public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
-        return internalAggregations;
+        return from(
+            internalAggregations.aggregations.stream()
+                .map(agg -> ((InternalAggregation) agg).finalizeSampling(samplingContext))
+                .collect(Collectors.toList())
+        );
     }
 }

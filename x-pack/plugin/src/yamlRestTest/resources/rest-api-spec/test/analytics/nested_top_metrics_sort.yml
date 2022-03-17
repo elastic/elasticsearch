@@ -15,7 +15,7 @@ setup:
               uuid:
                 type: keyword
               name:
-                type: keywordg
+                type: keyword
               metric:
                 type: long
   - do:

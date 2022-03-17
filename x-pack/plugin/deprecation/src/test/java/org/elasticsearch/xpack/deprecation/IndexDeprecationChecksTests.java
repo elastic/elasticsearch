@@ -751,7 +751,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             issues,
             containsInAnyOrder(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "Setting [index.search.slowlog.level] is deprecated",
                     expectedUrl,
                     "Remove the [index.search.slowlog.level] setting. Use the [index.*.slowlog.threshold] settings to set the log levels.",
@@ -761,7 +761,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     )
                 ),
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "Setting [index.indexing.slowlog.level] is deprecated",
                     expectedUrl,
                     "Remove the [index.indexing.slowlog.level] setting. Use the [index.*.slowlog.threshold]"

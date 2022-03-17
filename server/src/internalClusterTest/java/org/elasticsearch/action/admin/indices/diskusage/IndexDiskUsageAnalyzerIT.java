@@ -28,12 +28,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -235,6 +237,50 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         ).actionGet();
         assertThat(resp.getTotalShards(), equalTo(numberOfShards));
         assertThat(resp.getFailedShards(), equalTo(failedShards.size()));
+    }
+
+    public void testManyShards() throws Exception {
+        List<String> indices = IntStream.range(0, between(1, 5)).mapToObj(n -> "index_" + n).toList();
+        int totalShards = 0;
+        for (String indexName : indices) {
+            int numberOfShards = between(10, 30);
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+                        .put("index.shard.check_on_startup", false)
+                        .put("index.routing.rebalance.enable", "none")
+                )
+                .get();
+            totalShards += numberOfShards;
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                int value = randomIntBetween(5, 20);
+                final XContentBuilder doc = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("english_text", English.intToEnglish(value))
+                    .field("value", value)
+                    .endObject();
+                client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            }
+        }
+
+        AnalyzeIndexDiskUsageResponse resp = client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { "index_*" }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+        ).actionGet();
+        assertThat(Arrays.toString(resp.getShardFailures()), resp.getShardFailures(), emptyArray());
+        assertThat(resp.getTotalShards(), equalTo(totalShards));
+        assertThat(resp.getSuccessfulShards(), equalTo(totalShards));
+        assertThat(resp.getFailedShards(), equalTo(0));
+        for (String index : indices) {
+            IndexDiskUsageStats stats = resp.getStats().get(index);
+            assertThat(stats.getIndexSizeInBytes(), greaterThan(0L));
+            assertThat(stats.total().totalBytes(), greaterThan(0L));
+        }
     }
 
     void assertMetadataFields(IndexDiskUsageStats stats) {

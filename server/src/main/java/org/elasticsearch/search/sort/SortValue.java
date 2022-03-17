@@ -20,12 +20,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
+    private static final SortValue EMPTY_SORT_VALUE = new EmptySortValue();
+
     /**
      * Get a {@linkplain SortValue} for a double.
      */
@@ -52,7 +53,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
      * Get a {@linkplain SortValue} for data which cannot be sorted.
      */
     public static SortValue empty() {
-        return new EmptySortValue();
+        return EMPTY_SORT_VALUE;
     }
 
     /**
@@ -350,11 +351,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     private static class EmptySortValue extends SortValue {
 
         public static final String NAME = "empty";
-        private final byte dummyKey;
 
-        private EmptySortValue() {
-            this.dummyKey = (byte) 0;
-        }
+        private EmptySortValue() {}
 
         @Override
         public String getWriteableName() {
@@ -362,43 +360,36 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(dummyKey);
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
         public Object getKey() {
-            return dummyKey;
+            return null;
         }
 
         @Override
         public String format(DocValueFormat format) {
-            return format.format(dummyKey).toString();
+            return null;
         }
 
         @Override
         protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
-            return builder.value(dummyKey);
+            return null;
         }
 
         @Override
         protected int compareToSameType(SortValue obj) {
-            EmptySortValue other = (EmptySortValue) obj;
-            return Byte.compare(dummyKey, other.dummyKey);
+            return 0;
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || false == getClass().equals(obj.getClass())) {
-                return false;
-            }
-            EmptySortValue other = (EmptySortValue) obj;
-            return dummyKey == other.dummyKey;
+            return true;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(dummyKey);
+            return 0;
         }
 
         @Override

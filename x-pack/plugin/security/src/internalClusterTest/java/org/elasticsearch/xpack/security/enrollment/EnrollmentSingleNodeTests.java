@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.spy;
 
 public class EnrollmentSingleNodeTests extends SecuritySingleNodeTestCase {
+
+    @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
+    }
 
     @Override
     protected Settings nodeSettings() {

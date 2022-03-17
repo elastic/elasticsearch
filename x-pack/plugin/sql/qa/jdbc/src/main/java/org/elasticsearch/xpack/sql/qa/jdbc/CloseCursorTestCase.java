@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.elasticsearch.core.CheckedConsumer;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -24,34 +25,36 @@ public abstract class CloseCursorTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testCloseCursor() throws SQLException {
-        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
-            statement.setFetchSize(1);
-            ResultSet results = statement.executeQuery(" SELECT name FROM library");
+        doWithQuery("SELECT name FROM library", results -> {
             assertTrue(results.next());
             results.close(); // force sending a cursor close since more pages are available
             assertTrue(results.isClosed());
-        }
+        });
     }
 
     public void testCloseConsumedCursor() throws SQLException {
-        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
-            statement.setFetchSize(1);
-            ResultSet results = statement.executeQuery(" SELECT name FROM library");
+        doWithQuery("SELECT name FROM library", results -> {
             for (int i = 0; i < 3; i++) {
                 assertTrue(results.next());
             }
             assertFalse(results.next());
             results.close();
             assertTrue(results.isClosed());
-        }
+        });
     }
 
     public void testCloseNoCursor() throws SQLException {
-        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
-            statement.setFetchSize(1);
-            ResultSet results = statement.executeQuery(" SELECT name FROM library where name = 'zzz'");
+        doWithQuery("SELECT name FROM library WHERE name = 'zzz'", results -> {
             results.close();
             assertTrue(results.isClosed());
+        });
+    }
+
+    private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
+        try (Connection connection = createConnection(connectionProperties()); Statement statement = connection.createStatement()) {
+            statement.setFetchSize(1);
+            ResultSet results = statement.executeQuery(query);
+            consumer.accept(results);
         }
     }
 }

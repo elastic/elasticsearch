@@ -87,6 +87,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     public SqlClearCursorRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
+        binaryCommunication = in.readOptionalBoolean();
     }
 
     public SqlClearCursorRequest binaryCommunication(Boolean binaryCommunication) {
@@ -102,6 +103,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cursor);
+        out.writeOptionalBoolean(binaryCommunication);
     }
 
     @Override
@@ -110,12 +112,12 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         SqlClearCursorRequest that = (SqlClearCursorRequest) o;
-        return Objects.equals(cursor, that.cursor);
+        return Objects.equals(cursor, that.cursor) && Objects.equals(binaryCommunication, that.binaryCommunication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor);
+        return Objects.hash(super.hashCode(), cursor, binaryCommunication);
     }
 
     public static SqlClearCursorRequest fromXContent(XContentParser parser) {

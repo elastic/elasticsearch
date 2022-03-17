@@ -34,7 +34,7 @@ public class TestSqlClearCursorRequest extends SqlClearCursorRequest implements 
         org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest protoInstance = new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(
             this.getCursor(),
             this.requestInfo(),
-            false
+            this.binaryCommunication()
         );
         return SqlTestUtils.toXContentBuilder(builder, g -> Payloads.generate(g, protoInstance));
     }

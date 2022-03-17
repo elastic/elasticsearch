@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
   - do:
       indices.create:
         index: test

@@ -398,7 +398,7 @@
                     "count": {
                       "type": "long"
                     },
-                    "duration": {
+                    "delay": {
                       "properties": {
                         "p50": {
                           "type": "float"
@@ -429,7 +429,7 @@
                     "count": {
                       "type": "long"
                     },
-                    "duration": {
+                    "delay": {
                       "properties": {
                         "p50": {
                           "type": "float"
@@ -495,15 +495,15 @@
                   "type": "alias",
                   "path": "kibana.cluster_rules.overdue.count"
                 },
-                "duration": {
+                "delay": {
                   "properties": {
                     "p50": {
                       "type": "alias",
-                      "path": "kibana.cluster_rules.overdue.duration.p50"
+                      "path": "kibana.cluster_rules.overdue.delay.p50"
                     },
                     "p99": {
                       "type": "alias",
-                      "path": "kibana.cluster_rules.overdue.duration.p99"
+                      "path": "kibana.cluster_rules.overdue.delay.p99"
                     }
                   }
                 }
@@ -555,15 +555,15 @@
                   "type": "alias",
                   "path": "kibana.cluster_actions.overdue.count"
                 },
-                "duration": {
+                "delay": {
                   "properties": {
                     "p50": {
                       "type": "alias",
-                      "path": "kibana.cluster_actions.overdue.duration.p50"
+                      "path": "kibana.cluster_actions.overdue.delay.p50"
                     },
                     "p99": {
                       "type": "alias",
-                      "path": "kibana.cluster_actions.overdue.duration.p99"
+                      "path": "kibana.cluster_actions.overdue.delay.p99"
                     }
                   }
                 }
@@ -747,7 +747,7 @@
               "type": "keyword",
               "ignore_above": 1024
             },
-            "duration": {
+            "delay": {
               "type": "long"
             },
             "end": {

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Nullable;
@@ -24,8 +23,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Generates a unique index name prefixing the original index name with the configured
@@ -77,8 +74,6 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
-
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
@@ -96,10 +91,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         }
         lifecycleStateSetter.apply(generatedIndexName, newCustomData);
 
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
-        return newClusterStateBuilder.build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata, newCustomData.build());
     }
 
     @Nullable

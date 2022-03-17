@@ -13,14 +13,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the execution state data from one index to another, typically after a
@@ -104,10 +101,11 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         relevantTargetCustomData.setAction(action);
         relevantTargetCustomData.setStep(step);
 
-        Metadata.Builder newMetadata = Metadata.builder(clusterState.getMetadata())
-            .put(IndexMetadata.builder(targetIndexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, relevantTargetCustomData.build().asMap()));
-
-        return ClusterState.builder(clusterState).metadata(newMetadata).build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            clusterState,
+            targetIndexMetadata,
+            relevantTargetCustomData.build()
+        );
     }
 
     @Override

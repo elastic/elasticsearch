@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -72,10 +73,10 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").size(), equalTo(5));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
-            assertThat(clusterState.routingTable().index("test").shard(i).shards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(clusterState.routingTable().index("test").shard(i).shards().get(1).state(), equalTo(UNASSIGNED));
-            assertThat(clusterState.routingTable().index("test").shard(i).shards().get(0).currentNodeId(), nullValue());
-            assertThat(clusterState.routingTable().index("test").shard(i).shards().get(1).currentNodeId(), nullValue());
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(0).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(1).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(0).currentNodeId(), nullValue());
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(1).currentNodeId(), nullValue());
         }
 
         logger.info("start two nodes and fully start the shards");
@@ -130,11 +131,13 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         // we only allow one relocation at a time
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(5));
-        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
+        for (int shardId = 0; shardId < clusterState.routingTable().index("test").size(); shardId++) {
             int num = 0;
-            for (ShardRouting routing : clusterState.routingTable().index("test").shard(i).shards()) {
+            final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting routing = shardRoutingTable.shard(copy);
                 if (routing.state() == RELOCATING || routing.state() == INITIALIZING) {
-                    assertEquals(routing.getExpectedShardSize(), sizes[i]);
+                    assertEquals(routing.getExpectedShardSize(), sizes[shardId]);
                     num++;
                 }
             }
@@ -148,7 +151,9 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(7));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
-            for (ShardRouting routing : clusterState.routingTable().index("test").shard(i).shards()) {
+            final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(i);
+            for (int j = 0; j < shardRoutingTable.size(); j++) {
+                ShardRouting routing = shardRoutingTable.shard(j);
                 if (routing.state() == RELOCATING || routing.state() == INITIALIZING) {
                     assertEquals(routing.getExpectedShardSize(), sizes[i]);
                 }

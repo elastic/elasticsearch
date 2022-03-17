@@ -791,6 +791,13 @@ public class SecuritySystemIndices {
                                 {
                                     builder.startObject("username");
                                     builder.field("type", "search_as_you_type");
+                                    builder.startObject("fields");
+                                    {
+                                        builder.startObject("keyword");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
                                     builder.endObject();
 
                                     builder.startObject("roles");

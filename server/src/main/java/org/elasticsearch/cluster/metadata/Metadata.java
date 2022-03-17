@@ -1618,7 +1618,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
+                indices = this.indices.keys().toArray(new String[0]);
             }
             for (String index : indices) {
                 IndexMetadata indexMetadata = this.indices.get(index);

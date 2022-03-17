@@ -38,7 +38,7 @@ public class ProfileIT extends ESRestTestCase {
             "uid": "%s",
             "enabled": true,
             "user": {
-              "username": "foo",
+              "username": "Foo",
               "roles": [
                 "role1",
                 "role2"

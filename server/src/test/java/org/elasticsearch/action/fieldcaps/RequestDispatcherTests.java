@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -81,7 +82,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponseTests.randomIndexResponse;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -839,9 +839,19 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         for (ShardId shardId : failedShards) {
             failures.put(shardId, new IllegalStateException(randomAlphaOfLength(10)));
         }
-        final List<FieldCapabilitiesIndexResponse> indexResponses = successIndices.stream()
-            .map(index -> randomIndexResponse(index, true))
-            .toList();
+        final List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
+        Map<String, List<String>> indicesWithMappingHash = new HashMap<>();
+        for (String index : successIndices) {
+            if (randomBoolean()) {
+                indicesWithMappingHash.computeIfAbsent(index, k -> new ArrayList<>()).add(index);
+            } else {
+                indexResponses.add(
+                    new FieldCapabilitiesIndexResponse(index, null, FieldCapabilitiesIndexResponseTests.randomFieldCaps(), true)
+                );
+            }
+        }
+        indexResponses.addAll(FieldCapabilitiesIndexResponseTests.randomIndexResponsesWithMappingHash(indicesWithMappingHash));
+        Randomness.shuffle(indexResponses);
         return new FieldCapabilitiesNodeResponse(indexResponses, failures, unmatchedShards);
     }
 

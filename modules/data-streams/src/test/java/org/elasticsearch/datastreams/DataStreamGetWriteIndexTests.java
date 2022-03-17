@@ -73,6 +73,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
     private MetadataRolloverService rolloverService;
     private MetadataCreateDataStreamService createDataStreamService;
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85056")
     public void testPickingBackingIndicesPredefinedDates() throws Exception {
         Instant time = DateFormatters.from(MILLIS_FORMATTER.parse("2022-03-15T08:29:36.547Z")).toInstant();
 
@@ -142,6 +143,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85056")
     public void testPickingBackingIndicesNanoTimestamp() throws Exception {
         Instant time = DateFormatters.from(NANOS_FORMATTER.parse("2022-03-15T08:29:36.123456789Z")).toInstant();
 

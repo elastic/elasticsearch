@@ -207,6 +207,34 @@ contents.
 . When you have finished restoring the repository its contents are exactly as
 they were when you took the backup.
 
+Additionally, if the repository is used to backup the `security` feature state,
+the repository will contain sensitive data such as user names and password hashes.
+Because passwords are stored using <<hashing-settings, cryptographic hashes>>,
+the disclosure of a snapshot would not automatically enable a third party to
+authenticate as one of your users or use API keys. However, it would disclose
+confidential information.
+
+It is also important that you protect the integrity of these backups in case
+you ever need to restore them. If a third party is able to modify the stored
+backups, they may be able to install a back door that would grant access if the
+snapshot is loaded into an {es} cluster.
+
+Therefore, you may wish to back up the `security` feature state to a dedicated
+repository where read and write access is restricted and audited.
+
+[discrete]
+[[snapshot-important-files]]
+=== Important Files Not Included in Snapshots
+
+Some Elasticsearch configuration is not included in snapshots. This includes
+any settings configured via `elasticsearch.yml` or the Elasticsearch keystore,
+as well as <<security-files,file-based Security configuration>>. These settings
+may contain references to other files within the <<config-files-location,`ES_PATH_CONF` directory>>,
+such as TLS keys, certificates for HTTP client and inter-node communication,
+and private key files for <<ref-saml-settings, SAML>>, <<ref-oidc-settings, OIDC>>
+and <ref-kerberos-settings, Kerberos>> realms. These files should be backed up
+separately from snapshots, as snapshots do not include these files.
+
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]
 include::restore-snapshot.asciidoc[]

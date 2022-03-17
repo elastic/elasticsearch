@@ -122,6 +122,39 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+        // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
+        // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
+        // that make assumptions about the page size
+        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
+            writeable.writeTo(tmp);
+            final int size = tmp.size();
+            writeVInt(size);
+            final int bytesInLastPage;
+            final int remainder = size % pageSize;
+            final int adjustment;
+            if (remainder != 0) {
+                adjustment = 1;
+                bytesInLastPage = remainder;
+            } else {
+                adjustment = 0;
+                bytesInLastPage = pageSize;
+            }
+            final int pageCount = (size / tmp.pageSize) + adjustment;
+            for (int i = 0; i < pageCount - 1; i++) {
+                Recycler.V<BytesRef> p = tmp.pages.get(i);
+                final BytesRef b = p.v();
+                writeBytes(b.bytes, b.offset, b.length);
+                tmp.pages.set(i, null).close();
+            }
+            Recycler.V<BytesRef> p = tmp.pages.get(pageCount - 1);
+            final BytesRef b = p.v();
+            writeBytes(b.bytes, b.offset, bytesInLastPage);
+            tmp.pages.set(pageCount - 1, null).close();
+        }
+    }
+
+    @Override
     public void reset() {
         Releasables.close(pages);
         pages.clear();

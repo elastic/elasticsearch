@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -107,11 +108,15 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = ctx.reader().getLiveDocs();
         // Iterate every document provided by the scorer iterator
-        for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
-            // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
-            if (liveDocs == null || liveDocs.get(docIt.docID())) {
-                collectBucket(sub, docIt.docID(), 0);
+        try {
+            for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
+                // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
+                if (liveDocs == null || liveDocs.get(docIt.docID())) {
+                    collectBucket(sub, docIt.docID(), 0);
+                }
             }
+        } catch (CollectionTerminatedException e) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         // Since we have done our own collection, there is nothing for the leaf collector to do
         return LeafBucketCollector.NO_OP_COLLECTOR;

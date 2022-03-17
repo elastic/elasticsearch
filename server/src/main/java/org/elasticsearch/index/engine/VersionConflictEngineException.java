@@ -38,7 +38,7 @@ public class VersionConflictEngineException extends EngineException {
     }
 
     public VersionConflictEngineException(ShardId shardId, String documentDescription, String explanation) {
-        this(shardId, "[{}]: version conflict, {}", null, documentDescription, explanation);
+        this(shardId, "{}: version conflict, {}", null, documentDescription, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {

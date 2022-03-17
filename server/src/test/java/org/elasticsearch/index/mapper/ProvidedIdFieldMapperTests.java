@@ -108,6 +108,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         String id = randomAlphaOfLength(4);
         ParsedDocument document = mapper.parse(source(id, b -> {}, null));
-        assertThat(ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(document), equalTo(id));
+        assertThat(ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(document), equalTo("[" + id + "]"));
     }
 }

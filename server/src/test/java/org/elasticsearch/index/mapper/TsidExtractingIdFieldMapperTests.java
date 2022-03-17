@@ -623,7 +623,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     public void testParsedDescription() throws IOException {
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(parse(null, mapperService(), testCase.randomSource())),
-            equalTo(testCase.expectedId + "/" + testCase.expectedTsid + "@" + testCase.expectedTimestamp)
+            equalTo("[" + testCase.expectedId + "][" + testCase.expectedTsid + "@" + testCase.expectedTimestamp + "]")
         );
     }
 }

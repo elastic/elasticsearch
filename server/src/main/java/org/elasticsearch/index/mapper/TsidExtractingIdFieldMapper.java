@@ -187,7 +187,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         IndexableField tsidField = parsedDocument.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
         long timestamp = parsedDocument.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue();
         String timestampStr = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(timestamp);
-        return parsedDocument.id() + "/" + tsidDescription(tsidField) + "@" + timestampStr;
+        return "[" + parsedDocument.id() + "][" + tsidDescription(tsidField) + "@" + timestampStr + "]";
     }
 
     private String tsidDescription(IndexableField tsidField) {

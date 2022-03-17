@@ -14,9 +14,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 public class GrokPatternCreatorTests extends TextStructureTestCase {
 
@@ -698,5 +700,20 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
         );
 
         assertEquals("Supplied Grok pattern [" + grokPattern + "] does not match sample messages", e.getMessage());
+    }
+
+    public void testLongestRun() {
+
+        List<Integer> sequence = new ArrayList<>();
+        for (int before = randomIntBetween(0, 41); before > 0; --before) {
+            sequence.add(randomIntBetween(1, 2));
+        }
+        for (int longest = 42; longest > 0; --longest) {
+            sequence.add(42);
+        }
+        for (int after = randomIntBetween(0, 41); after > 0; --after) {
+            sequence.add(randomIntBetween(2, 3));
+        }
+        assertThat(GrokPatternCreator.longestRun(sequence), is(42));
     }
 }

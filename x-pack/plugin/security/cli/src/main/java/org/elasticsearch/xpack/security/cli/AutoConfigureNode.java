@@ -462,7 +462,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 httpCaKey,
                 false,
                 HTTP_CERTIFICATE_DAYS,
-                SIGNATURE_ALGORITHM
+                SIGNATURE_ALGORITHM,
+                true
             );
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the

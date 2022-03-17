@@ -362,7 +362,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     false,
                     notBefore,
                     notAfter,
-                    null
+                    null,
+                    true
                 );
 
                 final String p12Name = "http.p12";

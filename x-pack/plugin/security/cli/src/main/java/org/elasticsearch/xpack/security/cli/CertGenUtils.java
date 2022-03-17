@@ -15,10 +15,12 @@ import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
 import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.Time;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -186,6 +188,38 @@ public class CertGenUtils {
         );
     }
 
+    /** GenerateSignedCertificate() Redifinition to restrict Exntended Key Usage by adding the boolean forServerAuth  **/
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        boolean isCa,
+        int days,
+        String signatureAlgorithm,
+        Boolean forServerAuth
+    ) throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
+        Objects.requireNonNull(keyPair, "Key-Pair must not be null");
+        final ZonedDateTime notBefore = ZonedDateTime.now(ZoneOffset.UTC);
+        if (days < 1) {
+            throw new IllegalArgumentException("the certificate must be valid for at least one day");
+        }
+        final ZonedDateTime notAfter = notBefore.plusDays(days);
+        return generateSignedCertificate(
+            principal,
+            subjectAltNames,
+            keyPair,
+            caCert,
+            caPrivKey,
+            isCa,
+            notBefore,
+            notAfter,
+            signatureAlgorithm,
+            forServerAuth
+        );
+    }
+
     public static X509Certificate generateSignedCertificate(
         X500Principal principal,
         GeneralNames subjectAltNames,
@@ -225,6 +259,67 @@ public class CertGenUtils {
 
         builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
         builder.addExtension(Extension.authorityKeyIdentifier, false, authorityKeyIdentifier);
+        if (subjectAltNames != null) {
+            builder.addExtension(Extension.subjectAlternativeName, false, subjectAltNames);
+        }
+        builder.addExtension(Extension.basicConstraints, isCa, new BasicConstraints(isCa));
+
+        PrivateKey signingKey = caPrivKey != null ? caPrivKey : keyPair.getPrivate();
+        ContentSigner signer = new JcaContentSignerBuilder(
+            (Strings.isNullOrEmpty(signatureAlgorithm)) ? getDefaultSignatureAlgorithm(signingKey) : signatureAlgorithm
+        ).setProvider(CertGenUtils.BC_PROV).build(signingKey);
+        X509CertificateHolder certificateHolder = builder.build(signer);
+        return new JcaX509CertificateConverter().getCertificate(certificateHolder);
+    }
+
+    /**
+     * Redifinition of generatesignedcertificate() to generate a certificate with a restricted
+     * Extended key usage by adding the boolean forServerAuth
+     */
+
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        boolean isCa,
+        ZonedDateTime notBefore,
+        ZonedDateTime notAfter,
+        String signatureAlgorithm,
+        boolean forServerAuth
+    ) throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
+        final BigInteger serial = CertGenUtils.getSerial();
+        JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
+
+        X500Name subject = X500Name.getInstance(principal.getEncoded());
+        final X500Name issuer;
+        final AuthorityKeyIdentifier authorityKeyIdentifier;
+        if (caCert != null) {
+            if (caCert.getBasicConstraints() < 0) {
+                throw new IllegalArgumentException("ca certificate is not a CA!");
+            }
+            issuer = X500Name.getInstance(caCert.getSubjectX500Principal().getEncoded());
+            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(caCert.getPublicKey());
+        } else {
+            issuer = subject;
+            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(keyPair.getPublic());
+        }
+
+        JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+            issuer,
+            serial,
+            new Time(Date.from(notBefore.toInstant()), Locale.ROOT),
+            new Time(Date.from(notAfter.toInstant()), Locale.ROOT),
+            subject,
+            keyPair.getPublic()
+        );
+
+        builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
+        builder.addExtension(Extension.authorityKeyIdentifier, false, authorityKeyIdentifier);
+        if (forServerAuth) {
+            builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth));
+        }
         if (subjectAltNames != null) {
             builder.addExtension(Extension.subjectAlternativeName, false, subjectAltNames);
         }

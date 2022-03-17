@@ -1212,21 +1212,24 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         assertThat(explanation, contains("Failed to create a suitable multi-line start pattern"));
     }
 
-    public void testColumnValueContainsDelimiter() {
+    public void testColumnValueContainsDelimiterOrLineBreak() {
 
         int failingRecord = randomIntBetween(0, 99);
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
         for (int record = 0; record < 100; ++record) {
             Map<String, String> sampleRecord = new HashMap<>();
             for (int column = 0; column < 3; ++column) {
-                sampleRecord.put("col" + column, (record == failingRecord && column == 1) ? "a,b" : randomAlphaOfLength(3));
+                sampleRecord.put(
+                    "col" + column,
+                    (record == failingRecord && column == 1) ? "a" + randomFrom(",", "\n") + "b" : randomAlphaOfLength(3)
+                );
             }
             sampleRecords.add(sampleRecord);
         }
 
-        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiter("col0", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
-        assertTrue(DelimitedTextStructureFinder.columnValueContainsDelimiter("col1", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
-        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiter("col2", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col0", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertTrue(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col1", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col2", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
     }
 
     public void testFindLowCardinalityKeywordPatternSucceeds() {

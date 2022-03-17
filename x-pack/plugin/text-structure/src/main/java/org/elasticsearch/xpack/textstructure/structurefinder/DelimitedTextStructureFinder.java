@@ -812,9 +812,16 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
             }
             // We need to be strict about how many delimiters precede the chosen field,
             // so if it's not the first then we cannot tolerate the preceding fields
-            // containing the delimiter
-            if (columnValueContainsDelimiter(columnName, delimiter, sampleRecords, timeoutChecker)) {
-                break;
+            // containing the delimiter. Additionally, there's no point choosing a field
+            // after a field that sometimes contains line breaks to identify the first
+            // line.
+            if (columnValueContainsDelimiterOrLineBreak(columnName, delimiter, sampleRecords, timeoutChecker)) {
+                throw new IllegalArgumentException(
+                    "Cannot create a multi-line start pattern. "
+                        + "No suitable column to match exists before the first column whose values contain line breaks or delimiters ["
+                        + columnName
+                        + "]. If the timestamp format was not identified correctly adding an override for this may help."
+                );
             }
             builder.append("[^");
             // Within a negated character class we don't want to escape special regex
@@ -835,9 +842,9 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
 
     /**
      * @return <code>true</code> if the value of the field {@code columnName} in any record in the {@code sampleRecords}
-     *         contains the {@code delimiter}.
+     *         contains the {@code delimiter} or a line break.
      */
-    static boolean columnValueContainsDelimiter(
+    static boolean columnValueContainsDelimiterOrLineBreak(
         String columnName,
         char delimiter,
         List<Map<String, ?>> sampleRecords,
@@ -846,8 +853,11 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         for (Map<String, ?> sampleRecord : sampleRecords) {
             timeoutChecker.check("delimiter search in multi-line start pattern determination");
             Object value = sampleRecord.get(columnName);
-            if (value != null && value.toString().indexOf(delimiter) >= 0) {
-                return true;
+            if (value != null) {
+                String str = value.toString();
+                if (str.indexOf(delimiter) >= 0 || str.indexOf('\n') >= 0) {
+                    return true;
+                }
             }
         }
         return false;

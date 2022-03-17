@@ -63,9 +63,11 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof SnapshotNameAlreadyInUseException) {
-                    logger.warn(e.getMessage());
                     // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is triggered
                     // by a master restart or a failover which can result in a double invocation of this step.
+                    logger.warn(
+                        "snapshot is already in-progress or in-use, this index will attempt to clean it up and retry snapshot creation"
+                    );
                     onResponse(false);
                 } else {
                     listener.onFailure(e);

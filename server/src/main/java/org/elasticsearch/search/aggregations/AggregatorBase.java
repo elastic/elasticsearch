@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -119,6 +120,26 @@ public abstract class AggregatorBase extends Aggregator {
             return null;
         }
         if (parent != null) {
+            return null;
+        }
+        return config.getPointReaderOrNull();
+    }
+
+    /**
+     * The same as {@link AggregatorBase#pointReaderIfAvailable(ValuesSourceConfig)} but allows the point reader
+     * within sampling contexts. The sampler will do its best to skip reading documents and allow aggs to calculate via the point reader.
+     *
+     * This is fine as long as scaling isn't required as combining sampled and non-sampled shards could introduce bias
+     * if scaling is not handled carefully
+     *
+     * @param config The config for the values source metric
+     * @return the point reader
+     */
+    public final Function<byte[], Number> pointReaderIfAvailableAndSamplingScalingNotRequired(ValuesSourceConfig config) {
+        if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
+            return null;
+        }
+        if (parent != null && parent instanceof RandomSamplerAggregator == false) {
             return null;
         }
         return config.getPointReaderOrNull();

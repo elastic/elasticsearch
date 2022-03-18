@@ -52,7 +52,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.format = config.format();
-        this.pointConverter = pointReaderIfAvailable(config);
+        this.pointConverter = pointReaderIfAvailableAndSamplingScalingNotRequired(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
         } else {

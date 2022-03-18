@@ -878,8 +878,8 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.wrapWithDiagnostics(wrappedTrustManager, sslConfiguration), sameInstance(wrappedTrustManager));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84703")
     public void testDeprecationOfTruststoreWithNoTrustedEntries() throws IllegalAccessException {
+        assumeFalse("Cannot use PKCS#12/JKS Keystores in FIPS", inFipsJvm());
         final String keystoreName;
         final String password;
         if (randomBoolean()) {

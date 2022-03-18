@@ -166,7 +166,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
                 Level.WARN,
-                "*completed handshake with [*] but followup connection failed*"
+                "*completed handshake with [*] at [*] but followup connection to [*] failed*"
             )
         );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);

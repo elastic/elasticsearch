@@ -50,6 +50,10 @@ tasks.named("thirdPartyAudit").configure {
           // classes are missing
           'com.google.common.base.Splitter',
           'com.google.common.collect.Lists',
+          'com.google.common.collect.Multiset',
+          'com.google.common.collect.SortedMultiset',
+          'com.google.common.collect.TreeMultiset',
+          'com.google.common.io.BaseEncoding',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',

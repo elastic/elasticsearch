@@ -131,15 +131,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
-    public static final int DEFAULT_FAILURE_RETRIES = 10;
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
 
-    // How many times the transform task can retry on an non-critical failure
+    public static final int DEFAULT_FAILURE_RETRIES = 10;
+    // How many times the transform task can retry on a non-critical failure
+    // -1 means "retry indefinitely"
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
         "xpack.transform.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
-        0,
+        -1,
         100,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

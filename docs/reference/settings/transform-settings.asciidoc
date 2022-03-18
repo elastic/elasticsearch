@@ -35,5 +35,6 @@ effect.
 (<<cluster-update-settings,Dynamic>>) The number of times that a {transform}
 retries when it experiences a non-fatal error. Once the number of retries is
 exhausted, the {transform} task is marked as `failed`. The default value is `10`
-with a valid minimum of `0` and maximum of `100`. If a {transform} is already
-running, it has to be restarted to use the changed setting.
+with a valid minimum of `-1` and maximum of `100`. `-1` is a special value that
+makes the transform retry a non-fatal error indefinitely. If a {transform} is
+already running, it has to be restarted to use the changed setting.

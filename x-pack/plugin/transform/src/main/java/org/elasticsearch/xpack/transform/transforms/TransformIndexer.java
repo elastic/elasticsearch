@@ -949,7 +949,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+        // We fail the indexer if the numFailureRetries is finite and the current failure makes the failure count exceed this finite limit.
+        if (context.getNumFailureRetries() > -1 && context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
             failIndexer(
                 "task encountered more than "
                     + context.getNumFailureRetries()

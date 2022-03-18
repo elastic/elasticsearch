@@ -427,8 +427,6 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         try {
             writeTextFile(zip, dirName + "/README.txt", KIBANA_README, substitutions);
             if (ca != null) {
-                //writePemEntry(zip, dirName + "/" + caCert, new JcaMiscPEMGenerator(ca.certAndKey.cert));
-
                 final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
                 pkcs12.load(null);
                 pkcs12.setKeyEntry("elasticsearch-ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });

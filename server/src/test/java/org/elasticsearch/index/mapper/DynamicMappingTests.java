@@ -800,7 +800,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             }"""), Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
-    //test for https://github.com/elastic/elasticsearch/issues/65333
+    // test for https://github.com/elastic/elasticsearch/issues/65333
     public void testDottedFieldDynamicFalse() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(
             dynamicMapping("false", b -> b.startObject("myfield").field("type", "keyword").endObject())

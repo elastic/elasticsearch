@@ -8,10 +8,10 @@
 
 package org.elasticsearch.xpack.core.security.test;
 
-import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -19,25 +19,42 @@ import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 
 public class TestRestrictedIndices {
 
-    public static final Automaton RESTRICTED_INDICES_AUTOMATON;
+    public static final RestrictedIndices RESTRICTED_INDICES;
     public static final IndexNameExpressionResolver RESOLVER;
+
+    public static final String SECURITY_MAIN_ALIAS = ".security";
+    public static final String INTERNAL_SECURITY_MAIN_INDEX_7 = ".security-7";
+    public static final String INTERNAL_SECURITY_MAIN_INDEX_6 = ".security-6";
+
+    public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
+    public static final String INTERNAL_SECURITY_TOKENS_INDEX_7 = ".security-tokens-7";
+
+    public static final Set<String> SAMPLE_RESTRICTED_NAMES = Collections.unmodifiableSet(
+        Sets.newHashSet(
+            SECURITY_MAIN_ALIAS,
+            INTERNAL_SECURITY_MAIN_INDEX_6,
+            INTERNAL_SECURITY_MAIN_INDEX_7,
+            INTERNAL_SECURITY_TOKENS_INDEX_7,
+            SECURITY_TOKENS_ALIAS
+        )
+    );
 
     static {
         Map<String, Feature> featureMap = new HashMap<>();
@@ -150,7 +167,7 @@ public class TestRestrictedIndices {
         );
 
         SystemIndices systemIndices = new SystemIndices(featureMap);
-        RESTRICTED_INDICES_AUTOMATON = systemIndices.getSystemNameAutomaton();
+        RESTRICTED_INDICES = new RestrictedIndices(systemIndices.getSystemNameAutomaton());
         RESOLVER = TestIndexNameExpressionResolver.newInstance(systemIndices);
     }
 
@@ -162,7 +179,7 @@ public class TestRestrictedIndices {
         return getInitializedDescriptorBuilder()
             // This can't just be `.security-*` because that would overlap with the tokens index pattern
             .setIndexPattern(".security-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+            .setPrimaryIndex(INTERNAL_SECURITY_MAIN_INDEX_7)
             .setDescription("Contains Security configuration")
             .setAliasName(SECURITY_MAIN_ALIAS)
             .setIndexFormat(7)
@@ -173,7 +190,7 @@ public class TestRestrictedIndices {
 
     private static SystemIndexDescriptor getSecurityTokensDescriptor() {
         return getInitializedDescriptorBuilder().setIndexPattern(".security-tokens-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
+            .setPrimaryIndex(INTERNAL_SECURITY_TOKENS_INDEX_7)
             .setDescription("Contains auth token data")
             .setAliasName(SECURITY_TOKENS_ALIAS)
             .setIndexFormat(7)

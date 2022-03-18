@@ -96,7 +96,13 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             createDynamicUpdate(context)
-        );
+        ) {
+            @Override
+            public String documentDescription() {
+                IdFieldMapper idMapper = (IdFieldMapper) mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
+                return idMapper.documentDescription(this);
+            }
+        };
     }
 
     private static void internalParseDocument(

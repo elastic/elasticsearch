@@ -193,7 +193,7 @@ create operation on top of old document fails:
       reason: id generation changed in 8.2
 
   - do:
-      catch: "/\\[cn4exTOUtxytuLkQZv7RGXkBAAA\\]\\[\\{.+\\}\\@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
+      catch: "/\\[cn4exTOUtxytuLkQAAABeRnR_mY\\]\\[\\{.+\\}\\@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
       index:
         refresh: true
         index: test
@@ -222,7 +222,7 @@ create operation on top of old document fails over bulk:
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQZv7RGXkBAAA][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:

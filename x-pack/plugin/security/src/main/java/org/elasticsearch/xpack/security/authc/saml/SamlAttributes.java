@@ -13,7 +13,6 @@ import org.opensaml.saml.saml2.core.NameIDType;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * An lightweight collection of SAML attributes
@@ -52,7 +51,7 @@ public class SamlAttributes {
         return attributes.stream()
             .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
             .flatMap(attr -> attr.values.stream())
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     List<SamlAttribute> attributes() {
@@ -81,11 +80,7 @@ public class SamlAttributes {
             this(
                 attribute.getName(),
                 attribute.getFriendlyName(),
-                attribute.getAttributeValues()
-                    .stream()
-                    .map(x -> x.getDOM().getTextContent())
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toUnmodifiableList())
+                attribute.getAttributeValues().stream().map(x -> x.getDOM().getTextContent()).filter(Objects::nonNull).toList()
             );
         }
 

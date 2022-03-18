@@ -497,7 +497,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedWriteables().stream()),
                 ClusterModule.getNamedWriteables().stream(),
                 SystemIndexMigrationExecutor.getNamedWriteables().stream()
-            ).flatMap(Function.identity()).collect(Collectors.toList());
+            ).flatMap(Function.identity()).toList();
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
@@ -552,7 +552,7 @@ public class Node implements Closeable {
             List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
                 .stream()
                 .map(plugin -> plugin.getCircuitBreaker(settings))
-                .collect(Collectors.toList());
+                .toList();
             final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
                 settingsModule.getSettings(),
                 pluginCircuitBreakers,
@@ -580,7 +580,7 @@ public class Node implements Closeable {
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = enginePlugins.stream()
                 .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
-                .collect(Collectors.toList());
+                .toList();
 
             final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()
@@ -598,7 +598,7 @@ public class Node implements Closeable {
 
             final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners = pluginsService.filterPlugins(
                 IndexStorePlugin.class
-            ).stream().map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).collect(Collectors.toList());
+            ).stream().map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).toList();
 
             final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -698,7 +698,7 @@ public class Node implements Closeable {
                         repositoriesServiceReference::get
                     ).stream()
                 )
-                .collect(Collectors.toList());
+                .toList();
 
             final List<Tracer> tracers = pluginComponents.stream()
                 .map(c -> c instanceof Tracer t ? t : null)
@@ -737,7 +737,7 @@ public class Node implements Closeable {
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
-            ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).collect(Collectors.toList());
+            ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).toList();
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
                 settings,
@@ -1021,7 +1021,7 @@ public class Node implements Closeable {
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p)
-                .collect(Collectors.toList());
+                .toList();
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
@@ -1212,7 +1212,7 @@ public class Node implements Closeable {
         validateNodeBeforeAcceptingRequests(
             new BootstrapContext(environment, onDiskMetadata),
             transportService.boundAddress(),
-            pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList())
+            pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getBootstrapChecks().stream()).toList()
         );
 
         clusterService.addStateApplier(transportService.getTaskManager());

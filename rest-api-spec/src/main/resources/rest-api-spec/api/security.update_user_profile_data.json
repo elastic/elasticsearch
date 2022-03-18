@@ -13,8 +13,9 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/profile/_data/{uid}",
+          "path":"/_security/profile/{uid}/_data",
           "methods":[
+            "PUT",
             "POST"
           ],
           "parts":{

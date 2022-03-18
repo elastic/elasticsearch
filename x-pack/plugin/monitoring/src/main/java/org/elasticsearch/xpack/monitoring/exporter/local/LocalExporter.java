@@ -344,7 +344,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // continue with the async installation and return the readiness at the end of the setup.
         final List<String> missingTemplates = Arrays.stream(MonitoringTemplateRegistry.TEMPLATE_NAMES)
             .filter(name -> hasTemplate(clusterState, name) == false)
-            .collect(Collectors.toList());
+            .toList();
 
         boolean templatesInstalled = false;
         if (missingTemplates.isEmpty() == false) {

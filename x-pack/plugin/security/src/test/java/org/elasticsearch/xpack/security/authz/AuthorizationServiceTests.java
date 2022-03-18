@@ -198,10 +198,10 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -295,6 +295,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
+            RESTRICTED_INDICES,
             new AuthorizationTracer(threadContext)
         );
     }
@@ -332,7 +333,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 roleDescriptors,
                 fieldPermissionsCache,
                 privilegesStore,
-                RESTRICTED_INDICES_AUTOMATON,
+                RESTRICTED_INDICES,
                 ActionListener.wrap(r -> {
                     roleCache.put(names, r);
                     listener.onResponse(r);
@@ -904,7 +905,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         final Role role;
         if (canRunAs) {
-            role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "can_run_as")
+            role = Role.builder(RESTRICTED_INDICES, "can_run_as")
                 .runAs(new Privilege(finalUser.principal(), finalUser.principal()))
                 .build();
         } else {
@@ -1569,6 +1570,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
+            RESTRICTED_INDICES
             new AuthorizationTracer(threadContext)
         );
 
@@ -1616,6 +1618,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
+            RESTRICTED_INDICES
             new AuthorizationTracer(threadContext)
         );
 
@@ -2764,6 +2767,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
+            RESTRICTED_INDICES
             new AuthorizationTracer(threadContext)
         );
         Authentication authentication;

@@ -251,7 +251,9 @@ public class MetadataCreateDataStreamService {
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
+        List<Index> dsBackingIndices = backingIndices.stream()
+            .map(IndexMetadata::getIndex)
+            .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         final IndexMode indexMode = template.getDataStreamTemplate().getIndexMode();

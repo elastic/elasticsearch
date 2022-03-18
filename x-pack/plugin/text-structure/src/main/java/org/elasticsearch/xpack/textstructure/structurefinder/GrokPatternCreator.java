@@ -446,18 +446,24 @@ public final class GrokPatternCreator {
      * @return The length of the longest subsequence of identical values in {@code sequence}.
      */
     static int longestRun(List<?> sequence) {
+        if (sequence.size() <= 1) {
+            return sequence.size();
+        }
         int maxSoFar = 0;
-        for (int index = 0; index < sequence.size(); ++index) {
-            int thisCount = 1;
-            while (index < sequence.size() - 1 && sequence.get(index).equals(sequence.get(index + 1))) {
-                ++index;
+        int thisCount = 1;
+        for (int index = 1; index < sequence.size(); ++index) {
+            if (sequence.get(index).equals(sequence.get(index - 1))) {
                 ++thisCount;
-            }
-            maxSoFar = Math.max(maxSoFar, thisCount);
-            if (maxSoFar >= sequence.size() - index) {
-                break;
+            } else {
+                maxSoFar = Math.max(maxSoFar, thisCount);
+                // The next run cannot be longer if we're nearer the end than the max so far
+                if (maxSoFar >= sequence.size() - index) {
+                    return maxSoFar;
+                }
+                thisCount = 1;
             }
         }
+        maxSoFar = Math.max(maxSoFar, thisCount);
         return maxSoFar;
     }
 

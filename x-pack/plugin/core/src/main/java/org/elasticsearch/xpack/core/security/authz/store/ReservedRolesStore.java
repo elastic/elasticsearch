@@ -770,7 +770,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // For ILM policy for APM & Endpoint packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".logs-endpoint.diagnostic.collection-*", "traces-apm.sampled-*")
+                    .indices(
+                        ".logs-endpoint.diagnostic.collection-*",
+                        "logs-apm.app-*",
+                        "logs-apm.error-*",
+                        "metrics-apm.app.*",
+                        "metrics-apm.internal-*",
+                        "metrics-apm.profiling-*",
+                        "traces-apm-*",
+                        "traces-apm.rum-*",
+                        "traces-apm.sampled-*"
+                    )
                     .privileges(DeleteIndexAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform

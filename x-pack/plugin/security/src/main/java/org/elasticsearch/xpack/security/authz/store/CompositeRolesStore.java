@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -30,6 +28,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -107,7 +106,7 @@ public class CompositeRolesStore {
     private final Role xpackSecurityRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
-    private final Automaton restrictedIndicesAutomaton;
+    private final RestrictedIndices restrictedIndices;
 
     public CompositeRolesStore(
         Settings settings,
@@ -119,7 +118,7 @@ public class CompositeRolesStore {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
-        IndexNameExpressionResolver resolver,
+        RestrictedIndices restrictedIndices,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;
@@ -151,12 +150,12 @@ public class CompositeRolesStore {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
-        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
+        this.restrictedIndices = restrictedIndices;
+        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices)
             .build();
-        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
-        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
-        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
+        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
 
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,
@@ -318,33 +317,27 @@ public class CompositeRolesStore {
             roleKey.getNames(),
             roleKey.getSource()
         );
-        buildRoleFromDescriptors(
-            roleDescriptors,
-            fieldPermissionsCache,
-            privilegeStore,
-            restrictedIndicesAutomaton,
-            ActionListener.wrap(role -> {
-                if (role != null && tryCache) {
-                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                         * started the request we don't put a potential stale result in the cache, hence the
-                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                         * be on the safe side and don't cache potentially stale results
-                         */
-                        if (invalidationCounter == numInvalidation.get()) {
-                            roleCache.computeIfAbsent(roleKey, (s) -> role);
-                        }
-                    }
-
-                    for (String missingRole : missing) {
-                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, restrictedIndices, ActionListener.wrap(role -> {
+            if (role != null && tryCache) {
+                try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
+                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                     * started the request we don't put a potential stale result in the cache, hence the
+                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                     * be on the safe side and don't cache potentially stale results
+                     */
+                    if (invalidationCounter == numInvalidation.get()) {
+                        roleCache.computeIfAbsent(roleKey, (s) -> role);
                     }
                 }
-                listener.onResponse(role);
-            }, listener::onFailure)
-        );
+
+                for (String missingRole : missing) {
+                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+                }
+            }
+            listener.onResponse(role);
+        }, listener::onFailure));
     }
 
     public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
@@ -393,7 +386,7 @@ public class CompositeRolesStore {
         Collection<RoleDescriptor> roleDescriptors,
         FieldPermissionsCache fieldPermissionsCache,
         NativePrivilegeStore privilegeStore,
-        Automaton restrictedIndicesAutomaton,
+        RestrictedIndices restrictedIndices,
         ActionListener<Role> listener
     ) {
         if (roleDescriptors.isEmpty()) {
@@ -438,7 +431,7 @@ public class CompositeRolesStore {
         }
 
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
-        final Role.Builder builder = Role.builder(restrictedIndicesAutomaton, roleNames.toArray(Strings.EMPTY_ARRAY))
+        final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
         indicesPrivilegesMap.forEach(

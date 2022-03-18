@@ -1,0 +1,5 @@
+pr: 84598
+summary: Group field-caps node requests by index mapping hash
+area: Search
+type: enhancement
+issues: []

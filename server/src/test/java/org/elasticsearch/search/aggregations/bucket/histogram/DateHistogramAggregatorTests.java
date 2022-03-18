@@ -24,7 +24,9 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -881,6 +883,117 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             )
                                     )
                             )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    /**
+     * If there is a doc count field and a single bucket it is still
+     * faster to use filter-by-filter collection mode so we use it.
+     */
+    public void testOneBucketWithDocCountUsesFilterByFilter() throws IOException {
+        AggregationBuilder builder = new DateHistogramAggregationBuilder("d").field("f").calendarInterval(DateHistogramInterval.DAY);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
+            for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS + 10; i++) {
+                long date = start + i;
+                iw.addDocument(List.of(new LongPoint("f", date), new NumericDocValuesField("f", date), DocCountFieldMapper.field(2)));
+            }
+        };
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        // Exists queries convert to MatchNone if this isn't defined
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalDateHistogram result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(10020L));
+
+                assertThat(impl, equalTo(DateHistogramAggregator.FromDateRange.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "d",
+                        matchesMap().entry("delegate", "RangeAggregator.FromFilters")
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().entry("ranges", 1)
+                                    .entry("average_docs_per_range", 5010.0)
+                                    .entry("delegate", "FilterByFilterAggregator")
+                                    .entry(
+                                        "delegate_debug",
+                                        matchesMap().entry("segments_with_doc_count_field", greaterThan(0))
+                                            .entry("segments_with_deleted_docs", 0)
+                                            .entry("segments_counted", greaterThan(0))
+                                            .entry("segments_collected", 0)
+                                            .entry(
+                                                "filters",
+                                                matchesList().item(
+                                                    matchesMap().entry("query", "*:*")
+                                                        .entry("specialized_for", "match_all")
+                                                        .entry("results_from_metadata", 0)
+                                                )
+                                            )
+                                    )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    /**
+     * If there is a doc count field and more than one bucket it is
+     * not faster to use filter-by-filter collection mode so we don't
+     * use it.
+     */
+    public void testTwoBucketsWithDocCountUsesTraditionalCollection() throws IOException {
+        AggregationBuilder builder = new DateHistogramAggregationBuilder("d").field("f").calendarInterval(DateHistogramInterval.DAY);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long[] dates = new long[] {
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01"),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02T00:00:01") };
+            for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2 + 10; i++) {
+                long date = dates[i % 2];
+                iw.addDocument(
+                    List.of(
+                        new LongPoint("f", date),
+                        new NumericDocValuesField("f", date),
+                        new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, 2)
+                    )
+                );
+            }
+        };
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        // Exists queries convert to MatchNone if this isn't defined
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalDateHistogram result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(10010L));
+                assertThat(result.getBuckets().get(1).getKeyAsString(), equalTo("2020-01-02T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(10010L));
+
+                assertThat(impl, equalTo(DateHistogramAggregator.FromDateRange.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "d",
+                        matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
+                            .entry("delegate_debug", matchesMap().entry("ranges", 2).entry("average_docs_per_range", 5005.0))
                     )
                 );
             },

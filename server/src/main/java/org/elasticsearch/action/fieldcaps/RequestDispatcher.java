@@ -94,8 +94,8 @@ final class RequestDispatcher {
         this.onIndexResponse = onIndexResponse;
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
-        final List<Group> groupedIndices = groupIndicesByMappingHash(clusterService, clusterState, withIndexFilter, indices);
-        for (Group group : groupedIndices) {
+        final List<Group> groups = groupIndicesByMappingHash(clusterService, clusterState, withIndexFilter, indices);
+        for (Group group : groups) {
             if (group.nodeToShards.isEmpty()) {
                 for (String index : group.indices) {
                     onIndexFailure.accept(
@@ -313,6 +313,7 @@ final class RequestDispatcher {
         }
 
         synchronized List<ShardRouting> nextTarget(boolean withQueryFilter) {
+            assert completed.get() == false : "Group is completed already";
             if (nodeToShards.isEmpty()) {
                 return Collections.emptyList();
             }

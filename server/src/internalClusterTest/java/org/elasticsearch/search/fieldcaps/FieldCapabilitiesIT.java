@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -471,20 +472,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put("index.routing.allocation.require._id", "unknown")
-            ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "field1", "type=keyword")
-        );
-        assertAcked(
-            prepareCreate("log-index-another").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put("index.routing.allocation.require._id", "unknown")
             ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "another_field", "type=keyword")
         );
         {
             final ElasticsearchException ex = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareFieldCaps("log-index-in*").setFields("*").get()
+                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
             );
             assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }
@@ -497,17 +490,36 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
             final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
-            // log-index-inactive can be resolved by either log-index-1
-            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2", "log-index-inactive"));
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
             assertThat(response.getField("field1"), hasKey("long"));
 
             assertThat(response.getFailures(), hasSize(1));
             final FieldCapabilitiesFailure failure = response.getFailures().get(0);
-            assertThat(failure.getIndices(), arrayContainingInAnyOrder("log-index-another"));
-            assertThat(failure.getException().getMessage(), equalTo("index [log-index-another] has no active shard copy"));
+            assertThat(failure.getIndices(), arrayContainingInAnyOrder("log-index-inactive"));
+            assertThat(failure.getException().getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }
+    }
+
+    public void testInactiveIndexResolvedBySimilarIndices() {
+        assertAcked(
+            prepareCreate("event_inactive_index").setSettings(Settings.builder().put("index.routing.allocation.require._id", "unknown"))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+                .setMapping("timestamp", "type=date", "message", "type=keyword")
+        );
+
+        assertAcked(prepareCreate("event_ok_index").setMapping("timestamp", "type=date", "message", "type=keyword"));
+        final ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> client().prepareFieldCaps("event_inactive_index").setFields("*").get()
+        );
+        assertThat(ex.getMessage(), equalTo("index [event_inactive_index] has no active shard copy"));
+        FieldCapabilitiesResponse resp = client().prepareFieldCaps("event_*").setFields("*").get();
+        assertThat(resp.getIndices(), arrayContainingInAnyOrder("event_inactive_index", "event_ok_index"));
+        assertThat(resp.getField("message"), hasKey("keyword"));
+        assertTrue(resp.getField("message").get("keyword").isSearchable());
+        assertThat(resp.getFailedIndices(), emptyArray());
     }
 
     public void testSingleNodeRequest() {

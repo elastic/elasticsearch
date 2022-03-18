@@ -35,10 +35,11 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
@@ -89,7 +90,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
         final int nbIndices = randomIntBetween(1, 5);
-        final Thread[] threads = new Thread[nbIndices];
         final CountDownLatch latch = new CountDownLatch(nbIndices);
 
         for (int i = 0; i < nbIndices; i++) {
@@ -130,14 +130,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     latch.countDown();
                 }
             });
-            threads[i] = thread;
             thread.start();
         }
-
         latch.await();
-        for (Thread thread : threads) {
-            thread.join();
-        }
 
         final String repository = "repository";
         assertAcked(
@@ -204,7 +199,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     prefix + index,
                     repository,
                     snapshot,
-                    randomFrom(indicesStoresSizes.keySet()),
+                    index,
                     Settings.EMPTY,
                     Strings.EMPTY_ARRAY,
                     false,
@@ -274,14 +269,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
     }
 
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {
-        final Map<String, Long> sizes = new HashMap<>();
-        var shards = client().admin().indices().prepareStats(indexPattern).clear().setStore(true).get().getShards();
-        for (var shard : shards) {
-            sizes.compute(
-                shard.getShardRouting().getIndexName(),
-                (k, v) -> (v == null ? 0L : v) + shard.getStats().getStore().sizeInBytes()
+        return Arrays.stream(client().admin().indices().prepareStats(indexPattern).clear().setStore(true).get().getShards())
+            .collect(
+                Collectors.toUnmodifiableMap(s -> s.getShardRouting().getIndexName(), s -> s.getStats().getStore().sizeInBytes(), Long::sum)
             );
-        }
-        return Map.copyOf(sizes);
     }
 }

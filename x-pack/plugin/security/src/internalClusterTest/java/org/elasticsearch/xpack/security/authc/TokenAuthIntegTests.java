@@ -739,8 +739,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("tokens must be refreshed by the creating client"));
     }
 
-    public void testCreateThenRefreshAsDifferentUser() throws IOException {
-        final RequestOptions superuserOptions = RequestOptions.DEFAULT.toBuilder()
+    public void testCreateThenRefreshAsRunAsUser() throws IOException {
+        final String nativeOtherUser = "other_user";
+        getSecurityClient().putUser(new User(nativeOtherUser, "superuser"), SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        final RequestOptions runAsOtherOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(
                 "Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(
@@ -748,7 +750,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
             )
+            .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, nativeOtherUser)
             .build();
+        final RequestOptions otherOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(nativeOtherUser, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+            )
+            .build();
+
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse createTokenResponse = restClient.security()
             .createToken(
@@ -756,19 +766,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     SecuritySettingsSource.TEST_USER_NAME,
                     SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
                 ),
-                superuserOptions
+                randomBoolean() ? runAsOtherOptions : otherOptions
             );
         assertNotNull(createTokenResponse.getRefreshToken());
 
         CreateTokenResponse refreshResponse = restClient.security()
-            .createToken(CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()), superuserOptions);
+            .createToken(
+                CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()),
+                randomBoolean() ? runAsOtherOptions : otherOptions
+            );
         assertNotEquals(refreshResponse.getAccessToken(), createTokenResponse.getAccessToken());
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
-
-        final Map<String, Object> authenticateResponse = getSecurityClient(superuserOptions).authenticate();
-
-        assertThat(authenticateResponse, hasEntry(User.Fields.USERNAME.getPreferredName(), SecuritySettingsSource.ES_TEST_ROOT_USER));
-        assertThat(authenticateResponse, hasEntry(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), "realm"));
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);

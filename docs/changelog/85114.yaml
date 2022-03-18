@@ -1,0 +1,6 @@
+pr: 85114
+summary: Add extended key usage
+area: Security
+type: enhancement
+issues:
+- 81067

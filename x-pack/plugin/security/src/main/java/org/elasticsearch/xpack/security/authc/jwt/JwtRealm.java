@@ -424,7 +424,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     () -> new ParameterizedMessage(
                         "Realm [{}] mapped roles [{}] for principal=[{}].",
                         super.name(),
-                        Strings.arrayToCommaDelimitedString(rolesArray),
+                        String.join(",", rolesSet),
                         principal
                     )
                 );

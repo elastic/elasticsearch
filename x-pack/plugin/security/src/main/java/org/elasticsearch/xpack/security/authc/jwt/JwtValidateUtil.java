@@ -79,7 +79,7 @@ public class JwtValidateUtil {
                 jwt.getHeader().getType(),
                 jwt.getJWTClaimsSet().getDateClaim("auth_time"),
                 jwt.getJWTClaimsSet().getIssueTime(),
-                jwt.getJWTClaimsSet().getIssueTime(),
+                jwt.getJWTClaimsSet().getNotBeforeTime(),
                 jwt.getJWTClaimsSet().getExpirationTime(),
                 jwt.getHeader().getKeyID(),
                 jwt.getJWTClaimsSet().getJWTID()

@@ -115,8 +115,8 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
                     collectBucket(sub, docIt.docID(), 0);
                 }
             }
-        // This collector could throw `CollectionTerminatedException` if the last leaf collector has stopped collecting
-        // So, catch here and indicate no-op
+            // This collector could throw `CollectionTerminatedException` if the last leaf collector has stopped collecting
+            // So, catch here and indicate no-op
         } catch (CollectionTerminatedException e) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

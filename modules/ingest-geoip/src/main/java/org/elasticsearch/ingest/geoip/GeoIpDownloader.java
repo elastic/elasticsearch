@@ -155,7 +155,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             updateTimestamp(name, state.get(name));
             return;
         }
-        logger.info("updating geoip database [" + name + "]");
+        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
             // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
@@ -170,7 +170,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
-                logger.info("updated geoip database [" + name + "]");
+                logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
@@ -300,6 +300,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (scheduled != null) {
             scheduled.cancel();
         }
+        markAsCompleted();
     }
 
     @Override

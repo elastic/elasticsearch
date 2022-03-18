@@ -46,6 +46,7 @@ Snapshots don't contain or back up:
 * Transient cluster settings
 * Registered snapshot repositories
 * Node configuration files
+* <<security-files,Security configuration files>>
 
 [discrete]
 [[feature-state]]
@@ -209,19 +210,6 @@ they were when you took the backup.
 
 Additionally, snapshots may contain security-sensitive information, which you
 may wish to <<cluster-state-snapshots,store in a dedicated repository>>.
-
-[discrete]
-[[snapshot-important-files]]
-=== Important Files Not Included in Snapshots
-
-Some Elasticsearch configuration is not included in snapshots. This includes
-any settings configured via `elasticsearch.yml` or the Elasticsearch keystore,
-as well as <<security-files,file-based Security configuration>>. These settings
-may contain references to other files within the <<config-files-location,`ES_PATH_CONF` directory>>,
-such as TLS keys, certificates for HTTP client and inter-node communication,
-and private key files for <<ref-saml-settings, SAML>>, <<ref-oidc-settings, OIDC>>
-and <ref-kerberos-settings, Kerberos>> realms. These files should be backed up
-separately from snapshots, as snapshots do not include these files.
 
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]

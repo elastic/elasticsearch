@@ -16,13 +16,18 @@ import com.nimbusds.jwt.SignedJWT;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +50,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // usersRange
             new MinMax(0, 0), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1) // userCacheSizeRange
+            new MinMax(0, 1), // userCacheSizeRange
+            randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
@@ -68,7 +74,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // usersRange
             new MinMax(0, 3), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1) // userCacheSizeRange
+            new MinMax(0, 1), // userCacheSizeRange
+            randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
@@ -93,7 +100,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // usersRange
             new MinMax(0, 3), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1) // userCacheSizeRange
+            new MinMax(0, 1), // userCacheSizeRange
+            randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(true));
@@ -124,6 +132,30 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     /**
+     * Test realm successfully connects to HTTPS server, and correctly handles an HTTP 404 Not Found response.
+     * @throws Exception Unexpected test failure
+     */
+    public void testPkcJwkSetUrlNotFound() throws Exception {
+        final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, 12, 1, 1, 1, true);
+        assertThat(jwtIssuer.httpsServer, is(notNullValue()));
+        try {
+            final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(jwtIssuer, 0);
+            final String configKey = RealmSettings.getFullSettingKey(realmNameAndSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
+            final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid");
+            realmNameAndSettingsBuilder.settingsBuilder().put(configKey, configValue);
+            final Exception exception = expectThrows(
+                SettingsException.class,
+                () -> this.createJwtRealm(allRealms, jwtIssuer, realmNameAndSettingsBuilder)
+            );
+            assertThat(exception.getMessage(), equalTo("Can't get contents for setting [" + configKey + "] value [" + configValue + "]."));
+            assertThat(exception.getCause().getMessage(), equalTo("Get [" + configValue + "] failed, status [404], reason [Not Found]."));
+        } finally {
+            jwtIssuer.close();
+        }
+    }
+
+    /**
      * Test token parse failures and authentication failures.
      * @throws Exception Unexpected test failure
      */
@@ -136,7 +168,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 1), // usersRange
             new MinMax(1, 1), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1) // userCacheSizeRange
+            new MinMax(0, 1), // userCacheSizeRange
+            randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
@@ -235,7 +268,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         }
 
         // Get read to re-sign JWTs for time claim failure tests
-        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer().getAllAlgJwkPairs());
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer().algAndJwksAll);
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algJwkPair.alg())).build();
         final Instant now = Instant.now();
         final Date past = Date.from(now.minusSeconds(86400));

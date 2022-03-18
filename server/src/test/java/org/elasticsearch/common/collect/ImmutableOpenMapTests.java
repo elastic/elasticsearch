@@ -62,11 +62,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testSortedStream() {
         assertThat(
-            regionCurrencySymbols.entrySet()
-                .stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(Map.Entry::getValue)
-                .collect(Collectors.toList()),
+            regionCurrencySymbols.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).toList(),
             equalTo(List.of("€", "¥", "₩", "£", "$"))
         );
     }
@@ -131,7 +127,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).collect(Collectors.toList());
+        List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).toList();
 
         SortedSet<Long> positiveNumbers = new TreeSet<>();
         for (var key : map.keySet()) {
@@ -190,12 +186,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testStreamOperationOnValues() {
         assertThat(
-            countryPopulations.values()
-                .stream()
-                .filter(e -> e > 60_000_000)
-                .sorted(Comparator.reverseOrder())
-                .limit(2)
-                .collect(Collectors.toList()),
+            countryPopulations.values().stream().filter(e -> e > 60_000_000).sorted(Comparator.reverseOrder()).limit(2).toList(),
             equalTo(List.of(83_783_942, 65_273_511))
         );
     }
@@ -209,7 +200,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
             .filter(Predicate.not(e -> e.contains("ab") || e.contains("cd") || e.contains("ef")))
             .sorted()
             .limit(limit)
-            .collect(Collectors.toList());
+            .toList();
 
         SortedSet<String> filteredSortedStrings = new TreeSet<>();
         for (var value : map.values()) {

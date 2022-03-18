@@ -207,20 +207,8 @@ contents.
 . When you have finished restoring the repository its contents are exactly as
 they were when you took the backup.
 
-Additionally, if the repository is used to backup the `security` feature state,
-the repository will contain sensitive data such as user names and password hashes.
-Because passwords are stored using <<hashing-settings, cryptographic hashes>>,
-the disclosure of a snapshot would not automatically enable a third party to
-authenticate as one of your users or use API keys. However, it would disclose
-confidential information.
-
-It is also important that you protect the integrity of these backups in case
-you ever need to restore them. If a third party is able to modify the stored
-backups, they may be able to install a back door that would grant access if the
-snapshot is loaded into an {es} cluster.
-
-Therefore, you may wish to back up the `security` feature state to a dedicated
-repository where read and write access is restricted and audited.
+Additionally, snapshots may contain security-sensitive information, which you
+may wish to <<cluster-state-snapshots,store in a dedicated repository>>.
 
 [discrete]
 [[snapshot-important-files]]

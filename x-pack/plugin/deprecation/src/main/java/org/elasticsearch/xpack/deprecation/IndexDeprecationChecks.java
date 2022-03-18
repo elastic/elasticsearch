@@ -600,7 +600,7 @@ public class IndexDeprecationChecks {
                 setting.getKey()
             );
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
+                DeprecationIssue.Level.CRITICAL,
                 message,
                 url,
                 details,

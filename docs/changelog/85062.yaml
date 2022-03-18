@@ -1,0 +1,5 @@
+pr: 85062
+summary: Change `deprecationIssue` level to critical for slow log level
+area: Infra/Settings
+type: bug
+issues: []

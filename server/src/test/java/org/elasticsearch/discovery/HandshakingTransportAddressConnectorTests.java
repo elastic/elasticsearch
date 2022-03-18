@@ -167,13 +167,13 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
                 Level.WARN,
-                "*completed handshake with ["
+                "completed handshake with ["
                     + remoteNode.descriptionWithoutAttributes()
                     + "] at ["
                     + discoveryAddress
                     + "] but followup connection to ["
                     + remoteNodeAddress
-                    + "] failed*"
+                    + "] failed"
             )
         );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);

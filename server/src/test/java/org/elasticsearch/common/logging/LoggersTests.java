@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -25,7 +26,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class LoggersTests extends ESTestCase {
 
     public void testParameterizedMessageLambda() throws Exception {
-        final MockAppender appender = new MockAppender("trace_appender");
+        //adding a random id to allow test to run multiple times. See AbstractConfiguration#addAppender
+        final MockAppender appender = new MockAppender("trace_appender" + UUID.randomUUID());
         appender.start();
         final Logger testLogger = LogManager.getLogger(LoggersTests.class);
         Loggers.addAppender(testLogger, appender);

@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class LoggersTests extends ESTestCase {
 
     public void testParameterizedMessageLambda() throws Exception {
-        //adding a random id to allow test to run multiple times. See AbstractConfiguration#addAppender
+        // adding a random id to allow test to run multiple times. See AbstractConfiguration#addAppender
         final MockAppender appender = new MockAppender("trace_appender" + UUID.randomUUID());
         appender.start();
         final Logger testLogger = LogManager.getLogger(LoggersTests.class);

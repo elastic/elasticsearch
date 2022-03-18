@@ -130,6 +130,12 @@
     </module>
     -->
 
+    <module name="org.elasticsearch.gradle.internal.checkstyle.StringFormattingCheck">
+        <message
+            key="forbidden.formatted"
+            value="''{0}'' format specifier is unsafe inside ''.formatted'' calls, as it uses the default locale. Use ''String.format'' for numeric formatting with ''Locale.ROOT'' instead." />
+    </module>
+
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use
       it. We can't outright ban it with ForbiddenApis because it complain about

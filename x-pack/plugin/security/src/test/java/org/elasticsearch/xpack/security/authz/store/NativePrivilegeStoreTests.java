@@ -20,7 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -38,9 +38,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -143,8 +144,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
         final String query = Strings.toString(request.source().query());
-        assertThat(query, containsString("{\"terms\":{\"application\":[\"myapp\"]"));
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+        assertThat(query, containsString("""
+            {"terms":{"application":["myapp"]"""));
+        assertThat(query, containsString("""
+            {"term":{"type":{"value":"application-privilege\""""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get()
@@ -214,17 +217,14 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
-        assertThat(
-            query,
-            anyOf(
-                containsString("{\"terms\":{\"application\":[\"myapp\",\"yourapp\"]"),
-                containsString("{\"terms\":{\"application\":[\"yourapp\",\"myapp\"]")
-            )
-        );
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+        assertThat(query, anyOf(containsString("""
+            {"terms":{"application":["myapp","yourapp"]"""), containsString("""
+            {"terms":{"application":["yourapp","myapp"]""")));
+        assertThat(query, containsString("""
+            {"term":{"type":{"value":"application-privilege\""""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get()
@@ -258,7 +258,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"bool\":{\"should\":[{\"terms\":{\"application\":[\"yourapp\"]"));
@@ -295,7 +295,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));
@@ -337,7 +337,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
@@ -689,13 +689,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < putPrivileges.size(); i++) {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
             IndexRequest request = indexRequests.get(i);
-            assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+            assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
             assertThat(request.id(), equalTo("application-privilege_" + privilege.getApplication() + ":" + privilege.getName()));
             final XContentBuilder builder = privilege.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), true);
             assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
             final boolean created = privilege.getName().equals("user") == false;
             indexListener.onResponse(
-                new IndexResponse(new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, created)
+                new IndexResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, created)
             );
         }
 
@@ -730,11 +730,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < privilegeNames.size(); i++) {
             String name = privilegeNames.get(i);
             DeleteRequest request = deletes.get(i);
-            assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+            assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
             assertThat(request.id(), equalTo("application-privilege_app1:" + name));
             final boolean found = name.equals("p2") == false;
             deleteListener.onResponse(
-                new DeleteResponse(new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, found)
+                new DeleteResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, found)
             );
         }
 
@@ -770,8 +770,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     public void testCacheClearOnIndexHealthChange() {
         final String securityIndexName = randomFrom(
-            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
 
         long count = store.getNumInvalidation();

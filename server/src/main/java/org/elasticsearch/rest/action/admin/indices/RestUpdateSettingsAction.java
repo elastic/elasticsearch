@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.client.Requests.updateSettingsRequest;
+import static org.elasticsearch.client.internal.Requests.updateSettingsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestUpdateSettingsAction extends BaseRestHandler {

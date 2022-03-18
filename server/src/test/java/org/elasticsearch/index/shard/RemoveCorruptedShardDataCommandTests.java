@@ -10,13 +10,14 @@ package org.elasticsearch.index.shard;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import org.apache.lucene.store.BaseDirectoryWrapper;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -135,7 +135,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
             new MaxDocsCondition(randomNonNegativeLong()),
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+            new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
 
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
@@ -154,7 +155,6 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     paths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()

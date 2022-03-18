@@ -66,12 +66,12 @@ public final class Joiner {
     Joiner(String joinField, List<Relations> relations) {
         this.joinField = joinField;
         for (Relations r : relations) {
-            for (String child : r.children) {
-                parentsToChildren.put(r.parent, r.children);
+            for (String child : r.children()) {
+                parentsToChildren.put(r.parent(), r.children());
                 if (childrenToParents.containsKey(child)) {
                     throw new IllegalArgumentException("[" + child + "] cannot have multiple parents");
                 }
-                childrenToParents.put(child, r.parent);
+                childrenToParents.put(child, r.parent());
             }
         }
     }

@@ -81,14 +81,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public boolean isBooleanValue() throws IOException {
-        switch (currentToken()) {
-            case VALUE_BOOLEAN:
-                return true;
-            case VALUE_STRING:
-                return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
-            default:
-                return false;
-        }
+        return switch (currentToken()) {
+            case VALUE_BOOLEAN -> true;
+            case VALUE_STRING -> Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+            default -> false;
+        };
     }
 
     @Override

@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -255,7 +255,16 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             null,
             null
         );
-        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
+        SearchResponse searchResponse3 = new SearchResponse(
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+            "_scrollId2",
+            1,
+            1,
+            0,
+            1,
+            null,
+            null
+        );
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
@@ -369,7 +378,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(
-            new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
+            new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
                 TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
             ).build()
         );

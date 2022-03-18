@@ -47,16 +47,17 @@ public class ExpressionParserTests extends ESTestCase {
     }
 
     public void testParseComplexExpression() throws Exception {
-        String json = "{ \"any\": ["
-            + "   { \"field\": { \"username\" : \"*@shield.gov\" } }, "
-            + "   { \"all\": ["
-            + "     { \"field\": { \"username\" : \"/.*\\\\@avengers\\\\.(net|org)/\" } }, "
-            + "     { \"field\": { \"groups\" : [ \"admin\", \"operators\" ] } }, "
-            + "     { \"except\":"
-            + "       { \"field\": { \"groups\" : \"disavowed\" } }"
-            + "     }"
-            + "   ] }"
-            + "] }";
+        String json = """
+            { "any": [
+              { "field": { "username" : "*@shield.gov" } },
+              { "all": [
+                { "field": { "username" : "/.*\\\\@avengers\\\\.(net|org)/" } },
+                { "field": { "groups" : [ "admin", "operators" ] } },
+                { "except":
+                  { "field": { "groups" : "disavowed" } }
+                }
+              ] }
+            ] }""";
         final RoleMapperExpression expr = parse(json);
 
         assertThat(expr, instanceOf(AnyExpression.class));
@@ -119,16 +120,17 @@ public class ExpressionParserTests extends ESTestCase {
     }
 
     public void testWriteAndReadFromStream() throws Exception {
-        String json = "{ \"any\": ["
-            + "   { \"field\": { \"username\" : \"*@shield.gov\" } }, "
-            + "   { \"all\": ["
-            + "     { \"field\": { \"username\" : \"/.*\\\\@avengers\\\\.(net|org)/\" } }, "
-            + "     { \"field\": { \"groups\" : [ \"admin\", \"operators\" ] } }, "
-            + "     { \"except\":"
-            + "       { \"field\": { \"groups\" : \"disavowed\" } }"
-            + "     }"
-            + "   ] }"
-            + "] }";
+        String json = """
+            { "any": [
+              { "field": { "username" : "*@shield.gov" } },
+              { "all": [
+                { "field": { "username" : "/.*\\\\@avengers\\\\.(net|org)/" } },
+                { "field": { "groups" : [ "admin", "operators" ] } },
+                { "except":
+                  { "field": { "groups" : "disavowed" } }
+                }
+              ] }
+            ] }""";
         final RoleMapperExpression exprSource = parse(json);
         final BytesStreamOutput out = new BytesStreamOutput();
         ExpressionParser.writeExpression(exprSource, out);

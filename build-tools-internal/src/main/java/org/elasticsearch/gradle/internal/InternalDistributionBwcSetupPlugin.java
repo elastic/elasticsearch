@@ -59,7 +59,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         BuildParams.getBwcVersions()
             .forPreviousUnreleased(
                 (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, bwcTaskThrottleProvider);
+                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion, bwcTaskThrottleProvider);
                 }
             );
     }
@@ -70,13 +70,13 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         Provider<BwcTaskThrottle> bwcTaskThrottleProvider
     ) {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
-        Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch));
+        Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch()));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
             .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, bwcTaskThrottleProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
-        Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version);
-        gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version));
-        gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch));
+        Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
+        gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
+        gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch()));
         gitExtension.getCheckoutDir().set(checkoutDir);
 
         // we want basic lifecycle tasks like `clean` here.
@@ -235,9 +235,10 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
+            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'main' branch", task -> {
                 String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
+                return BuildParams.isCi()
+                    && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
             });
             c.args(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {

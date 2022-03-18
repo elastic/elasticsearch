@@ -33,10 +33,10 @@ import static org.mockito.Mockito.when;
 
 public class ProcessPipesTests extends ESTestCase {
 
-    private static final byte[] LOG_BYTES = ("\n"
-        + "{\"logger\":\"controller\",\"timestamp\":1478261151447,\"level\":\"INFO\""
-        + ",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 5\",\"class\":\"ml\","
-        + "\"method\":\"core::Something\",\"file\":\"Something.cc\",\"line\":555}\n").getBytes(StandardCharsets.UTF_8);
+    private static final byte[] LOG_BYTES = """
+        {"logger":"controller","timestamp":1478261151447,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 5",\
+        "class":"ml","method":"core::Something","file":"Something.cc","line":555}
+        """.getBytes(StandardCharsets.UTF_8);
     private static final byte[] OUTPUT_BYTES = { 3 };
     private static final byte[] PERSIST_BYTES = { 6 };
 

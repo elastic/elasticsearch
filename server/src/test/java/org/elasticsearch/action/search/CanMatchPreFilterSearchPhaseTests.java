@@ -13,9 +13,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,7 +62,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
@@ -478,7 +478,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkipped() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
             new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
@@ -512,14 +512,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             queryBuilder,
             (updatedSearchShardIterators, requests) -> {
-                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream()
-                    .filter(SearchShardIterator::skip)
-                    .collect(Collectors.toList());
+                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
                 ;
 
                 List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
-                    .collect(Collectors.toList());
+                    .toList();
                 ;
 
                 int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
@@ -551,7 +549,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorParsingFails() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
             new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
@@ -592,7 +590,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         // Generate indices
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
             new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)

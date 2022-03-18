@@ -57,20 +57,15 @@ public class IpScriptFieldTermsQueryTests extends AbstractIpScriptFieldQueryTest
         String fieldName = orig.fieldName();
         BytesRefHash terms = copyTerms(orig.terms());
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
                 long size = terms.size() + 1;
                 while (terms.size() < size) {
                     terms.add(new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))));
                 }
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new IpScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
     }

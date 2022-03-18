@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -89,22 +90,22 @@ public class UserAgentProcessor extends AbstractProcessor {
                     uaDetails.put("original", userAgent);
                     break;
                 case NAME:
-                    if (uaClient.userAgent != null && uaClient.userAgent.name != null) {
-                        uaDetails.put("name", uaClient.userAgent.name);
+                    if (uaClient.userAgent() != null && uaClient.userAgent().name() != null) {
+                        uaDetails.put("name", uaClient.userAgent().name());
                     } else {
                         uaDetails.put("name", "Other");
                     }
                     break;
                 case VERSION:
                     StringBuilder version = new StringBuilder();
-                    if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
-                        version.append(uaClient.userAgent.major);
-                        if (uaClient.userAgent.minor != null) {
-                            version.append(".").append(uaClient.userAgent.minor);
-                            if (uaClient.userAgent.patch != null) {
-                                version.append(".").append(uaClient.userAgent.patch);
-                                if (uaClient.userAgent.build != null) {
-                                    version.append(".").append(uaClient.userAgent.build);
+                    if (uaClient.userAgent() != null && uaClient.userAgent().major() != null) {
+                        version.append(uaClient.userAgent().major());
+                        if (uaClient.userAgent().minor() != null) {
+                            version.append(".").append(uaClient.userAgent().minor());
+                            if (uaClient.userAgent().patch() != null) {
+                                version.append(".").append(uaClient.userAgent().patch());
+                                if (uaClient.userAgent().build() != null) {
+                                    version.append(".").append(uaClient.userAgent().build());
                                 }
                             }
                         }
@@ -112,41 +113,41 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case OS:
-                    if (uaClient.operatingSystem != null) {
-                        Map<String, String> osDetails = new HashMap<>(3);
-                        if (uaClient.operatingSystem.name != null) {
-                            osDetails.put("name", uaClient.operatingSystem.name);
+                    if (uaClient.operatingSystem() != null) {
+                        Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
+                        if (uaClient.operatingSystem().name() != null) {
+                            osDetails.put("name", uaClient.operatingSystem().name());
                             StringBuilder sb = new StringBuilder();
-                            if (uaClient.operatingSystem.major != null) {
-                                sb.append(uaClient.operatingSystem.major);
-                                if (uaClient.operatingSystem.minor != null) {
-                                    sb.append(".").append(uaClient.operatingSystem.minor);
-                                    if (uaClient.operatingSystem.patch != null) {
-                                        sb.append(".").append(uaClient.operatingSystem.patch);
-                                        if (uaClient.operatingSystem.build != null) {
-                                            sb.append(".").append(uaClient.operatingSystem.build);
+                            if (uaClient.operatingSystem().major() != null) {
+                                sb.append(uaClient.operatingSystem().major());
+                                if (uaClient.operatingSystem().minor() != null) {
+                                    sb.append(".").append(uaClient.operatingSystem().minor());
+                                    if (uaClient.operatingSystem().patch() != null) {
+                                        sb.append(".").append(uaClient.operatingSystem().patch());
+                                        if (uaClient.operatingSystem().build() != null) {
+                                            sb.append(".").append(uaClient.operatingSystem().build());
                                         }
                                     }
                                 }
                                 osDetails.put("version", sb.toString());
-                                osDetails.put("full", uaClient.operatingSystem.name + " " + sb.toString());
+                                osDetails.put("full", uaClient.operatingSystem().name() + " " + sb.toString());
                             }
                             uaDetails.put("os", osDetails);
                         }
                     }
                     break;
                 case DEVICE:
-                    Map<String, String> deviceDetails = new HashMap<>(1);
-                    if (uaClient.device != null && uaClient.device.name != null) {
-                        deviceDetails.put("name", uaClient.device.name);
+                    Map<String, String> deviceDetails = Maps.newMapWithExpectedSize(1);
+                    if (uaClient.device() != null && uaClient.device().name() != null) {
+                        deviceDetails.put("name", uaClient.device().name());
                         if (extractDeviceType) {
-                            deviceDetails.put("type", uaClient.deviceType);
+                            deviceDetails.put("type", uaClient.deviceType());
                         }
                     } else {
                         deviceDetails.put("name", "Other");
                         if (extractDeviceType) {
-                            if (uaClient.deviceType != null) {
-                                deviceDetails.put("type", uaClient.deviceType);
+                            if (uaClient.deviceType() != null) {
+                                deviceDetails.put("type", uaClient.deviceType());
                             } else {
                                 deviceDetails.put("type", "Other");
                             }

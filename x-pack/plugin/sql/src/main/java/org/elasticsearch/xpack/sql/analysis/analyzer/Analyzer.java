@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -59,6 +58,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
@@ -92,13 +92,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Per-request specific settings needed in some of the functions (timezone, username and clustername),
      * to which they are attached.
      */
-    private final Configuration configuration;
+    private final SqlConfiguration configuration;
     /**
      * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
-    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+    public Analyzer(SqlConfiguration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
@@ -149,7 +149,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan, configuration.version());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -241,8 +241,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             + fa.name()
                             + "] with unsupported type ["
                             + unsupportedField.getOriginalType()
-                            + "] "
-                            + "in hierarchy (field ["
+                            + "] in hierarchy (field ["
                             + unsupportedField.getInherited()
                             + "])"
                     );
@@ -340,7 +339,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveRefs extends BaseAnalyzerRule {
+    private class ResolveRefs extends BaseAnalyzerRule {
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
@@ -846,9 +845,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project p) {
-                // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (p.child() instanceof Filter f) {
-                    // @formatter:on
+                    // end::noformat
                     Expression condition = f.condition();
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
@@ -860,9 +859,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
 
             if (plan instanceof Aggregate a) {
-                // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (a.child() instanceof Filter f) {
-                    // @formatter:on
+                    // end::noformat
                     Expression condition = f.condition();
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
@@ -884,7 +883,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             });
 
-            return condition.transformDown(UnresolvedAttribute.class, u -> {
+            // traverse bottom up to ensure that the transformation is not applied to children of inserted aliases.
+            // Instead, the inserted aliases should be resolved by another round of name resolution.
+            return condition.transformUp(UnresolvedAttribute.class, u -> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
                     // don't replace field with their own aliases (it creates infinite cycles)
@@ -1029,9 +1030,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter f) {
-            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Project p) {
-                // @formatter:on
+                // end::noformat
                 for (Expression n : p.projections()) {
                     if (n instanceof Alias) {
                         n = ((Alias) n).child();
@@ -1072,9 +1073,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter f) {
             // HAVING = Filter followed by an Agg
-            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Aggregate agg && agg.resolved()) {
-                // @formatter:on
+                // end::noformat
                 Set<NamedExpression> missing = null;
                 Expression condition = f.condition();
 
@@ -1248,9 +1249,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof SubQueryAlias a) {
-                // @formatter:on
+                // end::noformat
                 return plan.transformExpressionsDown(FieldAttribute.class, f -> {
                     if (f.qualifier() != null && f.qualifier().equals(a.alias())) {
                         // Find the underlying concrete relation (EsIndex) and its name as the new qualifier

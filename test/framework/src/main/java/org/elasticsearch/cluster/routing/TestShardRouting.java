@@ -18,7 +18,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collections;
 
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -224,16 +224,10 @@ public class TestShardRouting {
     }
 
     private static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
-        switch (state) {
-            case UNASSIGNED:
-            case INITIALIZING:
-                return randomUnassignedInfo("auto generated for test");
-            case STARTED:
-            case RELOCATING:
-                return null;
-            default:
-                throw new IllegalStateException("illegal state");
-        }
+        return switch (state) {
+            case UNASSIGNED, INITIALIZING -> randomUnassignedInfo("auto generated for test");
+            case STARTED, RELOCATING -> null;
+        };
     }
 
     public static UnassignedInfo randomUnassignedInfo(String message) {

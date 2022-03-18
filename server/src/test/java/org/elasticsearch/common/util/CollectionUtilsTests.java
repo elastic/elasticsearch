@@ -27,6 +27,7 @@ import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
+import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -176,5 +177,15 @@ public class CollectionUtilsTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref key)"));
         }
 
+    }
+
+    public void testLimitSizeOfShortList() {
+        var shortList = randomList(0, 10, () -> "item");
+        assertThat(limitSize(shortList, 10), equalTo(shortList));
+    }
+
+    public void testLimitSizeOfLongList() {
+        var longList = randomList(10, 100, () -> "item");
+        assertThat(limitSize(longList, 10), equalTo(longList.subList(0, 10)));
     }
 }

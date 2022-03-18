@@ -45,7 +45,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
-                mapping = "\"_source\": {" + "  \"includes\": [\"field\"]," + "  \"excludes\": [\"filtered_field\"]" + "}";
+                mapping = """
+                    "_source": {  "includes": ["field"],  "excludes": ["filtered_field"]}""";
             }
             createIndex(leaderIndexName, Settings.EMPTY, mapping);
             for (int i = 0; i < numDocs; i++) {
@@ -255,19 +256,12 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                     .build(),
-                "\"properties\": {\"@timestamp\": {\"type\": \"date\"}, \"dim\": {\"type\": \"keyword\", \"time_series_dimension\": true}}"
+                """
+                    "properties": {"@timestamp": {"type": "date"}, "dim": {"type": "keyword", "time_series_dimension": true}}"""
             );
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
-                index(
-                    client(),
-                    leaderIndexName,
-                    Integer.toString(i),
-                    "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(i * 10),
-                    "dim",
-                    "foobar"
-                );
+                index(client(), leaderIndexName, null, "@timestamp", basetime + TimeUnit.SECONDS.toMillis(i * 10), "dim", "foobar");
             }
             refresh(leaderIndexName);
             verifyDocuments(client(), leaderIndexName, numDocs);
@@ -304,31 +298,30 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             pauseFollow(followIndexName);
             resumeFollow(followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
-                int id = numDocs;
                 index(
                     leaderClient,
                     leaderIndexName,
-                    Integer.toString(id),
+                    null,
                     "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(id * 10),
+                    basetime + TimeUnit.SECONDS.toMillis(numDocs * 10),
                     "dim",
                     "foobar"
                 );
                 index(
                     leaderClient,
                     leaderIndexName,
-                    Integer.toString(id + 1),
+                    null,
                     "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(id * 10 + 10),
+                    basetime + TimeUnit.SECONDS.toMillis(numDocs * 10 + 10),
                     "dim",
                     "foobar"
                 );
                 index(
                     leaderClient,
                     leaderIndexName,
-                    Integer.toString(id + 2),
+                    null,
                     "@timestamp",
-                    basetime + TimeUnit.SECONDS.toMillis(id * 10 + 20),
+                    basetime + TimeUnit.SECONDS.toMillis(numDocs * 10 + 20),
                     "dim",
                     "foobar"
                 );

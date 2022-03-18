@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -22,17 +23,11 @@ import java.util.stream.Stream;
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private final ThreadContext contextHolder;
-    private volatile ShutdownListener listener;
 
-    private final Object monitor = new Object();
     /**
      * Name used in error reporting.
      */
     private final String name;
-
-    final String getName() {
-        return name;
-    }
 
     EsThreadPoolExecutor(
         String name,
@@ -56,30 +51,12 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        XRejectedExecutionHandler handler,
+        RejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
-    }
-
-    @Override
-    protected synchronized void terminated() {
-        super.terminated();
-        synchronized (monitor) {
-            if (listener != null) {
-                try {
-                    listener.onTerminated();
-                } finally {
-                    listener = null;
-                }
-            }
-        }
-    }
-
-    public interface ShutdownListener {
-        void onTerminated();
     }
 
     @Override
@@ -133,9 +110,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue() instanceof SizeBlockingQueue) {
-            @SuppressWarnings("rawtypes")
-            SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
+        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);
@@ -153,9 +128,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
      *
      * @param sb the {@link StringBuilder} to append to
      */
-    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {
-
-    }
+    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {}
 
     protected Runnable wrapRunnable(Runnable command) {
         return contextHolder.preserveContext(command);

@@ -15,11 +15,12 @@ import java.util.Deque;
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
  *
- * A fieldname named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}
+ * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
+ * The token location is preserved so that error messages refer to the original content being parsed.
  */
-public class DotExpandingXContentParser extends FilterXContentParser {
+public class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
-    private static class WrappingParser extends DelegatingXContentParser {
+    private static final class WrappingParser extends FilterXContentParser {
 
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
@@ -48,20 +49,25 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
         private void expandDots() throws IOException {
             String field = delegate().currentName();
-            String[] subpaths = field.split("\\.");
+            String[] subpaths = splitAndValidatePath(field);
             if (subpaths.length == 0) {
                 throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
             }
-            if (subpaths.length == 1) {
+            // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
+            // subpath due to the way String.split() works. We can only return fast here if this is not
+            // the case
+            // TODO make this case throw an error instead? https://github.com/elastic/elasticsearch/issues/28948
+            if (subpaths.length == 1 && field.endsWith(".") == false) {
                 return;
             }
+            XContentLocation location = delegate().getTokenLocation();
             Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), delegate(), subpaths));
+                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), delegate(), subpaths, location));
             } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), delegate(), subpaths));
+                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), delegate(), subpaths, location));
             }
         }
 
@@ -69,6 +75,31 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         protected XContentParser delegate() {
             return parsers.peek();
         }
+    }
+
+    private static String[] splitAndValidatePath(String fullFieldPath) {
+        if (fullFieldPath.isEmpty()) {
+            throw new IllegalArgumentException("field name cannot be an empty string");
+        }
+        if (fullFieldPath.contains(".") == false) {
+            return new String[] { fullFieldPath };
+        }
+        String[] parts = fullFieldPath.split("\\.");
+        if (parts.length == 0) {
+            throw new IllegalArgumentException("field name cannot contain only dots");
+        }
+        for (String part : parts) {
+            // check if the field name contains only whitespace
+            if (part.isEmpty()) {
+                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fullFieldPath + "']");
+            }
+            if (part.isBlank()) {
+                throw new IllegalArgumentException(
+                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
+                );
+            }
+        }
+        return parts;
     }
 
     /**
@@ -81,91 +112,117 @@ public class DotExpandingXContentParser extends FilterXContentParser {
     }
 
     private enum State {
-        PRE,
-        DURING,
-        POST
+        EXPANDING_START_OBJECT,
+        PARSING_ORIGINAL_CONTENT,
+        ENDING_EXPANDED_OBJECT
     }
 
     final String[] subPaths;
     final XContentParser subparser;
 
-    int level = 0;
-    private State state = State.PRE;
+    private XContentLocation currentLocation;
+    private int expandedTokens = 0;
+    private int innerLevel = -1;
+    private State state = State.EXPANDING_START_OBJECT;
 
-    private DotExpandingXContentParser(XContentParser subparser, XContentParser root, String[] subPaths) {
+    private DotExpandingXContentParser(XContentParser subparser, XContentParser root, String[] subPaths, XContentLocation startLocation) {
         super(root);
         this.subPaths = subPaths;
         this.subparser = subparser;
+        this.currentLocation = startLocation;
     }
 
     @Override
     public Token nextToken() throws IOException {
-        if (state == State.PRE) {
-            level++;
-            if (level == subPaths.length * 2 - 1) {
-                state = State.DURING;
-                return in.currentToken();
+        if (state == State.EXPANDING_START_OBJECT) {
+            expandedTokens++;
+            assert expandedTokens < subPaths.length * 2;
+            if (expandedTokens == subPaths.length * 2 - 1) {
+                state = State.PARSING_ORIGINAL_CONTENT;
+                Token token = delegate().currentToken();
+                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                    innerLevel++;
+                }
+                return token;
             }
-            if (level % 2 == 0) {
+            // The expansion consists of adding pairs of START_OBJECT and FIELD_NAME tokens
+            if (expandedTokens % 2 == 0) {
                 return Token.FIELD_NAME;
             }
             return Token.START_OBJECT;
         }
-        if (state == State.DURING) {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
             Token token = subparser.nextToken();
+            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                innerLevel++;
+            }
+            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                innerLevel--;
+            }
             if (token != null) {
                 return token;
             }
-            state = State.POST;
+            currentLocation = getTokenLocation();
+            state = State.ENDING_EXPANDED_OBJECT;
         }
-        assert state == State.POST;
-        if (level >= 1) {
-            level -= 2;
+        assert expandedTokens % 2 == 1;
+        expandedTokens -= 2;
+        return expandedTokens < 0 ? null : Token.END_OBJECT;
+    }
+
+    @Override
+    public XContentLocation getTokenLocation() {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            return super.getTokenLocation();
         }
-        return level < 0 ? null : Token.END_OBJECT;
+        return currentLocation;
     }
 
     @Override
     public Token currentToken() {
-        if (state == State.PRE) {
-            return level % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
-        }
-        if (state == State.POST) {
-            if (level > 1) {
-                return Token.END_OBJECT;
-            }
-        }
-        return in.currentToken();
+        return switch (state) {
+            case EXPANDING_START_OBJECT -> expandedTokens % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
+            case ENDING_EXPANDED_OBJECT -> Token.END_OBJECT;
+            case PARSING_ORIGINAL_CONTENT -> delegate().currentToken();
+        };
     }
 
     @Override
     public String currentName() throws IOException {
-        if (state == State.DURING) {
-            return in.currentName();
-        }
-        if (state == State.POST) {
-            if (level <= 1) {
-                return in.currentName();
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            assert expandedTokens == subPaths.length * 2 - 1;
+            // whenever we are parsing some inner object/array we can easily delegate to the inner parser
+            // e.g. field.with.dots: { obj:{ parsing here } }
+            if (innerLevel > 0) {
+                return delegate().currentName();
             }
-            throw new IllegalStateException("Can't get current name during END_OBJECT");
+            Token token = currentToken();
+            // if we are parsing the outer object/array, only at the start object/array we need to return
+            // e.g. dots instead of field.with.dots otherwise we can simply delegate to the inner parser
+            // which will do the right thing
+            if (innerLevel == 0 && token != Token.START_OBJECT && token != Token.START_ARRAY) {
+                return delegate().currentName();
+            }
+            // note that innerLevel can be -1 if there are no inner object/array e.g. field.with.dots: value
+            // as well as while there is and we are parsing their END_OBJECT or END_ARRAY
         }
-        return subPaths[level / 2];
+        return subPaths[expandedTokens / 2];
     }
 
     @Override
     public void skipChildren() throws IOException {
-        if (state == State.PRE) {
-            in.skipChildren();
-            state = State.POST;
+        if (state == State.EXPANDING_START_OBJECT) {
+            delegate().skipChildren();
+            state = State.ENDING_EXPANDED_OBJECT;
         }
-        if (state == State.DURING) {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
             subparser.skipChildren();
         }
     }
 
     @Override
     public String textOrNull() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.textOrNull();
@@ -173,7 +230,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
     @Override
     public Number numberValue() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get numeric value on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.numberValue();
@@ -181,13 +238,13 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
     @Override
     public boolean booleanValue() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get boolean value on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.booleanValue();
     }
 
-    private static class SingletonValueXContentParser extends FilterXContentParser {
+    private static class SingletonValueXContentParser extends FilterXContentParserWrapper {
 
         protected SingletonValueXContentParser(XContentParser in) {
             super(in);

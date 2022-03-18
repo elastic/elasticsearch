@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexWriterMaxDocsChanger;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -56,7 +55,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -105,6 +104,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -658,7 +658,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testTranslogRecoveryWithMultipleGenerations() throws IOException {
         final int docs = randomIntBetween(1, 4096);
-        final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toList());
+        final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(seqNos);
         Engine initialEngine = null;
         Engine recoveringEngine = null;
@@ -1533,7 +1533,7 @@ public class InternalEngineTests extends EngineTestCase {
                 )
             ) {
                 org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
-                doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
+                doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, -1));
                 doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 1));
                 doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1));
@@ -1872,8 +1872,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc1 = opsDoc1.get(opsDoc1.size() - 1);
         final String lastFieldValueDoc1;
-        if (lastOpDoc1 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc1;
+        if (lastOpDoc1 instanceof Engine.Index index) {
             lastFieldValueDoc1 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1889,8 +1888,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc2 = opsDoc2.get(opsDoc2.size() - 1);
         final String lastFieldValueDoc2;
-        if (lastOpDoc2 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc2;
+        if (lastOpDoc2 instanceof Engine.Index index) {
             lastFieldValueDoc2 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1899,8 +1897,7 @@ public class InternalEngineTests extends EngineTestCase {
         // randomly interleave
         final AtomicLong seqNoGenerator = new AtomicLong();
         BiFunction<Engine.Operation, Long, Engine.Operation> seqNoUpdater = (operation, newSeqNo) -> {
-            if (operation instanceof Engine.Index) {
-                Engine.Index index = (Engine.Index) operation;
+            if (operation instanceof Engine.Index index) {
                 LuceneDocument doc = testDocumentWithTextField(index.docs().get(0).get("value"));
                 ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source(), null);
                 return new Engine.Index(
@@ -2107,8 +2104,7 @@ public class InternalEngineTests extends EngineTestCase {
                 versionConflict ? " (conflict " + conflictingVersion + ")" : "",
                 versionedOp ? " (versioned " + correctVersion + ", seqNo " + lastOpSeqNo + ", term " + lastOpTerm + " )" : ""
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 if (versionConflict) {
                     // generate a conflict
                     final Engine.IndexResult result;
@@ -2229,8 +2225,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, versionType, 2, 2, 20, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -2251,8 +2246,7 @@ public class InternalEngineTests extends EngineTestCase {
                 op.seqNo(),
                 op.primaryTerm()
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 Engine.IndexResult result = engine.index(index);
                 if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
                     seqNo++;
@@ -2334,8 +2328,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.EXTERNAL, 2, 100, 300, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -2569,10 +2562,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             long merges = engine.getMergeStats().getTotal();
             if (merges > 0) {
-                List<String> threadMsgs = mockAppender.messages()
-                    .stream()
-                    .filter(line -> line.startsWith("merge thread"))
-                    .collect(Collectors.toList());
+                List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
                 assertThat("messages:" + threadMsgs + ", merges=" + merges, threadMsgs.size(), greaterThanOrEqualTo(2));
                 assertThat(
                     threadMsgs,
@@ -2602,8 +2592,7 @@ public class InternalEngineTests extends EngineTestCase {
         try {
             initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy(), null);
             final ShardRouting primary = TestShardRouting.newShardRouting(
-                "test",
-                shardId.id(),
+                shardId,
                 "node1",
                 null,
                 true,
@@ -3585,18 +3574,9 @@ public class InternalEngineTests extends EngineTestCase {
                 while (stop == false) {
                     try {
                         switch (operation) {
-                            case "optimize": {
-                                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                                break;
-                            }
-                            case "refresh": {
-                                engine.refresh("test refresh");
-                                break;
-                            }
-                            case "flush": {
-                                engine.flush(true, true);
-                                break;
-                            }
+                            case "optimize" -> engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                            case "refresh" -> engine.refresh("test refresh");
+                            case "flush" -> engine.flush(true, true);
                         }
                     } catch (Exception e) {
                         exception.set(e);
@@ -4071,7 +4051,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             List<Translog.Operation> ops = readAllOperationsInLucene(engine);
-            assertThat(ops.stream().map(o -> o.seqNo()).collect(Collectors.toList()), hasItem(20L));
+            assertThat(ops.stream().map(o -> o.seqNo()).toList(), hasItem(20L));
         }
     }
 
@@ -4698,10 +4678,7 @@ public class InternalEngineTests extends EngineTestCase {
                         .stream()
                         .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
-                    assertThat(
-                        getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.getId(), e -> e.getSeqNo())),
-                        equalTo(liveOps)
-                    );
+                    assertThat(getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.id(), e -> e.seqNo())), equalTo(liveOps));
                     for (String id : latestOps.keySet()) {
                         String msg = "latestOps=" + latestOps + " op=" + id;
                         DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), newUid(id));
@@ -5093,15 +5070,15 @@ public class InternalEngineTests extends EngineTestCase {
             ParsedDocument doc = createParsedDoc(id, null);
             Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
             switch (type) {
-                case INDEX:
+                case INDEX -> {
                     Engine.IndexResult index = engine.index(replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));
                     assertThat(index.getFailure(), nullValue());
-                    break;
-                case DELETE:
+                }
+                case DELETE -> {
                     Engine.DeleteResult delete = engine.delete(replicaDeleteForDoc(doc.id(), between(1, 100), i, randomNonNegativeLong()));
                     assertThat(delete.getFailure(), nullValue());
-                    break;
-                case NO_OP:
+                }
+                case NO_OP -> {
                     long seqNo = i;
                     Engine.NoOpResult noOp = engine.noOp(
                         new Engine.NoOp(seqNo, primaryTerm.get(), randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "")
@@ -5109,9 +5086,8 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(noOp.getTerm(), equalTo(primaryTerm.get()));
                     assertThat(noOp.getSeqNo(), equalTo(seqNo));
                     assertThat(noOp.getFailure(), nullValue());
-                    break;
-                default:
-                    throw new IllegalStateException("Invalid op [" + type + "]");
+                }
+                default -> throw new IllegalStateException("Invalid op [" + type + "]");
             }
             if (randomBoolean()) {
                 engine.refresh("test");
@@ -5491,7 +5467,7 @@ public class InternalEngineTests extends EngineTestCase {
             )
         ) {
             final String id = "id";
-            final Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
+            final Field uidField = new Field("_id", id, ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
             final Field versionField = new NumericDocValuesField("_version", 0);
             final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
             final LuceneDocument document = new LuceneDocument();
@@ -6117,7 +6093,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testTrimUnsafeCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final int maxSeqNo = 40;
-        final List<Long> seqNos = LongStream.rangeClosed(0, maxSeqNo).boxed().collect(Collectors.toList());
+        final List<Long> seqNos = LongStream.rangeClosed(0, maxSeqNo).boxed().collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(seqNos, random());
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
@@ -6238,7 +6214,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             List<Translog.Operation> actualOps = readAllOperationsInLucene(engine);
-            assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
+            assertThat(actualOps.stream().map(o -> o.seqNo()).toList(), containsInAnyOrder(expectedSeqNos.toArray()));
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         }
     }
@@ -7304,7 +7280,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testMaxDocsOnPrimary() throws Exception {
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        setIndexWriterMaxDocs(maxDocs);
         try {
             engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
             int numDocs = between(maxDocs + 1, maxDocs * 2);
@@ -7337,14 +7313,14 @@ public class InternalEngineTests extends EngineTestCase {
                 assertFalse(engine.isClosed.get());
             }
         } finally {
-            IndexWriterMaxDocsChanger.restoreMaxDocs();
+            restoreIndexWriterMaxDocs();
         }
     }
 
     public void testMaxDocsOnReplica() throws Exception {
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        setIndexWriterMaxDocs(maxDocs);
         try {
             engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
             int numDocs = between(maxDocs + 1, maxDocs * 2);
@@ -7357,7 +7333,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(error.getMessage(), containsString("number of documents in the index cannot exceed " + maxDocs));
             assertTrue(engine.isClosed.get());
         } finally {
-            IndexWriterMaxDocsChanger.restoreMaxDocs();
+            restoreIndexWriterMaxDocs();
         }
     }
 
@@ -7387,7 +7363,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final int maxSeqNo = 40;
-        final List<Long> seqNos = LongStream.rangeClosed(1, maxSeqNo).boxed().collect(Collectors.toList());
+        final List<Long> seqNos = LongStream.rangeClosed(1, maxSeqNo).boxed().collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(seqNos, random());
         try (Store store = createStore()) {
             EngineConfig config = config(

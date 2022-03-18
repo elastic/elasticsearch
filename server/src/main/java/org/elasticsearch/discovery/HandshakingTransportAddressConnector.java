@@ -30,6 +30,8 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Locale;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
@@ -110,9 +112,33 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     IOUtils.closeWhileHandlingException(connection);
 
                                     if (remoteNode.equals(transportService.getLocalNode())) {
-                                        listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
+                                        listener.onFailure(
+                                            new ConnectTransportException(
+                                                remoteNode,
+                                                String.format(
+                                                    Locale.ROOT,
+                                                    "successfully discovered local node %s at [%s]",
+                                                    remoteNode.descriptionWithoutAttributes(),
+                                                    transportAddress
+                                                )
+                                            )
+                                        );
                                     } else if (remoteNode.isMasterNode() == false) {
-                                        listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
+                                        listener.onFailure(
+                                            new ConnectTransportException(
+                                                remoteNode,
+                                                String.format(
+                                                    Locale.ROOT,
+                                                    """
+                                                        successfully discovered master-ineligible node %s at [%s]; to suppress this \
+                                                        message, remove address [%s] from your discovery configuration or ensure that \
+                                                        traffic to this address is routed only to master-eligible nodes""",
+                                                    remoteNode.descriptionWithoutAttributes(),
+                                                    transportAddress,
+                                                    transportAddress
+                                                )
+                                            )
+                                        );
                                     } else {
                                         transportService.connectToNode(remoteNode, new ActionListener<>() {
                                             @Override

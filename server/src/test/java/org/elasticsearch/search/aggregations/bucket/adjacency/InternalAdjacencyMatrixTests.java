@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -20,6 +21,11 @@ import java.util.TreeMap;
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
     private List<String> keys;
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
 
     @Override
     protected int maxNumberOfBuckets() {
@@ -93,25 +99,22 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
         List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalAdjacencyMatrix.InternalBucket(randomAlphaOfLength(10), randomNonNegativeLong(), InternalAggregations.EMPTY)
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAdjacencyMatrix(name, buckets, metadata);
     }

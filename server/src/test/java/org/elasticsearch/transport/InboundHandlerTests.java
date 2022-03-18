@@ -72,7 +72,8 @@ public class InboundHandlerTests extends ESTestCase {
             new StatsTracker(),
             threadPool,
             new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
-            new HandlingTimeTracker()
+            new HandlingTimeTracker(),
+            false
         );
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();

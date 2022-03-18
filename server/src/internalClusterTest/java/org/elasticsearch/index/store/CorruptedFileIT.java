@@ -23,11 +23,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -497,8 +498,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // we are green so primaries got not corrupted.
         // ensure that no shard is actually allocated on the unlucky node
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (IndexShardRoutingTable table : clusterStateResponse.getState().getRoutingTable().index("test")) {
-            for (ShardRouting routing : table) {
+        final IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index("test");
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                final ShardRouting routing = indexShardRoutingTable.shard(copy);
                 if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.RELOCATING)));

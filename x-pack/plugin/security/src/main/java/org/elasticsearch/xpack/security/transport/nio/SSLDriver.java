@@ -300,25 +300,24 @@ public class SSLDriver implements AutoCloseable {
             boolean continueHandshaking = true;
             while (continueHandshaking) {
                 switch (handshakeStatus) {
-                    case NEED_UNWRAP:
+                    case NEED_UNWRAP -> {
                         isHandshaking = true;
                         // We UNWRAP as much as possible immediately after a read. Do not need to do it here.
                         continueHandshaking = false;
-                        break;
-                    case NEED_WRAP:
+                    }
+                    case NEED_WRAP -> {
                         isHandshaking = true;
                         handshakeStatus = wrap(outboundBuffer).getHandshakeStatus();
-                        break;
-                    case NEED_TASK:
+                    }
+                    case NEED_TASK -> {
                         runTasks();
                         isHandshaking = true;
                         handshakeStatus = engine.getHandshakeStatus();
-                        break;
-                    case NOT_HANDSHAKING:
-                    case FINISHED:
+                    }
+                    case NOT_HANDSHAKING, FINISHED -> {
                         isHandshaking = false;
                         continueHandshaking = false;
-                        break;
+                    }
                 }
             }
         }

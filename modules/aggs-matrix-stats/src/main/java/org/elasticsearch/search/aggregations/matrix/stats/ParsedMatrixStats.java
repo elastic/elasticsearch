@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.matrix.stats;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -202,14 +203,14 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
             );
 
             RESULT_PARSER.declareObject((ParsedMatrixStatsResult result, Map<String, Object> covars) -> {
-                result.covariances = new LinkedHashMap<>(covars.size());
+                result.covariances = Maps.newLinkedHashMapWithExpectedSize(covars.size());
                 for (Map.Entry<String, Object> covar : covars.entrySet()) {
                     result.covariances.put(covar.getKey(), mapValueAsDouble(covar.getValue()));
                 }
             }, (p, c) -> p.mapOrdered(), new ParseField(InternalMatrixStats.Fields.COVARIANCE));
 
             RESULT_PARSER.declareObject((ParsedMatrixStatsResult result, Map<String, Object> correls) -> {
-                result.correlations = new LinkedHashMap<>(correls.size());
+                result.correlations = Maps.newLinkedHashMapWithExpectedSize(correls.size());
                 for (Map.Entry<String, Object> correl : correls.entrySet()) {
                     result.correlations.put(correl.getKey(), mapValueAsDouble(correl.getValue()));
                 }

@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -139,6 +140,16 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         public boolean getKeyed() {
             return keyed;
+        }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                keyed,
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 
@@ -455,6 +466,20 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         }
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            order,
+            minDocCount,
+            emptyBucketInfo,
+            format,
+            keyed,
+            getMetadata()
+        );
     }
 
     @Override

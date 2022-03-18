@@ -407,10 +407,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private ScriptContextStats getByContext(ScriptStats stats, String context) {
-        List<ScriptContextStats> maybeContextStats = stats.getContextStats()
-            .stream()
-            .filter(c -> c.getContext().equals(context))
-            .collect(Collectors.toList());
+        List<ScriptContextStats> maybeContextStats = stats.getContextStats().stream().filter(c -> c.getContext().equals(context)).toList();
         assertEquals(1, maybeContextStats.size());
         return maybeContextStats.get(0);
     }
@@ -432,11 +429,8 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testDeleteScript() throws Exception {
-        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(
-            null,
-            "_id",
-            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), XContentType.JSON)
-        );
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id", StoredScriptSource.parse(new BytesArray("""
+            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON));
         scriptMetadata = ScriptMetadata.deleteStoredScript(scriptMetadata, "_id");
         assertNotNull(scriptMetadata);
         assertNull(scriptMetadata.getStoredScript("_id"));
@@ -456,13 +450,8 @@ public class ScriptServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         ScriptMetadata.TYPE,
-                        new ScriptMetadata.Builder(null).storeScript(
-                            "_id",
-                            StoredScriptSource.parse(
-                                new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
-                                XContentType.JSON
-                            )
-                        ).build()
+                        new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+                            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build()
                     )
             )
             .build();

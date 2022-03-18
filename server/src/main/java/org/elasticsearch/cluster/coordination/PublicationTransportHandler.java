@@ -96,7 +96,7 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.CLUSTER_COORDINATION,
             false,
             false,
             BytesTransportRequest::new,
@@ -105,7 +105,7 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             COMMIT_STATE_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.CLUSTER_COORDINATION,
             false,
             false,
             ApplyCommitRequest::new,
@@ -383,7 +383,7 @@ public class PublicationTransportHandler {
                 COMMIT_STATE_ACTION_NAME,
                 applyCommitRequest,
                 STATE_REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
+                new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.CLUSTER_COORDINATION)
             );
         }
 
@@ -420,8 +420,7 @@ public class PublicationTransportHandler {
                 return;
             }
             sendClusterState(destination, bytes, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
-                if (e instanceof TransportException) {
-                    final TransportException transportException = (TransportException) e;
+                if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
                             () -> new ParameterizedMessage(
@@ -457,10 +456,10 @@ public class PublicationTransportHandler {
                     PUBLISH_STATE_ACTION_NAME,
                     new BytesTransportRequest(bytes, destination.getVersion()),
                     STATE_REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<PublishWithJoinResponse>(
+                    new ActionListenerResponseHandler<>(
                         ActionListener.runAfter(listener, bytes::decRef),
                         PublishWithJoinResponse::new,
-                        ThreadPool.Names.GENERIC
+                        ThreadPool.Names.CLUSTER_COORDINATION
                     )
                 );
             } catch (Exception e) {

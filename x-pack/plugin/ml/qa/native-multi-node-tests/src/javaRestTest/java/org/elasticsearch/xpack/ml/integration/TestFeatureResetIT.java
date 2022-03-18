@@ -180,7 +180,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             .get()
             .getTasks()
             .stream()
-            .map(TaskInfo::getAction)
+            .map(TaskInfo::action)
             .collect(Collectors.toList());
         assertThat(tasksNames, is(empty()));
     }
@@ -192,7 +192,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
-                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1), null)
                     )
                     .setModelId(TRAINED_MODEL_ID)
                     .build(),
@@ -213,7 +213,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(
                 TRAINED_MODEL_ID,
-                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN)
+                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
+                List.of()
             )
         ).actionGet();
         client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))
@@ -290,26 +291,18 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId) throws Exception {
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                pipelineId,
-                new BytesArray(
-                    "{\n"
-                        + "    \"processors\": [\n"
-                        + "      {\n"
-                        + "        \"inference\": {\n"
-                        + "          \"inference_config\": {\"classification\":{}},\n"
-                        + "          \"model_id\": \"lang_ident_model_1\",\n"
-                        + "          \"field_map\": {}\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    ]\n"
-                        + "  }"
-                ),
-                XContentType.JSON
-            )
-        ).actionGet();
+        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray("""
+            {
+                "processors": [
+                  {
+                    "inference": {
+                      "inference_config": {"classification":{}},
+                      "model_id": "lang_ident_model_1",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              }"""), XContentType.JSON)).actionGet();
     }
 
     private void indexDocForInference(String pipelineId) {

@@ -109,11 +109,12 @@ public class FirstLineWithLettersCharFilterTests extends ESTestCase {
 
     public void testCorrect() throws IOException {
 
-        String input = "  --------------------------------------------------------------------------------\n"
-            + "\n"
-            + "Alias 'foo' already exists and this prevents setting up ILM for logs\n"
-            + "\n"
-            + "--------------------------------------------------------------------------------";
+        String input = """
+              --------------------------------------------------------------------------------
+
+            Alias 'foo' already exists and this prevents setting up ILM for logs
+
+            --------------------------------------------------------------------------------""";
         FirstLineWithLettersCharFilter filter = new FirstLineWithLettersCharFilter(new StringReader(input));
 
         String expectedOutput = "Alias 'foo' already exists and this prevents setting up ILM for logs";

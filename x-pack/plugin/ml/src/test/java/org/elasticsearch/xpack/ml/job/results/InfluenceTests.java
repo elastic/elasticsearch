@@ -41,7 +41,9 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"influencer_field_name\":\"influencer_1\", \"influencer_field_values\":[], \"foo\":\"bar\"}";
+        String json = """
+            {"influencer_field_name":"influencer_1", "influencer_field_values":[], "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Influence.STRICT_PARSER.apply(parser, null));
 
@@ -50,7 +52,9 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"influencer_field_name\":\"influencer_1\", \"influencer_field_values\":[], \"foo\":\"bar\"}";
+        String json = """
+            {"influencer_field_name":"influencer_1", "influencer_field_values":[], "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Influence.LENIENT_PARSER.apply(parser, null);
         }

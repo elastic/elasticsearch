@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -152,7 +152,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will be removed in "
-                + "a future release! See the breaking changes documentation for the next major version."
+                + "a future release."
         );
     }
 

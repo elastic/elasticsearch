@@ -87,23 +87,14 @@ public class Strings {
                 }
                 ch = s.charAt(pos++);
                 if (decode) {
-                    switch (ch) {
-                        case 'n':
-                            ch = '\n';
-                            break;
-                        case 't':
-                            ch = '\t';
-                            break;
-                        case 'r':
-                            ch = '\r';
-                            break;
-                        case 'b':
-                            ch = '\b';
-                            break;
-                        case 'f':
-                            ch = '\f';
-                            break;
-                    }
+                    ch = switch (ch) {
+                        case 'n' -> '\n';
+                        case 't' -> '\t';
+                        case 'r' -> '\r';
+                        case 'b' -> '\b';
+                        case 'f' -> '\f';
+                        default -> ch;
+                    };
                 }
             }
 
@@ -920,8 +911,27 @@ public class Strings {
         return str;
     }
 
+    /**
+     * Checks that the supplied string is neither null nor blank, per {@link #isNullOrBlank(String)}.
+     * If this check fails, then an {@link IllegalArgumentException} is thrown with the supplied message.
+     *
+     * @param str the <code>String</code> to check
+     * @param message the exception message to use if {@code str} is null or blank
+     * @return the supplied {@code str}
+     */
+    public static String requireNonBlank(String str, String message) {
+        if (isNullOrBlank(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
+    }
+
+    public static boolean isNullOrBlank(@Nullable String s) {
+        return s == null || s.isBlank();
     }
 
     public static String coalesceToEmpty(@Nullable String s) {

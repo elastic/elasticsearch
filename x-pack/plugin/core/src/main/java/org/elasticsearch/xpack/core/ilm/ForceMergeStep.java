@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -61,7 +61,7 @@ public class ForceMergeStep extends AsyncActionStep {
                 listener.onResponse(null);
             } else {
                 DefaultShardOperationFailedException[] failures = response.getShardFailures();
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",

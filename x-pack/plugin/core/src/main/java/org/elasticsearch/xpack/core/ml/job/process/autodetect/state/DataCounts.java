@@ -254,7 +254,7 @@ public class DataCounts implements ToXContentObject, Writeable {
         logTime = in.readOptionalInstant();
     }
 
-    public String getJobid() {
+    public String getJobId() {
         return jobId;
     }
 

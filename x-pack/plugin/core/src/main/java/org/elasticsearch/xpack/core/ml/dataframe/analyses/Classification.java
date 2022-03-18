@@ -336,17 +336,13 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldType == null) {
             return null;
         }
-        switch (predictionFieldType) {
-            case NUMBER:
+        return switch (predictionFieldType) {
+            case NUMBER ->
                 // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-                return "int";
-            case STRING:
-                return "string";
-            case BOOLEAN:
-                return "bool";
-            default:
-                return null;
-        }
+                "int";
+            case STRING -> "string";
+            case BOOLEAN -> "bool";
+        };
     }
 
     public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {

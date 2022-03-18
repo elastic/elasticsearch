@@ -9,6 +9,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -33,8 +34,8 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
+import static org.elasticsearch.client.internal.Requests.indexRequest;
+import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -132,6 +133,11 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         @Override
         public DecayFunction getDecayFunction() {
             return decayFunction;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
 
         private static final DecayFunction decayFunction = new LinearMultScoreFunction();

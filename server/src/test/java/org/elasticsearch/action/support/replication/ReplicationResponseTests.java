@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -65,14 +66,39 @@ public class ReplicationResponseTests extends ESTestCase {
                 )
             );
             String output = Strings.toString(shardInfo);
-            assertEquals(
-                "{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3,"
-                    + "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"},"
-                    + "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\","
-                    + "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21"
-                    + ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "total": 6,
+                  "successful": 4,
+                  "failed": 2,
+                  "failures": [
+                    {
+                      "_index": "index",
+                      "_shard": 3,
+                      "_node": "_node_id",
+                      "reason": {
+                        "type": "illegal_argument_exception",
+                        "reason": "Wrong"
+                      },
+                      "status": "BAD_REQUEST",
+                      "primary": false
+                    },
+                    {
+                      "_index": "index",
+                      "_shard": 1,
+                      "_node": "_node_id",
+                      "reason": {
+                        "type": "circuit_breaking_exception",
+                        "reason": "Wrong",
+                        "bytes_wanted": 12,
+                        "bytes_limit": 21,
+                        "durability": "PERMANENT"
+                      },
+                      "status": "NOT_ACCEPTABLE",
+                      "primary": true
+                    }
+                  ]
+                }"""), output);
         }
     }
 

@@ -357,9 +357,9 @@ public class PolicyUtil {
         if (info == null) {
             return;
         }
-        validatePolicyPermissionsForJar(type, info.file, null, info.policy, allowedPermissions, tmpDir);
-        for (URL jar : info.jars) {
-            validatePolicyPermissionsForJar(type, info.file, jar, info.policy, allowedPermissions, tmpDir);
+        validatePolicyPermissionsForJar(type, info.file(), null, info.policy(), allowedPermissions, tmpDir);
+        for (URL jar : info.jars()) {
+            validatePolicyPermissionsForJar(type, info.file(), jar, info.policy(), allowedPermissions, tmpDir);
         }
     }
 

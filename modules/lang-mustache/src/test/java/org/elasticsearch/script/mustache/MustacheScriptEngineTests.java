@@ -40,40 +40,105 @@ public class MustacheScriptEngineTests extends ESTestCase {
     public void testSimpleParameterReplace() {
         Map<String, String> compileParams = Collections.singletonMap("content_type", "application/json");
         {
-            String template = "GET _search {\"query\": "
-                + "{\"boosting\": {"
-                + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}"
-                + "}}, \"negative_boost\": {{boost_val}} } }}";
+            String template = """
+                GET _search
+                {
+                  "query": {
+                    "boosting": {
+                      "positive": {
+                        "match": {
+                          "body": "gift"
+                        }
+                      },
+                      "negative": {
+                        "term": {
+                          "body": {
+                            "value": "solr"
+                          }
+                        }
+                      },
+                      "negative_boost": {{boost_val}}
+                    }
+                  }
+                }""";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
-            assertEquals(
-                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
-                o
-            );
+            assertEquals("""
+                GET _search
+                {
+                  "query": {
+                    "boosting": {
+                      "positive": {
+                        "match": {
+                          "body": "gift"
+                        }
+                      },
+                      "negative": {
+                        "term": {
+                          "body": {
+                            "value": "solr"
+                          }
+                        }
+                      },
+                      "negative_boost": 0.3
+                    }
+                  }
+                }""", o);
         }
         {
-            String template = "GET _search {\"query\": "
-                + "{\"boosting\": {"
-                + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                + "\"negative\": {\"term\": {\"body\": {\"value\": \"{{body_val}}\"}"
-                + "}}, \"negative_boost\": {{boost_val}} } }}";
+            String template = """
+                GET _search
+                {
+                  "query": {
+                    "boosting": {
+                      "positive": {
+                        "match": {
+                          "body": "gift"
+                        }
+                      },
+                      "negative": {
+                        "term": {
+                          "body": {
+                            "value": "{{body_val}}"
+                          }
+                        }
+                      },
+                      "negative_boost": {{boost_val}}
+                    }
+                  }
+                }""";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
             String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
-            assertEquals(
-                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
-                o
-            );
+            assertEquals("""
+                GET _search
+                {
+                  "query": {
+                    "boosting": {
+                      "positive": {
+                        "match": {
+                          "body": "gift"
+                        }
+                      },
+                      "negative": {
+                        "term": {
+                          "body": {
+                            "value": "\\"quick brown\\""
+                          }
+                        }
+                      },
+                      "negative_boost": 0.3
+                    }
+                  }
+                }""", o);
         }
     }
 
     public void testSimple() throws IOException {
-        String templateString = "{" + "\"source\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
+        String templateString = """
+            {"source":{"match_{{template}}": {}},"params":{"template":"all"}}""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
         TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
@@ -82,13 +147,14 @@ public class MustacheScriptEngineTests extends ESTestCase {
     }
 
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
-        String templateString = "{"
-            + "  \"source\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\","
-            + "  \"params\":{"
-            + "    \"template\":\"all\","
-            + "    \"use_it\": true"
-            + "  }"
-            + "}";
+        String templateString = """
+            {
+              "source": "{ \\"match_{{#use_it}}{{template}}{{/use_it}}\\":{} }",
+              "params": {
+                "template": "all",
+                "use_it": true
+              }
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
         TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());

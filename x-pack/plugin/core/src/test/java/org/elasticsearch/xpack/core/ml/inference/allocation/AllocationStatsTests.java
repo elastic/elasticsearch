@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.net.InetAddress;
@@ -44,7 +43,6 @@ public class AllocationStatsTests extends AbstractWireSerializingTestCase<Alloca
 
         return new AllocationStats(
             randomAlphaOfLength(5),
-            ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
@@ -59,10 +57,16 @@ public class AllocationStatsTests extends AbstractWireSerializingTestCase<Alloca
             randomNonNegativeLong(),
             randomBoolean() ? randomDoubleBetween(0.0, 100.0, true) : null,
             randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
             Instant.now(),
             Instant.now(),
             randomIntBetween(1, 16),
-            randomIntBetween(1, 16)
+            randomIntBetween(1, 16),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomBoolean() ? randomDoubleBetween(0.0, 100.0, true) : null
         );
     }
 

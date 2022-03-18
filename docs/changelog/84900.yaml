@@ -1,0 +1,6 @@
+pr: 84900
+summary: Limit concurrent shard requests in disk usage API
+area: Search
+type: bug
+issues:
+ - 84779

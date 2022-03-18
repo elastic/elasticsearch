@@ -69,8 +69,8 @@ public class JarHell {
         ClassLoader loader = JarHell.class.getClassLoader();
         output.accept("java.class.path: " + System.getProperty("java.class.path"));
         output.accept("sun.boot.class.path: " + System.getProperty("sun.boot.class.path"));
-        if (loader instanceof URLClassLoader) {
-            output.accept("classloader urls: " + Arrays.toString(((URLClassLoader) loader).getURLs()));
+        if (loader instanceof URLClassLoader urlClassLoader) {
+            output.accept("classloader urls: " + Arrays.toString(urlClassLoader.getURLs()));
         }
         checkJarHell(parseClassPath(), output);
     }

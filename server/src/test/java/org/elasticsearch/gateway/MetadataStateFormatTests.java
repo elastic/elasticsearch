@@ -13,9 +13,9 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -730,18 +730,10 @@ public class MetadataStateFormatTests extends ESTestCase {
                     string = parser.text();
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     switch (fieldName) {
-                        case "double":
-                            aDouble = parser.doubleValue();
-                            break;
-                        case "int":
-                            aInt = parser.intValue();
-                            break;
-                        case "long":
-                            aLong = parser.longValue();
-                            break;
-                        default:
-                            fail("unexpected numeric value " + token);
-                            break;
+                        case "double" -> aDouble = parser.doubleValue();
+                        case "int" -> aInt = parser.intValue();
+                        case "long" -> aLong = parser.longValue();
+                        default -> fail("unexpected numeric value " + token);
                     }
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                     assertTrue("boolean".equals(fieldName));

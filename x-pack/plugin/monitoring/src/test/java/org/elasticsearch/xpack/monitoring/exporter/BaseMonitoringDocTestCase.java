@@ -193,17 +193,15 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
         node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final BytesReference xContent = XContentHelper.toXContent(node, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{"
-                + "\"uuid\":\"_uuid\","
-                + "\"host\":\"_host\","
-                + "\"transport_address\":\"_addr\","
-                + "\"ip\":\"_ip\","
-                + "\"name\":\"_name\","
-                + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                + "}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "uuid": "_uuid",
+              "host": "_host",
+              "transport_address": "_addr",
+              "ip": "_ip",
+              "name": "_name",
+              "timestamp": "2017-08-31T08:46:30.855Z"
+            }"""), xContent.utf8ToString());
     }
 
     public void testMonitoringNodeEqualsAndHashcode() {

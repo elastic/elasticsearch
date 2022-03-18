@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -120,7 +120,7 @@ public class PlanExecutor {
      * `nextPage` for internal callers (not from the APIs) without metrics reporting.
      */
     public void nextPageInternal(SqlConfiguration cfg, Cursor cursor, ActionListener<Page> listener) {
-        cursor.nextPage(cfg, client, writableRegistry, listener);
+        cursor.nextPage(cfg, client, listener);
     }
 
     public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {

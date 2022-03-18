@@ -13,9 +13,10 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -212,11 +213,21 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
         RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
         RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
+        RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
         RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
         RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
         RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING,
         RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS,
         RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
+        RecoverySettings.NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
         ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
         ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
         ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
@@ -239,6 +250,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
         GatewayService.RECOVER_AFTER_TIME_SETTING,
         PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
+        PersistedClusterStateService.DOCUMENT_PAGE_SIZE,
         NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
         NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
         NetworkModule.HTTP_TYPE_SETTING,
@@ -355,6 +367,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportSettings.TRACE_LOG_EXCLUDE_SETTING,
         TransportSettings.TRACE_LOG_INCLUDE_SETTING,
         TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
+        TransportSettings.RST_ON_CLOSE,
         NetworkService.NETWORK_SERVER,
         NetworkService.GLOBAL_NETWORK_HOST_SETTING,
         NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,
@@ -405,12 +418,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.KEEPALIVE_INTERVAL_SETTING,
         SearchService.MAX_KEEPALIVE_SETTING,
         SearchService.ALLOW_EXPENSIVE_QUERIES,
+        SearchService.CCS_VERSION_CHECK_SETTING,
         MultiBucketConsumerService.MAX_BUCKET_SETTING,
         SearchService.LOW_LEVEL_CANCELLATION_SETTING,
         SearchService.MAX_OPEN_SCROLL_CONTEXT,
         SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER,
         SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING,
         Node.WRITE_PORTS_FILE_SETTING,
+        Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
         Node.NODE_ATTRIBUTES,
         NodeRoleSettings.NODE_ROLES_SETTING,
@@ -494,7 +509,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
-        DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING
+        DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
+        StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

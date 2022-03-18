@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.convertToDocValuesQuery;
+
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() throws Exception {
@@ -51,31 +53,59 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
 
         String ip = "2001:db8::2:1";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, null));
+        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
 
         ip = "192.168.1.7";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, null));
+        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
 
         ip = "2001:db8::2:1";
         String prefix = ip + "/64";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, null));
+        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, MOCK_CONTEXT));
 
         ip = "192.168.1.7";
         prefix = ip + "/16";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
+        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, MOCK_CONTEXT));
+
+        ft = new IpFieldMapper.IpFieldType("field", false);
+
+        ip = "2001:db8::2:1";
+        assertEquals(
+            convertToDocValuesQuery(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip))),
+            ft.termQuery(ip, MOCK_CONTEXT)
+        );
+
+        ip = "192.168.1.7";
+        assertEquals(
+            convertToDocValuesQuery(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip))),
+            ft.termQuery(ip, MOCK_CONTEXT)
+        );
+
+        ip = "2001:db8::2:1";
+        prefix = ip + "/64";
+        assertEquals(
+            convertToDocValuesQuery(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64)),
+            ft.termQuery(prefix, MOCK_CONTEXT)
+        );
+
+        ip = "192.168.1.7";
+        prefix = ip + "/16";
+        assertEquals(
+            convertToDocValuesQuery(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16)),
+            ft.termQuery(prefix, MOCK_CONTEXT)
+        );
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
             false,
             false,
-            true,
+            false,
             null,
             null,
             Collections.emptyMap(),
             false
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testTermsQuery() {
@@ -83,21 +113,21 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
-            ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null)
+            ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), MOCK_CONTEXT)
         );
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
-            ft.termsQuery(Arrays.asList("::2", "::5"), null)
+            ft.termsQuery(Arrays.asList("::2", "::5"), MOCK_CONTEXT)
         );
 
         // if the list includes a prefix query we fallback to a bool query
         assertEquals(
             new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(ft.termQuery("::42", null), Occur.SHOULD)
+                new BooleanQuery.Builder().add(ft.termQuery("::42", MOCK_CONTEXT), Occur.SHOULD)
                     .add(ft.termQuery("::2/16", null), Occur.SHOULD)
                     .build()
             ),
-            ft.termsQuery(Arrays.asList("::42", "::2/16"), null)
+            ft.termsQuery(Arrays.asList("::42", "::2/16"), MOCK_CONTEXT)
         );
     }
 
@@ -106,47 +136,47 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddressPoint.MAX_VALUE),
-            ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
+            ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.2.0")),
-            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, null)
+            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.1.255")),
-            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, null)
+            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddressPoint.MAX_VALUE),
-            ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, null)
+            ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddressPoint.MAX_VALUE),
-            ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, null)
+            ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddresses.forString("2001:db8::ffff")),
-            ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, null)
+            ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddresses.forString("2001:db8::fffe")),
-            ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, null)
+            ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::2"), InetAddresses.forString("2001:db8::")),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, null)
+            ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, MOCK_CONTEXT)
         );
 
         // Upper bound is the min IP and is not inclusive
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, null));
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(
@@ -159,33 +189,132 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 null,
                 null,
                 null,
-                null
+                MOCK_CONTEXT
             )
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::fffe:ffff:ffff")),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, null)
+            ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, null)
+            ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, MOCK_CONTEXT)
         );
 
         assertEquals(
             // lower bound is ipv4, upper bound is ipv6
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("192.168.1.7"), InetAddresses.forString("2001:db8::")),
-            ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null)
+            ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        ft = new IpFieldMapper.IpFieldType("field", false);
+
+        assertEquals(
+            convertToDocValuesQuery(InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddressPoint.MAX_VALUE)),
+            ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.2.0"))
+            ),
+            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.1.255"))
+            ),
+            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddressPoint.MAX_VALUE)
+            ),
+            ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddressPoint.MAX_VALUE)
+            ),
+            ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddresses.forString("2001:db8::ffff"))
+            ),
+            ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddresses.forString("2001:db8::fffe"))
+            ),
+            ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::2"), InetAddresses.forString("2001:db8::"))
+            ),
+            // same lo/hi values but inclusive=false so this won't match anything
+            ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        // Upper bound is the min IP and is not inclusive
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
+
+        // Lower bound is the max IP and is not inclusive
+        assertEquals(
+            new MatchNoDocsQuery(),
+            ft.rangeQuery(
+                "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+                "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+                false,
+                true,
+                null,
+                null,
+                null,
+                MOCK_CONTEXT
+            )
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::fffe:ffff:ffff"))
+            ),
+            // same lo/hi values but inclusive=false so this won't match anything
+            ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE)
+            ),
+            // same lo/hi values but inclusive=false so this won't match anything
+            ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            // lower bound is ipv4, upper bound is ipv6
+            convertToDocValuesQuery(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("192.168.1.7"), InetAddresses.forString("2001:db8::"))
+            ),
+            ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, MOCK_CONTEXT)
         );
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
             false,
             false,
-            true,
+            false,
             null,
             null,
             Collections.emptyMap(),
@@ -193,9 +322,9 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null)
+            () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {

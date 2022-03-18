@@ -31,6 +31,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MapsTests extends ESTestCase {
 
@@ -47,10 +48,7 @@ public class MapsTests extends ESTestCase {
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
         final Map<String, String> concatenation = Maps.copyMapWithAddedEntry(map, key, value);
-        assertMapEntriesAndImmutability(
-            concatenation,
-            Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList())
-        );
+        assertMapEntriesAndImmutability(concatenation, Stream.concat(entries.stream(), Stream.of(entry(key, value))).toList());
     }
 
     public void testAddEntryInImmutableMap() {
@@ -66,10 +64,7 @@ public class MapsTests extends ESTestCase {
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
         final Map<String, String> add = Maps.copyMapWithAddedOrReplacedEntry(map, key, value);
-        assertMapEntriesAndImmutability(
-            add,
-            Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList())
-        );
+        assertMapEntriesAndImmutability(add, Stream.concat(entries.stream(), Stream.of(entry(key, value))).toList());
     }
 
     public void testReplaceEntryInImmutableMap() {
@@ -87,8 +82,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> replaced = Maps.copyMapWithAddedOrReplacedEntry(map, key, value);
         assertMapEntriesAndImmutability(
             replaced,
-            Stream.concat(entries.stream().filter(e -> key.equals(e.getKey()) == false), Stream.of(entry(key, value)))
-                .collect(Collectors.toUnmodifiableList())
+            Stream.concat(entries.stream().filter(e -> key.equals(e.getKey()) == false), Stream.of(entry(key, value))).toList()
         );
     }
 
@@ -163,7 +157,7 @@ public class MapsTests extends ESTestCase {
         List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10)).stream()
             .distinct()
             .map(key -> Tuple.tuple(key, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(tuples);
 
         SortedMap<String, String> sortedTuplesMap = tuples.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
@@ -206,6 +200,22 @@ public class MapsTests extends ESTestCase {
         }
     }
 
+    public void testCapacityIsEnoughForMapToNotBeResized() {
+        for (int i = 0; i < 1000; i++) {
+            int size = randomIntBetween(0, 1_000_000);
+            int capacity = Maps.capacity(size);
+            assertThat(size, lessThanOrEqualTo((int) (capacity * 0.75f)));
+        }
+    }
+
+    public void testCapacityForMaxSize() {
+        assertEquals(Integer.MAX_VALUE, Maps.capacity(Integer.MAX_VALUE));
+    }
+
+    public void testCapacityForZeroSize() {
+        assertEquals(1, Maps.capacity(0));
+    }
+
     @SuppressWarnings("unchecked")
     private static Object deepGet(String path, Object obj) {
         Object cur = obj;
@@ -239,10 +249,7 @@ public class MapsTests extends ESTestCase {
 
     private Map<String, Object> randomNestedMap(int level) {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
-        final Supplier<Object> arrayValueGenerator = () -> random().ints(randomInt(5))
-            .boxed()
-            .map(s -> (Object) s)
-            .collect(Collectors.toList());
+        final Supplier<Object> arrayValueGenerator = () -> random().ints(randomInt(5)).boxed().map(s -> (Object) s).toList();
 
         final Supplier<Object> mapSupplier;
         if (level > 0) {

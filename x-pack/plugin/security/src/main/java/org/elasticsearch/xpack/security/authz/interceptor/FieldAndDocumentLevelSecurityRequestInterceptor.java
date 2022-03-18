@@ -47,8 +47,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
+        if (requestInfo.getRequest()instanceof IndicesRequest indicesRequest
+            && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             // TODO: should we check is DLS/FLS feature allowed here
             if (supports(indicesRequest)) {
                 final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);

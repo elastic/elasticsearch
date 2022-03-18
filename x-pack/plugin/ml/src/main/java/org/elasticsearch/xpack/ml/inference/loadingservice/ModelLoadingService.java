@@ -181,6 +181,20 @@ public class ModelLoadingService implements ClusterStateListener {
         return localModelCache.get(modelAliasToId.getOrDefault(modelId, modelId)) != null;
     }
 
+    public ByteSizeValue getMaxCacheSize() {
+        return maxCacheSize;
+    }
+
+    /**
+     * This method is intended for use in telemetry, not making decisions about what will fit in the cache.
+     * The value returned could immediately be out-of-date if cache changes are in progress. It is good
+     * enough for external reporting of vaguely up-to-date status, but not for anything related to immediate
+     * additions to the cache.
+     */
+    public ByteSizeValue getCurrentCacheSize() {
+        return ByteSizeValue.ofBytes(localModelCache.weight());
+    }
+
     /**
      * Load the model for use by an ingest pipeline. The model will not be cached if there is no
      * ingest pipeline referencing it i.e. it is used in simulate mode
@@ -332,7 +346,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     handleLoadFailure(
                         modelId,
                         new ElasticsearchStatusException(
-                            "model [{}] with type [{}] is currently not usable in search.",
+                            "Trained model [{}] with type [{}] is currently not usable in search.",
                             RestStatus.BAD_REQUEST,
                             modelId,
                             trainedModelConfig.getModelType()
@@ -342,11 +356,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 }
                 handleLoadFailure(
                     modelId,
-                    new ElasticsearchStatusException(
-                        "model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
-                        RestStatus.BAD_REQUEST,
-                        modelId
-                    )
+                    new ElasticsearchStatusException("Trained model [{}] is not deployed.", RestStatus.BAD_REQUEST, modelId)
                 );
                 return;
             }
@@ -843,14 +853,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private static InferenceConfig inferenceConfigFromTargetType(TargetType targetType) {
-        switch (targetType) {
-            case REGRESSION:
-                return RegressionConfig.EMPTY_PARAMS;
-            case CLASSIFICATION:
-                return ClassificationConfig.EMPTY_PARAMS;
-            default:
-                throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
-        }
+        return switch (targetType) {
+            case REGRESSION -> RegressionConfig.EMPTY_PARAMS;
+            case CLASSIFICATION -> ClassificationConfig.EMPTY_PARAMS;
+        };
     }
 
     /**

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -296,7 +295,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().isSearchable()) {
+                    if (fieldContext.fieldType().isIndexed()) {
                         /*
                          * We can't look up the min and max date without both the
                          * search index (isSearchable) and the resolution which
@@ -316,11 +315,15 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                                // Ignore queries that aren't "MUST"
-                                if (occur != Occur.MUST) {
-                                    return QueryVisitor.EMPTY_VISITOR;
+                                // Only extract bounds queries that must filter the results
+                                switch (occur) {
+                                    case MUST:
+                                    case FILTER:
+                                        return this;
+
+                                    default:
+                                        return QueryVisitor.EMPTY_VISITOR;
                                 }
-                                return this;
                             };
 
                             @Override
@@ -330,8 +333,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                             @Override
                             public void visitLeaf(Query query) {
-                                if (query instanceof PointRangeQuery) {
-                                    PointRangeQuery prq = (PointRangeQuery) query;
+                                if (query instanceof PointRangeQuery prq) {
                                     range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
                                     range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
                                 }

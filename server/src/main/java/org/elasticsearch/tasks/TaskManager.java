@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -57,7 +58,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -75,7 +75,7 @@ public class TaskManager implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
-    private final List<String> taskHeaders;
+    private final String[] taskHeaders;
     private final ThreadPool threadPool;
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -98,7 +98,7 @@ public class TaskManager implements ClusterStateApplier {
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
-        this.taskHeaders = new ArrayList<>(taskHeaders);
+        this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
@@ -150,8 +150,7 @@ public class TaskManager implements ClusterStateApplier {
         TransportAction<Request, Response> action,
         Request request,
         Transport.Connection localConnection,
-        BiConsumer<Task, Response> onResponse,
-        BiConsumer<Task, Exception> onFailure
+        TaskListener<Response> taskListener
     ) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
@@ -171,19 +170,28 @@ public class TaskManager implements ClusterStateApplier {
             @Override
             public void onResponse(Response response) {
                 try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                    release();
                 } finally {
-                    onResponse.accept(task, response);
+                    taskListener.onResponse(task, response);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                    release();
                 } finally {
-                    onFailure.accept(task, e);
+                    taskListener.onFailure(task, e);
                 }
+            }
+
+            @Override
+            public String toString() {
+                return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+            }
+
+            private void release() {
+                Releasables.close(unregisterChildNode, () -> unregister(task));
             }
         });
         return task;
@@ -397,7 +405,7 @@ public class TaskManager implements ClusterStateApplier {
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }
-        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).collect(Collectors.toUnmodifiableList());
+        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).toList();
     }
 
     /**
@@ -729,5 +737,9 @@ public class TaskManager implements ClusterStateApplier {
             assert false : "TaskCancellationService is not initialized";
             throw new IllegalStateException("TaskCancellationService is not initialized");
         }
+    }
+
+    public List<String> getTaskHeaders() {
+        return List.of(taskHeaders);
     }
 }

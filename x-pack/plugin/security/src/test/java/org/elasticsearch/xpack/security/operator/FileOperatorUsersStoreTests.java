@@ -222,20 +222,24 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     }
 
     public void testParseConfig() throws IOException {
-        String config = "" + "operator:\n" + "  - usernames: [\"operator_1\"]\n";
+        String config = """
+            operator:
+              - usernames: ["operator_1"]
+            """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
             assertEquals(1, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_1")), groups.get(0));
         }
 
-        config = ""
-            + "operator:\n"
-            + "  - usernames: [\"operator_1\",\"operator_2\"]\n"
-            + "    realm_name: \"file1\"\n"
-            + "    realm_type: \"file\"\n"
-            + "    auth_type: \"realm\"\n"
-            + "  - usernames: [\"internal_system\"]\n";
+        config = """
+            operator:
+              - usernames: ["operator_1","operator_2"]
+                realm_name: "file1"
+                realm_type: "file"
+                auth_type: "realm"
+              - usernames: ["internal_system"]
+            """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
@@ -244,12 +248,13 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             assertEquals(new FileOperatorUsersStore.Group(Set.of("internal_system")), groups.get(1));
         }
 
-        config = ""
-            + "operator:\n"
-            + "  - realm_name: \"file1\"\n"
-            + "    usernames: [\"internal_system\"]\n"
-            + "  - auth_type: \"realm\"\n"
-            + "    usernames: [\"operator_1\",\"operator_2\"]\n";
+        config = """
+            operator:
+              - realm_name: "file1"
+                usernames: ["internal_system"]
+              - auth_type: "realm"
+                usernames: ["operator_1","operator_2"]
+            """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
@@ -260,20 +265,31 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     }
 
     public void testParseInvalidConfig() throws IOException {
-        String config = "" + "operator:\n" + "  - usernames: [\"operator_1\"]\n" + "    realm_type: \"native\"\n";
+        String config = """
+            operator:
+              - usernames: ["operator_1"]
+                realm_type: "native"
+            """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getCause().getMessage(), containsString("[realm_type] only supports [file]"));
         }
 
-        config = "" + "operator:\n" + "  - usernames: [\"operator_1\"]\n" + "    auth_type: \"token\"\n";
+        config = """
+            operator:
+              - usernames: ["operator_1"]
+                auth_type: "token"
+            """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getCause().getMessage(), containsString("[auth_type] only supports [realm]"));
         }
 
-        config = "" + "operator:\n" + "    auth_type: \"realm\"\n";
+        config = """
+            operator:
+                auth_type: "realm"
+            """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getMessage(), containsString("Required [usernames]"));

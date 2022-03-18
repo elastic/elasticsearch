@@ -108,10 +108,20 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
             return factory;
         });
 
-        String template = "{ \"template\" : { \"source\" : {\"term\":{\"field\":\"{{_user.metadata.oidc(email)}}\"}} } }";
+        String template = """
+            {
+              "template": {
+                "source": {
+                  "term": {
+                    "field": "{{_user.metadata.oidc(email)}}"
+                  }
+                }
+              }
+            }""";
 
         String evaluated = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, user);
-        assertThat(evaluated, equalTo("{\"term\":{\"field\":\"sample@example.com\"}}"));
+        assertThat(evaluated, equalTo("""
+            {"term":{"field":"sample@example.com"}}"""));
     }
 
     public void testSkipTemplating() throws Exception {

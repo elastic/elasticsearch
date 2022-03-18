@@ -56,7 +56,11 @@ final class FetchSearchPhase extends SearchPhase {
             searchPhaseController,
             aggregatedDfs,
             context,
-            (response, queryPhaseResults) -> new ExpandSearchPhase(context, response, queryPhaseResults)
+            (response, queryPhaseResults) -> new ExpandSearchPhase(
+                context,
+                response,
+                () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
+            )
         );
     }
 
@@ -123,7 +127,7 @@ final class FetchSearchPhase extends SearchPhase {
             // query AND fetch optimization
             finishPhase.run();
         } else {
-            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
+            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {

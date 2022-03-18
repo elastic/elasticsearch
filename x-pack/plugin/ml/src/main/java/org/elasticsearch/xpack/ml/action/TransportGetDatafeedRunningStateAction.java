@@ -120,7 +120,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
                             Collectors.toMap(
                                 StartDatafeedAction.DatafeedParams::getDatafeedId,
                                 // If it isn't assigned to a node, assume that look back hasn't completed yet
-                                params -> new Response.RunningState(params.getEndTime() == null, false)
+                                params -> new Response.RunningState(params.getEndTime() == null, false, null)
                             )
                         )
                 )

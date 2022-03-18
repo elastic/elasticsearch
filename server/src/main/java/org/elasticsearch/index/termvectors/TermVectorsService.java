@@ -180,7 +180,7 @@ public class TermVectorsService {
             return false;
         }
         // and must be indexed
-        if (fieldType.isSearchable() == false) {
+        if (fieldType.isIndexed() == false) {
             return false;
         }
         return true;

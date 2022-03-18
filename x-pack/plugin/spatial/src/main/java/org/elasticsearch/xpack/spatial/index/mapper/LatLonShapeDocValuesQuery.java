@@ -138,8 +138,7 @@ class LatLonShapeDocValuesQuery extends Query {
         final List<Component2D> components2D = new ArrayList<>(geometries.length);
         for (int i = 0; i < geometries.length; i++) {
             LatLonGeometry geometry = geometries[i];
-            if (geometry instanceof Rectangle) {
-                Rectangle r = (Rectangle) geometry;
+            if (geometry instanceof Rectangle r) {
                 if (r.minLon > r.maxLon) {
                     components2D.add(LatLonGeometry.create(new Rectangle(r.minLat, r.maxLat, r.minLon, 180)));
                     components2D.add(LatLonGeometry.create(new Rectangle(r.minLat, r.maxLat, -180, r.maxLon)));

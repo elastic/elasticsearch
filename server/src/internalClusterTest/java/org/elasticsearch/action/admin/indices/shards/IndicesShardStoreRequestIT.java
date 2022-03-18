@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -77,7 +77,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index).shardStatuses("all")).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
-        assertThat(shardStores.values().size(), equalTo(2));
+        assertThat(shardStores.size(), equalTo(2));
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.entrySet()) {
             for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.getValue()) {
                 assertThat(storeStatus.getAllocationId(), notNullValue());

@@ -328,7 +328,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertTrue(foundThrottledMessage);
         // even though it is throttled, move command still forces allocation
 
-        clusterState = commandsResult.getClusterState();
+        clusterState = commandsResult.clusterState();
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
@@ -358,16 +358,10 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
             metadataBuilder.put(indexMetadata, false);
             switch (recoveryType) {
-                case 0:
-                    routingTableBuilder.addAsRecovery(indexMetadata);
-                    break;
-                case 1:
-                    routingTableBuilder.addAsFromCloseToOpen(indexMetadata);
-                    break;
-                case 2:
-                    routingTableBuilder.addAsFromDangling(indexMetadata);
-                    break;
-                case 3:
+                case 0 -> routingTableBuilder.addAsRecovery(indexMetadata);
+                case 1 -> routingTableBuilder.addAsFromCloseToOpen(indexMetadata);
+                case 2 -> routingTableBuilder.addAsFromDangling(indexMetadata);
+                case 3 -> {
                     snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsNewRestore(
                         indexMetadata,
@@ -379,8 +373,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                         ),
                         new HashSet<>()
                     );
-                    break;
-                case 4:
+                }
+                case 4 -> {
                     snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsRestore(
                         indexMetadata,
@@ -391,12 +385,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         )
                     );
-                    break;
-                case 5:
-                    routingTableBuilder.addAsNew(indexMetadata);
-                    break;
-                default:
-                    throw new IndexOutOfBoundsException();
+                }
+                case 5 -> routingTableBuilder.addAsNew(indexMetadata);
+                default -> throw new IndexOutOfBoundsException();
             }
         }
 

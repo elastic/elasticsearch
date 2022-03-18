@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
 
@@ -81,8 +79,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
             return YES_NOT_DEDICATED_FROZEN_NODE;
         }
 
-        final Settings indexSettings = indexMetadata.getSettings();
-        if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
+        if (indexMetadata.isPartialSearchableSnapshot()) {
             return YES_IS_PARTIAL_SEARCHABLE_SNAPSHOT;
         }
 

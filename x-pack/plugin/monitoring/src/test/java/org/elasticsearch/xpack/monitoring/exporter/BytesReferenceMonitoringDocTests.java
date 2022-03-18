@@ -114,23 +114,24 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = "{"
-            + "  \"cluster_uuid\": \"_cluster\","
-            + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
-            + "  \"interval_ms\": 1506593717631,"
-            + "  \"type\": \"_type\","
-            + "  \"source_node\": {"
-            + "    \"uuid\": \"_uuid\","
-            + "    \"host\": \"_host\","
-            + "    \"transport_address\": \"_addr\","
-            + "    \"ip\": \"_ip\","
-            + "    \"name\": \"_name\","
-            + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-            + "  },"
-            + "  \"_type\": {"
-            + "    \"field\": \"value\""
-            + "  }"
-            + "}";
+        final String expected = """
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "2017-08-09T08:18:59.402Z",
+              "interval_ms": 1506593717631,
+              "type": "_type",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "_type": {
+                "field": "value"
+              }
+            }""";
         assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 

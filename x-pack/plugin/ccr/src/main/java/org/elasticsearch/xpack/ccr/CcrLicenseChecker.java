@@ -21,8 +21,8 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -393,11 +393,11 @@ public class CcrLicenseChecker {
         return securityContext.getUser();
     }
 
-    public static Client wrapClient(Client client, Map<String, String> headers) {
+    public static Client wrapClient(Client client, Map<String, String> headers, ClusterState clusterState) {
         if (headers.isEmpty()) {
             return client;
         } else {
-            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(headers);
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState);
             if (filteredHeaders.isEmpty()) {
                 return client;
             }

@@ -5,19 +5,16 @@ This section discusses the changes that you need to be aware of to migrate
 your application to {version}. For more information about what's new in this
 release, see the <<release-highlights>> and <<es-release-notes>>.
 
-As {es} introduces new features and improves existing ones,
-the changes sometimes make older settings, APIs, and parameters obsolete.
-The obsolete functionality is typically deprecated in a minor release and
-removed in the subsequent major release.
-This enables applications to continue working unchanged
-across most minor version upgrades.
-Breaking changes introduced in minor releases are
-generally limited to critical security fixes
-and bug fixes that correct unintended behavior.
+As {es} introduces new features and improves existing ones, the changes
+sometimes make older settings, APIs, and parameters obsolete. We typically
+deprecate obsolete functionality as part of a release. If possible, we support
+the deprecated functionality for several subsequent releases before removing it.
+This enables applications to continue working unchanged while you prepare to
+migrate away from the deprecated functionality.
 
-To get the most out of {es} and facilitate future upgrades,
-we strongly encourage migrating
-away from using deprecated functionality as soon as possible.
+To get the most out of {es} and facilitate future upgrades, we strongly
+encourage migrating away from using deprecated functionality as soon as
+possible.
 
 To give you insight into what deprecated features you're using, {es}:
 

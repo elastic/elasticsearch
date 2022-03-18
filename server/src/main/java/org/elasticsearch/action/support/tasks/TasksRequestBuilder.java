@@ -9,7 +9,7 @@ package org.elasticsearch.action.support.tasks;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 

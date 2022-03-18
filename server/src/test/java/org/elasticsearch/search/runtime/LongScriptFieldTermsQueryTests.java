@@ -37,20 +37,15 @@ public class LongScriptFieldTermsQueryTests extends AbstractLongScriptFieldQuery
         String fieldName = orig.fieldName();
         LongSet terms = orig.terms();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
                 terms = new LongHashSet(terms);
                 while (false == terms.add(randomLong())) {
                     // Random long was already in the set
                 }
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new LongScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
     }

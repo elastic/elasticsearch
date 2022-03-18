@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -155,8 +156,9 @@ public class PointInTimeIT extends ESIntegTestCase {
             final Set<String> dataNodes = clusterService().state()
                 .nodes()
                 .getDataNodes()
+                .values()
                 .stream()
-                .map(e -> e.getValue().getId())
+                .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
             assertAcked(
@@ -280,10 +282,8 @@ public class PointInTimeIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 100)));
-        assertAcked(
-            prepareCreate("test").setSettings(settings)
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
-        );
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
+            {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
         String pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
         try {
@@ -323,9 +323,10 @@ public class PointInTimeIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
-            .collect(Collectors.toList());
+            .map(DiscoveryNode::getName)
+            .toList();
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 
         createIndex(

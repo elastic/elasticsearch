@@ -9,11 +9,12 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,7 +58,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence
                 try {
                     searchScrollRequest.fromXContent(xContentParser);
-                } catch (IOException e) {
+                } catch (IOException | XContentParseException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
             }

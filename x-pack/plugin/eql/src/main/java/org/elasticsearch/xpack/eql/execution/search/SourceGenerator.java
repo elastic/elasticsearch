@@ -102,8 +102,8 @@ public abstract class SourceGenerator {
                 Attribute attr = as.attribute();
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
-                if (attr instanceof FieldAttribute) {
-                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
+                if (attr instanceof FieldAttribute fieldAttribute) {
+                    FieldAttribute fa = fieldAttribute.exactAttribute();
 
                     sortBuilder = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
                         .unmappedType(fa.dataType().esType());

@@ -20,9 +20,11 @@ import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndi
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,6 +33,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -109,7 +112,8 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);
                         }
-                    }
+                    },
+                    newExecutor()
                 );
             }
 
@@ -119,6 +123,11 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                 deleteListener.onFailure(e);
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {

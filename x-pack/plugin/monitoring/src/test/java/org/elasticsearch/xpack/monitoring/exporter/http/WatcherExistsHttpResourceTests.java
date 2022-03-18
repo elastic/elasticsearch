@@ -66,12 +66,11 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoCheckExistsAsElectedMaster() {
         whenElectedMaster();
 
-        final String[] noWatcher = {
-            "{}",
-            "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":false}}}",
-            "{\"features\":{\"watcher\":{\"available\":false,\"enabled\":true}}}",
-            "{\"features\":{\"watcher\":{\"available\":true}}}",
-            "{\"features\":{\"watcher\":{\"enabled\":true}}}" };
+        final String[] noWatcher = { "{}", """
+            {"features":{"watcher":{"available":true,"enabled":false}}}""", """
+            {"features":{"watcher":{"available":false,"enabled":true}}}""", """
+            {"features":{"watcher":{"available":true}}}""", """
+            {"features":{"watcher":{"enabled":true}}}""" };
 
         final String endpoint = "/_xpack";
         // success only implies that it responded; it also needs to be available and enabled
@@ -110,8 +109,10 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         whenElectedMaster();
 
         final String[] errorWatcher = {
-            "{\"features\":{}}", // missing watcher object 'string'
-            "{\"watcher\":{\"enabled\":true,\"available\":true}}", // missing features outer object
+            """
+                {"features":{}}""", // missing watcher object 'string'
+            """
+                {"watcher":{"enabled":true,"available":true}}""", // missing features outer object
             "{{}" // extra {
         };
 

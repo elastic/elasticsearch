@@ -22,6 +22,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -70,35 +71,34 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
         // Add entry to source index and then refresh:
         Request indexRequest = new Request("PUT", "/my-source-index/_doc/elastic.co");
-        indexRequest.setJsonEntity(
-            "{"
-                + "\"host\": \"elastic.co\","
-                + "\"globalRank\": 25,"
-                + "\"tldRank\": 7,"
-                + "\"tld\": \"co\", "
-                + "\"date\": {"
-                + "\"gte\" : \"2021-09-05\","
-                + "\"lt\" : \"2021-09-07\""
-                + "}, "
-                + "\"integer\": {"
-                + "\"gte\" : 40,"
-                + "\"lt\" : 42"
-                + "}, "
-                + "\"long\": {"
-                + "\"gte\" : 8000000,"
-                + "\"lt\" : 9000000"
-                + "}, "
-                + "\"double\": {"
-                + "\"gte\" : 10.10,"
-                + "\"lt\" : 20.20"
-                + "}, "
-                + "\"float\": {"
-                + "\"gte\" : 10000.5,"
-                + "\"lt\" : 10000.7"
-                + "}, "
-                + "\"ip\": \"100.0.0.0/4\""
-                + "}"
-        );
+        indexRequest.setJsonEntity("""
+            {
+              "host": "elastic.co",
+              "globalRank": 25,
+              "tldRank": 7,
+              "tld": "co",
+              "date": {
+                "gte": "2021-09-05",
+                "lt": "2021-09-07"
+              },
+              "integer": {
+                "gte": 40,
+                "lt": 42
+              },
+              "long": {
+                "gte": 8000000,
+                "lt": 9000000
+              },
+              "double": {
+                "gte": 10.1,
+                "lt": 20.2
+              },
+              "float": {
+                "gte": 10000.5,
+                "lt": 10000.7
+              },
+              "ip": "100.0.0.0/4"
+            }""");
         assertOK(client().performRequest(indexRequest));
         Request refreshRequest = new Request("POST", "/my-source-index/_refresh");
         assertOK(client().performRequest(refreshRequest));
@@ -109,13 +109,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":["
-                + "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\""
-                + field
-                + "\",\"target_field\":\"entry\"}}"
-                + "]}"
-        );
+        putPipelineRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "processors": [ { "enrich": { "policy_name": "my_policy", "field": "%s", "target_field": "entry" } } ]
+            }""", field));
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index document using pipeline with enrich processor:
@@ -205,9 +202,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         setupGenericLifecycleTest(false, "host", "match", "elastic.co");
 
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/another_pipeline");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[" + "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\"host\",\"target_field\":\"entry\"}}" + "]}"
-        );
+        putPipelineRequest.setJsonEntity("""
+            {
+              "processors": [ { "enrich": { "policy_name": "my_policy", "field": "host", "target_field": "entry" } } ]
+            }""");
         assertOK(client().performRequest(putPipelineRequest));
 
         ResponseException exc = expectThrows(
@@ -251,20 +249,41 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public static String createSourceIndexMapping() {
-        return "\"properties\":"
-            + "{\"host\": {\"type\":\"keyword\"},"
-            + "\"globalRank\":{\"type\":\"keyword\"},"
-            + "\"tldRank\":{\"type\":\"keyword\"},"
-            + "\"tld\":{\"type\":\"keyword\"},"
-            + "\"date\":{\"type\":\"date_range\""
-            + (randomBoolean() ? "" : ", \"format\": \"yyyy-MM-dd\"")
-            + "},"
-            + "\"integer\":{\"type\":\"integer_range\"},"
-            + "\"long\":{\"type\":\"long_range\"},"
-            + "\"double\":{\"type\":\"double_range\"},"
-            + "\"float\":{\"type\":\"float_range\"},"
-            + "\"ip\":{\"type\":\"ip_range\"}"
-            + "}";
+        return String.format(Locale.ROOT, """
+            "properties": {
+                "host": {
+                  "type": "keyword"
+                },
+                "globalRank": {
+                  "type": "keyword"
+                },
+                "tldRank": {
+                  "type": "keyword"
+                },
+                "tld": {
+                  "type": "keyword"
+                },
+                "date": {
+                  "type": "date_range"
+                  %s
+                },
+                "integer": {
+                  "type": "integer_range"
+                },
+                "long": {
+                  "type": "long_range"
+                },
+                "double": {
+                  "type": "double_range"
+                },
+                "float": {
+                  "type": "float_range"
+                },
+                "ip": {
+                  "type": "ip_range"
+                }
+              }
+            """, randomBoolean() ? "" : ", \"format\": \"yyyy-MM-dd\"");
     }
 
     protected static Map<String, Object> toMap(Response response) throws IOException {
@@ -277,7 +296,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     private static void verifyEnrichMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"enrich_coordinator_stats\"}}}");
+        request.setJsonEntity("""
+            {"query": {"term": {"type": "enrich_coordinator_stats"}}}""");
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));

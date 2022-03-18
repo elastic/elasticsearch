@@ -129,8 +129,8 @@ public final class RuntimeUtils {
             return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
         }
 
-        if (ref instanceof ComputedRef) {
-            Pipe proc = ((ComputedRef) ref).processor();
+        if (ref instanceof ComputedRef computedRef) {
+            Pipe proc = computedRef.processor();
             // collect hitNames
             Set<String> hitNames = new LinkedHashSet<>();
             proc = proc.transformDown(ReferenceInput.class, l -> {
@@ -174,8 +174,8 @@ public final class RuntimeUtils {
         BoolQueryBuilder bool = null;
         QueryBuilder query = source.query();
 
-        if (query instanceof BoolQueryBuilder) {
-            bool = (BoolQueryBuilder) query;
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            bool = boolQueryBuilder;
             if (filter != null && bool.filter().contains(filter) == false) {
                 bool.filter(filter);
             }
@@ -201,8 +201,8 @@ public final class RuntimeUtils {
         BoolQueryBuilder bool = null;
         QueryBuilder query = source.query();
 
-        if (query instanceof BoolQueryBuilder) {
-            bool = (BoolQueryBuilder) query;
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            bool = boolQueryBuilder;
             if (oldFilters != null) {
                 bool.filter().removeAll(oldFilters);
             }

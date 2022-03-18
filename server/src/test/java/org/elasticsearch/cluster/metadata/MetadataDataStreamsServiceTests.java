@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
@@ -49,10 +48,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -75,19 +74,11 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
-        List<String> backingIndexNames = ds.getIndices()
-            .stream()
-            .filter(x -> x.getName().startsWith(".ds-"))
-            .map(Index::getName)
-            .collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().filter(x -> x.getName().startsWith(".ds-")).map(Index::getName).toList();
         assertThat(
             backingIndexNames,
             containsInAnyOrder(
-                Arrays.stream(backingIndices)
-                    .map(IndexMetadata::getIndex)
-                    .map(Index::getName)
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY)
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
         IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
@@ -113,10 +104,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -136,7 +127,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         List<Index> expectedBackingIndices = ds.getIndices()
             .stream()
             .filter(x -> x.getName().equals(indexToRemove.getIndex().getName()) == false)
-            .collect(Collectors.toList());
+            .toList();
         assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
 
         IndexMetadata removedIndex = newState.metadata().getIndices().get(indexToRemove.getIndex().getName());
@@ -162,10 +153,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -211,10 +202,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -241,19 +232,11 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
-        List<String> backingIndexNames = ds.getIndices()
-            .stream()
-            .map(Index::getName)
-            .filter(name -> name.startsWith(".ds-"))
-            .collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).filter(name -> name.startsWith(".ds-")).toList();
         assertThat(
             backingIndexNames,
             containsInAnyOrder(
-                Arrays.stream(backingIndices)
-                    .map(IndexMetadata::getIndex)
-                    .map(Index::getName)
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY)
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
         IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
@@ -279,10 +262,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -315,19 +298,11 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
-        List<String> backingIndexNames = ds.getIndices()
-            .stream()
-            .map(Index::getName)
-            .filter(x -> x.startsWith(".ds-"))
-            .collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).filter(x -> x.startsWith(".ds-")).toList();
         assertThat(
             backingIndexNames,
             containsInAnyOrder(
-                Arrays.stream(backingIndices)
-                    .map(IndexMetadata::getIndex)
-                    .map(Index::getName)
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY)
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
         IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
@@ -378,10 +353,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 

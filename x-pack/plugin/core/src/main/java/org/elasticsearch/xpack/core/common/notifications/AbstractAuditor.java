@@ -14,14 +14,13 @@ import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTem
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -70,11 +69,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             try {
                 return new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
                     ComposableIndexTemplate.parse(
-                        JsonXContent.jsonXContent.createParser(
-                            NamedXContentRegistry.EMPTY,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            templateConfig.loadBytes()
-                        )
+                        JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
                     )
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {

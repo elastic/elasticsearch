@@ -67,7 +67,7 @@ public class TaskAssertions {
         logger.info("--> checking that all tasks with prefix {} have finished", actionPrefix);
         assertBusy(() -> {
             final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionPrefix)));
+            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().startsWith(actionPrefix)));
         });
     }
 }

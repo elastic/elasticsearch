@@ -22,10 +22,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -413,8 +413,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             )
             .metadata(
                 Metadata.builder()
-                    .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAll(indices).build())
-                    .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAll(legacyTemplates).build())
+                    .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAllFromMap(indices).build())
+                    .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAllFromMap(legacyTemplates).build())
                     .indexTemplates(composableTemplates)
                     .build()
             )

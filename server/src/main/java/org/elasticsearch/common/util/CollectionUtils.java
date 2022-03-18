@@ -146,8 +146,7 @@ public class CollectionUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) value;
+        if (value instanceof Map<?, ?> map) {
             return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
@@ -347,4 +346,7 @@ public class CollectionUtils {
         return list.isEmpty() ? List.of() : Collections.unmodifiableList(list);
     }
 
+    public static <E> List<E> limitSize(List<E> list, int size) {
+        return list.size() <= size ? list : list.subList(0, size);
+    }
 }

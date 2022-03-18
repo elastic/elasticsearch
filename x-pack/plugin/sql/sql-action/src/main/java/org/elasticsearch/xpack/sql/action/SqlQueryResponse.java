@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
@@ -17,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -209,10 +210,9 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
             if (columns != null) {
                 builder.startArray("columns");
-                {
-                    for (ColumnInfo column : columns) {
-                        column.toXContent(builder, params);
-                    }
+
+                for (ColumnInfo column : columns) {
+                    toXContent(column, builder, params);
                 }
                 builder.endArray();
             }
@@ -254,11 +254,27 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     }
 
     /**
+     * See sql-proto {@link org.elasticsearch.xpack.sql.proto.Payloads#generate(JsonGenerator, ColumnInfo)}
+     */
+    private static XContentBuilder toXContent(ColumnInfo info, XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        String table = info.table();
+        if (table != null && table.isEmpty() == false) {
+            builder.field("table", table);
+        }
+        builder.field("name", info.name());
+        builder.field("type", info.esType());
+        if (info.displaySize() != null) {
+            builder.field("display_size", info.displaySize());
+        }
+        return builder.endObject();
+    }
+
+    /**
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
-        if (value instanceof ZonedDateTime) {
-            ZonedDateTime zdt = (ZonedDateTime) value;
+        if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
             if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,6 +20,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
@@ -40,6 +42,7 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -135,7 +138,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -162,7 +165,10 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
                         true
                     ),
                     new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name")
+                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
+                    Version.CURRENT,
+                    Authentication.AuthenticationType.API_KEY,
+                    Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(20))
                 )
             ).writeToContext(threadContext);
         }
@@ -220,20 +226,10 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
     }
 
     private void assertContainsAttributeWithValue(String message, String attribute, String value) {
-        assertThat(
-            message,
-            containsString(
-                "<saml2:Attribute FriendlyName=\""
-                    + attribute
-                    + "\" Name=\"https://saml.elasticsearch"
-                    + ".org/attributes/"
-                    + attribute
-                    + "\" NameFormat=\"urn:oasis:names:tc:SAML:2.0:attrname-format:uri\"><saml2:AttributeValue "
-                    + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"xsd:string\">"
-                    + value
-                    + "</saml2:AttributeValue></saml2"
-                    + ":Attribute>"
-            )
-        );
+        assertThat(message, containsString("""
+            <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
+            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml2:AttributeValue \
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xsd:string">%s</saml2:AttributeValue>\
+            </saml2:Attribute>""".formatted(attribute, attribute, value)));
     }
 }

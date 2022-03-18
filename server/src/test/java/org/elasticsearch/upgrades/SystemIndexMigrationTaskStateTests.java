@@ -14,13 +14,16 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTestCase<SystemIndexMigrationTaskState> {
 
     @Override
     protected SystemIndexMigrationTaskState createTestInstance() {
+        return randomSystemIndexMigrationTask();
+    }
+
+    static SystemIndexMigrationTaskState randomSystemIndexMigrationTask() {
         return new SystemIndexMigrationTaskState(
             randomAlphaOfLengthBetween(5, 20),
             randomAlphaOfLengthBetween(5, 20),
@@ -28,27 +31,23 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
         );
     }
 
-    private Map<String, Object> randomFeatureCallbackMetadata() {
+    private static Map<String, Object> randomFeatureCallbackMetadata() {
         return randomMap(0, 10, () -> new Tuple<>(randomAlphaOfLength(5), randomMetadataValue()));
     }
 
-    private Object randomMetadataValue() {
-        switch (randomIntBetween(0, 7)) {
+    private static Object randomMetadataValue() {
+        switch (randomIntBetween(0, 5)) {
             case 0:
                 return randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(5), randomMetadataValue()));
             case 1:
-                return randomList(0, 3, this::randomMetadataValue);
+                return randomList(0, 3, SystemIndexMigrationTaskStateTests::randomMetadataValue);
             case 2:
                 return randomLong();
             case 3:
-                return randomShort();
-            case 4:
                 return randomBoolean();
-            case 5:
-                return randomFloat();
-            case 6:
+            case 4:
                 return randomDouble();
-            case 7:
+            case 5:
                 return randomAlphaOfLengthBetween(5, 10);
         }
         throw new AssertionError("bad randomization");
@@ -76,7 +75,10 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
                 feature = randomValueOtherThan(instance.getCurrentFeature(), () -> randomAlphaOfLengthBetween(5, 20));
                 break;
             case 2:
-                featureMetadata = randomValueOtherThan(instance.getFeatureCallbackMetadata(), this::randomFeatureCallbackMetadata);
+                featureMetadata = randomValueOtherThan(
+                    instance.getFeatureCallbackMetadata(),
+                    SystemIndexMigrationTaskStateTests::randomFeatureCallbackMetadata
+                );
                 break;
             default:
                 assert false : "invalid randomization case";
@@ -87,13 +89,8 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Collections.singletonList(
-                new NamedWriteableRegistry.Entry(
-                    SystemIndexMigrationTaskState.class,
-                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                    SystemIndexMigrationTaskState::new
-                )
-            )
+            SystemIndexMigrationExecutor.getNamedWriteables()
+
         );
     }
 

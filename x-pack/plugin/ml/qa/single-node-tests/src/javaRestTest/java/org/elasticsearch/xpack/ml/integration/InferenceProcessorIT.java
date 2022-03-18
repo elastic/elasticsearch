@@ -220,21 +220,18 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
         createdPipelines.add("regression-model-deprecated-pipeline");
         Request putPipeline = new Request("PUT", "_ingest/pipeline/regression-model-deprecated-pipeline");
-        putPipeline.setJsonEntity(
-            "{\n"
-                + "  \"processors\": [\n"
-                + "    {\n"
-                + "      \"inference\" : {\n"
-                + "        \"model_id\" : \""
-                + MODEL_ID
-                + "\",\n"
-                + "        \"inference_config\": {\"regression\": {}},\n"
-                + "        \"field_mappings\": {}\n"
-                + "      }\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}"
-        );
+        putPipeline.setJsonEntity("""
+            {
+              "processors": [
+                {
+                  "inference" : {
+                    "model_id" : "%s",
+                    "inference_config": {"regression": {}},
+                    "field_mappings": {}
+                  }
+                }
+              ]
+            }""".formatted(MODEL_ID));
 
         RequestOptions ro = expectWarnings("Deprecated field [field_mappings] used, expected [field_map] instead");
         putPipeline.setOptions(ro);
@@ -286,22 +283,21 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
     private void putPipeline(String modelId, String pipelineName) throws IOException {
         Request putPipeline = new Request("PUT", "_ingest/pipeline/" + pipelineName);
-        putPipeline.setJsonEntity(
-            "          {\n"
-                + "            \"processors\": [\n"
-                + "              {\n"
-                + "                \"inference\" : {\n"
-                + "                  \"model_id\" : \""
-                + modelId
-                + "\",\n"
-                + "                  \"inference_config\": {\"regression\": {}},\n"
-                + "                  \"target_field\": \"regression_field\",\n"
-                + "                  \"field_map\": {}\n"
-                + "                }\n"
-                + "              }\n"
-                + "            ]\n"
-                + "          }"
-        );
+        putPipeline.setJsonEntity("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s",
+                    "inference_config": {
+                      "regression": {}
+                    },
+                    "target_field": "regression_field",
+                    "field_map": {}
+                  }
+                }
+              ]
+            }""".formatted(modelId));
 
         assertThat(client().performRequest(putPipeline).getStatusLine().getStatusCode(), equalTo(200));
     }

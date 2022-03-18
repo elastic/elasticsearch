@@ -13,14 +13,15 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -28,7 +29,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 
 import java.io.IOException;
@@ -76,9 +77,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(0, reverseNested.getDocCount());
 
-                InternalMax max = (InternalMax) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
+                Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
+                assertEquals(Double.NEGATIVE_INFINITY, max.value(), Double.MIN_VALUE);
             }
         }
     }
@@ -96,14 +97,20 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
                         document.add(
-                            new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE)
+                            new Field(
+                                IdFieldMapper.NAME,
+                                Uid.encodeId(Integer.toString(i)),
+                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
+                            )
                         );
                         document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
                     Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
@@ -132,9 +139,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(expectedParentDocs, reverseNested.getDocCount());
 
-                InternalMax max = (InternalMax) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
+                Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+                assertEquals(expectedMaxValue, max.value(), Double.MIN_VALUE);
             }
         }
     }
@@ -157,13 +164,19 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
                         document.add(
-                            new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE)
+                            new Field(
+                                IdFieldMapper.NAME,
+                                Uid.encodeId(Integer.toString(i)),
+                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
+                            )
                         );
                         document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                     }
                     Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
 
                     long value = randomNonNegativeLong() % 10000;

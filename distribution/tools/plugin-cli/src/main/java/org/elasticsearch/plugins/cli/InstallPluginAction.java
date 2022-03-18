@@ -80,6 +80,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -153,6 +155,13 @@ public class InstallPluginAction implements Closeable {
         }
     }
 
+    /**
+     * IDs of plugins that have been migrated to modules and do not require installation. This data is
+     * maintained so that existing user workflows that install these plugins do not need to be updated
+     * immediately.
+     */
+    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of("repository-azure", "repository-gcs", "repository-s3");
+
     static final Set<PosixFilePermission> BIN_DIR_PERMS;
     static final Set<PosixFilePermission> BIN_FILES_PERMS;
     static final Set<PosixFilePermission> CONFIG_DIR_PERMS;
@@ -219,6 +228,15 @@ public class InstallPluginAction implements Closeable {
                     handleInstallXPack(buildFlavor());
                 }
 
+                if (PLUGINS_CONVERTED_TO_MODULES.contains(pluginId)) {
+                    // This deliberately does not throw an exception in order to avoid failing automation that relies on installing this
+                    // plugin during deployment.
+                    terminal.errorPrintln(
+                        "[" + pluginId + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                    );
+                    continue;
+                }
+
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
@@ -264,15 +282,12 @@ public class InstallPluginAction implements Closeable {
 
     private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
         switch (flavor) {
-            case DEFAULT:
-                throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
-            case OSS:
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-                );
-            case UNKNOWN:
-                throw new IllegalStateException("your distribution is broken");
+            case DEFAULT -> throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
+            case OSS -> throw new UserException(
+                ExitCodes.CONFIG,
+                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
+            );
+            case UNKNOWN -> throw new IllegalStateException("your distribution is broken");
         }
     }
 
@@ -378,12 +393,12 @@ public class InstallPluginAction implements Closeable {
             baseUrl,
             pluginId,
             platform,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
         if (urlExists(platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.getQualifiedVersion());
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.qualifiedVersion());
     }
 
     private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
@@ -654,21 +669,61 @@ public class InstallPluginAction implements Closeable {
                 throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
-            // compute the signature of the downloaded plugin zip
-            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
-            final byte[] buffer = new byte[1024];
-            int read;
-            while ((read = fin.read(buffer)) != -1) {
-                signature.update(buffer, 0, read);
-            }
+            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
+            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
             if (signature.verify() == false) {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
         }
+    }
+
+    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
+        IOException {
+        final Timer timer = new Timer();
+
+        try {
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    reportLongSignatureVerification();
+                }
+            }, acceptableSignatureVerificationDelay());
+
+            computeSignatureForDownloadedPlugin(fin, ain, signature);
+        } finally {
+            timer.cancel();
+        }
+    }
+
+    // package private for testing
+    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
+        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+        signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
+        final byte[] buffer = new byte[1024];
+        int read;
+        while ((read = fin.read(buffer)) != -1) {
+            signature.update(buffer, 0, read);
+        }
+    }
+
+    // package private for testing
+    void reportLongSignatureVerification() {
+        terminal.println(
+            "The plugin installer is trying to verify the signature of the downloaded plugin "
+                + "but this verification is taking longer than expected. This is often because the "
+                + "plugin installer is waiting for your system to supply it with random numbers. "
+                + ((System.getProperty("os.name").startsWith("Windows") == false)
+                    ? "Ensure that your system has sufficient entropy so that reads from /dev/random do not block."
+                    : "")
+        );
+    }
+
+    // package private for testing
+    long acceptableSignatureVerificationDelay() {
+        return 5_000;
     }
 
     /**

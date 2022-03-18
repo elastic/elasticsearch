@@ -84,8 +84,8 @@ public class FunctionRef {
                 );
             }
 
-            String interfaceMethodName = interfaceMethod.javaMethod.getName();
-            MethodType interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+            String interfaceMethodName = interfaceMethod.javaMethod().getName();
+            MethodType interfaceMethodType = interfaceMethod.methodType().dropParameterTypes(0, 1);
             String delegateClassName;
             boolean isDelegateInterface;
             boolean isDelegateAugmented;
@@ -96,7 +96,7 @@ public class FunctionRef {
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
-            int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
+            int interfaceTypeParametersSize = interfaceMethod.typeParameters().size();
 
             if ("this".equals(typeName)) {
                 Objects.requireNonNull(functionTable);
@@ -160,16 +160,16 @@ public class FunctionRef {
                     );
                 }
 
-                delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
+                delegateClassName = painlessConstructor.javaConstructor().getDeclaringClass().getName();
                 isDelegateInterface = false;
                 isDelegateAugmented = false;
                 delegateInvokeType = H_NEWINVOKESPECIAL;
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
-                delegateMethodType = painlessConstructor.methodType;
+                delegateMethodType = painlessConstructor.methodType();
                 delegateInjections = new Object[0];
 
-                delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
-                delegateMethodParameters = painlessConstructor.typeParameters;
+                delegateMethodReturnType = painlessConstructor.javaConstructor().getDeclaringClass();
+                delegateMethodParameters = painlessConstructor.typeParameters();
             } else {
                 if (numberOfCaptures != 0 && numberOfCaptures != 1) {
                     throw new IllegalStateException("internal error");
@@ -225,11 +225,11 @@ public class FunctionRef {
                     );
                 }
 
-                delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
-                isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
-                isDelegateAugmented = painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.targetClass;
+                delegateClassName = painlessMethod.javaMethod().getDeclaringClass().getName();
+                isDelegateInterface = painlessMethod.javaMethod().getDeclaringClass().isInterface();
+                isDelegateAugmented = painlessMethod.javaMethod().getDeclaringClass() != painlessMethod.targetClass();
 
-                if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+                if (Modifier.isStatic(painlessMethod.javaMethod().getModifiers())) {
                     delegateInvokeType = H_INVOKESTATIC;
                 } else if (isDelegateInterface) {
                     delegateInvokeType = H_INVOKEINTERFACE;
@@ -237,43 +237,43 @@ public class FunctionRef {
                     delegateInvokeType = H_INVOKEVIRTUAL;
                 }
 
-                delegateMethodName = painlessMethod.javaMethod.getName();
-                delegateMethodType = painlessMethod.methodType;
+                delegateMethodName = painlessMethod.javaMethod().getName();
+                delegateMethodType = painlessMethod.methodType();
 
                 // interfaces that override a method from Object receive the method handle for
                 // Object rather than for the interface; we change the first parameter to match
                 // the interface type so the constant interface method reference is correctly
                 // written to the constant pool
                 if (delegateInvokeType != H_INVOKESTATIC
-                    && painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.methodType.parameterType(0)) {
-                    if (painlessMethod.methodType.parameterType(0) != Object.class) {
+                    && painlessMethod.javaMethod().getDeclaringClass() != painlessMethod.methodType().parameterType(0)) {
+                    if (painlessMethod.methodType().parameterType(0) != Object.class) {
                         throw new IllegalStateException("internal error");
                     }
 
-                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod.getDeclaringClass());
+                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod().getDeclaringClass());
                 }
 
                 delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
-                delegateMethodReturnType = painlessMethod.returnType;
+                delegateMethodReturnType = painlessMethod.returnType();
 
-                if (delegateMethodType.parameterList().size() > painlessMethod.typeParameters.size()) {
-                    delegateMethodParameters = new ArrayList<>(painlessMethod.typeParameters);
+                if (delegateMethodType.parameterList().size() > painlessMethod.typeParameters().size()) {
+                    delegateMethodParameters = new ArrayList<>(painlessMethod.typeParameters());
                     delegateMethodParameters.add(0, delegateMethodType.parameterType(0));
                 } else {
-                    delegateMethodParameters = painlessMethod.typeParameters;
+                    delegateMethodParameters = painlessMethod.typeParameters();
                 }
             }
 
             if (location != null) {
                 for (int typeParameter = 0; typeParameter < interfaceTypeParametersSize; ++typeParameter) {
-                    Class<?> from = interfaceMethod.typeParameters.get(typeParameter);
+                    Class<?> from = interfaceMethod.typeParameters().get(typeParameter);
                     Class<?> to = delegateMethodParameters.get(numberOfCaptures + typeParameter);
                     AnalyzerCaster.getLegalCast(location, from, to, false, true);
                 }
 
-                if (interfaceMethod.returnType != void.class) {
-                    AnalyzerCaster.getLegalCast(location, delegateMethodReturnType, interfaceMethod.returnType, false, true);
+                if (interfaceMethod.returnType() != void.class) {
+                    AnalyzerCaster.getLegalCast(location, delegateMethodReturnType, interfaceMethod.returnType(), false, true);
                 }
             }
 

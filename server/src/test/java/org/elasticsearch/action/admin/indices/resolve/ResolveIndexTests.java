@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Transpo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -37,7 +38,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -171,15 +171,15 @@ public class ResolveIndexTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = "my-data-stream";
         String[] names = { "not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis) };
-        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
+        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).toList();
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
 
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).toList()
         );
         builder.put(ds);
 
@@ -302,10 +302,10 @@ public class ResolveIndexTests extends ESTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField(timestampField),
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+                backingIndices.stream().map(IndexMetadata::getIndex).toList()
             );
             builder.put(ds);
         }

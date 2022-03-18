@@ -180,10 +180,11 @@ public class XPackLicenseState {
                     case ENTERPRISE:
                         return new String[] {
                             LoggerMessageFormat.format(
-                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n"
-                                    + "running multiple clusters, users won't be able to access the clusters with\n"
-                                    + "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n"
-                                    + "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
+                                """
+                                    Multi-cluster support is disabled for clusters with [{}] license. If you are
+                                    running multiple clusters, users won't be able to access the clusters with
+                                    [{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a
+                                    separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.""",
                                 newMode,
                                 newMode,
                                 newMode

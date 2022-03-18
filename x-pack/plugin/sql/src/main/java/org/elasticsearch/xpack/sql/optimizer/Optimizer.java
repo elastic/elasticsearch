@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -107,6 +108,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
@@ -324,9 +326,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Project project) {
             // check whether OrderBy relies on nested fields which are not used higher up
-            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (project.child() instanceof OrderBy ob) {
-                // @formatter:on
+                // end::noformat
                 // resolve function references (that maybe hiding the target)
                 AttributeMap.Builder<Function> collectRefs = AttributeMap.builder();
 
@@ -1036,23 +1038,23 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // count the extended stats
             p.forEachExpressionUp(InnerAggregate.class, ia -> {
-                // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof ExtendedStats extStats) {
                     seen.putIfAbsent(extStats.field(), extStats);
                 }
-                // @formatter:on
+                // end::noformat
             });
 
             // then if there's a match, replace the stat inside the InnerAgg
             return p.transformExpressionsUp(InnerAggregate.class, ia -> {
-                // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof Stats stats) {
                     ExtendedStats ext = seen.get(stats.field());
                     if (ext != null && stats.field().equals(ext.field())) {
                         return new InnerAggregate(ia.inner(), ext);
                     }
                 }
-                // @formatter:on
+                // end::noformat
                 return ia;
             });
         }
@@ -1149,12 +1151,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<Expression, TopHits> maxs = new HashMap<>();
             return plan.transformExpressionsDown(NumericAggregate.class, e -> {
                 if (e instanceof Min min) {
-                    if (DataTypes.isString(min.field().dataType())) {
+                    DataType minType = min.field().dataType();
+                    // upper range unsigned longs can't be represented exactly on doubles (returned by stats agg)
+                    if (DataTypes.isString(minType) || minType == UNSIGNED_LONG) {
                         return mins.computeIfAbsent(min.field(), k -> new First(min.source(), k, null));
                     }
                 }
                 if (e instanceof Max max) {
-                    if (DataTypes.isString(max.field().dataType())) {
+                    DataType maxType = max.field().dataType();
+                    if (DataTypes.isString(maxType) || maxType == UNSIGNED_LONG) {
                         return maxs.computeIfAbsent(max.field(), k -> new Last(max.source(), k, null));
                     }
                 }
@@ -1187,7 +1192,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if ((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation relation) {
                 List<Object> foldedValues = null;
 
@@ -1198,7 +1203,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         foldedValues = extractLiterals(((Project) plan).projections());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
-                    // @formatter:on
+                    // end::noformat
                     if (plan instanceof Aggregate agg) {
                         if (agg.groupings().isEmpty()) {
                             // Implicit groupings on empty relations must produce a singleton result set with the aggregation results

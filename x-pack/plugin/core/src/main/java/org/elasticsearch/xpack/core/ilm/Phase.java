@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
@@ -23,7 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +42,7 @@ public class Phase implements ToXContentObject, Writeable {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false, (a, name) -> {
         final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];
-        Map<String, LifecycleAction> map = new HashMap<>(lifecycleActions.size());
+        Map<String, LifecycleAction> map = Maps.newMapWithExpectedSize(lifecycleActions.size());
         for (LifecycleAction lifecycleAction : lifecycleActions) {
             if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
                 throw new IllegalStateException("Duplicate key");

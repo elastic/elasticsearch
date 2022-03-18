@@ -1893,6 +1893,34 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
+    public void testGetRoleDescriptorsListForInternalUsers() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            mock(ServiceAccountService.class),
+            null,
+            null
+        );
+
+        final Subject subject = mock(Subject.class);
+        when(subject.getUser()).thenReturn(SystemUser.INSTANCE);
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
+        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+
+        when(subject.getUser()).thenReturn(XPackSecurityUser.INSTANCE);
+        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future2 = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptorsList(subject, future2);
+        assertThat(future2.actionGet(), equalTo(List.of(Set.of(XPackSecurityUser.ROLE_DESCRIPTOR))));
+    }
+
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
         final Subject subject = mock(Subject.class);
         when(subject.getRoleReferenceIntersection(any())).thenReturn(

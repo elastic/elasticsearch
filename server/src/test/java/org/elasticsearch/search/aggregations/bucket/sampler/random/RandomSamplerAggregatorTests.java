@@ -43,7 +43,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
     private static final String KEYWORD_FIELD_NAME = "keyword";
     private static final String KEYWORD_FIELD_VALUE = "foo";
     private static final long TRUE_MIN = 2L;
-    private static final long TRUE_MAX = 1005l;
+    private static final long TRUE_MAX = 1005L;
 
     public void testAggregationSampling() throws IOException {
         double[] avgs = new double[5];

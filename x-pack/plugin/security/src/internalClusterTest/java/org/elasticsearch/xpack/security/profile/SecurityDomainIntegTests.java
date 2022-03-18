@@ -91,7 +91,8 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
      * // signed with "hmac-oidc-key-string-for-hs256-algorithm-2"
      */
     private static final String HEADER_JWT_REALM_2 = "eyJhbGciOiJIUzI1NiJ9."
-        + "eyJhdWQiOiJhdWQiLCJzdWIiOiJyYWNfdXNlciIsInJvbGVzIjoiW3JhY19yb2xlXSIsImlzcyI6Im90aGVyX2lzcyIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9"
+        + "eyJhdWQiOiJhdWQiLCJzdWIiOiJyYWNfdXNlciIsInJvbGVzIjoiW3JhY19yb2xl"
+        + "XSIsImlzcyI6Im90aGVyX2lzcyIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9"
         + ".4_c4sJ70xy-WssadlvAXL9OsR8V3qAZoY5bzPLjsong";
 
     @Before

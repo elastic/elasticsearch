@@ -111,6 +111,9 @@ public class JwtRestIT extends ESRestTestCase {
      */
     public void testAuthenticateWithRsaSignedJWTAndRoleMappingByPrincipal() throws Exception {
         final String principal = randomPrincipal();
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
         final String rules = """
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
@@ -118,11 +121,30 @@ public class JwtRestIT extends ESRestTestCase {
             ] }
             """.formatted(principal);
 
-        authenticateToRealm1WithRoleMapping(principal, List.of(), rules);
+        authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
+    }
+
+    public void testAuthenticateWithRsaSignedJWTAndRoleMappingByDn() throws Exception {
+        final String principal = randomPrincipal();
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
+
+        final String rules = """
+            { "all": [
+                { "field": { "realm.name": "jwt1" } },
+                { "field": { "dn": "%s" } }
+            ] }
+            """.formatted(dn);
+
+        authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
 
     public void testAuthenticateWithRsaSignedJWTAndRoleMappingByGroups() throws Exception {
         final String principal = randomPrincipal();
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
         final List<String> groups = randomList(1, 12, () -> randomAlphaOfLengthBetween(4, 12));
         final String mappedGroup = randomFrom(groups);
 
@@ -133,26 +155,36 @@ public class JwtRestIT extends ESRestTestCase {
             ] }
             """.formatted(mappedGroup);
 
-        authenticateToRealm1WithRoleMapping(principal, groups, rules);
+        authenticateToRealm1WithRoleMapping(principal, dn, name, mail, groups, rules);
     }
 
     public void testAuthenticateWithRsaSignedJWTAndRoleMappingByMetadata() throws Exception {
         final String principal = randomPrincipal();
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
         final String rules = """
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "metadata.jwt_claim_sub": "%s" } }
             ] }
             """.formatted(principal);
-        authenticateToRealm1WithRoleMapping(principal, List.of(), rules);
+        authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
 
-    private void authenticateToRealm1WithRoleMapping(String principal, List<String> groups, String roleMappingRules) throws Exception {
+    private void authenticateToRealm1WithRoleMapping(
+        String principal,
+        String dn,
+        String name,
+        String mail,
+        List<String> groups,
+        String roleMappingRules
+    ) throws Exception {
         final List<String> roles = randomRoles();
         final String roleMappingName = createRoleMapping(roles, roleMappingRules);
 
         try {
-            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, groups, Instant.now());
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, dn, name, mail, groups, Instant.now());
             final TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
 
             final Map<String, Object> response = client.authenticate();
@@ -179,14 +211,17 @@ public class JwtRestIT extends ESRestTestCase {
 
     public void testFailureOnExpiredJwt() throws Exception {
         final String principal = randomPrincipal();
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
         { // Test with valid time
-            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, List.of(), Instant.now());
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, dn, name, mail, List.of(), Instant.now());
             final TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
             assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
         }
 
         { // Test with expired time
-            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, List.of(), Instant.now().minus(12, ChronoUnit.HOURS));
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, dn, name, mail, List.of(), Instant.now().minus(12, ChronoUnit.HOURS));
             TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
 
             // This fails because the JWT is expired
@@ -197,7 +232,10 @@ public class JwtRestIT extends ESRestTestCase {
 
     public void testFailureOnNonMatchingRsaSignature() throws Exception {
         final String originalPrincipal = randomPrincipal();
-        final SignedJWT originalJwt = buildAndSignJwtForRealm1(originalPrincipal, List.of(), Instant.now());
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
+        final SignedJWT originalJwt = buildAndSignJwtForRealm1(originalPrincipal, dn, name, mail, List.of(), Instant.now());
         {
             // Test with valid signed JWT
             final TestSecurityClient client = getSecurityClient(originalJwt, Optional.empty());
@@ -349,18 +387,39 @@ public class JwtRestIT extends ESRestTestCase {
         return randomAlphaOfLengthBetween(4, 12) + "_test";
     }
 
+    private String randomDn() {
+        return "CN=" + randomPrincipal();
+    }
+
+    private String randomName() {
+        return randomPrincipal() + "_name";
+    }
+
+    private String randomMail() {
+        return randomPrincipal() + "_mail@example.com";
+    }
+
     private List<String> randomRoles() {
         // We append _test so that it cannot randomly conflict with builtin roles
         return randomList(1, 3, () -> randomAlphaOfLengthBetween(4, 12) + "_test");
     }
 
-    private SignedJWT buildAndSignJwtForRealm1(String principal, List<String> groups, Instant issueTime) throws JOSEException,
-        ParseException, IOException {
+    private SignedJWT buildAndSignJwtForRealm1(
+        String principal,
+        String dn,
+        String name,
+        String mail,
+        List<String> groups,
+        Instant issueTime
+    ) throws JOSEException, ParseException, IOException {
         final JWTClaimsSet claimsSet = buildJwt(
             Map.ofEntries(
                 Map.entry("iss", "https://issuer.example.com/"),
                 Map.entry("aud", "https://audience.example.com/"),
                 Map.entry("sub", principal),
+                Map.entry("dn", dn),
+                Map.entry("name", name),
+                Map.entry("mail", mail),
                 Map.entry("roles", groups) // Realm realm config has `claim.groups: "roles"`
             ),
             issueTime

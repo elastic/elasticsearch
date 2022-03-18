@@ -94,7 +94,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             newState,
             not(equalTo(state))
         );
-        ShardRouting shardRouting = newState.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
+        ShardRouting shardRouting = newState.routingTable().index("test").shard(relocatingShard.id()).shard(0);
         assertThat(shardRouting.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(shardRouting.currentNodeId(), equalTo("node2"));
         assertThat(shardRouting.relocatingNodeId(), nullValue());

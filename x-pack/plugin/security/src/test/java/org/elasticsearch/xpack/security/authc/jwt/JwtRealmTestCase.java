@@ -275,6 +275,39 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             }
         }
         if (randomBoolean()) {
+            // dn claim name is optional
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_DN.getClaim()),
+                authcRealmName + "_dn"
+            );
+            if (randomBoolean()) {
+                // if dn claim name is set, dn claim pattern is optional
+                authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_DN.getPattern()), "^(.*)$");
+            }
+        }
+        if (randomBoolean()) {
+            // mail claim name is optional
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_MAIL.getClaim()),
+                authcRealmName + "_mail"
+            );
+            if (randomBoolean()) {
+                // if mail claim name is set, dn claim pattern is optional
+                authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_MAIL.getPattern()), "^(.*)$");
+            }
+        }
+        if (randomBoolean()) {
+            // full name claim name is optional
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_NAME.getClaim()),
+                authcRealmName + "_name"
+            );
+            if (randomBoolean()) {
+                // if full name claim name is set, name claim pattern is optional
+                authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_NAME.getPattern()), "^(.*)$");
+            }
+        }
+        if (randomBoolean()) {
             // allow default to be picked, or explicitly set true or false
             authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean());
         }

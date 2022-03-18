@@ -37,7 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.parseInt;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
@@ -692,11 +691,11 @@ public class RecoverySettings {
         final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .map(Setting::getKey)
-            .collect(Collectors.toList());
+            .toList();
         if (nonDefaults.isEmpty() == false && nonDefaults.size() != NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
             throw new IllegalArgumentException(
                 "Settings "
-                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).toList()
                     + " must all be defined or all be undefined; but only settings "
                     + nonDefaults
                     + " are configured."

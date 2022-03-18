@@ -139,8 +139,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
 
@@ -532,7 +532,7 @@ public class ApiKeyService {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }).collect(Collectors.toList());
+        }).toList();
         return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
             ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
             : roleDescriptors;

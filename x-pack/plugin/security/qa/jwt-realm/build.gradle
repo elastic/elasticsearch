@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
@@ -14,6 +16,8 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
 
   // This can be turned on to help debug failing tests, but generates more output than is needed for CI
   // setting 'logger.org.elasticsearch.xpack.security.authc.jwt', 'DEBUG'
+
+  requiresFeature 'es.jwt_realm_feature_flag_enabled', Version.fromString("8.2.0")
 
   extraConfigFile 'http.key', file('src/javaRestTest/resources/ssl/http.key')
   extraConfigFile 'http.crt', file('src/javaRestTest/resources/ssl/http.crt')
@@ -43,6 +47,9 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.jwt.jwt1.allowed_audiences', 'https://audience.example.com/'
   setting 'xpack.security.authc.realms.jwt.jwt1.claims.principal', 'sub'
   setting 'xpack.security.authc.realms.jwt.jwt1.claims.groups', 'roles'
+  setting 'xpack.security.authc.realms.jwt.jwt1.claims.dn', 'dn'
+  setting 'xpack.security.authc.realms.jwt.jwt1.claims.name', 'name'
+  setting 'xpack.security.authc.realms.jwt.jwt1.claims.mail', 'mail'
   setting 'xpack.security.authc.realms.jwt.jwt1.client_authentication.type', 'NONE'
   // Use default value (RS256) for signature algorithm
   setting 'xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path', 'rsa.jwkset'

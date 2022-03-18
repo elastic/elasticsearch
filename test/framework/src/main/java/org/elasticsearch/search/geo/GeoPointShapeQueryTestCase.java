@@ -9,6 +9,7 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -38,6 +39,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -581,6 +583,103 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
                 .get();
             SearchHits searchHits = response.getHits();
             assertEquals(0, searchHits.getTotalHits().value);
+        }
+    }
+
+    public void testQueryPointFromGeoJSON() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        String doc1 = """
+            {
+              "geo": {
+                "coordinates": [ -35, -25.0 ],
+                "type": "Point"
+              }
+            }""";
+        client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        Point point = new Point(-35, -25);
+        {
+            SearchResponse response = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point))
+                .get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.WITHIN))
+                .get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.CONTAINS))
+                .get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.DISJOINT))
+                .get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(0, searchHits.getTotalHits().value);
+        }
+    }
+
+    public void testQueryPointFromMultiPoint() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        double[] pointDoubles = new double[] { 35.0, 25.0 };
+        HashMap<String, Object> geojson = new HashMap<>();
+        geojson.put("type", "Point");
+        geojson.put("coordinates", pointDoubles);
+        Object[] points = new Object[] { "POINT(-45 -35)", "POINT(-35 -25)", geojson };
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, points).endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        Point pointA = new Point(-45, -35);
+        Point pointB = new Point(-35, -25);
+        Point pointC = new Point(35, 25);
+        Point pointInvalid = new Point(-35, -35);
+        for (Point point : new Point[] { pointA, pointB, pointC, pointInvalid }) {
+            int expectedDocs = point.equals(pointInvalid) ? 0 : 1;
+            int disjointDocs = point.equals(pointInvalid) ? 1 : 0;
+            {
+                SearchResponse response = client().prepareSearch(defaultIndexName)
+                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point))
+                    .get();
+                SearchHits searchHits = response.getHits();
+                assertEquals("Doc matches %s" + point, expectedDocs, searchHits.getTotalHits().value);
+            }
+            {
+                SearchResponse response = client().prepareSearch(defaultIndexName)
+                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.WITHIN))
+                    .get();
+                SearchHits searchHits = response.getHits();
+                assertEquals("Doc WITHIN %s" + point, 0, searchHits.getTotalHits().value);
+            }
+            {
+                SearchResponse response = client().prepareSearch(defaultIndexName)
+                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.CONTAINS))
+                    .get();
+                SearchHits searchHits = response.getHits();
+                assertEquals("Doc CONTAINS %s" + point, expectedDocs, searchHits.getTotalHits().value);
+            }
+            {
+                SearchResponse response = client().prepareSearch(defaultIndexName)
+                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.DISJOINT))
+                    .get();
+                SearchHits searchHits = response.getHits();
+                assertEquals("Doc DISJOINT with %s" + point, disjointDocs, searchHits.getTotalHits().value);
+            }
         }
     }
 }

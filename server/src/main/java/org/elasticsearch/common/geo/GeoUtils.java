@@ -26,7 +26,9 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Locale;
 
 public class GeoUtils {
 
@@ -42,6 +44,8 @@ public class GeoUtils {
     public static final String LATITUDE = "lat";
     public static final String LONGITUDE = "lon";
     public static final String GEOHASH = "geohash";
+    public static final String COORDINATES = "coordinates";
+    public static final String TYPE = "type";
 
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
@@ -434,9 +438,12 @@ public class GeoUtils {
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
         throws IOException, ElasticsearchParseException {
+        // TODO: Consider merging with GeoJSON parser
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;
+        String geojsonType = null;
+        ArrayList<Double> coordinates = null;
         NumberFormatException numberFormatException = null;
 
         if (parser.currentToken() == Token.START_OBJECT) {
@@ -478,6 +485,26 @@ public class GeoUtils {
                             } else {
                                 throw new ElasticsearchParseException("geohash must be a string");
                             }
+                        } else if (COORDINATES.equals(field)) {
+                            subParser.nextToken();
+                            if (subParser.currentToken() == Token.START_ARRAY) {
+                                coordinates = new ArrayList<>();
+                                subParser.nextToken();
+                                while (subParser.currentToken() != Token.END_ARRAY) {
+                                    switch (subParser.currentToken()) {
+                                        case VALUE_NUMBER -> coordinates.add(subParser.doubleValue());
+                                        case VALUE_STRING -> coordinates.add(subParser.doubleValue(true));
+                                        default -> throw new ElasticsearchParseException("GeoJSON coordinate values must be numbers");
+                                    }
+                                    subParser.nextToken();
+                                }
+                            }
+                        } else if (TYPE.equals(field)) {
+                            if (subParser.nextToken() == Token.VALUE_STRING) {
+                                geojsonType = subParser.text();
+                            } else {
+                                throw new ElasticsearchParseException("GeoJSON type must be a string");
+                            }
                         } else {
                             throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
                         }
@@ -492,6 +519,14 @@ public class GeoUtils {
                 } else {
                     return point.parseGeoHash(geohash, effectivePoint);
                 }
+            } else if (coordinates != null) {
+                if (geojsonType == null || geojsonType.toLowerCase(Locale.ROOT).equals("point") == false) {
+                    throw new ElasticsearchParseException("GeoJSON type for geo_point can only be 'point'");
+                }
+                if (coordinates.size() > 2) {
+                    GeoPoint.assertZValue(ignoreZValue, coordinates.get(2));
+                }
+                return point.reset(coordinates.get(1), coordinates.get(0));
             } else if (numberFormatException != null) {
                 throw new ElasticsearchParseException(
                     "[{}] and [{}] must be valid double values",

@@ -48,8 +48,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
 
@@ -190,7 +190,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = restClient.search(
-                new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).source(
+                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().size(1).terminateAfter(1).query(QueryBuilders.termQuery("doc_type", "token"))
                 ),
                 SECURITY_REQUEST_OPTIONS
@@ -203,7 +203,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
         assertTrue(Instant.now().isAfter(yesterday));
         restClient.update(
-            new UpdateRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, docId.get()).doc("creation_time", yesterday.toEpochMilli())
+            new UpdateRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS, docId.get()).doc("creation_time", yesterday.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
             SECURITY_REQUEST_OPTIONS
         );
@@ -218,9 +218,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 assertThat(invalidateResponseTwo.getPreviouslyInvalidatedTokens(), equalTo(0));
                 assertThat(invalidateResponseTwo.getErrors(), empty());
             }
-            restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
+            restClient.indices().refresh(new RefreshRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
             SearchResponse searchResponse = restClient.search(
-                new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).source(
+                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)
                 ),
                 SECURITY_REQUEST_OPTIONS
@@ -587,7 +587,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = restClient.search(
-                new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).source(
+                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource()
                         .query(
                             QueryBuilders.boolQuery()
@@ -608,7 +608,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
         UpdateResponse updateResponse = restClient.update(
-            new UpdateRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, docId.get()).doc(
+            new UpdateRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS, docId.get()).doc(
                 "refresh_token",
                 Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli())
             ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).fetchSource("refresh_token", Strings.EMPTY_STRING),

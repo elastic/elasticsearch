@@ -877,7 +877,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                                 "filters",
                                                 matchesList().item(
                                                     matchesMap().entry("query", "DocValuesFieldExistsQuery [field=f]")
-                                                        .entry("specialized_for", "docvalues_field_exists")
                                                         .entry("segments_counted_in_constant_time", greaterThan(0))
                                                 )
                                             )
@@ -938,7 +937,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                                 matchesList().item(
                                                     matchesMap().entry("query", "*:*")
                                                         .entry("specialized_for", "match_all")
-                                                        .entry("results_from_metadata", 0)
+                                                        .entry("segments_counted_in_constant_time", 0)
                                                 )
                                             )
                                     )

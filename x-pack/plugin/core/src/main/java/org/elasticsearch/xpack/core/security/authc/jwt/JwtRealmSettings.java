@@ -129,6 +129,12 @@ public class JwtRealmSettings {
                 CLAIMS_PRINCIPAL.getPattern(),
                 CLAIMS_GROUPS.getClaim(),
                 CLAIMS_GROUPS.getPattern(),
+                CLAIMS_DN.getClaim(),
+                CLAIMS_DN.getPattern(),
+                CLAIMS_MAIL.getClaim(),
+                CLAIMS_MAIL.getPattern(),
+                CLAIMS_NAME.getClaim(),
+                CLAIMS_NAME.getPattern(),
                 POPULATE_USER_METADATA
             )
         );
@@ -204,6 +210,9 @@ public class JwtRealmSettings {
     // Note: ClaimSetting is a wrapper for two individual settings: getClaim(), getPattern()
     public static final ClaimSetting CLAIMS_PRINCIPAL = new ClaimSetting(TYPE, "principal");
     public static final ClaimSetting CLAIMS_GROUPS = new ClaimSetting(TYPE, "groups");
+    public static final ClaimSetting CLAIMS_DN = new ClaimSetting(TYPE, "dn");
+    public static final ClaimSetting CLAIMS_MAIL = new ClaimSetting(TYPE, "mail");
+    public static final ClaimSetting CLAIMS_NAME = new ClaimSetting(TYPE, "name");
 
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),

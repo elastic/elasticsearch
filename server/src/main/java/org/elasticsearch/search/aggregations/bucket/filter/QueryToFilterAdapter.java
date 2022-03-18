@@ -15,7 +15,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -56,9 +55,6 @@ public class QueryToFilterAdapter<Q extends Query> {
              * run in constant score mode.
              */
             query = ((ConstantScoreQuery) query).getQuery();
-        }
-        if (query instanceof DocValuesFieldExistsQuery) {
-            return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);
         }
         if (query instanceof MatchAllDocsQuery) {
             return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);

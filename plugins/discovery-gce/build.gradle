@@ -7,13 +7,14 @@ esplugin {
 }
 
 versions << [
-  'google': '1.23.0'
+  'google': '1.23.0',
+  'google_oauth_client': '1.33.1',
 ]
 
 dependencies {
   api "com.google.apis:google-api-services-compute:v1-rev160-${versions.google}"
   api "com.google.api-client:google-api-client:${versions.google}"
-  api "com.google.oauth-client:google-oauth-client:${versions.google}"
+  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
   api "com.google.http-client:google-http-client:${versions.google}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

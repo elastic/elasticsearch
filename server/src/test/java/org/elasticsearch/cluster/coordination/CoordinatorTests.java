@@ -1722,6 +1722,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     // * [internal:discovery/request_peers] from {node1} to
                     // * response to [internal:discovery/request_peers] from {node1} to {node2}
                     // * [internal:cluster/coordination/join] from {node1} to {node2}
+                    // * [internal:transport/handshake] from {node2} to {node1} (rejected due to action block)
                     // * error response to [internal:cluster/coordination/join] from {node1} to {node2}
                     //
                     defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,

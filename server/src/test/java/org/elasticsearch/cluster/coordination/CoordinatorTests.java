@@ -1713,9 +1713,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             Loggers.addAppender(joinHelperLogger, mockAppender);
             try {
                 cluster.runFor(
-                    // This expects 8 tasks to be executed:
+                    // This expects 8 tasks to be executed after PeerFinder handling wakeup:
                     //
-                    // * PeerFinder handling wakeup
                     // * connectToRemoteMasterNode[0.0.0.0:11]
                     // * [internal:transport/handshake] from {node1} to {node2}
                     // * response to [internal:transport/handshake] from {node1} to {node2}

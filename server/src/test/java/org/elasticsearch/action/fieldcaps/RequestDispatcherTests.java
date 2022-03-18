@@ -568,7 +568,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testGroupRetryAndOk() throws Exception {
-        final ClusterState clusterState = randomClusterState(true, 1, 0);
+        final ClusterState clusterState = randomClusterState(true, 1, 1);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> testGroups = randomSubsetOf(between(1, INDEX_GROUPS.size()), INDEX_GROUPS);
             final List<String> testIndices = clusterState.metadata().indices().keySet().stream().filter(index -> {

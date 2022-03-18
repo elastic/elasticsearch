@@ -150,8 +150,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             logger.warn(
                                                 new ParameterizedMessage(
                                                     "completed handshake with [{}] at [{}] but followup connection to [{}] failed",
-                                                    transportAddress,
                                                     remoteNode.descriptionWithoutAttributes(),
+                                                    transportAddress,
                                                     remoteNode.getAddress()
                                                 ),
                                                 e

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
@@ -28,6 +29,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestTestCase {
+
+    private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
 
     @After
     public void checkSearchContent() throws Exception {
@@ -89,6 +92,24 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
     public static void delete(String index, String documentId) throws IOException {
         Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
+        provisioningClient().performRequest(request);
+    }
+
+    protected void createDataStream(String dataStream) throws IOException {
+        Request request = new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStream);
+        request.setJsonEntity("{\"index_patterns\": [\"" + dataStream + "*\"], \"data_stream\": {}}");
+        Response response = provisioningClient().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("PUT", "/_data_stream/" + dataStream);
+        response = provisioningClient().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
+    protected static void deleteDataStream(String dataStream) throws IOException {
+        Request request = new Request("DELETE", "_data_stream/" + dataStream);
+        provisioningClient().performRequest(request);
+        request = new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStream);
         provisioningClient().performRequest(request);
     }
 

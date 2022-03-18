@@ -318,10 +318,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             span.end();
         }
         // TODO: geoip-downloader[c] isn't getting stopped?
-//        LOGGER.warn(
-//            "Active spans after stopped trace: {}",
-//            spans.values().stream().map(Tuple::v1).map(span -> ((ReadWriteSpan) span).getName()).toList()
-//        );
+        // LOGGER.warn(
+        // "Active spans after stopped trace: {}",
+        // spans.values().stream().map(Tuple::v1).map(span -> ((ReadWriteSpan) span).getName()).toList()
+        // );
     }
 
     @Override

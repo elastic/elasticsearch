@@ -102,7 +102,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers) {
+        List<Tracer> tracers
+    ) {
         this.settings = settings;
         this.networkService = networkService;
         this.bigArrays = bigArrays;

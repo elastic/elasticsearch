@@ -96,7 +96,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService) {
+        UsageService usageService
+    ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {

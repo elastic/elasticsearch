@@ -56,12 +56,7 @@ public interface RestChannel extends Traceable {
     @Override
     default Map<String, Object> getAttributes() {
         var req = this.request();
-        return Map.of(
-            "http.method",
-            req.method().name(),
-            "http.url",
-            req.uri()
-        );
+        return Map.of("http.method", req.method().name(), "http.url", req.uri());
     }
 
     void startTrace(ThreadContext threadContext);

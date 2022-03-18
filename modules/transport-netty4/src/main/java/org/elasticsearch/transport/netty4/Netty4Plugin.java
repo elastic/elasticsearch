@@ -100,7 +100,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers) {
+        List<Tracer> tracers
+    ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(

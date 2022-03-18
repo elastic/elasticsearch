@@ -393,16 +393,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-            Settings settings,
-            ThreadPool threadPool,
-            BigArrays bigArrays,
-            PageCacheRecycler pageCacheRecycler,
-            CircuitBreakerService circuitBreakerService,
-            NamedXContentRegistry xContentRegistry,
-            NetworkService networkService,
-            HttpServerTransport.Dispatcher dispatcher,
-            ClusterSettings clusterSettings,
-            List<Tracer> tracers) {
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        List<Tracer> tracers
+    ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
             .forEach(
@@ -417,7 +418,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         networkService,
                         dispatcher,
                         clusterSettings,
-                            null)
+                        null
+                    )
                 )
             );
         return transports;

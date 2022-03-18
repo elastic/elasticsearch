@@ -1522,7 +1522,8 @@ public class Security extends Plugin
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers) {
+        List<Tracer> tracers
+    ) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
@@ -1541,7 +1542,8 @@ public class Security extends Plugin
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
-                tracers)
+                tracers
+            )
         );
         httpTransports.put(
             SecurityField.NIO,

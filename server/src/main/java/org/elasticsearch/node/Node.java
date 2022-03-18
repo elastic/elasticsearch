@@ -702,7 +702,8 @@ public class Node implements Closeable {
 
             final List<Tracer> tracers = pluginComponents.stream()
                 .map(c -> c instanceof Tracer t ? t : null)
-                .filter(Objects::nonNull).toList();
+                .filter(Objects::nonNull)
+                .toList();
 
             ActionModule actionModule = new ActionModule(
                 settings,

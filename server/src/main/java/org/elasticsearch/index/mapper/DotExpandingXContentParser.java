@@ -6,9 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -26,7 +31,7 @@ import java.util.function.Supplier;
  * lookups will return the same mapper/field type, and we never load incoming documents in a map where duplicate
  * keys would end up overriding each other.
  */
-public class DotExpandingXContentParser extends FilterXContentParserWrapper {
+class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
@@ -146,7 +151,7 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    public static XContentParser expandDots(XContentParser in) throws IOException {
+    static XContentParser expandDots(XContentParser in) throws IOException {
         return new WrappingParser(in);
     }
 

@@ -1,0 +1,5 @@
+pr: 85066
+summary: Fixes for multi-line start patterns in text structure endpoint
+area: Machine Learning
+type: bug
+issues: []

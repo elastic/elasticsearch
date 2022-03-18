@@ -179,7 +179,7 @@ public class JwtUtil {
             } else if (uriString.startsWith("http")) {
                 throw new SettingsException("Not allowed to use HTTP URI [" + uriString + "]. Only HTTPS is supported.");
             } else {
-                LOGGER.trace("Not a HTTPS URI [].", uriString);
+                LOGGER.trace("Not a HTTPS URI [{}].", uriString);
             }
         }
         return null;

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
@@ -75,7 +76,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                         null,
                         query,
                         "user",
-                        "pass",
+                        new SecureString("pass".toCharArray()),
                         emptyMap(),
                         RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
                         RemoteInfo.DEFAULT_CONNECT_TIMEOUT

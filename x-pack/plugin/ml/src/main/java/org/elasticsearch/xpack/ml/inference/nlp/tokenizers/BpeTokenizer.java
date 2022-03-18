@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import com.carrotsearch.hppc.CharObjectHashMap;
-import com.carrotsearch.hppc.CharObjectMap;
-
 import org.apache.lucene.analysis.CharArrayMap;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.Tokenizer;
@@ -24,8 +21,10 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -379,7 +378,7 @@ public class BpeTokenizer extends Tokenizer {
         }
     }
 
-    private static record CharTrie(CharObjectMap<CharTrie> children) {
+    private static record CharTrie(Map<Character, CharTrie> children) {
         boolean isLeaf() {
             return children.isEmpty();
         }
@@ -403,14 +402,14 @@ public class BpeTokenizer extends Tokenizer {
             }
             // add rest of tokens as new nodes
             while (currentTokenIndex < chars.length) {
-                CharTrie childNode = new CharTrie(new CharObjectHashMap<>());
+                CharTrie childNode = new CharTrie(new HashMap<>());
                 currentNode.children.put(chars[currentTokenIndex++], childNode);
                 currentNode = childNode;
             }
         }
 
         public static CharTrie build(Collection<String> tokens) {
-            CharTrie root = new CharTrie(new CharObjectHashMap<>());
+            CharTrie root = new CharTrie(new HashMap<>());
             for (String token : tokens) {
                 char[] chars = token.toCharArray();
                 root.insert(chars);

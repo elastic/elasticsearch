@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -23,7 +22,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -73,7 +71,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -153,11 +150,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
-    private final IndexNameExpressionResolver resolver = TestRestrictedIndices.RESOLVER;
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
     );
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
@@ -544,7 +540,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ApiKeyService.class),
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
-            resolver,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             rds -> effectiveRoleDescriptors.set(rds)
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
@@ -726,7 +722,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(flsRole, addsL1Fields),
             cache,
             null,
-            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             future
         );
         Role role = future.actionGet();
@@ -834,7 +830,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(role1, role2),
             cache,
             privilegeStore,
-            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             future
         );
         Role role = future.actionGet();
@@ -1795,15 +1791,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCanAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(true));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(true));
             }
         }
@@ -1812,7 +1807,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testXPackUserCannotAccessSecurityOrAsyncSearch() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+            for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
             assertThat(
@@ -1835,15 +1830,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
         }
@@ -1852,7 +1846,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testAsyncSearchUserCanAccessOnlyAsyncSearchRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+            for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
             assertThat(
@@ -1891,6 +1885,34 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 Matchers.is(true)
             );
         }
+    }
+
+    public void testGetRoleDescriptorsListForInternalUsers() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            mock(ServiceAccountService.class),
+            null,
+            null
+        );
+
+        final Subject subject = mock(Subject.class);
+        when(subject.getUser()).thenReturn(SystemUser.INSTANCE);
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
+        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+
+        when(subject.getUser()).thenReturn(XPackSecurityUser.INSTANCE);
+        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future2 = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptorsList(subject, future2);
+        assertThat(future2.actionGet(), equalTo(List.of(Set.of(XPackSecurityUser.ROLE_DESCRIPTOR))));
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
@@ -2019,7 +2041,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             documentSubsetBitsetCache,
-            resolver,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             roleConsumer
         ) {
             @Override

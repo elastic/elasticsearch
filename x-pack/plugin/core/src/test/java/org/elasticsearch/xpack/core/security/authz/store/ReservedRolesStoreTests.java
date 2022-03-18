@@ -867,14 +867,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             // Endpoint diagnostic and APM data streams also have an ILM policy with a delete action, all others should not.
             final boolean isAlsoIlmDeleteIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
-                || indexName.startsWith("logs-apm.app-")
-                || indexName.startsWith("logs-apm.error-")
-                || indexName.startsWith("metrics-apm.app.")
-                || indexName.startsWith("metrics-apm.internal-")
-                || indexName.startsWith("metrics-apm.profiling-")
+                || indexName.startsWith("logs-apm-")
+                || indexName.startsWith("logs-apm.")
+                || indexName.startsWith("metrics-apm-")
+                || indexName.startsWith("metrics-apm.")
                 || indexName.startsWith("traces-apm-")
-                || indexName.startsWith("traces-apm.rum-")
-                || indexName.startsWith("traces-apm.sampled-");
+                || indexName.startsWith("traces-apm.");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 
@@ -937,14 +935,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // Ensure privileges necessary for ILM policies in APM & Endpoint packages
         Arrays.asList(
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
-            "logs-apm.app-*" + randomAlphaOfLengthBetween(3, 8),
-            "logs-apm.error-*" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm.app.*" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm.internal-*" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm.profiling-*" + randomAlphaOfLengthBetween(3, 8),
+            "logs-apm-*" + randomAlphaOfLengthBetween(3, 8),
+            "logs-apm.*" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm-*" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm.*" + randomAlphaOfLengthBetween(3, 8),
             "traces-apm-*" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm.rum-*" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm.sampled-" + randomAlphaOfLengthBetween(3, 8)
+            "traces-apm.*" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

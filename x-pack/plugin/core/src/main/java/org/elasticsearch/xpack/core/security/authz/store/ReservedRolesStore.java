@@ -772,14 +772,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         ".logs-endpoint.diagnostic.collection-*",
-                        "logs-apm.app-*",
-                        "logs-apm.error-*",
-                        "metrics-apm.app.*",
-                        "metrics-apm.internal-*",
-                        "metrics-apm.profiling-*",
-                        "traces-apm-*",
-                        "traces-apm.rum-*",
-                        "traces-apm.sampled-*"
+                        "logs-apm-*", "logs-apm.*",
+                        "metrics-apm-*", "metrics-apm.*",
+                        "traces-apm-*", "traces-apm.*",
                     )
                     .privileges(DeleteIndexAction.NAME)
                     .build(),

@@ -8,9 +8,12 @@
 
 package org.elasticsearch.health;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -31,8 +34,14 @@ public class HealthService {
     }
 
     public List<HealthComponentResult> getHealth() {
+        return getHealth(null, null);
+    }
+
+    public List<HealthComponentResult> getHealth(String componentName, String indicatorName) {
         return List.copyOf(
             healthIndicatorServices.stream()
+                .filter(service -> componentName == null || service.component().equals(componentName))
+                .filter(service -> indicatorName == null || service.name().equals(indicatorName))
                 .map(HealthIndicatorService::calculate)
                 .collect(
                     groupingBy(
@@ -43,6 +52,19 @@ public class HealthService {
                 )
                 .values()
         );
+    }
+
+    public Map<String, List<String>> getComponentToIndicatorMapping() {
+        Map<String, List<String>> componentsToIndicators = new HashMap<>();
+        for (HealthIndicatorService healthIndicatorService : healthIndicatorServices) {
+            List<String> indicators = componentsToIndicators.get(healthIndicatorService.component());
+            if (indicators == null) {
+                indicators = new ArrayList<>();
+                componentsToIndicators.put(healthIndicatorService.component(), indicators);
+            }
+            indicators.add(healthIndicatorService.name());
+        }
+        return componentsToIndicators;
     }
 
     // Non-private for testing purposes

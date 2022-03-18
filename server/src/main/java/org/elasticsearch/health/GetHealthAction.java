@@ -116,6 +116,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     }
 
     public static class Request extends ActionRequest {
+        private final String componentName;
+        private final String indicatorName;
+
+        public Request(String componentName, String indicatorName) {
+            this.componentName = componentName;
+            this.indicatorName = indicatorName;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -142,7 +149,9 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            listener.onResponse(new Response(clusterService.getClusterName(), healthService.getHealth()));
+            listener.onResponse(
+                new Response(clusterService.getClusterName(), healthService.getHealth(request.componentName, request.indicatorName))
+            );
         }
     }
 }

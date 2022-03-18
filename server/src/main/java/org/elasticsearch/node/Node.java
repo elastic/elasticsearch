@@ -696,7 +696,7 @@ public class Node implements Closeable {
                     ).stream()
                 )
                 .toList();
-
+            HealthService healthService = createHealthService(clusterService);
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -708,7 +708,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                healthService
             );
             modules.add(actionModule);
 
@@ -906,8 +907,6 @@ public class Node implements Closeable {
             final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
                 clusterService.getClusterSettings()
             );
-
-            HealthService healthService = createHealthService(clusterService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);

@@ -527,7 +527,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
     }
 
-    public void testSingleRoundWithGroup() throws Exception {
+    public void testOneNodeRequestPerGroupInHappyCase() throws Exception {
         final ClusterState clusterState = randomClusterState(true, 1, 0);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> testGroups = randomSubsetOf(between(1, INDEX_GROUPS.size()), INDEX_GROUPS);
@@ -1046,17 +1046,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
         }
         return null;
-    }
-
-    private static Map<String, Set<NodeRequest>> requestsPerGroupIndex(List<NodeRequest> requests) {
-        final Map<String, Set<NodeRequest>> groups = new HashMap<>();
-        for (NodeRequest r : requests) {
-            for (String index : r.indices()) {
-                String group = getIndexGroup(index);
-                groups.computeIfAbsent(group, k -> new HashSet<>()).add(r);
-            }
-        }
-        return groups;
     }
 
     private ClusterState randomClusterState(boolean includeGroupMappingHash, int minNumberOfShards, int minNumberOfReplicas) {

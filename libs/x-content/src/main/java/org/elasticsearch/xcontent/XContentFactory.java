@@ -24,6 +24,8 @@ public class XContentFactory {
 
     public static final int GUESS_HEADER_LENGTH = 20;
 
+    private XContentFactory() {}
+
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.xcontent.XContentType#JSON}.
      */

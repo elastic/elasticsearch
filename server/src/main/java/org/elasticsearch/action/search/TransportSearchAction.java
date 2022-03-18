@@ -969,7 +969,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 OriginalIndices finalIndices = finalIndicesMap.get(it.shardId().getIndex().getUUID());
                 assert finalIndices != null;
                 return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
-            }).collect(Collectors.toList());
+            }).toList();
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -1032,9 +1032,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices)
-            .map(executorSelector::executorForSearch)
-            .collect(Collectors.toList());
+        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
         if (executorsForIndices.size() == 1) { // all indices have same executor
             return threadPool.executor(executorsForIndices.get(0));
         }

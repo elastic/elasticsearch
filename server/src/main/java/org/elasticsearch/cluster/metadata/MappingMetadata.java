@@ -64,7 +64,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {
-            this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping));
+            this.source = new CompressedXContent(mapping);
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }

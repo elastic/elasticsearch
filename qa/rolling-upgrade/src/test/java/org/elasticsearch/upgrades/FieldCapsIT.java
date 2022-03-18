@@ -258,32 +258,12 @@ public class FieldCapsIT extends AbstractRollingTestCase {
         assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
     }
 
-    // Test field type filtering on old cluster
-    public void testFieldTypeFilteringOnOldOnly() throws Exception {
-        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null, "keyword", null);
-        assertThat(resp.getField("red_field").keySet(), contains("keyword"));
-        assertNull(resp.getField("yellow_field"));
-    }
-
     // Test field type filtering on mixed cluster
     public void testAllIndicesWithFieldTypeFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
         assertThat(resp.getField("red_field").keySet(), contains("keyword"));
         assertNull(resp.getField("yellow_field"));
-    }
-
-    // Test multifield exclusion on old cluster
-    public void testExclusionFilterOnOldOnly() throws Exception {
-        {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null, null, null);
-            assertThat(resp.getField("multi_field.keyword").keySet(), contains("keyword"));
-        }
-        {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null, null, "-multifield");
-            assertThat(resp.getField("multi_field").keySet(), contains("ip"));
-            assertNull(resp.getField("multi_field.keyword"));
-        }
     }
 
     // Test multifield exclusion on mixed cluster

@@ -815,6 +815,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         for (IndexableField field : doc.rootDoc().getFields("myfield")) {
             assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
         }
+        // dynamic is false, so `something.myfield` should be ignored entirely. It used to be merged with myfield by mistake.
         assertThat(doc.rootDoc().getFields("something.myfield"), arrayWithSize(0));
 
         assertNull(doc.dynamicMappingsUpdate());

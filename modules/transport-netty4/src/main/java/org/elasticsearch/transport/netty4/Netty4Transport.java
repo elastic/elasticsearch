@@ -334,10 +334,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
-            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", ESLoggingHandler.INSTANCE);
-            // using a dot as a prefix means this cannot come from any settings parsed
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
+            setupPipeline(ch);
         }
 
         @Override
@@ -362,9 +359,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", ESLoggingHandler.INSTANCE);
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
+            setupPipeline(ch);
             serverAcceptedChannel(nettyTcpChannel);
         }
 
@@ -373,6 +368,14 @@ public class Netty4Transport extends TcpTransport {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
+    }
+
+    private void setupPipeline(Channel ch) {
+        ch.pipeline()
+            .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
+            .addLast("logging", ESLoggingHandler.INSTANCE)
+            .addLast("chunked_writer", new Netty4WriteThrottlingHandler())
+            .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
     }
 
     private void addClosedExceptionLogger(Channel channel) {

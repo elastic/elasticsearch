@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,7 +42,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -229,8 +229,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         final var indexShardRoutingTable = resultingState.routingTable().shardRoutingTable(INDEX, 0);
         assertTrue(indexShardRoutingTable.primaryShard().started());
         assertTrue(
-            indexShardRoutingTable.getShards()
-                .stream()
+            RoutingNodesHelper.asStream(indexShardRoutingTable)
                 .anyMatch(sr -> sr.primary() == false && sr.unassigned() == false && (sr.started() || secondReroute == false))
         );
         return resultingState;
@@ -353,7 +352,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     createTestListener()
                 )
             )
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private static <T> ActionListener<T> createTestListener() {

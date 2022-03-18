@@ -104,11 +104,12 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     boolean isHidden = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false);
                     if (isSystem && isHidden == false) {
                         builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+                        builder.settingsVersion(builder.settingsVersion() + 1);
                         updated = true;
                     }
-                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
+                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()))) {
                         for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                            if (aliasMetadata.isHidden() == false) {
+                            if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
                                 builder.removeAlias(aliasMetadata.alias());
                                 builder.putAlias(
                                     AliasMetadata.builder(aliasMetadata.alias())

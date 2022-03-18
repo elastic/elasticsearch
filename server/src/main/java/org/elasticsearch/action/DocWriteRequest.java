@@ -147,7 +147,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     /**
      * Finalize the request before executing or routing it.
      */
-    void process();
+    void process(IndexRouting indexRouting);
 
     /**
      * Pick the appropriate shard id to receive this request.

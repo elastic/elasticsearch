@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
@@ -67,9 +66,8 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = cache.values().stream().map(AnalyzerProvider::get).collect(Collectors.toList());
-        closeables.add(current.get());
-        IOUtils.close(closeables);
+        List<Closeable> closeables = cache.values().stream().<Closeable>map(AnalyzerProvider::get).toList();
+        IOUtils.close(current.get(), () -> IOUtils.close(closeables));
     }
 
     /**
@@ -105,8 +103,8 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
                 .stream()
                 // Wrap the analyzer instance in a PreBuiltAnalyzerProvider, this is what PreBuiltAnalyzerProviderFactory#close expects
                 // (other caches are not directly caching analyzers, but analyzer provider instead)
-                .map(analyzer -> new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer))
-                .collect(Collectors.toList());
+                .<AnalyzerProvider<?>>map(analyzer -> new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer))
+                .toList();
         }
 
     }

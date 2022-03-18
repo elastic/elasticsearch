@@ -39,8 +39,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,13 +62,13 @@ import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
  * This store reads + writes {@link ExpressionRoleMapping role mappings} in an Elasticsearch
- * {@link RestrictedIndicesNames#SECURITY_MAIN_ALIAS index}.
+ * {@link SecuritySystemIndices#SECURITY_MAIN_ALIAS index}.
  * <br>
  * The store is responsible for all read and write operations as well as
  * {@link #resolveRoles(UserData, ActionListener) resolving roles}.
@@ -150,7 +150,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     supplier,
                     ActionListener.wrap(
                         (Collection<ExpressionRoleMapping> mappings) -> listener.onResponse(
-                            mappings.stream().filter(Objects::nonNull).collect(Collectors.toList())
+                            mappings.stream().filter(Objects::nonNull).toList()
                         ),
                         ex -> {
                             logger.error(
@@ -304,9 +304,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             getMappings(listener);
         } else {
             getMappings(listener.delegateFailure((l, mappings) -> {
-                final List<ExpressionRoleMapping> filtered = mappings.stream()
-                    .filter(m -> names.contains(m.getName()))
-                    .collect(Collectors.toList());
+                final List<ExpressionRoleMapping> filtered = mappings.stream().filter(m -> names.contains(m.getName())).toList();
                 l.onResponse(filtered);
             }));
         }

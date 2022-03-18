@@ -63,7 +63,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
             new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new),
-            new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new)
+            new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, EmptySortValue.NAME, EmptySortValue::new)
         );
     }
 
@@ -351,8 +352,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     private static class EmptySortValue extends SortValue {
 
         public static final String NAME = "empty";
+        private static final String EMPTY_STRING = "";
 
         private EmptySortValue() {}
+
+        private EmptySortValue(StreamInput ignoredIn) {}
 
         @Override
         public String getWriteableName() {
@@ -364,17 +368,17 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public Object getKey() {
-            return null;
+            return EMPTY_STRING;
         }
 
         @Override
         public String format(DocValueFormat format) {
-            return null;
+            return EMPTY_STRING;
         }
 
         @Override
         protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
-            return null;
+            return builder;
         }
 
         @Override
@@ -384,7 +388,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public boolean equals(Object obj) {
-            return true;
+            return obj != null && false != getClass().equals(obj.getClass());
         }
 
         @Override
@@ -394,7 +398,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public String toString() {
-            return null;
+            return EMPTY_STRING;
         }
 
         @Override

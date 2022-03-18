@@ -23,11 +23,11 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +70,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has all shards available.",
                     Map.of("started_primaries", 2, "started_replicas", 1),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -108,9 +108,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         "started_replicas",
                         availableReplicas.size()
                     ),
-                    new SimpleHealthIndicatorImpact(
-                        3,
-                        "Redundancy for 1 index [yellow-index] is currently disrupted. Fault tolerance and search scalability are reduced."
+                    List.of(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Redundancy for 1 index [yellow-index] is currently disrupted. Fault tolerance and search scalability are "
+                                + "reduced."
+                        )
                     )
                 )
             )
@@ -131,7 +134,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
-                    new SimpleHealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                    List.of(
+                        new HealthIndicatorImpact(
+                            2,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete " + "results."
+                        )
+                    )
                 )
             )
         );
@@ -148,7 +156,43 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
-                    new SimpleHealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                    List.of(
+                        new HealthIndicatorImpact(
+                            2,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete " + "results."
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnDifferentIndices() {
+        var clusterState = createClusterStateWith(
+            List.of(
+                index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
+                index("yellow-index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("yellow-index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
+            ),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary, 2 unavailable replicas.",
+                    Map.of("unassigned_primaries", 1, "started_primaries", 2, "unassigned_replicas", 2, "started_replicas", 1),
+                    List.of(
+                        new HealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results."),
+                        new HealthIndicatorImpact(
+                            3,
+                            "Redundancy for 2 indices [yellow-index-1, yellow-index-2] is currently disrupted. Fault tolerance and "
+                                + "search scalability are reduced."
+                        )
+                    )
                 )
             )
         );
@@ -174,7 +218,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has 1 restarting replica.",
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -194,7 +238,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has all shards available.",
                     Map.of("started_primaries", 1),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -220,10 +264,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "This cluster has 1 unavailable replica.",
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
-                    new SimpleHealthIndicatorImpact(
-                        3,
-                        "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are "
-                            + "reduced."
+                    List.of(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are "
+                                + "reduced."
+                        )
                     )
                 )
             )
@@ -244,7 +290,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has 1 creating primary.",
                     Map.of("creating_primaries", 1),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -264,7 +310,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has 1 restarting primary.",
                     Map.of("restarting_primaries", 1),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -289,9 +335,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
-                    new SimpleHealthIndicatorImpact(
-                        2,
-                        "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results."
+                    List.of(
+                        new HealthIndicatorImpact(
+                            2,
+                            "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results."
+                        )
                     )
                 )
             )
@@ -302,16 +350,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         HealthStatus status,
         String summary,
         Map<String, Object> details,
-        HealthIndicatorImpact healthIndicatorImpact
+        List<HealthIndicatorImpact> impacts
     ) {
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
-            status,
-            summary,
-            new SimpleHealthIndicatorDetails(addDefaults(details)),
-            healthIndicatorImpact
-        );
+        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts);
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {

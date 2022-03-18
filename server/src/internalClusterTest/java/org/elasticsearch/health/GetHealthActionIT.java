@@ -28,6 +28,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -113,7 +114,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 status,
                 "Health is set to [" + status + "] by test plugin",
                 HealthIndicatorDetails.EMPTY,
-                HealthIndicatorImpact.EMPTY
+                Collections.emptyList()
             );
         }
     }
@@ -143,7 +144,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                 status,
                                 "Health is set to [" + status + "] by test plugin",
                                 HealthIndicatorDetails.EMPTY,
-                                HealthIndicatorImpact.EMPTY
+                                Collections.emptyList()
                             )
                         )
                     )

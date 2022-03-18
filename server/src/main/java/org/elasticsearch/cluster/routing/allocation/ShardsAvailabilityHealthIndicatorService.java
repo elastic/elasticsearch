@@ -21,11 +21,13 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -83,7 +85,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(), status.getImpact());
+        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(), status.getImpacts());
     }
 
     private static class ShardAllocationCounts {
@@ -100,7 +102,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
-            if (available == false) {
+            if ((routing.active() || isRestarting || isNew) == false) {
                 indicesWithUnavailableShards.add(routing.getIndexName());
             }
 
@@ -175,7 +177,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         createMessage(primaries.unassigned_restarting, "restarting primary", " restarting primaries"),
                         createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
                         createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
-                    ).flatMap(Function.identity()).collect(joining(" , "))
+                    ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {
                 builder.append("all shards available.");
@@ -216,50 +218,54 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             );
         }
 
-        public HealthIndicatorImpact getImpact() {
-            final HealthIndicatorImpact impact;
-            if (primaries.available == false && replicas.available == false) {
+        public List<HealthIndicatorImpact> getImpacts() {
+            final List<HealthIndicatorImpact> impacts = new ArrayList<>();
+            LinkedHashSet<String> indicesWithUnavailablePrimariesAndReplicas = new LinkedHashSet<>(primaries.indicesWithUnavailableShards);
+            indicesWithUnavailablePrimariesAndReplicas.retainAll(replicas.indicesWithUnavailableShards);
+            LinkedHashSet<String> indicesWithUnavailablePrimariesOnly = new LinkedHashSet<>(primaries.indicesWithUnavailableShards);
+            indicesWithUnavailablePrimariesOnly.removeAll(replicas.indicesWithUnavailableShards);
+            LinkedHashSet<String> indicesWithUnavailableReplicasOnly = new LinkedHashSet<>(replicas.indicesWithUnavailableShards);
+            indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
+            if (indicesWithUnavailablePrimariesAndReplicas.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "%s [%s] %s unavailable. You are at risk of losing the data in %s.",
-                    primaries.indicesWithUnavailableShards.size() == 1 ? "Index" : "Indices",
-                    getTruncatedIndicesString(primaries),
-                    primaries.indicesWithUnavailableShards.size() == 1 ? "is" : "are",
-                    primaries.indicesWithUnavailableShards.size() == 1 ? "this index" : "these indices"
+                    indicesWithUnavailablePrimariesAndReplicas.size() == 1 ? "Index" : "Indices",
+                    getTruncatedIndicesString(indicesWithUnavailablePrimariesAndReplicas),
+                    indicesWithUnavailablePrimariesAndReplicas.size() == 1 ? "is" : "are",
+                    indicesWithUnavailablePrimariesAndReplicas.size() == 1 ? "this index" : "these indices"
                 );
-                impact = new SimpleHealthIndicatorImpact(1, impactDescription);
-            } else if (primaries.available == false) {
+                impacts.add(new HealthIndicatorImpact(1, impactDescription));
+            }
+            if (indicesWithUnavailablePrimariesOnly.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
-                    primaries.indicesWithUnavailableShards.size(),
-                    primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(primaries)
+                    indicesWithUnavailablePrimariesOnly.size(),
+                    indicesWithUnavailablePrimariesOnly.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(indicesWithUnavailablePrimariesOnly)
                 );
-                impact = new SimpleHealthIndicatorImpact(2, impactDescription);
-            } else if (replicas.available == false) {
+                impacts.add(new HealthIndicatorImpact(2, impactDescription));
+            }
+            if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Redundancy for %d %s [%s] is currently disrupted. Fault tolerance and search scalability are reduced.",
-                    replicas.indicesWithUnavailableShards.size(),
-                    replicas.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(replicas)
+                    indicesWithUnavailableReplicasOnly.size(),
+                    indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(indicesWithUnavailableReplicasOnly)
                 );
-                impact = new SimpleHealthIndicatorImpact(3, impactDescription);
-            } else {
-                impact = HealthIndicatorImpact.EMPTY;
+                impacts.add(new HealthIndicatorImpact(3, impactDescription));
             }
-            return impact;
+            return impacts;
         }
 
     }
 
-    private static String getTruncatedIndicesString(ShardAllocationCounts shardAllocationCounts) {
+    private static String getTruncatedIndicesString(Set<String> indices) {
         final int maxIndices = 10;
-        String truncatedIndicesString = shardAllocationCounts.indicesWithUnavailableShards.stream()
-            .limit(maxIndices)
-            .collect(joining(", "));
-        if (maxIndices < shardAllocationCounts.indicesWithUnavailableShards.size()) {
+        String truncatedIndicesString = indices.stream().limit(maxIndices).collect(joining(", "));
+        if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
         }
         return truncatedIndicesString;

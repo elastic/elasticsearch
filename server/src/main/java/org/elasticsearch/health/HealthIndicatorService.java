@@ -8,6 +8,8 @@
 
 package org.elasticsearch.health;
 
+import java.util.List;
+
 /**
  * This is a service interface used to calculate health indicator from the different modules or plugins.
  */
@@ -23,8 +25,8 @@ public interface HealthIndicatorService {
         HealthStatus status,
         String summary,
         HealthIndicatorDetails details,
-        HealthIndicatorImpact impact
+        List<HealthIndicatorImpact> impacts
     ) {
-        return new HealthIndicatorResult(name(), component(), status, summary, details, impact);
+        return new HealthIndicatorResult(name(), component(), status, summary, details, impacts);
     }
 }

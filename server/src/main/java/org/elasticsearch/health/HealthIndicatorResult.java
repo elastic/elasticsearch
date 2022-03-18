@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 public record HealthIndicatorResult(
     String name,
@@ -19,7 +20,7 @@ public record HealthIndicatorResult(
     HealthStatus status,
     String summary,
     HealthIndicatorDetails details,
-    HealthIndicatorImpact impact
+    List<HealthIndicatorImpact> impacts
 ) implements ToXContentObject {
 
     @Override
@@ -28,7 +29,7 @@ public record HealthIndicatorResult(
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
         builder.field("details", details, params);
-        builder.field("impact", impact);
+        builder.field("impacts", impacts);
         // TODO 83303: Add detail / documentation
         return builder.endObject();
     }

@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
-import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
-            return createIndicator(GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY, HealthIndicatorImpact.EMPTY);
+            return createIndicator(GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY, Collections.emptyList());
         }
 
         var corrupted = snapshotMetadata.repositories()
@@ -77,7 +77,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 GREEN,
                 "No corrupted repositories.",
                 new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)),
-                HealthIndicatorImpact.EMPTY
+                Collections.emptyList()
             );
         }
 
@@ -94,7 +94,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     limitSize(corrupted, 10)
                 )
             ),
-            HealthIndicatorImpact.EMPTY
+            Collections.emptyList()
         );
     }
 

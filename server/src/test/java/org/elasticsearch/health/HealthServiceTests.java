@@ -10,6 +10,7 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -52,8 +53,8 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testDuplicateIndicatorNamess() {
         // Same component, same indicator name, should throw exception:
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, HealthIndicatorImpact.EMPTY);
-        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, HealthIndicatorImpact.EMPTY);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, Collections.emptyList());
+        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, Collections.emptyList());
         expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2)));
     }
 

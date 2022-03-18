@@ -16,11 +16,11 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
-import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +51,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No corrupted repositories.",
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -76,7 +76,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     ),
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );
@@ -95,7 +95,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No repositories configured.",
                     HealthIndicatorDetails.EMPTY,
-                    HealthIndicatorImpact.EMPTY
+                    Collections.emptyList()
                 )
             )
         );

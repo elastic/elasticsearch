@@ -12,18 +12,23 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public interface HealthIndicatorImpact extends ToXContentObject {
+public record HealthIndicatorImpact(int severity, String impactDescription) implements ToXContentObject {
 
-    HealthIndicatorImpact EMPTY = new HealthIndicatorImpact() {
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
+    public HealthIndicatorImpact {
+        if (severity < 0) {
+            throw new IllegalArgumentException("Severity cannot be less than 0");
         }
+        Objects.requireNonNull(impactDescription);
+    }
 
-        @Override
-        public String toString() {
-            return "Empty Impact";
-        }
-    };
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("severity", severity);
+        builder.field("description", impactDescription);
+        builder.endObject();
+        return builder;
+    }
 }

@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.is;
 
 public class AuthorizationEngineTests extends ESTestCase {
 
     public void testIndexAuthorizationResultFailureMessage() {
-        final Predicate<String> restrictedIndex = s -> s.startsWith(".");
+        // Note: The "." below is a literal dot (not a regex) this matches index names starting with a period.
+        final RestrictedIndices restrictedIndex = new RestrictedIndices(Automatons.patterns(".*"));
         assertThat(
             AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of("index-1", "index-2", ".index-3"), restrictedIndex),
             is("on indices [index-1,index-2] and restricted indices [.index-3]")

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
@@ -14,6 +16,8 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
 
   // This can be turned on to help debug failing tests, but generates more output than is needed for CI
   // setting 'logger.org.elasticsearch.xpack.security.authc.jwt', 'DEBUG'
+
+  requiresFeature 'es.jwt_realm_feature_flag_enabled', Version.fromString("8.2.0")
 
   extraConfigFile 'http.key', file('src/javaRestTest/resources/ssl/http.key')
   extraConfigFile 'http.crt', file('src/javaRestTest/resources/ssl/http.crt')

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -129,6 +130,7 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
+    private final RestrictedIndices restrictedIndices;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -145,10 +147,12 @@ public class AuthorizationService {
         Set<RequestInterceptor> requestInterceptors,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        RestrictedIndices restrictedIndices
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
+        this.restrictedIndices = restrictedIndices;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -775,7 +779,7 @@ public class AuthorizationService {
                                     request,
                                     AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(
                                         List.of(resolvedIndex),
-                                        indicesAndAliasesResolver.getRestrictedIndicesPredicate()
+                                        restrictedIndices
                                     ),
                                     null
                                 )
@@ -963,11 +967,7 @@ public class AuthorizationService {
                     failureConsumer.accept(e);
                 }
             } else {
-                handleFailure(
-                    result.isAuditable(),
-                    result.getFailureContext(indicesAndAliasesResolver.getRestrictedIndicesPredicate()),
-                    null
-                );
+                handleFailure(result.isAuditable(), result.getFailureContext(restrictedIndices), null);
             }
         }
 

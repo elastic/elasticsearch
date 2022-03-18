@@ -42,7 +42,7 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
     }
 
     public void testBothTypesAllowedReturnsBothTypes() {
-        List<String> types = Arrays.stream(ScriptType.values()).map(ScriptType::getName).collect(Collectors.toList());
+        List<String> types = Arrays.stream(ScriptType.values()).map(ScriptType::getName).toList();
         Settings.Builder settings = Settings.builder().putList("script.allowed_types", types);
         ScriptService ss = getMockScriptService(settings.build());
         ScriptLanguagesInfo info = ss.getScriptLanguages();

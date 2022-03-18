@@ -147,7 +147,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     }
 
     public void testRolloverAndMigrateDataStream() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
         final DataStream dataStream = new DataStream(
@@ -233,7 +233,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     }
 
     public void testChangingIndexModeFromTimeSeriesToSomethingElseNoEffectOnExistingDataStreams() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         final DataStream dataStream = new DataStream(
             dataStreamName,

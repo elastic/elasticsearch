@@ -32,7 +32,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
         Settings settings = Settings.EMPTY;
         var provider = new DataStreamIndexSettingsProvider();
@@ -54,7 +54,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
         var provider = new DataStreamIndexSettingsProvider();
@@ -76,7 +76,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
         TimeValue lookAheadTime = TimeValue.timeValueHours(2);
 
-        Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
+        Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
         Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
         Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStream(
             dataStreamName,

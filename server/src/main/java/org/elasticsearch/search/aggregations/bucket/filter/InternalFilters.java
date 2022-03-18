@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
@@ -216,12 +215,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalFilters(
-            name,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
-            keyed,
-            getMetadata()
-        );
+        return new InternalFilters(name, buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(), keyed, getMetadata());
     }
 
     @Override

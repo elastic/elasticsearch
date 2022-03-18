@@ -57,6 +57,18 @@ mathFloorAndCeilWithNullLiteral
 SELECT CAST(FLOOR(CAST(NULL AS DOUBLE)) AS INT) fnull, CAST(CEIL(CAST(NULL AS LONG)) AS INT) cnull, gender FROM "test_emp" ORDER BY emp_no;
 
 //
+// Random
+//
+mathRandomOfNull
+SELECT RANDOM(NULL) r1, RAND(NULL) r2;
+mathRandomOfNullInProjection
+SELECT RANDOM(languages) r FROM test_emp WHERE languages IS NULL;
+mathRandomOfNullInFilter
+SELECT emp_no FROM test_emp WHERE RANDOM(languages) IS NULL ORDER BY emp_no;
+mathRandomInGroupBy
+SELECT 1 FROM test_emp GROUP BY RANDOM(languages);
+
+//
 // Combined methods
 //
 
@@ -95,7 +107,7 @@ SELECT 5 + 2 * 3 / 2 % 2 AS c, PI() as e, first_name FROM "test_emp" WHERE emp_n
 
 //
 // binary functions
-// 
+//
 mathATan2
 SELECT ATAN2(emp_no, emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathPowerPositive

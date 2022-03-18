@@ -220,7 +220,7 @@ public abstract class DocumentParserContext {
      */
     public final String documentDescription() {
         IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
-        return idMapper.documentDescription(sourceToParse);
+        return idMapper.documentDescription(this);
     }
 
     /**

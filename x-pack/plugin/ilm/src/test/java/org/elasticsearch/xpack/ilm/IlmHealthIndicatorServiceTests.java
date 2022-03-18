@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -68,7 +67,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "ILM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
-                    new SimpleHealthIndicatorImpact(3, "TODO: Indices are not being rolled over, which could lead to future instability.")
+                    HealthIndicatorImpact.EMPTY
                 )
             )
         );

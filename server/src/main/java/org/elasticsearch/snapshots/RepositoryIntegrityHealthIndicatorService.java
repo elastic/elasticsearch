@@ -16,7 +16,6 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.SimpleHealthIndicatorImpact;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.List;
@@ -95,7 +94,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     limitSize(corrupted, 10)
                 )
             ),
-            new SimpleHealthIndicatorImpact(2, "TODO: Snapshots in corrupted repositories cannot be restored. Data loss is possible.")
+            HealthIndicatorImpact.EMPTY
         );
     }
 

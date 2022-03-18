@@ -323,7 +323,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(true)
         );
 
-        for (String index : TestRestrictedIndices.RESTRICTED_NAMES) {
+        for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
             // This test might cease to be true if we ever have non-security restricted names
             // but that depends on how users are supposed to perform snapshots of those new indices.
             assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
@@ -335,7 +335,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(true)
         );
 
-        assertNoAccessAllowed(snapshotUserRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(snapshotUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(snapshotUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -369,7 +369,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
 
-        assertNoAccessAllowed(ingestAdminRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(ingestAdminRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(ingestAdminRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -733,7 +733,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Data telemetry does not have access to security and async search
-        TestRestrictedIndices.RESTRICTED_NAMES.forEach((index) -> {
+        TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES.forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -795,7 +795,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
 
-        assertNoAccessAllowed(kibanaRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(kibanaRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(kibanaRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         // Fleet package upgrade
@@ -994,7 +994,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
 
-        assertNoAccessAllowed(kibanaAdminRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(kibanaAdminRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
     }
 
     public void testKibanaUserRole() {
@@ -1038,7 +1038,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
 
-        assertNoAccessAllowed(kibanaUserRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(kibanaUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(kibanaUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1103,7 +1103,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
 
-        assertNoAccessAllowed(monitoringUserRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(monitoringUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(monitoringUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
@@ -1288,7 +1288,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
 
-        assertNoAccessAllowed(remoteMonitoringAgentRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(remoteMonitoringAgentRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(remoteMonitoringAgentRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1407,7 +1407,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(true)
         );
         assertThat(
@@ -1419,7 +1419,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(IndicesShardStoresAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(true)
         );
         assertThat(
@@ -1431,7 +1431,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(true)
         );
         assertThat(
@@ -1443,7 +1443,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(true)
         );
         assertThat(
@@ -1455,7 +1455,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(true)
         );
         assertThat(
@@ -1468,7 +1468,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(false)
         );
         assertThat(
@@ -1480,7 +1480,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(GetAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(false)
         );
         assertThat(
@@ -1492,7 +1492,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(DeleteAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(false)
         );
         assertThat(
@@ -1504,7 +1504,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(
             remoteMonitoringCollectorRole.indices()
                 .allowedIndicesMatcher(IndexAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.RESTRICTED_NAMES))),
+                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(false)
         );
         assertThat(
@@ -1516,7 +1516,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertMonitoringOnRestrictedIndices(remoteMonitoringCollectorRole);
 
-        assertNoAccessAllowed(remoteMonitoringCollectorRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(remoteMonitoringCollectorRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(remoteMonitoringCollectorRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1605,7 +1605,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(false));
 
-        assertNoAccessAllowed(reportingUserRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(reportingUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(reportingUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1766,7 +1766,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
 
-        assertNoAccessAllowed(logstashSystemRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(logstashSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(logstashSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1808,7 +1808,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
 
-        assertNoAccessAllowed(beatsAdminRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(beatsAdminRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(beatsAdminRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1845,7 +1845,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
 
-        assertNoAccessAllowed(beatsSystemRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(beatsSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(beatsSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1898,7 +1898,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
 
-        assertNoAccessAllowed(APMSystemRole, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(APMSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(APMSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -1976,7 +1976,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
@@ -2133,7 +2133,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
@@ -2187,7 +2187,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, "foo");
             assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME); // internal use only
 
-            assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+            assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
             final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
@@ -2250,7 +2250,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, "foo");
             assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
-            assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+            assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
             final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
@@ -2305,7 +2305,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertOnlyReadAllowed(role, index);
         }
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -2340,7 +2340,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertOnlyReadAllowed(role, index);
         }
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
@@ -2387,7 +2387,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
         // Check application privileges
@@ -2445,7 +2445,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
 
@@ -2507,7 +2507,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(false));
 
-        assertNoAccessAllowed(role, TestRestrictedIndices.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 

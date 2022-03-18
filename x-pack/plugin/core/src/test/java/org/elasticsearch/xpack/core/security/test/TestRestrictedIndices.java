@@ -46,7 +46,7 @@ public class TestRestrictedIndices {
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
     public static final String INTERNAL_SECURITY_TOKENS_INDEX_7 = ".security-tokens-7";
 
-    public static final Set<String> RESTRICTED_NAMES = Collections.unmodifiableSet(
+    public static final Set<String> SAMPLE_RESTRICTED_NAMES = Collections.unmodifiableSet(
         Sets.newHashSet(
             SECURITY_MAIN_ALIAS,
             INTERNAL_SECURITY_MAIN_INDEX_6,

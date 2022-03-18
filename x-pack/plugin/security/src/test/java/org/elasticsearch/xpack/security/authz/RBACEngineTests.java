@@ -893,7 +893,7 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        String explicitRestrictedIndex = randomFrom(TestRestrictedIndices.RESTRICTED_NAMES);
+        String explicitRestrictedIndex = randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         HasPrivilegesResponse response = hasPrivileges(
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(new String[] { ".secret-non-restricted", explicitRestrictedIndex })
@@ -926,7 +926,7 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
 
-        explicitRestrictedIndex = randomFrom(TestRestrictedIndices.RESTRICTED_NAMES);
+        explicitRestrictedIndex = randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         response = hasPrivileges(
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(new String[] { ".secret-non-restricted", explicitRestrictedIndex })

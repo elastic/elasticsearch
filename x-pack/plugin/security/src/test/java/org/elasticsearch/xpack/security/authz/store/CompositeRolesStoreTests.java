@@ -1807,7 +1807,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testXPackUserCannotAccessSecurityOrAsyncSearch() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-            for (String index : TestRestrictedIndices.RESTRICTED_NAMES) {
+            for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
             assertThat(
@@ -1846,7 +1846,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testAsyncSearchUserCanAccessOnlyAsyncSearchRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-            for (String index : TestRestrictedIndices.RESTRICTED_NAMES) {
+            for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
             assertThat(

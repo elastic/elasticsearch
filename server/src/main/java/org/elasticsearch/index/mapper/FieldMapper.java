@@ -1120,7 +1120,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         return;
                     default:
                         throw new MapperParsingException(
-                            "Unknown value [" + v + "] for field [on_script_error] - accepted values are [fail,continue]"
+                            "Unknown value [" + v + "] for field [on_script_error] - accepted values are [fail, continue]"
                         );
                 }
             }).requiresParameters(dependentScriptParam);

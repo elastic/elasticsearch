@@ -137,7 +137,7 @@ public class InboundHandler {
                         streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
-                            handlerResponseError(streamInput, responseHandler);
+                            handleErrorResponse(streamInput, responseHandler);
                         } else {
                             handleResponse(remoteAddress, streamInput, responseHandler);
                         }
@@ -338,7 +338,7 @@ public class InboundHandler {
             response = handler.read(stream);
             response.remoteAddress(remoteAddress);
         } catch (Exception e) {
-            final Exception serializationException = new TransportSerializationException(
+            final var serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );
@@ -347,13 +347,18 @@ public class InboundHandler {
             handleException(handler, serializationException);
             return;
         }
-        final String executor = handler.executor();
+        final var executor = handler.executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleResponse(handler, response);
         } else {
             boolean success = false;
             try {
-                threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+                threadPool.executor(executor).execute(new ForkingResponseRunnable(handler, null) {
+                    @Override
+                    protected void doRun() {
+                        doHandleResponse(handler, response);
+                    }
+                });
                 success = true;
             } finally {
                 if (success == false) {
@@ -367,13 +372,13 @@ public class InboundHandler {
         try {
             handler.handleResponse(response);
         } catch (Exception e) {
-            handleException(handler, new ResponseHandlerFailureTransportException(e));
+            doHandleException(handler, new ResponseHandlerFailureTransportException(e));
         } finally {
             response.decRef();
         }
     }
 
-    private void handlerResponseError(StreamInput stream, final TransportResponseHandler<?> handler) {
+    private void handleErrorResponse(StreamInput stream, final TransportResponseHandler<?> handler) {
         Exception error;
         try {
             error = stream.readException();
@@ -384,21 +389,33 @@ public class InboundHandler {
             );
             assert ignoreDeserializationErrors : error;
         }
-        handleException(handler, error);
+        handleException(
+            handler,
+            error instanceof RemoteTransportException rtx ? rtx : new RemoteTransportException(error.getMessage(), error)
+        );
     }
 
-    private void handleException(final TransportResponseHandler<?> handler, Throwable error) {
-        if ((error instanceof RemoteTransportException) == false) {
-            error = new RemoteTransportException(error.getMessage(), error);
+    private void handleException(TransportResponseHandler<?> handler, TransportException transportException) {
+        final var executor = handler.executor();
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            doHandleException(handler, transportException);
+        } else {
+            threadPool.executor(executor).execute(new ForkingResponseRunnable(handler, transportException) {
+                @Override
+                protected void doRun() {
+                    doHandleException(handler, transportException);
+                }
+            });
         }
-        final RemoteTransportException rtx = (RemoteTransportException) error;
-        threadPool.executor(handler.executor()).execute(() -> {
-            try {
-                handler.handleException(rtx);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
-            }
-        });
+    }
+
+    private void doHandleException(final TransportResponseHandler<?> handler, TransportException rtx) {
+        try {
+            handler.handleException(rtx);
+        } catch (Exception e) {
+            rtx.addSuppressed(e);
+            logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), rtx);
+        }
     }
 
     private StreamInput namedWriteableStream(StreamInput delegate) {

@@ -23,7 +23,7 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();
         policy.setMaxMergedSegmentMB(10 * 1024);
         assertEquals(10 * 1024, policy.regularMergePolicy.getMaxMergedSegmentMB(), 0d);
-        assertEquals(Long.MAX_VALUE / 1024.0 / 1024.0, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
+        assertEquals(10 * 1024, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
     }
 
     public void testSetForceMergeDeletesPctAllowed() {

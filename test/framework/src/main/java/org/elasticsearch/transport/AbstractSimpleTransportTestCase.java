@@ -2084,6 +2084,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
+            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
 
             TestResponseHandler(int id) {
                 this.id = id;
@@ -2112,7 +2113,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public String executor() {
-                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                return executor;
             }
         }
 

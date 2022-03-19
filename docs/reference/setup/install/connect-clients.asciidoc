@@ -2,7 +2,7 @@
 
 When you start {es} for the first time, TLS is configured automatically for the
 HTTP layer. A CA certificate is generated and stored on disk at
-`$ES_HOME/config/certs/http_ca.crt`. The hex-encoded SHA-256 fingerprint of this
+`/etc/elasticsearch/certs/http_ca.crt`. The hex-encoded SHA-256 fingerprint of this
 certificate is also output to the terminal. Any clients that connect to {es},
 such as the 
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
@@ -46,6 +46,6 @@ SHA256 Fingerprint=<fingerprint>
 
 If your library doesn't support a method of validating the fingerprint, the 
 auto-generated CA certificate is created in the
-`$ES_HOME/config/certs/` directory on each {es} node. Copy the
+`/etc/elasticsearch/certs` directory on each {es} node. Copy the
 `http_ca.crt` file to your machine and configure your client to use this
 certificate to establish trust when it connects to {es}.

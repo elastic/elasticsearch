@@ -104,6 +104,8 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
      * We resolve this via reflection for now to be compatible with Gradle before and after 7.5.
      * This makes migration easier and allows gradle benchmark tests across gradle versions easier.
      * Likely will be removed in future version.
+     *
+     * TODO remove before merging after 7.5 final has been released and tested successfully
      * */
     private ResourceLock getResourceLock(SharedResource resource, int nodeCount) {
         try {

@@ -33,6 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class UpdateShasTaskTests extends GradleUnitTestCase {
 
+    public static final String GROOVY_JAR_REGEX = "groovy-\\d\\.\\d+\\.\\d+\\.jar";
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -65,8 +66,9 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
         getLicensesDir(project).mkdir();
         task.updateShas();
+        Files.list(getLicensesDir(project).toPath()).forEach(System.out::println);
         Path groovySha = Files.list(getLicensesDir(project).toPath())
-            .filter(p -> p.toFile().getName().matches("groovy-\\d\\.\\d\\.\\d\\.jar.sha1"))
+            .filter(p -> p.toFile().getName().matches(GROOVY_JAR_REGEX + ".sha1"))
             .findFirst()
             .get();
         assertTrue(groovySha.toFile().getName().startsWith("groovy"));
@@ -79,7 +81,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
             .getDependencies()
             .getFiles()
             .stream()
-            .filter(f -> f.getName().matches("groovy-\\d\\.\\d\\.\\d\\.jar"))
+            .filter(f -> f.getName().matches(GROOVY_JAR_REGEX))
             .findFirst()
             .get();
         String groovyShaName = groovyJar.getName() + ".sha1";

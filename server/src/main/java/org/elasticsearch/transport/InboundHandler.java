@@ -137,7 +137,7 @@ public class InboundHandler {
                         streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
-                            handleErrorResponse(streamInput, responseHandler);
+                            handlerResponseError(streamInput, responseHandler);
                         } else {
                             handleResponse(remoteAddress, streamInput, responseHandler);
                         }
@@ -347,7 +347,7 @@ public class InboundHandler {
             handleException(handler, serializationException);
             return;
         }
-        final var executor = handler.executor();
+        final String executor = handler.executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleResponse(handler, response);
         } else {
@@ -378,7 +378,7 @@ public class InboundHandler {
         }
     }
 
-    private void handleErrorResponse(StreamInput stream, final TransportResponseHandler<?> handler) {
+    private void handlerResponseError(StreamInput stream, final TransportResponseHandler<?> handler) {
         Exception error;
         try {
             error = stream.readException();
@@ -395,7 +395,7 @@ public class InboundHandler {
         );
     }
 
-    private void handleException(TransportResponseHandler<?> handler, TransportException transportException) {
+    private void handleException(final TransportResponseHandler<?> handler, TransportException transportException) {
         final var executor = handler.executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleException(handler, transportException);

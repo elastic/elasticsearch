@@ -32,7 +32,6 @@ import java.util.function.Function;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
 /**
  * Extension of basic query, adding Point-in-Time awareness.
@@ -142,7 +141,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
         client.execute(
             ClosePointInTimeAction.INSTANCE,
             new ClosePointInTimeRequest(pitId),
-            map(listener, ClosePointInTimeResponse::isSucceeded)
+            listener.map(ClosePointInTimeResponse::isSucceeded)
         );
         pitId = null;
     }

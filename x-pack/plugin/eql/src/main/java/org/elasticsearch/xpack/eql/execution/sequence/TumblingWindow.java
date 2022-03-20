@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
-import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -550,7 +549,7 @@ public class TumblingWindow implements Executable {
         }
 
         // get results through search (to keep using PIT)
-        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
+        client.fetchHits(hits(completed), listener.map(listOfHits -> {
             if (criteria.get(0).descending()) {
                 Collections.reverse(completed);
             }

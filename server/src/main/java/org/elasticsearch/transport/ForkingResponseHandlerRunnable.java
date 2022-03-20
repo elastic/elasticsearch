@@ -16,20 +16,27 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 
-abstract class ForkingResponseRunnable extends AbstractRunnable {
+/**
+ * {@link AbstractRunnable} implementation for completing a forking response handler, overriding any threadpool queue length limit and
+ * handling shutdown-related rejections by completing the handler without forking.
+ */
+abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
 
-    private static final Logger logger = LogManager.getLogger(ForkingResponseRunnable.class);
+    private static final Logger logger = LogManager.getLogger(ForkingResponseHandlerRunnable.class);
 
     private final TransportResponseHandler<?> handler;
 
     @Nullable
     private final TransportException transportException;
 
-    ForkingResponseRunnable(TransportResponseHandler<?> handler, @Nullable TransportException transportException) {
+    ForkingResponseHandlerRunnable(TransportResponseHandler<?> handler, @Nullable TransportException transportException) {
         assert handler.executor().equals(ThreadPool.Names.SAME) == false : "forking handler required, but got " + handler;
         this.handler = handler;
         this.transportException = transportException;
     }
+
+    @Override
+    protected abstract void doRun(); // no 'throws Exception' here
 
     @Override
     public boolean isForceExecution() {
@@ -40,11 +47,10 @@ abstract class ForkingResponseRunnable extends AbstractRunnable {
     @Override
     public void onRejection(Exception e) {
         // even force-executed tasks are rejected on shutdown
-        assert e instanceof EsRejectedExecutionException esRejectedExecutionException && esRejectedExecutionException.isExecutorShutdown()
-            : e;
+        assert e instanceof EsRejectedExecutionException rex && rex.isExecutorShutdown() : e;
 
-        // we must complete every pending listener, but we can't fork to the target threadpool because we're shutting
-        // down, so just complete it on this thread.
+        // we must complete every pending listener, but we can't fork to the target threadpool because we're shutting down, so just complete
+        // it on this thread.
         final TransportException exceptionToDeliver;
         if (transportException == null) {
             exceptionToDeliver = new RemoteTransportException(e.getMessage(), e);
@@ -58,8 +64,8 @@ abstract class ForkingResponseRunnable extends AbstractRunnable {
             e.addSuppressed(e2);
             logger.error(
                 () -> new ParameterizedMessage(
-                    "failed to handle rejection of {}response [{}]",
-                    transportException == null ? "" : "error ",
+                    "{} [{}]",
+                    transportException == null ? "failed to handle rejection of response" : "failed to handle rejection of error response",
                     handler
                 ),
                 e
@@ -71,7 +77,11 @@ abstract class ForkingResponseRunnable extends AbstractRunnable {
     public void onFailure(Exception e) {
         assert false : e; // delivering the response shouldn't throw anything
         logger.error(
-            () -> new ParameterizedMessage("failed to handle {}response [{}]", transportException == null ? "" : "error ", handler),
+            () -> new ParameterizedMessage(
+                "{} [{}]",
+                transportException == null ? "failed to handle rejection of response" : "failed to handle rejection of error response",
+                handler
+            ),
             e
         );
     }

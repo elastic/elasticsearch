@@ -353,7 +353,7 @@ public class InboundHandler {
         } else {
             boolean success = false;
             try {
-                threadPool.executor(executor).execute(new ForkingResponseRunnable(handler, null) {
+                threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
                     @Override
                     protected void doRun() {
                         doHandleResponse(handler, response);
@@ -400,7 +400,7 @@ public class InboundHandler {
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleException(handler, transportException);
         } else {
-            threadPool.executor(executor).execute(new ForkingResponseRunnable(handler, transportException) {
+            threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, transportException) {
                 @Override
                 protected void doRun() {
                     doHandleException(handler, transportException);

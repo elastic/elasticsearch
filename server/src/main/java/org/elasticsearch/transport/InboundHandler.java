@@ -409,12 +409,12 @@ public class InboundHandler {
         }
     }
 
-    private void doHandleException(final TransportResponseHandler<?> handler, TransportException rtx) {
+    private void doHandleException(final TransportResponseHandler<?> handler, TransportException transportException) {
         try {
-            handler.handleException(rtx);
+            handler.handleException(transportException);
         } catch (Exception e) {
-            rtx.addSuppressed(e);
-            logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), rtx);
+            transportException.addSuppressed(e);
+            logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), transportException);
         }
     }
 

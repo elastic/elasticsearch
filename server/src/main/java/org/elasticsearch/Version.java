@@ -309,7 +309,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * lazily once.
      */
     private static class DeclaredVersionsHolder {
-        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+        static final List<Version> DECLARED_VERSIONS = List.copyOf(getDeclaredVersions(Version.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version

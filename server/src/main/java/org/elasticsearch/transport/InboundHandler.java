@@ -338,7 +338,7 @@ public class InboundHandler {
             response = handler.read(stream);
             response.remoteAddress(remoteAddress);
         } catch (Exception e) {
-            final var serializationException = new TransportSerializationException(
+            final TransportException serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );

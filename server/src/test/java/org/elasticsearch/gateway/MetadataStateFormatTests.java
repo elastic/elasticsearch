@@ -280,7 +280,6 @@ public class MetadataStateFormatTests extends ESTestCase {
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             format.failOnMethods(
-                Format.FAIL_DELETE_TMP_FILE,
                 Format.FAIL_CREATE_OUTPUT_FILE,
                 Format.FAIL_WRITE_TO_OUTPUT_FILE,
                 Format.FAIL_FSYNC_TMP_FILE,

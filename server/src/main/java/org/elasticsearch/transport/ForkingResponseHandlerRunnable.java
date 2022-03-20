@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,10 +45,11 @@ abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
 
     @Override
     public void onRejection(Exception e) {
-        // even force-executed tasks are rejected on shutdown
-        assert e instanceof EsRejectedExecutionException rex && rex.isExecutorShutdown() : e;
+        // force-executed tasks are only rejected on shutdown, but we should have enqueued the completion of every handler before shutting
+        // down any thread pools so this indicates a bug
+        assert false : e;
 
-        // we must complete every pending listener, but we can't fork to the target threadpool because we're shutting down, so just complete
+        // we must complete every pending listener, and we can't fork to the target threadpool because we're shutting down, so just complete
         // it on this thread.
         final TransportException exceptionToDeliver;
         if (transportException == null) {

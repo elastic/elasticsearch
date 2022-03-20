@@ -31,6 +31,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -52,6 +53,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -80,6 +83,8 @@ public class TransportService extends AbstractLifecycleComponent
     private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
+
+    private final PendingDirectHandlers pendingDirectHandlers = new PendingDirectHandlers();
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -285,7 +290,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     protected void doStop() {
         try {
-            IOUtils.close(connectionManager, remoteClusterService, transport::stop);
+            IOUtils.close(connectionManager, remoteClusterService, transport::stop, pendingDirectHandlers::stop);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
@@ -1389,9 +1394,16 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
             service.onResponseSent(requestId, action, response);
-            final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-            // ignore if its null, the service logs it
-            if (handler != null) {
+            try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
+                if (shutdownBlock == null) {
+                    // already shutting down, the handler will be completed by sendRequestInternal or doStop
+                    return;
+                }
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                if (handler == null) {
+                    // handler already completed, likely by a timeout which is logged elsewhere
+                    return;
+                }
                 final String executor = handler.executor();
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processResponse(handler, response);
@@ -1423,9 +1435,16 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public void sendResponse(Exception exception) throws IOException {
             service.onResponseSent(requestId, action, exception);
-            final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-            // ignore if its null, the service logs it
-            if (handler != null) {
+            try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
+                if (shutdownBlock == null) {
+                    // already shutting down, the handler will be completed by sendRequestInternal or doStop
+                    return;
+                }
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                if (handler == null) {
+                    // handler already completed, likely by a timeout which is logged elsewhere
+                    return;
+                }
                 final RemoteTransportException rtx = wrapInRemote(exception);
                 final String executor = handler.executor();
                 if (ThreadPool.Names.SAME.equals(executor)) {
@@ -1528,6 +1547,39 @@ public class TransportService extends AbstractLifecycleComponent
         public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
             for (TransportMessageListener listener : listeners) {
                 listener.onResponseReceived(requestId, holder);
+            }
+        }
+    }
+
+    private static class PendingDirectHandlers extends AbstractRefCounted {
+        // direct responses might be delivered on a non-transport thread, and might fork onto a different executor, but we must avoid
+        // rejecting the forked response on shutdown so we prevent the transport service from stopping until every handler's completion
+        // has been enqueued
+
+        private final CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        @Override
+        protected void closeInternal() {
+            countDownLatch.countDown();
+        }
+
+        void stop() {
+            decRef();
+            try {
+                final boolean completed = countDownLatch.await(30, TimeUnit.SECONDS);
+                assert completed : "timed out waiting for all direct handlers to be enqueued";
+            } catch (InterruptedException e) {
+                assert false : e;
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Nullable
+        Releasable withRef() {
+            if (tryIncRef()) {
+                return this::decRef;
+            } else {
+                return null;
             }
         }
     }

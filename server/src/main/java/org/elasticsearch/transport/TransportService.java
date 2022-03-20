@@ -294,23 +294,34 @@ public class TransportService extends AbstractLifecycleComponent
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            // in case the transport is not connected to our local node (thus cleaned on node disconnect)
-            // make sure to clean any leftover on going handles
+            // The underlying transport has stopped which closed all the connections to remote nodes and hence completed all their handlers,
+            // but there may still be pending handlers for node-local requests since this connection is not closed. We complete them here:
             for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
                 try {
-                    holderToNotify.handler()
-                        .handleException(
-                            new SendRequestTransportException(
-                                holderToNotify.connection().getNode(),
-                                holderToNotify.action(),
-                                new NodeClosedException(localNode)
-                            )
-                        );
+                    final TransportResponseHandler<?> handler = holderToNotify.handler();
+                    final var targetNode = holderToNotify.connection().getNode();
+                    assert targetNode.equals(localNode) : targetNode + " vs " + localNode;
+                    final var exception = new SendRequestTransportException(
+                        targetNode,
+                        holderToNotify.action(),
+                        new NodeClosedException(localNode)
+                    );
+                    final var executor = handler.executor();
+                    if (executor.equals(ThreadPool.Names.SAME)) {
+                        handler.handleException(exception);
+                    } else {
+                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                            @Override
+                            protected void doRun() {
+                                handler.handleException(exception);
+                            }
+                        });
+                    }
                 } catch (Exception e) {
                     assert false : e;
                     logger.warn(
                         () -> new ParameterizedMessage(
-                            "failed to notify response handler on exception, action: {}",
+                            "failed to notify response handler on shutdown, action: {}",
                             holderToNotify.action()
                         ),
                         e

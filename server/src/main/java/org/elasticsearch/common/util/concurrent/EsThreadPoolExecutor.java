@@ -65,12 +65,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         try {
             super.execute(command);
         } catch (EsRejectedExecutionException ex) {
-            if (command instanceof AbstractRunnable abstractRunnable) {
-                // If we are an abstract runnable we can handle the rejection directly and don't need to rethrow it.
+            if (command instanceof AbstractRunnable) {
+                // If we are an abstract runnable we can handle the rejection
+                // directly and don't need to rethrow it.
                 try {
-                    abstractRunnable.onRejection(ex);
+                    ((AbstractRunnable) command).onRejection(ex);
                 } finally {
-                    abstractRunnable.onAfter();
+                    ((AbstractRunnable) command).onAfter();
+
                 }
             } else {
                 throw ex;

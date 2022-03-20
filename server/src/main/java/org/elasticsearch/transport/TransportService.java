@@ -1552,9 +1552,15 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private static class PendingDirectHandlers extends AbstractRefCounted {
-        // direct responses might be delivered on a non-transport thread, and might fork onto a different executor, but we must avoid
-        // rejecting the forked response on shutdown so we prevent the transport service from stopping until every handler's completion
-        // has been enqueued
+
+        // To handle a response we (i) remove the handler from responseHandlers and then (ii) enqueue an action to complete the handler on
+        // the target executor. Once step (i) succeeds then the handler won't be completed by any other mechanism, but if the target
+        // executor is stopped then step (ii) will fail with an EsRejectedExecutionException which means the handler leaks.
+        //
+        // We wait for all transport threads to finish before stopping any executors, so a transport thread will never fail at step (ii).
+        // Remote responses are always delivered on transport threads so there's no problem there, but direct responses may be delivered on
+        // a non-transport thread which runs concurrently to the stopping of the transport service. This means we need this explicit
+        // mechanism to block the shutdown of the transport service while there are direct handlers in between steps (i) and (ii).
 
         private final CountDownLatch countDownLatch = new CountDownLatch(1);
 

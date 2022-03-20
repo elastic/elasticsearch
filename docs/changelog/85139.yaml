@@ -1,6 +1,0 @@
-pr: 85139
-summary: "User profiles: fix search action to support query source param"
-area: Security
-type: bug
-issues:
- - 85090

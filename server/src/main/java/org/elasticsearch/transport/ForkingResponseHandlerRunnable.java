@@ -61,14 +61,14 @@ abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
         try {
             handler.handleException(exceptionToDeliver);
         } catch (Exception e2) {
-            e.addSuppressed(e2);
+            exceptionToDeliver.addSuppressed(e2);
             logger.error(
                 () -> new ParameterizedMessage(
                     "{} [{}]",
                     transportException == null ? "failed to handle rejection of response" : "failed to handle rejection of error response",
                     handler
                 ),
-                e
+                exceptionToDeliver
             );
         }
     }

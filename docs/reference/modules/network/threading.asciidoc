@@ -42,19 +42,19 @@ dump:
 
 [source,text]
 ----
-"elasticsearch[instance-0000000000][transport_worker][T#1]" #28 daemon prio=5 os_prio=0 cpu=1232378.30ms elapsed=47152.02s tid=0x00007fc8a8569da0 nid=0x16f runnable  [0x00007fc8ac5e6000]
+"elasticsearch[instance-0000000004][transport_worker][T#1]" #32 daemon prio=5 os_prio=0 cpu=9645.94ms elapsed=501.63s tid=0x00007fb83b6307f0 nid=0x1c4 runnable  [0x00007fb7b8ffe000]
    java.lang.Thread.State: RUNNABLE
-        at sun.nio.ch.EPoll.wait(java.base@15.0.1/Native Method)
-        at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@15.0.1/EPollSelectorImpl.java:120)
-        at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@15.0.1/SelectorImpl.java:129)
-        - locked <0x0000000624849c60> (a sun.nio.ch.Util$2)
-        - locked <0x0000000624849c08> (a sun.nio.ch.EPollSelectorImpl)
-        at sun.nio.ch.SelectorImpl.select(java.base@15.0.1/SelectorImpl.java:146)
-        at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:803)
-        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:457)
-        at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
-        at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
-        at java.lang.Thread.run(java.base@15.0.1/Thread.java:832)
+	at sun.nio.ch.EPoll.wait(java.base@17.0.2/Native Method)
+	at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@17.0.2/EPollSelectorImpl.java:118)
+	at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@17.0.2/SelectorImpl.java:129)
+	- locked <0x00000000c443c518> (a sun.nio.ch.Util$2)
+	- locked <0x00000000c38f7700> (a sun.nio.ch.EPollSelectorImpl)
+	at sun.nio.ch.SelectorImpl.select(java.base@17.0.2/SelectorImpl.java:146)
+	at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:813)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:460)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at java.lang.Thread.run(java.base@17.0.2/Thread.java:833)
 ----
 
 In the <<cluster-nodes-hot-threads>> API an idle `transport_worker` thread is
@@ -62,17 +62,17 @@ reported like this:
 
 [source,text]
 ----
-100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000000][transport_worker][T#1]'
+   100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
      10/10 snapshots sharing following 9 elements
-       java.base@17.0.1/sun.nio.ch.EPoll.wait(Native Method)
-       java.base@17.0.1/sun.nio.ch.EPollSelectorImpl.doSelect(EPollSelectorImpl.java:118)
-       java.base@17.0.1/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:129)
-       java.base@17.0.1/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:146)
-       io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:810)
-       io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:457)
+       java.base@17.0.2/sun.nio.ch.EPoll.wait(Native Method)
+       java.base@17.0.2/sun.nio.ch.EPollSelectorImpl.doSelect(EPollSelectorImpl.java:118)
+       java.base@17.0.2/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:129)
+       java.base@17.0.2/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:146)
+       io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:813)
+       io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:460)
        io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
        io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
-       java.base@17.0.1/java.lang.Thread.run(Thread.java:833)
+       java.base@17.0.2/java.lang.Thread.run(Thread.java:833)
 ----
 
 Note that `transport_worker` threads should always be in state `RUNNABLE`, even

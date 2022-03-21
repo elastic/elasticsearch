@@ -66,27 +66,27 @@ breaks added for clarity):
 
 [source,text]
 ----
-[2020-01-29T10:20:35,509][INFO ][o.e.c.s.MasterService    ]
-    [es-master-1] node-left[
-        {es-master-2}{1vSx_i__QCOjVyfA9kYEkg}{q78rb3MsRDyCcweeygxeiA}{10.244.35.101}{10.244.35.101:9300}{m}
-            disconnected,
-        {es-data2-5}{KZMiSjy3QRiJevGQokB-zQ}{stIE-HcITQqLuCbAEgbCiA}{10.244.2.213}{10.244.2.213:9300}{d}
-            disconnected],
-        term: 469, version: 446673, ...
+[2022-03-21T11:02:35,513][INFO ][o.e.c.s.MasterService    ]
+    [instance-0000000000] node-left[
+        {instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}
+            reason: disconnected,
+        {tiebreaker-0000000003}{UNw_RuazQCSBskWZV8ID_w}{bltyVOQ-RNu20OQfTHSLtA}{172.27.161.154}{172.27.161.154:19251}{mv}
+            reason: disconnected
+        ], term: 16, version: 1653783, ...
 ----
 
 This message says that the `MasterService` on the elected master
-(`es-master-1`) is processing a `node-left` task. It lists the nodes that are
-being removed and the reasons for their removal. Other nodes may log similar
-messages, but report fewer details:
+(`instance-0000000000`) is processing a `node-left` task. It lists the nodes
+that are being removed and the reasons for their removal. Other nodes may log
+similar messages, but report fewer details:
 
 [source,text]
 ----
-[2020-01-29T10:20:48,985][INFO ][o.e.c.s.ClusterApplierService]
-    [es-master-1] removed {
-        {es-master-2}{1vSx_i__QCOjVyfA9kYEkg}{q78rb3MsRDyCcweeygxeiA}{10.244.35.101}{10.244.35.101:9300}{m}{xpack.installed=true},
-        {es-data2-5}{KZMiSjy3QRiJevGQokB-zQ}{stIE-HcITQqLuCbAEgbCiA}{10.244.2.213}{10.244.2.213:9300}{d}{xpack.installed=true}},
-    term: 469, version: 446676, reason: Publication{term=469, version=446676}
+[2020-01-29T11:02:36,985][INFO ][o.e.c.s.ClusterApplierService]
+    [instance-0000000001] removed {
+        {instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}
+        {tiebreaker-0000000003}{UNw_RuazQCSBskWZV8ID_w}{bltyVOQ-RNu20OQfTHSLtA}{172.27.161.154}{172.27.161.154:19251}{mv}
+    }, term: 14, version: 1653415, reason: Publication{term=14, version=1653415}
 ----
 
 Focus on the one from the `MasterService` which is only emitted on the elected

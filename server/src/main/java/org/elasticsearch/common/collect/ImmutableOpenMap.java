@@ -373,6 +373,10 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
     }
 
     public static class Builder<KType, VType> {
+
+        private final ImmutableOpenMap<KType, VType> original;
+        private boolean changed = false;
+
         private ObjectObjectHashMap<KType, VType> map;
 
         @SuppressWarnings("unchecked")
@@ -381,10 +385,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public Builder(int size) {
+            this.original = null;
             this.map = new ObjectObjectHashMap<>(size);
         }
 
         public Builder(ImmutableOpenMap<KType, VType> map) {
+            this.original = map;
             this.map = map.map.clone();
         }
 
@@ -394,13 +400,18 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         public ImmutableOpenMap<KType, VType> build() {
             ObjectObjectHashMap<KType, VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return map.isEmpty() ? of() : new ImmutableOpenMap<>(map);
+            if (changed == false && original != null) {
+                return original;
+            } else {
+                return map.isEmpty() ? of() : new ImmutableOpenMap<>(map);
+            }
         }
 
         /**
          * Puts all the entries in the map to the builder.
          */
         public Builder<KType, VType> putAllFromMap(Map<KType, VType> map) {
+            changed = true;
             for (Map.Entry<KType, VType> entry : map.entrySet()) {
                 this.map.put(entry.getKey(), entry.getValue());
             }
@@ -411,11 +422,13 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
          * A put operation that can be used in the fluent pattern.
          */
         public Builder<KType, VType> fPut(KType key, VType value) {
+            changed = true;
             map.put(key, value);
             return this;
         }
 
         public VType put(KType key, VType value) {
+            changed = true;
             return map.put(key, value);
         }
 
@@ -428,6 +441,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public void putAll(Builder<KType, VType> builder) {
+            changed = true;
             for (var entry : builder.map) {
                 map.put(entry.key, entry.value);
             }
@@ -437,11 +451,13 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
          * Remove that can be used in the fluent pattern.
          */
         public Builder<KType, VType> fRemove(KType key) {
+            changed = true;
             map.remove(key);
             return this;
         }
 
         public VType remove(KType key) {
+            changed = true;
             return map.remove(key);
         }
 
@@ -458,20 +474,24 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public int removeAll(Predicate<? super KType> predicate) {
+            changed = true;
             return map.removeAll(predicate::test);
         }
 
         public void removeAllFromCollection(Collection<KType> collection) {
+            changed = true;
             for (var k : collection) {
                 map.remove(k);
             }
         }
 
         public void clear() {
+            changed = true;
             map.clear();
         }
 
         public Set<KType> keys() {
+            changed = true; // the returned object is a mutable window to this one
             return new KeySet<>(map.keys());
         }
 
@@ -481,7 +501,9 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public int removeAll(BiPredicate<? super KType, ? super VType> predicate) {
-            return map.removeAll(predicate::test);
+            final int removed = map.removeAll(predicate::test);
+            changed |= removed > 0;
+            return removed;
         }
 
         public int indexOf(KType key) {
@@ -497,14 +519,17 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public VType indexReplace(int index, VType newValue) {
+            changed = true;
             return map.indexReplace(index, newValue);
         }
 
         public void indexInsert(int index, KType key, VType value) {
+            changed = true;
             map.indexInsert(index, key, value);
         }
 
         public void release() {
+            changed = true;
             map.release();
         }
 

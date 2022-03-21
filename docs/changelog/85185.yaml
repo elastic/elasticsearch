@@ -1,0 +1,5 @@
+pr: 85185
+summary: Support `fields` option on source-less indices
+area: Search
+type: enhancement
+issues: []

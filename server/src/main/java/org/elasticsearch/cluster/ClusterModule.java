@@ -142,6 +142,12 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::new,
             RepositoryCleanupInProgress::readDiffFrom
         );
+        registerClusterCustom(
+            entries,
+            SnapshotDeletionsPending.TYPE,
+            SnapshotDeletionsPending::new,
+            SnapshotDeletionsPending::readDiffFrom
+        );
         // Metadata
         registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);

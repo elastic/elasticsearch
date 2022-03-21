@@ -287,7 +287,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             ConcurrentSnapshotExecutionException.class,
             () -> startClone(repoName, sourceSnapshot, targetSnapshot, indexName).actionGet()
         );
-        assertThat(ex.getMessage(), containsString("cannot clone from snapshot that is being deleted"));
+        assertThat(ex.getMessage(), containsString("cannot clone a snapshot while a snapshot deletion is in-progress"));
 
         unblockNode(repoName, masterName);
         assertAcked(deleteFuture.get());

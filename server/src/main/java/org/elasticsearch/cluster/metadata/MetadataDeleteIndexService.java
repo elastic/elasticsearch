@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -28,16 +30,31 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotsService.findRepositoryForPendingDeletion;
 
 /**
  * Deletes indices.
@@ -48,7 +65,6 @@ public class MetadataDeleteIndexService {
 
     private final Settings settings;
     private final ClusterService clusterService;
-
     private final AllocationService allocationService;
 
     @Inject
@@ -143,27 +159,135 @@ public class MetadataDeleteIndexService {
             currentGraveyard.getTombstones().size()
         );
 
-        Metadata newMetadata = metadataBuilder.build();
-        ClusterBlocks blocks = clusterBlocksBuilder.build();
+        final ClusterState.Builder builder = ClusterState.builder(currentState)
+            .routingTable(routingTableBuilder.build())
+            .blocks(clusterBlocksBuilder.build())
+            .metadata(metadataBuilder.build());
+
+        ImmutableOpenMap.Builder<String, ClusterState.Custom> customBuilder = null;
 
         // update snapshot restore entries
-        ImmutableOpenMap<String, ClusterState.Custom> customs = currentState.getCustoms();
         final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {
-            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
-            builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-            customs = builder.build();
+            customBuilder = ImmutableOpenMap.builder(currentState.getCustoms());
+            customBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
         }
 
-        return allocationService.reroute(
-            ClusterState.builder(currentState)
-                .routingTable(routingTableBuilder.build())
-                .metadata(newMetadata)
-                .blocks(blocks)
-                .customs(customs)
-                .build(),
-            "deleted indices [" + indices + "]"
+        // update snapshot(s) marked as to delete
+        final SnapshotDeletionsPending deletionsInPending = currentState.custom(
+            SnapshotDeletionsPending.TYPE,
+            SnapshotDeletionsPending.EMPTY
+        );
+        final SnapshotDeletionsPending updatedPendingDeletes = updateSnapshotDeletionsPending(
+            deletionsInPending,
+            indicesToDelete,
+            currentState
+        );
+        if (updatedPendingDeletes != deletionsInPending) {
+            if (customBuilder == null) {
+                customBuilder = ImmutableOpenMap.builder(currentState.getCustoms());
+            }
+            customBuilder.put(SnapshotDeletionsPending.TYPE, updatedPendingDeletes);
+        }
+        if (customBuilder != null) {
+            builder.customs(customBuilder.build());
+        }
+        return allocationService.reroute(builder.build(), "deleted indices [" + indices + "]");
+    }
+
+    /**
+     * This method updates the list of snapshots marked as to be deleted if one or more searchable snapshots are deleted.
+     *
+     * The snapshots cannot be deleted at the same time of the searchable snapshots indices because deleting one or more snapshot requires a
+     * consistent view of their repositories data, and getting the consistent views cannot be done in the same cluster state update. It is
+     * also possible than one (or more) snapshot cannot be deleted immediately because the snapshot is involved in another restore or
+     * cloning or the repository might not be writeable etc. To address those conflicting situations this method only captures the snapshot
+     * information that are required to later delete the snapshot and stores them in a {@link SnapshotDeletionsPending.Entry} in cluster
+     * state. Once a snapshot is pending deletion it cannot be restored, mounted or cloned. If the snapshot pending deletion is involved in
+     * a snapshot operation at the time it is deleted then the deletion will happen once the conflicting operation is terminated.
+     */
+    private SnapshotDeletionsPending updateSnapshotDeletionsPending(
+        final SnapshotDeletionsPending pendingDeletions,
+        final Set<Index> indicesToDelete,
+        final ClusterState state
+    ) {
+        final List<Settings> deletedIndicesSettings = indicesToDelete.stream()
+            .map(index -> state.metadata().getIndexSafe(index))
+            .filter(IndexMetadata::isSearchableSnapshot)
+            .map(IndexMetadata::getSettings)
+            .filter(indexSettings -> indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false))
+            .collect(Collectors.toList());
+        if (deletedIndicesSettings.isEmpty()) {
+            return pendingDeletions;
+        }
+
+        final Set<SnapshotId> activeSearchableSnapshots = state.metadata()
+            .indices()
+            .values()
+            .stream()
+            .filter(index -> index.isSearchableSnapshot() && indicesToDelete.contains(index.getIndex()) == false)
+            .map(index -> MetadataDeleteIndexService.toSnapshotId(index.getSettings()))
+            .collect(Collectors.toUnmodifiableSet());
+
+        final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE);
+        // also used to deduplicate snapshots that were used by multiple deleted indices
+        final Map<SnapshotId, Tuple<String, String>> snapshotsWithRepository = new HashMap<>();
+        // also used to log a warning for snapshots with unknown repository
+        final Map<SnapshotId, Tuple<String, String>> snapshotsWithoutRepository = new HashMap<>();
+
+        for (Settings deletedIndexSettings : deletedIndicesSettings) {
+            SnapshotId snapshotId = toSnapshotId(deletedIndexSettings);
+            if (activeSearchableSnapshots.contains(snapshotId) == false) {
+                String repositoryUuid = deletedIndexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+                String repositoryName = deletedIndexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+                Optional<RepositoryMetadata> repository = findRepositoryForPendingDeletion(repositories, repositoryName, repositoryUuid);
+                if (repository.isPresent()) {
+                    snapshotsWithRepository.putIfAbsent(snapshotId, Tuple.tuple(repositoryName, repositoryUuid));
+                } else {
+                    snapshotsWithoutRepository.putIfAbsent(snapshotId, Tuple.tuple(repositoryName, repositoryUuid));
+                }
+            }
+        }
+
+        final int maxPendingDeletions = SnapshotDeletionsPending.MAX_PENDING_DELETIONS_SETTING.get(settings);
+        final SnapshotDeletionsPending.Builder builder = new SnapshotDeletionsPending.Builder(
+            pendingDeletions,
+            evicted -> logger.warn(
+                () -> new ParameterizedMessage(
+                    "maximum number of snapshots [{}] awaiting deletion has been reached in "
+                        + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
+                    maxPendingDeletions,
+                    evicted.getSnapshotId(),
+                    Instant.ofEpochMilli(evicted.getIndexDeletionTime()).atZone(ZoneOffset.UTC),
+                    evicted.getRepositoryName(),
+                    evicted.getRepositoryUuid()
+                )
+            )
+        );
+
+        final long timestamp = Instant.now().toEpochMilli();
+        for (Map.Entry<SnapshotId, Tuple<String, String>> entry : snapshotsWithRepository.entrySet()) {
+            logger.debug("snapshot [{}:{}] added to the list of snapshots pending deletion", entry.getValue().v1(), entry.getKey());
+            builder.add(entry.getValue().v1(), entry.getValue().v2(), entry.getKey(), timestamp);
+        }
+        for (Map.Entry<SnapshotId, Tuple<String, String>> entry : snapshotsWithoutRepository.entrySet()) {
+            logger.warn(
+                "snapshot [{}] added to the list of snapshots pending deletion but refers to an unregistered repository [{}/{}]",
+                entry.getKey(),
+                entry.getValue().v1(),
+                entry.getValue().v2()
+            );
+            builder.add(entry.getValue().v1(), entry.getValue().v2(), entry.getKey(), timestamp);
+        }
+        return builder.build(settings);
+    }
+
+    private static SnapshotId toSnapshotId(final Settings indexSettings) {
+        assert SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings);
+        return new SnapshotId(
+            indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY),
+            indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY)
         );
     }
 }

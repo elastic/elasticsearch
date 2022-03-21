@@ -11,6 +11,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -334,6 +336,21 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
             }
+        });
+    }
+
+    protected void awaitNoMoreSnapshotsDeletions() throws Exception {
+        final String master = internalCluster().getMasterName();
+        awaitClusterState(logger, master, state -> {
+            final SnapshotDeletionsInProgress deletions = state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+            if (deletions.hasDeletionsInProgress()) {
+                return false;
+            }
+            final SnapshotDeletionsPending pendingDeletions = state.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
+            if (pendingDeletions.isEmpty() == false) {
+                return false;
+            }
+            return true;
         });
     }
 }

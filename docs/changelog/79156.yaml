@@ -1,0 +1,6 @@
+pr: 79156
+summary: Add snapshots pending deletion in cluster state to delete snapshot once index
+  is deleted
+area: Snapshot/Restore
+type: enhancement
+issues: []

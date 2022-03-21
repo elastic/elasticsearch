@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -100,11 +99,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotUtils.ensureSnapshotNotDeletedOrPendingDeletion;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
@@ -1117,7 +1116,7 @@ public class RestoreService implements ClusterStateApplier {
                 "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore"
             );
         }
-        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(settings))) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(settings)) {
             final Boolean changed = changeSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, null);
             if (changed != null) {
                 final Boolean previous = settings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, null);
@@ -1251,7 +1250,7 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public ClusterState execute(ClusterState currentState) {
             // Check if the snapshot to restore is currently being deleted
-            ensureSnapshotNotDeleted(currentState);
+            ensureSnapshotNotDeletedOrPendingDeletion(currentState, snapshot.getRepository(), snapshot.getSnapshotId(), "restore");
 
             // Clear out all existing indices which fall within a system index pattern being restored
             currentState = metadataDeleteIndexService.deleteIndices(
@@ -1359,7 +1358,7 @@ public class RestoreService implements ClusterStateApplier {
                     );
                 }
 
-                if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(updatedIndexMetadata.getSettings()))) {
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(updatedIndexMetadata.getSettings())) {
                     searchableSnapshotsIndices.add(updatedIndexMetadata.getIndex());
                 }
             }
@@ -1422,19 +1421,6 @@ public class RestoreService implements ClusterStateApplier {
                 );
             }
             mdBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
-        }
-
-        private void ensureSnapshotNotDeleted(ClusterState currentState) {
-            SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
-                SnapshotDeletionsInProgress.TYPE,
-                SnapshotDeletionsInProgress.EMPTY
-            );
-            if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshot.getSnapshotId()))) {
-                throw new ConcurrentSnapshotExecutionException(
-                    snapshot,
-                    "cannot restore a snapshot while a snapshot deletion is in-progress [" + deletionsInProgress.getEntries().get(0) + "]"
-                );
-            }
         }
 
         private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder) {
@@ -1661,7 +1647,7 @@ public class RestoreService implements ClusterStateApplier {
         final Metadata metadata = currentState.metadata();
         for (Index index : indices) {
             final Settings indexSettings = metadata.getIndexSafe(index).getSettings();
-            assert "snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings)) : "not a snapshot backed index: " + index;
+            assert SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings) : "not a snapshot backed index: " + index;
 
             final String repositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
             final String repositoryName = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
@@ -1689,10 +1675,10 @@ public class RestoreService implements ClusterStateApplier {
                 if (other.getIndex().equals(index)) {
                     continue; // do not check the searchable snapshot index against itself
                 }
-                final Settings otherSettings = other.getSettings();
-                if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(otherSettings)) == false) {
+                if (other.isSearchableSnapshot() == false) {
                     continue; // other index is not a searchable snapshot index, skip
                 }
+                final Settings otherSettings = other.getSettings();
                 final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
                 if (Objects.equals(snapshotUuid, otherSnapshotUuid) == false) {
                     continue; // other index is backed by a different snapshot, skip

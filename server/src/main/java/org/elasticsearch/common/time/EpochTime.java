@@ -108,9 +108,11 @@ class EpochTime {
                 long nanos = temporal.getLong(ChronoField.NANO_OF_SECOND);
                 if (nanos % 1_000_000 != 0) {
                     // Fractional negative timestamp.
-                    // Add 1 ms towards positive infinity because the fraction leads
-                    // the output's integral part to be an off-by-one when the
-                    // `(nanos / 1_000_000)` is added below.
+                    // This increases the millis magnitude by 1 in the formatted value due to a rounding error when
+                    // the nanos value is not evenly converted into a millis value. Java 8's date-time API represents
+                    // values as a negative seconds value + a positive nanos value. However, in this case there is
+                    // precision loss when converting the nanos to millis. Thus, to account for this precision loss,
+                    // we must use a millis value that is rounded towards the epoch (i.e. to a higher magnitude).
                     millis += 1;
                 }
                 millis += (nanos / 1_000_000);
@@ -161,9 +163,6 @@ class EpochTime {
             // if there is already a milli of second, we need to overwrite it
             if (fieldValues.containsKey(ChronoField.MILLI_OF_SECOND)) {
                 fieldValues.put(ChronoField.MILLI_OF_SECOND, nanos / 1_000_000);
-            }
-            if (fieldValues.containsKey(ChronoField.MICRO_OF_SECOND)) {
-                fieldValues.put(ChronoField.MICRO_OF_SECOND, nanos / 1_000);
             }
             return null;
         }

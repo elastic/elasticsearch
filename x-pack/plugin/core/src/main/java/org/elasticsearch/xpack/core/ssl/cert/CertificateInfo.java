@@ -46,7 +46,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.path = path;
         this.format = Objects.requireNonNull(format, "Certificate format cannot be null");
         this.alias = alias;
-        this.subjectDn = Objects.requireNonNull(certificate.getSubjectDN().getName());
+        this.subjectDn = Objects.requireNonNull(certificate.getSubjectX500Principal().getName());
         this.serialNumber = certificate.getSerialNumber().toString(16);
         this.hasPrivateKey = hasPrivateKey;
         this.expiry = certificate.getNotAfter().toInstant().atZone(ZoneOffset.UTC);

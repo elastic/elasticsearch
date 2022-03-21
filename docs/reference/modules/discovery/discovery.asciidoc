@@ -34,9 +34,8 @@ faulty. When a node stops being the elected master, it begins the discovery
 process again.
 
 [[modules-discovery-troubleshooting]]
-[TIP]
-.Troubleshooting discovery
-===============================================
+==== Troubleshooting discovery
+
 In most cases, the discovery process completes quickly, and the master node
 remains elected for a long period of time. If the cluster has no master for
 more than a few seconds or the master is unstable, the logs for each node will
@@ -80,7 +79,6 @@ has discovered a possible quorum of master-eligible nodes but the cluster still
 cannot elect a master. Usually this means that one of the other nodes cannot
 discover a quorum. Check the logs on the other master-eligible nodes and ensure
 that every node has discovered a quorum.
-===============================================
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

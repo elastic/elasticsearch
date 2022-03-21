@@ -40,14 +40,17 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-        LifecycleExecutionState lifecycleState;
-        try {
-            lifecycleState = indexMetadata.getLifecycleExecutionState();
-            if (lifecycleState.lifecycleDate() != null) {
-                return clusterState;
-            }
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        if (lifecycleState.lifecycleDate() != null) {
+            return clusterState;
+        }
 
+        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.builder(lifecycleState)
+            .setIndexCreationDate(indexMetadata.getCreationDate())
+            .build();
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+        try {
             if (shouldParseIndexName(indexMetadata.getSettings())) {
                 long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
                 indexMetadataBuilder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
@@ -63,13 +66,10 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             throw new InitializePolicyException(policyName, index.getName(), e);
         }
 
-        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
-        newLifecycleState.setIndexCreationDate(indexMetadata.getCreationDate());
-
         // a change may have also been made to the indexMetadata via the indexMetadataBuilder above,
         // so we can't use {@code LifecycleExecutionStateUtils#newClusterStateWithLifecycleState}.
         // instead, we must run through the whole metadata builder and cluster state builder cycle
-        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap());
         Metadata metadata = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder).build();
 
         return ClusterState.builder(clusterState).metadata(metadata).build();

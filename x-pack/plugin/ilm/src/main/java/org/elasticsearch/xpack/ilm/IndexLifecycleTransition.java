@@ -136,7 +136,7 @@ public final class IndexLifecycleTransition {
             forcePhaseDefinitionRefresh
         );
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta, newLifecycleState);
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta.getIndex(), newLifecycleState);
     }
 
     /**
@@ -197,7 +197,7 @@ public final class IndexLifecycleTransition {
             );
         }
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, idxMeta, failedState.build());
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, idxMeta.getIndex(), failedState.build());
     }
 
     /**
@@ -251,7 +251,11 @@ public final class IndexLifecycleTransition {
                 // manual retries don't update the retry count
                 retryStepState.setFailedStepRetryCount(lifecycleState.failedStepRetryCount());
             }
-            newState = LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(currentState, indexMetadata, retryStepState.build());
+            newState = LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+                currentState,
+                indexMetadata.getIndex(),
+                retryStepState.build()
+            );
         } else {
             throw new IllegalArgumentException(
                 "cannot retry an action for an index [" + index + "] that has not encountered an error when running a Lifecycle Policy"
@@ -419,7 +423,7 @@ public final class IndexLifecycleTransition {
         }
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(lifecycleState);
         newState.setStepInfo(stepInfoString);
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata, newState.build());
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata.getIndex(), newState.build());
     }
 
     /**

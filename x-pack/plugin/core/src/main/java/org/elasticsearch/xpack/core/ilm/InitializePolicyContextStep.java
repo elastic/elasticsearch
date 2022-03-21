@@ -11,9 +11,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 
@@ -63,11 +65,14 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
         newLifecycleState.setIndexCreationDate(indexMetadata.getCreationDate());
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            clusterState,
-            indexMetadataBuilder.build(),
-            newLifecycleState.build()
-        );
+
+        // a change may have also been made to the indexMetadata via the indexMetadataBuilder above,
+        // so we can't use {@code LifecycleExecutionStateUtils#newClusterStateWithLifecycleState}.
+        // instead, we must run through the whole metadata builder and cluster state builder cycle
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
+        Metadata metadata = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder).build();
+
+        return ClusterState.builder(clusterState).metadata(metadata).build();
     }
 
     @Override

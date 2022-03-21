@@ -61,6 +61,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
-        return fetchSourceValue(fieldType, Collections.singletonMap(fieldType.name(), List.of(values)));
+        return fetchSourceValue(fieldType, List.of(values));
     }
 }

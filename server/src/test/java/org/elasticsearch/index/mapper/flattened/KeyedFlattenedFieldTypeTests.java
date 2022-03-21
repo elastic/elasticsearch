@@ -177,7 +177,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
-
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         ValueFetcher fetcher = ft.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap("field", sourceValue));

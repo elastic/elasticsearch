@@ -26,7 +26,6 @@ import org.elasticsearch.transport.BindTransportException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.StandardProtocolFamily;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.AccessController;
@@ -42,7 +41,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private final Environment environment;
 
-    private volatile boolean active = false;
+    private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
     private CountDownLatch listenerThreadLatch;
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -94,28 +93,41 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         InetAddress localhost = InetAddress.getLoopbackAddress();
         int portNumber = PORT.get(environment.settings());
 
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
-                if (boundSocket.get() != null) {
-                    serverChannel.bind(boundSocket.get());
-                } else {
-                    InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
-                    serverChannel.bind(socketAddress);
+        try {
+            serverChannel = ServerSocketChannel.open();
 
-                    boundSocket.set((InetSocketAddress) serverChannel.getLocalAddress());
-
-                    BoundTransportAddress boundAddress = boundAddress();
-                    for (BoundAddressListener listener : boundAddressListeners) {
-                        listener.addressBound(boundAddress);
+            // If we have previously bound to a specific port, we always rebind to the same one.
+            if (boundSocket.get() != null) {
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    try {
+                        serverChannel.bind(boundSocket.get());
+                    } catch (IOException e) {
+                        throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
                     }
-                }
-            } catch (Exception e) {
-                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
-            }
+                    return null;
+                });
+            } else {
+                InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    try {
+                        serverChannel.bind(socketAddress);
+                    } catch (IOException e) {
+                        throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
+                    }
+                    return null;
+                });
 
-            return null;
-        });
+                boundSocket.set((InetSocketAddress) serverChannel.getLocalAddress());
+
+                // Address bound event is only sent on first bind.
+                BoundTransportAddress boundAddress = boundAddress();
+                for (BoundAddressListener listener : boundAddressListeners) {
+                    listener.addressBound(boundAddress);
+                }
+            }
+        } catch (Exception e) {
+            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(localhost, portNumber), e);
+        }
 
         return serverChannel;
     }
@@ -139,17 +151,20 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
         new Thread(() -> {
             assert serverChannel != null && listenerThreadLatch != null;
-            while (serverChannel.isOpen()) {
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
-                        logger.debug("encountered exception while responding to readiness check request", e);
-                    } catch (Exception other) {
-                        logger.warn("encountered unknown exception while responding to readiness check request", other);
-                    }
-                    return null;
-                });
+            try {
+                while (serverChannel.isOpen()) {
+                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                        try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
+                            logger.debug("encountered exception while responding to readiness check request", e);
+                        } catch (Exception other) {
+                            logger.warn("encountered unknown exception while responding to readiness check request", other);
+                        }
+                        return null;
+                    });
+                }
+            } finally {
+                listenerThreadLatch.countDown();
             }
-            listenerThreadLatch.countDown();
         }, "elasticsearch[readiness-service]").start();
 
         logger.info("readiness service up and running on {}", boundAddress().publishAddress());

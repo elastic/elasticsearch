@@ -80,21 +80,24 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
 
     public void testRoundFunctionWithEdgeCasesInputs() {
         assertNull(new Round(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(0.0, new Round(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
+        assertEquals(123.456, new Round(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
+        assertEquals(0.0, new Round(EMPTY, l(123.456), l(Integer.MIN_VALUE)).makePipe().asProcessor().process(null));
         assertEquals(0L, new Round(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
         assertEquals(Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), null).makePipe().asProcessor().process(null));
         assertEquals(Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), l(5)).makePipe().asProcessor().process(null));
         assertEquals(Long.MIN_VALUE, new Round(EMPTY, l(Long.MIN_VALUE), null).makePipe().asProcessor().process(null));
         assertEquals(Long.MIN_VALUE, new Round(EMPTY, l(Long.MIN_VALUE), l(5)).makePipe().asProcessor().process(null));
-
         // absolute precision at the extremes
         assertEquals(9223372036854775800L, new Round(EMPTY, l(Long.MAX_VALUE), l(-2)).makePipe().asProcessor().process(null));
         assertEquals(-9223372036854775800L, new Round(EMPTY, l(Long.MIN_VALUE), l(-2)).makePipe().asProcessor().process(null));
         assertEquals(-9223372036854775800L, new Round(EMPTY, l(Long.MIN_VALUE + 1), l(-2)).makePipe().asProcessor().process(null));
         // scaling to double precision, because of Long value overflow
-        assertEquals(9.223372036854776E18, new Round(EMPTY, l(Long.MAX_VALUE), l(-1)).makePipe().asProcessor().process(null));
-        assertEquals(-9.223372036854776E18, new Round(EMPTY, l(Long.MIN_VALUE), l(-1)).makePipe().asProcessor().process(null));
-
+        assertEquals(9.223372036854776E18, new Round(EMPTY, l(Long.MAX_VALUE), l(-3)).makePipe().asProcessor().process(null));
+        assertEquals(-9.223372036854776E18, new Round(EMPTY, l(Long.MIN_VALUE), l(-3)).makePipe().asProcessor().process(null));
+        // very big numbers, ie. overflow with Long rounding
+        assertEquals(1234456.234567, new Round(EMPTY, l(1234456.234567), l(20)).makePipe().asProcessor().process(null));
+        assertEquals(12344561234567456.2345, new Round(EMPTY, l(12344561234567456.234567), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(12344561234567000., new Round(EMPTY, l(12344561234567456.234567), l(-3)).makePipe().asProcessor().process(null));
     }
 
     public void testRoundInputValidation() {

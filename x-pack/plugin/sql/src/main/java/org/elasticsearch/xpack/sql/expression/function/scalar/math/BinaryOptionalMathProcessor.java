@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -52,10 +54,26 @@ public class BinaryOptionalMathProcessor implements Processor {
                 }// otherwise there was an overflow on long values, fall back to floating point implementation.
 
             }
+
             double tenAtScale = Math.pow(10., rLong);
+            if (tenAtScale == 0.0) {
+                return 0.0;
+            } else if (Double.POSITIVE_INFINITY == tenAtScale) {
+                return l;
+            }
             double middleResult = l.doubleValue() * tenAtScale;
             int sign = middleResult > 0 ? 1 : -1;
-            return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
+            if (Long.MIN_VALUE + 1 < middleResult && middleResult < Long.MAX_VALUE) {
+                // the result can still be rounded using Math.abs(), that is limited to long values
+                return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
+            }
+
+            // otherwise fall back to BigDecimal, that is ~40x slower, but works fine
+            MathContext prec = MathContext.DECIMAL128;
+            return new BigDecimal(Math.abs(middleResult), prec).round(new MathContext(0))
+                .divide(new BigDecimal(tenAtScale), prec)
+                .doubleValue() * sign;
+
         }),
         TRUNCATE((l, r) -> {
             long rLong = r.longValue();

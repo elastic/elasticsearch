@@ -8,6 +8,7 @@
 // Values larger than Long.MAX_VALUE are returned as BigDecimal.
 // EXPM1 and CBRT functions not available.
 // RAND takes an int.
+// ROUND only works for values < Long.MAX_VALUE
 // ES's CEIL & FLOOR don't work with unsigned_longs (TODO) + they can return longs, while H2's always returns doubles
 
 plus
@@ -39,8 +40,8 @@ log10
 SELECT LOG10(9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000)) AS x;
 power
 SELECT POWER(4294967295, 2) AS x;
-round
-SELECT ROUND(9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000)) AS x;
+// round
+// SELECT ROUND(9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000)) AS x;
 sign
 SELECT SIGN(9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000)) AS x;
 sqrt

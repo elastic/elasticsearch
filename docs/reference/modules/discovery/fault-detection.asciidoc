@@ -62,7 +62,7 @@ particularly on logs from the elected master. When a node leaves the cluster,
 logs for the elected master include a message like this (with line breaks added
 for clarity):
 
-[console,txt]
+[source,text]
 ----
 [2020-01-29T10:20:35,509][INFO ][o.e.c.s.MasterService    ]
     [es-master-1] node-left[
@@ -78,7 +78,7 @@ This message says that the `MasterService` on the elected master
 being removed and the reasons for their removal. Other nodes may log similar
 messages:
 
-[console,txt]
+[source,text]
 ----
 [2020-01-29T10:20:48,985][INFO ][o.e.c.s.ClusterApplierService]
     [es-master-1] removed {

@@ -935,12 +935,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // Ensure privileges necessary for ILM policies in APM & Endpoint packages
         Arrays.asList(
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
-            "logs-apm-*" + randomAlphaOfLengthBetween(3, 8),
-            "logs-apm.*" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm-*" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm.*" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm-*" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm.*" + randomAlphaOfLengthBetween(3, 8)
+            "logs-apm-" + randomAlphaOfLengthBetween(3, 8),
+            "logs-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

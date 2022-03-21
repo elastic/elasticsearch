@@ -300,7 +300,11 @@ public class TransportService extends AbstractLifecycleComponent
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
-                    assert targetNode.equals(localNode) : targetNode + " vs " + localNode;
+
+                    // Assertion only holds for TcpTransport only because other transports (used in tests) may not implement the proper
+                    // close-connection behaviour. TODO fix this.
+                    assert transport instanceof TcpTransport == false || targetNode.equals(localNode) : targetNode + " vs " + localNode;
+
                     final var exception = new SendRequestTransportException(
                         targetNode,
                         holderToNotify.action(),

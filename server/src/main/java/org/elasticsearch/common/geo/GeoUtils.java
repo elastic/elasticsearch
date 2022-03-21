@@ -444,82 +444,88 @@ public class GeoUtils {
         String geohash = null;
         String geojsonType = null;
         ArrayList<Double> coordinates = null;
-        NumberFormatException numberFormatException = null;
+        class NumberFormatExceptionHandler {
+            NumberFormatException numberFormatException = null;
+            String field = null;
+
+            public double doubleValue(XContentSubParser subParser, String field) throws IOException {
+                try {
+                    return switch (subParser.currentToken()) {
+                        case VALUE_NUMBER, VALUE_STRING -> subParser.doubleValue(true);
+                        default -> throw new ElasticsearchParseException("[{}] must be a number", field);
+                    };
+                } catch (NumberFormatException e) {
+                    numberFormatException = e;
+                    this.field = field;
+                    return Double.NaN;
+                }
+            }
+
+            // TODO: Re-evaluate why this exception is not thrown earlier
+            public void assertNoException() {
+                if (numberFormatException != null) {
+                    throw new ElasticsearchParseException("[{}] must be a valid double value", numberFormatException, field);
+                }
+            }
+        }
+        NumberFormatExceptionHandler numberFormatExceptionHandler = new NumberFormatExceptionHandler();
 
         if (parser.currentToken() == Token.START_OBJECT) {
             try (XContentSubParser subParser = new XContentSubParser(parser)) {
                 while (subParser.nextToken() != Token.END_OBJECT) {
                     if (subParser.currentToken() == Token.FIELD_NAME) {
                         String field = subParser.currentName();
+                        subParser.nextToken();
                         if (LATITUDE.equals(field)) {
-                            subParser.nextToken();
-                            switch (subParser.currentToken()) {
-                                case VALUE_NUMBER:
-                                case VALUE_STRING:
-                                    try {
-                                        lat = subParser.doubleValue(true);
-                                    } catch (NumberFormatException e) {
-                                        numberFormatException = e;
-                                    }
-                                    break;
-                                default:
-                                    throw new ElasticsearchParseException("latitude must be a number");
-                            }
+                            lat = numberFormatExceptionHandler.doubleValue(subParser, field);
                         } else if (LONGITUDE.equals(field)) {
-                            subParser.nextToken();
-                            switch (subParser.currentToken()) {
-                                case VALUE_NUMBER:
-                                case VALUE_STRING:
-                                    try {
-                                        lon = subParser.doubleValue(true);
-                                    } catch (NumberFormatException e) {
-                                        numberFormatException = e;
-                                    }
-                                    break;
-                                default:
-                                    throw new ElasticsearchParseException("longitude must be a number");
-                            }
+                            lon = numberFormatExceptionHandler.doubleValue(subParser, field);
                         } else if (GEOHASH.equals(field)) {
-                            if (subParser.nextToken() == Token.VALUE_STRING) {
+                            if (subParser.currentToken() == Token.VALUE_STRING) {
                                 geohash = subParser.text();
                             } else {
                                 throw new ElasticsearchParseException("geohash must be a string");
                             }
                         } else if (COORDINATES.equals(field)) {
-                            subParser.nextToken();
                             if (subParser.currentToken() == Token.START_ARRAY) {
                                 coordinates = new ArrayList<>();
-                                subParser.nextToken();
-                                while (subParser.currentToken() != Token.END_ARRAY) {
-                                    switch (subParser.currentToken()) {
-                                        case VALUE_NUMBER -> coordinates.add(subParser.doubleValue());
-                                        case VALUE_STRING -> coordinates.add(subParser.doubleValue(true));
-                                        default -> throw new ElasticsearchParseException("GeoJSON coordinate values must be numbers");
-                                    }
-                                    subParser.nextToken();
+                                while (subParser.nextToken() != Token.END_ARRAY) {
+                                    coordinates.add(numberFormatExceptionHandler.doubleValue(subParser, field));
                                 }
                             }
                         } else if (TYPE.equals(field)) {
-                            if (subParser.nextToken() == Token.VALUE_STRING) {
+                            if (subParser.currentToken() == Token.VALUE_STRING) {
                                 geojsonType = subParser.text();
                             } else {
-                                throw new ElasticsearchParseException("GeoJSON type must be a string");
+                                throw new ElasticsearchParseException("GeoJSON 'type' must be a string");
                             }
                         } else {
-                            throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
+                            throw new ElasticsearchParseException(
+                                "field must be either [{}], [{}], [{}], [{}] or [{}]",
+                                LATITUDE,
+                                LONGITUDE,
+                                GEOHASH,
+                                COORDINATES,
+                                TYPE
+                            );
                         }
                     } else {
                         throw new ElasticsearchParseException("token [{}] not allowed", subParser.currentToken());
                     }
                 }
             }
+            numberFormatExceptionHandler.assertNoException();
+            assertOnlyOneFormat(
+                geohash != null,
+                Double.isNaN(lat) == false,
+                Double.isNaN(lon) == false,
+                coordinates != null,
+                geojsonType != null
+            );
             if (geohash != null) {
-                if (Double.isNaN(lat) == false || Double.isNaN(lon) == false) {
-                    throw new ElasticsearchParseException("field must be either lat/lon or geohash");
-                } else {
-                    return point.parseGeoHash(geohash, effectivePoint);
-                }
-            } else if (coordinates != null) {
+                return point.parseGeoHash(geohash, effectivePoint);
+            }
+            if (coordinates != null) {
                 if (geojsonType == null || geojsonType.toLowerCase(Locale.ROOT).equals("point") == false) {
                     throw new ElasticsearchParseException("GeoJSON type for geo_point can only be 'point'");
                 }
@@ -527,20 +533,8 @@ public class GeoUtils {
                     GeoPoint.assertZValue(ignoreZValue, coordinates.get(2));
                 }
                 return point.reset(coordinates.get(1), coordinates.get(0));
-            } else if (numberFormatException != null) {
-                throw new ElasticsearchParseException(
-                    "[{}] and [{}] must be valid double values",
-                    numberFormatException,
-                    LATITUDE,
-                    LONGITUDE
-                );
-            } else if (Double.isNaN(lat)) {
-                throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
-            } else if (Double.isNaN(lon)) {
-                throw new ElasticsearchParseException("field [{}] missing", LONGITUDE);
-            } else {
-                return point.reset(lat, lon);
             }
+            return point.reset(lat, lon);
 
         } else if (parser.currentToken() == Token.START_ARRAY) {
             try (XContentSubParser subParser = new XContentSubParser(parser)) {
@@ -568,6 +562,30 @@ public class GeoUtils {
             return point.resetFromString(val, ignoreZValue, effectivePoint);
         } else {
             throw new ElasticsearchParseException("geo_point expected");
+        }
+    }
+
+    private static void assertOnlyOneFormat(boolean geohash, boolean lat, boolean lon, boolean coordinates, boolean type) {
+        boolean latlon = lat && lon;
+        boolean geojson = coordinates && type;
+        var found = new ArrayList<String>();
+        if (geohash) found.add("geohash");
+        if (latlon) found.add("lat/lon");
+        if (geojson) found.add("GeoJSON");
+        if (found.size() == 0) {
+            if (lat) {
+                throw new ElasticsearchParseException("field [{}] missing", LONGITUDE);
+            } else if (lon) {
+                throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
+            } else if (coordinates) {
+                throw new ElasticsearchParseException("field [{}] missing", TYPE);
+            } else if (type) {
+                throw new ElasticsearchParseException("field [{}] missing", COORDINATES);
+            } else {
+                throw new ElasticsearchParseException("field must be either lat/lon, geohash string or type/coordinates");
+            }
+        } else if (found.size() > 1) {
+            throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
         }
     }
 

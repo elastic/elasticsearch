@@ -50,20 +50,24 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate() {
+    public HealthIndicatorResult calculate(boolean includeDetails) {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
-            return createIndicator(GREEN, "No policies configured", createDetails(slmMetadata));
+            return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, slmMetadata));
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "SLM is not running", createDetails(slmMetadata));
+            return createIndicator(YELLOW, "SLM is not running", createDetails(includeDetails, slmMetadata));
         } else {
-            return createIndicator(GREEN, "SLM is running", createDetails(slmMetadata));
+            return createIndicator(GREEN, "SLM is running", createDetails(includeDetails, slmMetadata));
         }
     }
 
-    private static HealthIndicatorDetails createDetails(SnapshotLifecycleMetadata metadata) {
-        return new SimpleHealthIndicatorDetails(
-            Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
-        );
+    private static HealthIndicatorDetails createDetails(boolean includeDetails, SnapshotLifecycleMetadata metadata) {
+        if (includeDetails) {
+            return new SimpleHealthIndicatorDetails(
+                Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
+            );
+        } else {
+            return HealthIndicatorDetails.EMPTY;
+        }
     }
 }

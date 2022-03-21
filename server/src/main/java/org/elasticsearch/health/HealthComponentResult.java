@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-public record HealthComponentResult(String name, HealthStatus status, List<HealthIndicatorResult> indicators) implements ToXContentObject {
+public record HealthComponentResult(String name, HealthStatus status, List<HealthIndicatorResult> indicators, boolean showComponentSummary)
+    implements
+        ToXContentObject {
 
     public HealthIndicatorResult findIndicator(String name) {
         return indicators.stream()
@@ -28,7 +30,9 @@ public record HealthComponentResult(String name, HealthStatus status, List<Healt
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("status", status.xContentValue());
+        if (showComponentSummary) {
+            builder.field("status", status.xContentValue());
+        }
         builder.startObject("indicators");
         for (HealthIndicatorResult indicator : indicators) {
             builder.field(indicator.name(), indicator, params);

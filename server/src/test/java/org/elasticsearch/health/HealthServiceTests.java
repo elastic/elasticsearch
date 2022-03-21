@@ -39,12 +39,12 @@ public class HealthServiceTests extends ESTestCase {
             service.getHealth(),
             anyOf(
                 hasItems(
-                    new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1)),
-                    new HealthComponentResult("component2", GREEN, List.of(indicator3))
+                    new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1), true),
+                    new HealthComponentResult("component2", GREEN, List.of(indicator3), true)
                 ),
                 hasItems(
-                    new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2)),
-                    new HealthComponentResult("component2", GREEN, List.of(indicator3))
+                    new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2), true),
+                    new HealthComponentResult("component2", GREEN, List.of(indicator3), true)
                 )
             )
         );
@@ -54,12 +54,12 @@ public class HealthServiceTests extends ESTestCase {
         // Same component, same indicator name, should throw exception:
         var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null);
         var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null);
-        expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2)));
+        expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2), true));
     }
 
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
         var healthIndicatorService = mock(HealthIndicatorService.class);
-        when(healthIndicatorService.calculate()).thenReturn(result);
+        when(healthIndicatorService.calculate(false)).thenReturn(result);
         return healthIndicatorService;
     }
 }

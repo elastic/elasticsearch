@@ -14,9 +14,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,6 +23,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
+
+    private static final String SHOW_DETAILS_PARAM = "show_details";
+    private static final String[] PATH_PREFIX_PARTS = new String[] { "_internal", "_health" };
 
     private final HealthService healthService;
 
@@ -40,16 +42,17 @@ public class RestGetHealthAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         List<Route> routes = new ArrayList<>();
-        routes.add(new Route(GET, "/_internal/_health"));
+        String pathPrefix = getPathPrefix();
+        routes.add(new Route(GET, pathPrefix));
         Map<String, List<String>> componentsToIndicators = healthService.getComponentToIndicatorMapping();
         List<Route> componentRoutes = componentsToIndicators.keySet()
             .stream()
-            .map(componentName -> new Route(GET, "/_internal/_health/" + componentName))
+            .map(componentName -> new Route(GET, pathPrefix + "/" + componentName))
             .collect(Collectors.toList());
         routes.addAll(componentRoutes);
         for (Map.Entry<String, List<String>> entry : componentsToIndicators.entrySet()) {
             for (String indicator : entry.getValue()) {
-                routes.add(new Route(GET, "/_internal/_health/" + entry.getKey() + "/" + indicator));
+                routes.add(new Route(GET, pathPrefix + "/" + entry.getKey() + "/" + indicator));
             }
         }
         return routes;
@@ -59,35 +62,47 @@ public class RestGetHealthAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String componentName = getComponentNameFromPath(request);
         String indicatorName = getIndicatorNameFromPath(request);
-        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(componentName, indicatorName);
+        GetHealthAction.Request getHealthRequest = componentName == null
+            ? new GetHealthAction.Request(request.paramAsBoolean(SHOW_DETAILS_PARAM, false))
+            : new GetHealthAction.Request(componentName, indicatorName);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }
 
+    private String getPathPrefix() {
+        return "/" + Arrays.stream(PATH_PREFIX_PARTS).collect(Collectors.joining("/"));
+    }
+
     private String getComponentNameFromPath(RestRequest request) {
-        Path rawPath = Paths.get(request.rawPath());
-        if (rawPath.getFileName().toString().equals("_health")) {
+        String lastTokenOfPathPrefix = PATH_PREFIX_PARTS[PATH_PREFIX_PARTS.length - 1];
+        String path = request.path();
+        String[] pathParts = path.split("/+");
+        if (pathParts.length < PATH_PREFIX_PARTS.length + 1) {
             return null;
-        } else if (rawPath.getParent() != null && "_health".equals(rawPath.getParent().getFileName().toString())) {
-            return rawPath.getFileName().toString();
-        } else if (rawPath.getParent() != null
-            && rawPath.getParent().getParent() != null
-            && "_health".equals(rawPath.getParent().getParent().getFileName().toString())) {
-                return rawPath.getParent().getFileName().toString();
-            }
+        }
+        if (pathParts[pathParts.length - 1].equals(lastTokenOfPathPrefix)) {
+            return null;
+        } else if (lastTokenOfPathPrefix.equals(pathParts[pathParts.length - 2])) {
+            return pathParts[pathParts.length - 1];
+        } else if (lastTokenOfPathPrefix.equals(pathParts[pathParts.length - 3])) {
+            return pathParts[pathParts.length - 2];
+        }
         return null;
     }
 
     private String getIndicatorNameFromPath(RestRequest request) {
-        Path rawPath = Paths.get(request.rawPath());
-        if (rawPath.getFileName().toString().equals("_health")) {
+        String lastTokenOfPathPrefix = PATH_PREFIX_PARTS[PATH_PREFIX_PARTS.length - 1];
+        String path = request.path();
+        String[] pathParts = path.split("/+");
+        if (pathParts.length < PATH_PREFIX_PARTS.length + 2) {
             return null;
-        } else if (rawPath.getParent() != null && "_health".equals(rawPath.getParent().getFileName().toString())) {
+        }
+        if (lastTokenOfPathPrefix.equals(pathParts[pathParts.length - 1])) {
             return null;
-        } else if (rawPath.getParent() != null
-            && rawPath.getParent().getParent() != null
-            && "_health".equals(rawPath.getParent().getParent().getFileName().toString())) {
-                return rawPath.getFileName().toString();
-            }
+        } else if (lastTokenOfPathPrefix.equals(pathParts[pathParts.length - 2])) {
+            return null;
+        } else if (lastTokenOfPathPrefix.equals(pathParts[pathParts.length - 3])) {
+            return pathParts[pathParts.length - 1];
+        }
         return null;
     }
 }

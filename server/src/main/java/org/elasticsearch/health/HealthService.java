@@ -34,20 +34,26 @@ public class HealthService {
     }
 
     public List<HealthComponentResult> getHealth() {
-        return getHealth(null, null);
+        return getHealth(null, null, false);
     }
 
-    public List<HealthComponentResult> getHealth(String componentName, String indicatorName) {
+    public List<HealthComponentResult> getHealth(String componentName, String indicatorName, boolean includeDetails) {
         return List.copyOf(
             healthIndicatorServices.stream()
                 .filter(service -> componentName == null || service.component().equals(componentName))
                 .filter(service -> indicatorName == null || service.name().equals(indicatorName))
-                .map(HealthIndicatorService::calculate)
+                .map(service -> service.calculate(includeDetails))
                 .collect(
                     groupingBy(
                         HealthIndicatorResult::component,
                         TreeMap::new,
-                        collectingAndThen(toList(), HealthService::createComponentFromIndicators)
+                        collectingAndThen(
+                            toList(),
+                            indicators -> HealthService.createComponentFromIndicators(
+                                indicators,
+                                componentName == null || indicatorName == null
+                            )
+                        )
                     )
                 )
                 .values()
@@ -57,18 +63,14 @@ public class HealthService {
     public Map<String, List<String>> getComponentToIndicatorMapping() {
         Map<String, List<String>> componentsToIndicators = new HashMap<>();
         for (HealthIndicatorService healthIndicatorService : healthIndicatorServices) {
-            List<String> indicators = componentsToIndicators.get(healthIndicatorService.component());
-            if (indicators == null) {
-                indicators = new ArrayList<>();
-                componentsToIndicators.put(healthIndicatorService.component(), indicators);
-            }
+            List<String> indicators = componentsToIndicators.computeIfAbsent(healthIndicatorService.component(), k -> new ArrayList<>());
             indicators.add(healthIndicatorService.name());
         }
         return componentsToIndicators;
     }
 
     // Non-private for testing purposes
-    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
+    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators, boolean showComponentSummary) {
         assert indicators.size() > 0 : "Component should not be non empty";
         assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
@@ -81,8 +83,9 @@ public class HealthService {
             );
         return new HealthComponentResult(
             indicators.get(0).component(),
-            HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
-            indicators
+            showComponentSummary ? HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)) : null,
+            indicators,
+            showComponentSummary
         );
     }
 

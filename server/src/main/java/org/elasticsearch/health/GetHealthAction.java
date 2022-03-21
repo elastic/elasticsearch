@@ -44,15 +44,22 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterName clusterName;
         private final HealthStatus status;
         private final List<HealthComponentResult> components;
+        private final boolean showTopLevelInformation;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<HealthComponentResult> components) {
-            this.clusterName = clusterName;
+        public Response(final ClusterName clusterName, final List<HealthComponentResult> components, boolean showTopLevelInformation) {
+            this.showTopLevelInformation = showTopLevelInformation;
             this.components = components;
-            this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
+            if (showTopLevelInformation) {
+                this.clusterName = clusterName;
+                this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
+            } else {
+                this.clusterName = null;
+                this.status = null;
+            }
         }
 
         public ClusterName getClusterName() {
@@ -82,8 +89,10 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("status", status.xContentValue());
-            builder.field("cluster_name", clusterName.value());
+            if (showTopLevelInformation) {
+                builder.field("status", status.xContentValue());
+                builder.field("cluster_name", clusterName.value());
+            }
             builder.startObject("components");
             for (HealthComponentResult component : components) {
                 builder.field(component.name(), component, params);
@@ -116,10 +125,19 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     }
 
     public static class Request extends ActionRequest {
+        private final boolean includeDetails;
         private final String componentName;
         private final String indicatorName;
 
+        public Request(boolean includeDetails) {
+            this.includeDetails = includeDetails;
+            this.componentName = null;
+            this.indicatorName = null;
+        }
+
         public Request(String componentName, String indicatorName) {
+            assert componentName != null;
+            includeDetails = true;
             this.componentName = componentName;
             this.indicatorName = indicatorName;
         }
@@ -150,7 +168,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             listener.onResponse(
-                new Response(clusterService.getClusterName(), healthService.getHealth(request.componentName, request.indicatorName))
+                new Response(
+                    clusterService.getClusterName(),
+                    healthService.getHealth(request.componentName, request.indicatorName, request.includeDetails),
+                    request.componentName == null && request.indicatorName == null
+                )
             );
         }
     }

@@ -17,7 +17,7 @@ public interface HealthIndicatorService {
 
     String component();
 
-    HealthIndicatorResult calculate();
+    HealthIndicatorResult calculate(boolean includeDetails);
 
     default HealthIndicatorResult createIndicator(HealthStatus status, String summary, HealthIndicatorDetails details) {
         return new HealthIndicatorResult(name(), component(), status, summary, details);

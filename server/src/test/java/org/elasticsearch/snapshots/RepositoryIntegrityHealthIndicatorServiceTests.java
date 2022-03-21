@@ -42,7 +42,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(false),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -64,7 +64,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(false),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -84,7 +84,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(false),
             equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY))
         );
     }

@@ -38,7 +38,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -57,7 +57,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -76,7 +76,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -94,7 +94,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,

@@ -56,11 +56,11 @@ possible to solve other issues until the cluster has a stable master node and
 stable node membership.
 
 Diagnostics and statistics are usually not useful in an unstable cluster. These
-tools only offer a single snapshot of the state of the cluster. Instead, look at
-the cluster logs to see the pattern of behaviour over time. Focus particularly
-on logs from the elected master. When a node leaves the cluster, logs for
-the elected master include a message like this (with line breaks added for
-clarity):
+tools only offer a single snapshot of the state of the cluster. Instead, look
+at the cluster logs to see the pattern of behaviour over time. Focus
+particularly on logs from the elected master. When a node leaves the cluster,
+logs for the elected master include a message like this (with line breaks added
+for clarity):
 
 [console,txt]
 ----
@@ -74,9 +74,9 @@ clarity):
 ----
 
 This message says that the `MasterService` on the elected master
-(`es-master-1`) is processing a `node-left` task. It lists the nodes that
-are being removed and the reasons for their removal. Other nodes may
-log similar messages:
+(`es-master-1`) is processing a `node-left` task. It lists the nodes that are
+being removed and the reasons for their removal. Other nodes may log similar
+messages:
 
 [console,txt]
 ----
@@ -93,23 +93,25 @@ here, and it's better to focus on the one from the `MasterService` which is
 only emitted on the elected master. If you don't see the messages from the
 `MasterService`, check that:
 
- * You're looking at logs for the elected master for the correct time
- period.
+* You're looking at logs for the elected master.
+
+* The logs cover the correct time period.
+
 * Logging is enabled at `INFO` level.
 
-Nodes will also log a message containing `master node changed`
-whenever they start or stop following the elected master. You can use these
-messages to determine each node's view of the state of the master over time.
+Nodes will also log a message containing `master node changed` whenever they
+start or stop following the elected master. You can use these messages to
+determine each node's view of the state of the master over time.
 
-If a node restarts, it will leave the cluster and then join the cluster
-again. When it rejoins, the `MasterService` will log that it is processing a
+If a node restarts, it will leave the cluster and then join the cluster again.
+When it rejoins, the `MasterService` will log that it is processing a
 `node-join` task. You can tell from the master logs that the node was restarted
-because the `node-join` message will indicate that it is
-`joining after restart`. In older {es} versions, you can also determine that a node
-restarted by looking at the second "ephemeral" ID in the `node-left` and
-subsequent `node-join` messages. This ID is different each time the node starts
-up. If a node is unexpectedly restarting, you'll need to look at the node's
-logs to see why it is shutting down.
+because the `node-join` message will indicate that it is `joining after
+restart`. In older {es} versions, you can also determine that a node restarted
+by looking at the second "ephemeral" ID in the `node-left` and subsequent
+`node-join` messages. This ID is different each time the node starts up. If a
+node is unexpectedly restarting, you'll need to look at the node's logs to see
+why it is shutting down.
 
 If the node did not restart then you should look at the reason for its
 departure in the `node-left` message, which is reported after each node. There
@@ -124,8 +126,8 @@ minutes.
 
 * `followers check retry count exceeded`: The master sent a number of
 consecutive health checks to the removed node. These checks were rejected or
-timed out. By default, each health check times out after 10 seconds. {es} removes
-the node removed after three consecutively failed health checks.
+timed out. By default, each health check times out after 10 seconds. {es}
+removes the node removed after three consecutively failed health checks.
 
 ===== Diagnosing `disconnected` nodes
 
@@ -139,16 +141,17 @@ severely affect its operation.
 The connections from the elected master node to every other node in the cluster
 are particularly important. The elected master never spontaneously closes its
 outbound connections to other nodes. Similarly, once a connection is fully
-established, a node never spontaneously close its inbound connections unless the
-node is shutting down.
+established, a node never spontaneously close its inbound connections unless
+the node is shutting down.
 
-If you see a node unexpectedly leave the cluster with the `disconnected` reason,
-something other than {es} likely caused the connection to close. A common cause is a
-misconfigured firewall with an improper timeout or another policy that's
-<<long-lived-connections,incompatible with {es}>>. It could also be caused by
-general connectivity issues, such as packet loss due to unreliable hardware or
-network congestion. If you're an advanced user, you can get more detailed
-information about network exceptions by configuring the following loggers:
+If you see a node unexpectedly leave the cluster with the `disconnected`
+reason, something other than {es} likely caused the connection to close. A
+common cause is a misconfigured firewall with an improper timeout or another
+policy that's <<long-lived-connections,incompatible with {es}>>. It could also
+be caused by general connectivity issues, such as packet loss due to unreliable
+hardware or network congestion. If you're an advanced user, you can get more
+detailed information about network exceptions by configuring the following
+loggers:
 
 [source,yaml]
 ----
@@ -163,18 +166,17 @@ other device on the network.
 ===== Diagnosing `lagging` nodes
 
 {es} needs every node to process cluster state updates reasonably quickly. If a
-node takes too long to process a cluster state update, it can be harmful
-to the cluster. The master will remove these nodes with the `lagging` reason.
+node takes too long to process a cluster state update, it can be harmful to the
+cluster. The master will remove these nodes with the `lagging` reason.
 
 Lagging is typically caused by performance issues on the removed node. However,
-a node may also lag due to severe network delays. To rule out network
-delays, ensure that `net.ipv4.tcp_retries2` is
-<<system-config-tcpretries,configured properly>>. Log messages that contain
-`warn threshold` may provide more information about the root cause.
+a node may also lag due to severe network delays. To rule out network delays,
+ensure that `net.ipv4.tcp_retries2` is <<system-config-tcpretries,configured
+properly>>. Log messages that contain `warn threshold` may provide more
+information about the root cause.
 
 If you're an advanced user, you can get more detailed information about what
-the node was doing when it was removed by configuring the following
-logger:
+the node was doing when it was removed by configuring the following logger:
 
 [source,yaml]
 ----
@@ -197,13 +199,13 @@ unsuccessful checks failed and how many of them timed out.
 Timeouts and failures may be due to network delays or performance problems on
 the affected nodes. Ensure that `net.ipv4.tcp_retries2` is
 <<system-config-tcpretries,configured properly>> to eliminate network delays as
-a possible cause for this kind of instability. Log messages containing
-`warn threshold` may give a clue about the root cause.
+a possible cause for this kind of instability. Log messages containing `warn
+threshold` may give a clue about the root cause.
 
 If the last check failed then the exception is reported, and typically
 indicates the problem that needs to be addressed. If any of the checks timed
-out, it may be necessary to understand the detailed sequence of steps
-involved in a successful check. Here is an example of such a sequence:
+out, it may be necessary to understand the detailed sequence of steps involved
+in a successful check. Here is an example of such a sequence:
 
 . The master's `FollowerChecker`, running on thread
 `elasticsearch[master][scheduler][T#1]`, tells the `TransportService` to send
@@ -216,25 +218,25 @@ onto the operating system.
 . The operating system on the master converts the message into one or more
 packets and sends them out over the network.
 
-. Miscellaneous routers, firewalls, and other devices between the master node and the
-follower node forward the packets, possibly fragmenting or defragmenting them on
-the way.
+. Miscellaneous routers, firewalls, and other devices between the master node
+and the follower node forward the packets, possibly fragmenting or
+defragmenting them on the way.
 
 . The operating system on the follower node receives the packets and notifies
 {es} that they've been received.
 
 . The follower's `TransportService`, running on thread
-`elasticsearch[follower][transport_worker][T#3]`, reads the incoming packets. It then
-reconstructs and processes the check request. Usually, the check quickly
-succeeds. If so, the same thread immediately constructs a response and passes it
-back to the operating system.
+`elasticsearch[follower][transport_worker][T#3]`, reads the incoming packets.
+It then reconstructs and processes the check request. Usually, the check
+quickly succeeds. If so, the same thread immediately constructs a response and
+passes it back to the operating system.
 
 . If the check doesn't immediately succeed (for example, an election started
 recently) then:
 
 .. The follower's `FollowerChecker`, running on thread
-`elasticsearch[follower][cluster_coordination][T#4]`, processes the request.
-It constructs a response and tells the `TransportService` to send the response
+`elasticsearch[follower][cluster_coordination][T#4]`, processes the request. It
+constructs a response and tells the `TransportService` to send the response
 back to the master.
 
 .. The follower's `TransportService`, running on thread
@@ -244,8 +246,9 @@ operating system.
 . The operating system on the follower converts the response into one or more
 packets and sends them out over the network.
 
-. Miscellaneous routers, firewalls, and other devices between master and follower
-forward the packets, possibly fragmenting or defragmenting them on the way.
+. Miscellaneous routers, firewalls, and other devices between master and
+follower forward the packets, possibly fragmenting or defragmenting them on the
+way.
 
 . The operating system on the master receives the packets and notifies {es}
 that they've been received.
@@ -255,8 +258,8 @@ that they've been received.
 reconstructs the check response, and processes it as long as the check didn't
 already time out.
 
-There are a lot of different things that can delay the completion of a check and
-cause it to time out. Here are some examples for each step:
+There are a lot of different things that can delay the completion of a check
+and cause it to time out. Here are some examples for each step:
 
 . There may be a long garbage collection (GC) or virtual machine (VM) pause
 after passing the check request to the `TransportService`.
@@ -265,8 +268,8 @@ after passing the check request to the `TransportService`.
 available, or there may be a long GC or VM pause before passing the check
 request onto the operating system.
 
-. A system fault (for example, a broken network card) on the master may delay sending the
-message over the network, possibly indefinitely.
+. A system fault (for example, a broken network card) on the master may delay
+sending the message over the network, possibly indefinitely.
 
 . Intermediate devices may delay, drop, or corrupt packets along the way. The
 operating system for the master will wait and retransmit any unacknowledged or
@@ -274,8 +277,8 @@ corrupted packets up to `net.ipv4.tcp_retries2` times. We recommend
 <<system-config-tcpretries,reducing this value>> since the default represents a
 very long delay.
 
-. A system fault (for example, a broken network card) on the follower may delay receiving
-the message from the network.
+. A system fault (for example, a broken network card) on the follower may delay
+receiving the message from the network.
 
 . There may be a long wait for the specific `transport_worker` thread to become
 available, or there may be a long GC or VM pause during the processing of the
@@ -286,14 +289,14 @@ available, or for the specific `transport_worker` thread to become available
 again. There may also be a long GC or VM pause during the processing of the
 request.
 
-. A system fault (for example, a broken network card) on the follower may delay sending
-the response from the network.
+. A system fault (for example, a broken network card) on the follower may delay
+sending the response from the network.
 
 . Intermediate devices may delay, drop, or corrupt packets along the way again,
 causing retransmissions.
 
-. A system fault (for example, a broken network card) on the master may delay receiving
-the message from the network.
+. A system fault (for example, a broken network card) on the master may delay
+receiving the message from the network.
 
 . There may be a long wait for the specific `transport_worker` thread to become
 available to process the response, or a long GC or VM pause.
@@ -319,12 +322,12 @@ follower. You should be able to observe any retransmissions, packet loss, or
 other delays on such a connection.
 
 * Long waits for particular threads to be available can be identified by taking
-stack dumps (for example, using `jstack`) or a profiling trace (for example, using Java Flight
-Recorder) in the few seconds leading up to a node departure. The
-<<cluster-nodes-hot-threads>> API sometimes yields useful information, but bear
-in mind that this API also requires a number of `transport_worker` and
-`generic` threads across all the nodes in the cluster. The API may be affected by
-the very problem you're trying to diagnose. `jstack` is much more reliable
+stack dumps (for example, using `jstack`) or a profiling trace (for example,
+using Java Flight Recorder) in the few seconds leading up to a node departure.
+The <<cluster-nodes-hot-threads>> API sometimes yields useful information, but
+bear in mind that this API also requires a number of `transport_worker` and
+`generic` threads across all the nodes in the cluster. The API may be affected
+by the very problem you're trying to diagnose. `jstack` is much more reliable
 since it doesn't require any JVM threads. The threads involved in the follower
 checks are `transport_worker` and `cluster_coordination` threads, for which
 there should never be a long wait. There may also be evidence of long waits for

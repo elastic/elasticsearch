@@ -37,18 +37,18 @@ process again.
 [TIP]
 .Troubleshooting discovery
 ===============================================
-In most cases, the discovery process completes quickly, and the master node remains
-elected for a long period of time. If the cluster has no master for more than a
-few seconds or the master is unstable, the logs for each node will contain
-information explaining why:
+In most cases, the discovery process completes quickly, and the master node
+remains elected for a long period of time. If the cluster has no master for
+more than a few seconds or the master is unstable, the logs for each node will
+contain information explaining why:
 
 * All nodes repeatedly log messages indicating that a master cannot be
 discovered or elected using a logger called
 `org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
 default, this happens every 10 seconds.
 
-* If a node wins the election, it logs a message containing `elected-as-master`.
-If this happens repeatedly, the master node is likely unstable.
+* If a node wins the election, it logs a message containing
+`elected-as-master`. If this happens repeatedly, the master node is unstable.
 
 * When a node discovers the master or believes the master to have failed, it
 logs a message containing `master node changed`.

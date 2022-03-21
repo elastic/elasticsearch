@@ -138,7 +138,7 @@ communicate with a secured {es} cluster.
 
 Use the following APIs to retrieve and manage user profiles.
 
-* <<security-api-activiate-user-profile, Activate user profile>>
+* <<security-api-activate-user-profile, Activate user profile>>
 * <<security-api-get-user-profile, Get user profile>>
 * <<security-api-update-user-profile-data, Update user profile data>>
 * <<security-api-enable-user-profile, Enable user profile>>

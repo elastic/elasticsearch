@@ -4,37 +4,51 @@
 
 beta::[]
 
-In the {stack}, a user is required to authenticate each request. Each user is 
-represented as an object that encapsulates its identity and privileges. This
-object has limitations, especially for users that authenticate with multiple
-realms. 
+User profiles provide persistent and stable representations of end-users.
+Persistent means it exists without the need for the user to be online.
+Stable means it has an unique identifier that does not change through
+the lifetime of a deployment and can be used to refer to the associated
+user.
+Being able to uniquely refer to users is a critical function that underpins
+important features like personalisation and collaboration in {kib}.
 
-User profiles overcome these limitations by providing a way of uniquely
-referring to a user that is more stable, flexible, and extensible than a
-`username` alone. A separate profile document is created for each authenticated
-user and assigned a unique ID, which is persisted in the profile
-<<system-indices,system index>>. The user profile becomes the representation of
-the user, even when it's not active. 
+==== How user profile works
 
-The unique ID of each user profile remains relatively unchanged during the
-lifetime of a deployment, ensuring that preferences can be customized and 
-persisted separately for each user. When a user logs in to {kib}, their
-`username` is associated with their user profile. Even when a user logs out,
-their user profile persists across sessions and can still be referenced. By
-using the unique ID of the user profile, {kib} can route messages and
-notifications to the appropriate user, regardless of whether they're logged in.
+In the {stack}, a user is required to authenticate each request. Each user is
+represented as an object that encapsulates its identity and privileges.
+This object is ephemeral especially for users authenticating from a realm
+backed by external identity providers, e.g. <<saml-realm,SAML>>.
+There is simply no way to refer to a user without that user being online
+at the moment.
 
-When checking for an existing user profile, {es} compares a user's `username`
-and the realm they're authenticating from to locate the matching profile
-document. If a user needs to authenticate with different realms but wants to
-use a single profile document, you can configure a
-<<security-domain,security domain>> to allow resource sharing across realms.
-By using the unique ID of the user profile, {es} can associate a user across
-realms.
+User profiles solve the problem by creating profile documents for
+authenticated users and persisting these documents in the profile
+<<system-indices,system index>>. Each profile document is assigned a unique ID
+which can be used to refer to the associated user.
+The user profile essentially becomes the representation of the user,
+even when it's not actively online.
 
-==== Create and manage a user profile
+When a user logs in to {kib}, {kib} creates a new profile or associates an
+existing one for the user.
+By using the unique ID of the user profile, {kib} can store user preferences
+separately for each user, which is key to fine-grained level of customisation.
+This unique ID also offers a way to uniquely refer to a user so that
+{kib} can route messages and notifications to the appropriate user,
+regardless of whether they're logged in.
 
-To create a new user profile or update an existing one, use the 
+===== Why a new unique ID instead of just the `username`?
+
+The `username` is _not_ unique outside a single realm. Using just the `username`
+is not possible to differentiate two users with the same `username` but from
+different realms.
+
+NOTE: For certain use cases where the same user can indeed authenticate with
+different realms, consider using the <<security-domain,security domain>>
+feature.
+
+==== Create and manage user profiles
+
+To create a new user profile or update an existing one, use the
 <<security-api-activate-user-profile,activate user profile API>>. When you
 submit a request, {es} attempts to locate an existing profile document for the
 specified user. If one doesn't exist, {es} creates a new profile document.
@@ -45,34 +59,27 @@ the operation, and version control numbers. You can retrieve a user profile with
 the <<security-api-get-user-profile,get user profile API>> by including the
 profile's unique ID (`uid`).
 
-Other than the user's basic information, you can add data to a profile document
+On top of the user's basic information, you can add data to a profile document
 with the <<security-api-update-user-profile-data,update user profile API>>. For
 example, you can add user-specific preferences as part of the profile data.
 
-// TODO: search not yet implemented
-Because they are standalone documents, you can search for user profiles in
-search requests.
+The <<security-api-search-user-profile>> can be used to search profiles
+that match given criteria. The search API is tailor-made for {kib}'s collaboration
+feature and is not intended to support every conceivable piece of user-search
+functionality.
 
 ==== Limitations
 
 * Creating a new user profile requires a user's authentication details
-(`username` and `password`). This means that a user must authenticate at least
-one time to create a profile document. If a user hasn't authenticated
-into the system, then it's not possible for a user profile to refer to that user.
+(`username` and `password` or its
+<<token-authentication-services,OAuth2 access token>>).
+This means that a user must authenticate at least one time to create a
+profile document. If a user hasn't authenticated into the system,
+then it's not possible to refer to that user with user profile.
 
 * User profiles are meant for interactive users, such as a human user who
-interacts with {kib}. Therefore, user profiles don't support API keys or 
+interacts with {kib}. Therefore, user profiles don't support API keys or
 <<service-accounts,service accounts>>.
 +
 NOTE: <<token-authentication-services,OAuth2 tokens>> that represent an
 interactive end-user are supported.
-
-* If a user changes their `username`, you must create a new user profile with
-the <<security-api-activiate-user-profile,activate user profile API>>. Otherwise, 
-you must manually update the existing profile to include the new `username`.
-
-
-
-
-
-

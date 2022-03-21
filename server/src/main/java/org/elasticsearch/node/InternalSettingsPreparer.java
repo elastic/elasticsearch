@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class InternalSettingsPreparer {
         Path configPath,
         Supplier<String> defaultNodeName
     ) {
-        Path configFile = findConfigFile(configPath, input, properties);
+        Path configFile = findConfigDir(configPath, input, properties);
 
         if (Files.exists(configFile.resolve("elasticsearch.yaml"))) {
             throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
@@ -76,7 +77,7 @@ public class InternalSettingsPreparer {
         return new Environment(output.build(), configFile);
     }
 
-    static Path findConfigFile(Path configPath, Settings input, Map<String, String> properties) {
+    static Path findConfigDir(Path configPath, Settings input, Map<String, String> properties) {
         if (configPath != null) {
             return configPath;
         }
@@ -90,6 +91,11 @@ public class InternalSettingsPreparer {
             }
         }
 
+        return resolveConfigDir(esHome);
+    }
+
+    @SuppressForbidden(reason = "reading initial config")
+    private static Path resolveConfigDir(String esHome) {
         return PathUtils.get(esHome).resolve("config");
     }
 

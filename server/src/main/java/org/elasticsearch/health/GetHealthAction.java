@@ -44,20 +44,19 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterName clusterName;
         private final HealthStatus status;
         private final List<HealthComponentResult> components;
-        private final boolean showTopLevelInformation;
+        private final boolean showTopLevelStatus;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<HealthComponentResult> components, boolean showTopLevelInformation) {
-            this.showTopLevelInformation = showTopLevelInformation;
+        public Response(final ClusterName clusterName, final List<HealthComponentResult> components, boolean showTopLevelStatus) {
+            this.showTopLevelStatus = showTopLevelStatus;
             this.components = components;
-            if (showTopLevelInformation) {
-                this.clusterName = clusterName;
+            this.clusterName = clusterName;
+            if (showTopLevelStatus) {
                 this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
             } else {
-                this.clusterName = null;
                 this.status = null;
             }
         }
@@ -89,10 +88,10 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            if (showTopLevelInformation) {
+            if (showTopLevelStatus) {
                 builder.field("status", status.xContentValue());
-                builder.field("cluster_name", clusterName.value());
             }
+            builder.field("cluster_name", clusterName.value());
             builder.startObject("components");
             for (HealthComponentResult component : components) {
                 builder.field(component.name(), component, params);

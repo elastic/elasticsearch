@@ -271,7 +271,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request("test_component_1", "test_indicator_1"))
                     .get();
                 assertNull(response.getStatus());
-                assertNull(response.getClusterName());
+                assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
                     response.findComponent("test_component_1"),
                     equalTo(
@@ -298,7 +298,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             {
                 var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request("test_component_1", null)).get();
                 assertNull(response.getStatus());
-                assertNull(response.getClusterName());
+                assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
                     response.findComponent("test_component_1"),
                     equalTo(

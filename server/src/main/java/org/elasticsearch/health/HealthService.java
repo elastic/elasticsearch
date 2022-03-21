@@ -33,10 +33,6 @@ public class HealthService {
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
-    public List<HealthComponentResult> getHealth() {
-        return getHealth(null, null, false);
-    }
-
     public List<HealthComponentResult> getHealth(String componentName, String indicatorName, boolean includeDetails) {
         return List.copyOf(
             healthIndicatorServices.stream()

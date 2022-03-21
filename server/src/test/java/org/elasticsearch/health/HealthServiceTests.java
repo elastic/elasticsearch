@@ -36,7 +36,7 @@ public class HealthServiceTests extends ESTestCase {
         );
 
         assertThat(
-            service.getHealth(),
+            service.getHealth(null, null, false),
             anyOf(
                 hasItems(
                     new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1), true),
@@ -47,6 +47,19 @@ public class HealthServiceTests extends ESTestCase {
                     new HealthComponentResult("component2", GREEN, List.of(indicator3), true)
                 )
             )
+        );
+
+        assertThat(
+            service.getHealth("component1", null, false),
+            anyOf(
+                hasItems(new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1), true)),
+                hasItems(new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2), true))
+            )
+        );
+
+        assertThat(
+            service.getHealth("component1", "indicator2", false),
+            hasItems(new HealthComponentResult("component1", null, List.of(indicator2), false))
         );
     }
 
@@ -60,6 +73,8 @@ public class HealthServiceTests extends ESTestCase {
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
         var healthIndicatorService = mock(HealthIndicatorService.class);
         when(healthIndicatorService.calculate(false)).thenReturn(result);
+        when(healthIndicatorService.component()).thenReturn(result.component());
+        when(healthIndicatorService.name()).thenReturn(result.name());
         return healthIndicatorService;
     }
 }

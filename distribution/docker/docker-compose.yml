@@ -32,6 +32,7 @@ services:
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
        - action.destructive_requires_name=false
+       - cluster.deprecation_indexing.enabled=false
     volumes:
        - ./testfixtures_shared/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
@@ -76,6 +77,7 @@ services:
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
        - action.destructive_requires_name=false
+       - cluster.deprecation_indexing.enabled=false
     volumes:
        - ./testfixtures_shared/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem

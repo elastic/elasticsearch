@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.restart;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -79,6 +80,10 @@ public class MLTrainedModelFullClusterRestartIT extends AbstractFullClusterResta
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
+        if (getOldClusterVersion().before(Version.V_8_0_0)) {
+            // NLP models added in 8.0
+            return;
+        }
         String modelId = "trained-model-full-cluster-restart";
 
         if (isRunningAgainstOldCluster()) {

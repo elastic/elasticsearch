@@ -439,7 +439,15 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             return false;
         }
 
-        if (event.nodesChanged()) {
+        var someNotRouted = newMetadata.modelAllocations()
+            .values()
+            .stream()
+            .map(TrainedModelAllocation::getNodeRoutingTable)
+            .anyMatch(Map::isEmpty);
+
+        logger.info("DEPLOYMENT DEBUG changed customs {}", event.changedCustomMetadataSet());
+
+        if (event.nodesChanged() || someNotRouted) {
             logger.info("DEPLOYMENT DEBUG nodes changed");
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();

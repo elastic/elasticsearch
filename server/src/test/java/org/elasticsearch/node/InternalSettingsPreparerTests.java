@@ -49,27 +49,21 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testEmptySettings() {
-        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertNull(settings.get("node.name"));
-        assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
-        int size = settings.names().size();
-
         String defaultNodeName = randomAlphaOfLength(8);
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, emptyMap(), null, () -> defaultNodeName);
-        settings = env.settings();
+        Settings settings = env.settings();
         assertEquals(defaultNodeName, settings.get("node.name"));
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
-        assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
         String configDir = env.configFile().toString();
         assertTrue(configDir, configDir.startsWith(home));
+        assertEquals("elasticsearch", settings.get("cluster.name"));
     }
 
-    public void testDefaultClusterName() {
-        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals("elasticsearch", settings.get("cluster.name"));
-        settings = InternalSettingsPreparer.prepareSettings(Settings.builder().put("cluster.name", "foobar").build());
-        assertEquals("foobar", settings.get("cluster.name"));
+    public void testExplicitClusterName() {
+        Settings.Builder output = Settings.builder();
+        InternalSettingsPreparer.finalizeSettings(output.put("cluster.name", "foobar"), () -> "nodename");
+        assertEquals("foobar", output.build().get("cluster.name"));
     }
 
     public void testGarbageIsNotSwallowed() throws IOException {

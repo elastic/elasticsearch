@@ -72,7 +72,7 @@ setup:
                 field: "date_not_indexed"
                 calendar_interval: "1M"
 
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 1 }
   - length: { aggregations.datehisto.buckets: 3 }
 ---
 "Multi-value without filter by filter":

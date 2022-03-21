@@ -10,7 +10,9 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.PointRangeQuery;
@@ -317,12 +319,18 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         }
                     }
 
-                    boolean isMultiValue;
-                    try {
-                        isMultiValue = context.isMultiValued(fieldContext.field());
-                    } catch (AggregationExecutionException ex) {
-                        // If we can't check, don't agressively disable the optimization
-                        isMultiValue = false;
+                    boolean isMultiValue = false;
+                    for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
+                        if (fieldContext.fieldType().isIndexed()) {
+                            PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
+                            if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
+                                isMultiValue = true;
+                            }
+                        } else if (fieldContext.fieldType().hasDocValues()) {
+                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
+                                isMultiValue = true;
+                            }
+                        }
                     }
 
                     // Check the query for bounds. If the field is multivalued, we can't apply query bounds, because a document that

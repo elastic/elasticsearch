@@ -9,9 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -222,30 +220,6 @@ public abstract class AggregationContext implements Releasable {
      * Try to avoid using this because it pulls in a ton of dependencies.
      */
     public abstract SubSearchContext subSearchContext();
-
-    /**
-     *  Check if the given field is multivalued.  This is somewhat brittle.  
-     *
-     * @param field Name of the field to check
-     * @return true if the field contians multiple indexed values
-     */
-    public boolean isMultiValued(String field) throws IOException {
-        MappedFieldType fieldType = getFieldType(field);
-        for (LeafReaderContext leaf : searcher().getLeafContexts()) {
-
-            if (fieldType.isIndexed()) {
-                PointValues pointValues = leaf.reader().getPointValues(field);
-                if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
-                    return true;
-                }
-            } else if (fieldType.hasDocValues()) {
-                if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(field)) == null) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
     /**
      * Cause this aggregation to be released when the search is finished.

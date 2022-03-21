@@ -26,24 +26,26 @@ its data path is unhealthy then it is removed from the cluster until the data
 path recovers. You can control this behavior with the
 <<modules-discovery-settings,`monitor.fs.health` settings>>.
 
-[[cluster-fault-detection-cluster-state-publishing]]
-The elected master node will also remove nodes from the cluster if nodes are unable
-to apply an updated cluster state within a reasonable time, which is by default
-120s after the cluster state update started. See
-<<cluster-state-publishing, cluster state publishing>> for a more detailed description.
+[[cluster-fault-detection-cluster-state-publishing]] The elected master node
+will also remove nodes from the cluster if nodes are unable to apply an updated
+cluster state within a reasonable time. The timeout defaults to 2 minutes
+starting from the beginning of the cluster state update. Refer to
+<<cluster-state-publishing>> for a more detailed description.
 
 [[cluster-fault-detection-troubleshooting]]
 ==== Troubleshooting an unstable cluster
 
 Normally, a node will only leave a cluster if deliberately shut down. If a node
 leaves the cluster unexpectedly, it's important to address the cause. A cluster
-in which nodes leave unexpectedly is unstable and can create several issues:
+in which nodes leave unexpectedly is unstable and can create several issues.
+For instance:
 
 * The cluster health may be yellow or red.
 
 * Some shards will be initializing and other shards may be failing.
 
-* Search, indexing, and monitoring operations may log exceptions.
+* Search, indexing, and monitoring operations may fail and report exceptions in
+logs.
 
 * The `.security` index may be unavailable, blocking access to the cluster.
 
@@ -51,16 +53,16 @@ in which nodes leave unexpectedly is unstable and can create several issues:
 
 To troubleshoot a cluster in this state, first ensure the cluster has a
 <<modules-discovery-troubleshooting,stable master>>. Next, focus on the nodes
-unexpectedly leaving the cluster ahead of all other issues. It may not be
+unexpectedly leaving the cluster ahead of all other issues. It will not be
 possible to solve other issues until the cluster has a stable master node and
 stable node membership.
 
 Diagnostics and statistics are usually not useful in an unstable cluster. These
-tools only offer a single snapshot of the state of the cluster. Instead, look
-at the cluster logs to see the pattern of behaviour over time. Focus
-particularly on logs from the elected master. When a node leaves the cluster,
-logs for the elected master include a message like this (with line breaks added
-for clarity):
+tools only offer a view of the state of the cluster at a single point in time.
+Instead, look at the cluster logs to see the pattern of behaviour over time.
+Focus particularly on logs from the elected master. When a node leaves the
+cluster, logs for the elected master include a message like this (with line
+breaks added for clarity):
 
 [source,text]
 ----
@@ -76,7 +78,7 @@ for clarity):
 This message says that the `MasterService` on the elected master
 (`es-master-1`) is processing a `node-left` task. It lists the nodes that are
 being removed and the reasons for their removal. Other nodes may log similar
-messages:
+messages, but report fewer details:
 
 [source,text]
 ----
@@ -87,13 +89,11 @@ messages:
     term: 469, version: 446676, reason: Publication{term=469, version=446676}
 ----
 
-{es} emits this message on every node when applying a cluster state that
-removes one or more nodes from the cluster. There's less useful information
-here, and it's better to focus on the one from the `MasterService` which is
-only emitted on the elected master. If you don't see the messages from the
+Focus on the one from the `MasterService` which is only emitted on the elected
+master, since it contains more details. If you don't see the messages from the
 `MasterService`, check that:
 
-* You're looking at logs for the elected master.
+* You're looking at the logs for the elected master node.
 
 * The logs cover the correct time period.
 
@@ -122,12 +122,13 @@ closed.
 
 * `lagging`: The master published a cluster state update, but the removed node
 did not apply it within the permitted timeout. By default, this timeout is 2
-minutes.
+minutes. Refer to <<modules-discovery-settings>> for more information.
 
 * `followers check retry count exceeded`: The master sent a number of
 consecutive health checks to the removed node. These checks were rejected or
-timed out. By default, each health check times out after 10 seconds. {es}
-removes the node removed after three consecutively failed health checks.
+timed out. By default, each health check times out after 10 seconds and {es}
+removes the node removed after three consecutively failed health checks. Refer
+to <<modules-discovery-settings>> for more information.
 
 ===== Diagnosing `disconnected` nodes
 
@@ -167,7 +168,9 @@ other device on the network.
 
 {es} needs every node to process cluster state updates reasonably quickly. If a
 node takes too long to process a cluster state update, it can be harmful to the
-cluster. The master will remove these nodes with the `lagging` reason.
+cluster. The master will remove these nodes with the `lagging` reason. Refer to
+<<modules-discovery-settings>> for information about the settings which control
+this mechanism.
 
 Lagging is typically caused by performance issues on the removed node. However,
 a node may also lag due to severe network delays. To rule out network delays,
@@ -194,18 +197,20 @@ reasonably quickly. If a node rejects requests or does not respond at all then
 it can be harmful to the cluster. If enough consecutive checks fail then the
 master will remove the node with reason `follower check retry count exceeded`
 and will indicate in the `node-left` message how many of the consecutive
-unsuccessful checks failed and how many of them timed out.
+unsuccessful checks failed and how many of them timed out. Refer to
+<<modules-discovery-settings>> for information about the settings which control
+this mechanism.
 
 Timeouts and failures may be due to network delays or performance problems on
 the affected nodes. Ensure that `net.ipv4.tcp_retries2` is
 <<system-config-tcpretries,configured properly>> to eliminate network delays as
-a possible cause for this kind of instability. Log messages containing `warn
-threshold` may give a clue about the root cause.
+a possible cause for this kind of instability. Log messages containing
+`warn threshold` may give further clue about the cause of the instability.
 
-If the last check failed then the exception is reported, and typically
-indicates the problem that needs to be addressed. If any of the checks timed
-out, it may be necessary to understand the detailed sequence of steps involved
-in a successful check. Here is an example of such a sequence:
+If the last check failed with an exception then the exception is reported, and
+typically indicates the problem that needs to be addressed. If any of the
+checks timed out, it may be necessary to understand the detailed sequence of
+steps involved in a successful check. Here is an example of such a sequence:
 
 . The master's `FollowerChecker`, running on thread
 `elasticsearch[master][scheduler][T#1]`, tells the `TransportService` to send
@@ -304,13 +309,13 @@ available to process the response, or a long GC or VM pause.
 To determine why follower checks are timing out, we can narrow down the reason
 for the delay as follows:
 
-* GC pauses are recorded in the GC logs that {es} emits by
-default, and also usually by the `JvmMonitorService` in the main node logs. Use
-these logs to confirm whether or not GC is resulting in delays.
+* GC pauses are recorded in the GC logs that {es} emits by default, and also
+usually by the `JvmMonitorService` in the main node logs. Use these logs to
+confirm whether or not GC is resulting in delays.
 
-* VM pauses also affect other processes on the same host. A
-VM pause also typically causes a discontinuity in the system clock, which {es}
-will report in its logs.
+* VM pauses also affect other processes on the same host. A VM pause also
+typically causes a discontinuity in the system clock, which {es} will report in
+its logs.
 
 * Packet captures will reveal system-level and network-level faults, especially
 if you capture the network traffic simultaneously at the elected master and the

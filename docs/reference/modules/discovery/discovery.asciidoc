@@ -59,9 +59,9 @@ capture log messages for at least five minutes after the master was lost.
 
 If your cluster doesn't have a stable master, many of its features won't work
 correctly. The cluster may report many kinds of error to clients and in its
-logs. We strongly recommend you fix the master node's instability before
-addressing these other issues. It may not be possible to solve the other issues
-while the master node remains unstable.
+logs. You must fix the master node's instability before addressing these other
+issues. It will not be possible to solve any other issues while the master node
+is unstable.
 ===============================================
 
 [[built-in-hosts-providers]]

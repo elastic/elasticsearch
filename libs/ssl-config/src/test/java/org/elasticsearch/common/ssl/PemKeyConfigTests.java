@@ -212,7 +212,7 @@ public class PemKeyConfigTests extends ESTestCase {
         assertThat(chain, notNullValue());
         assertThat(chain, arrayWithSize(1 + caDN.length));
         final X509Certificate certificate = chain[0];
-        assertThat(certificate.getSubjectX500Principal().getName(), is("CN=Test CA 1"));
+        assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
         assertThat(certificate.getSubjectX500Principal().getName(), is(certDN));
         assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
         assertThat(
@@ -222,7 +222,7 @@ public class PemKeyConfigTests extends ESTestCase {
 
         for (int i = 0; i < caDN.length; i++) {
             final X509Certificate ca = chain[i + 1];
-            assertThat(ca.getSubjectDN().getName(), is(caDN[i]));
+            assertThat(ca.getSubjectX500Principal().getName(), is(caDN[i]));
         }
     }
 

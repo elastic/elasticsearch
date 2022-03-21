@@ -77,3 +77,7 @@ with non-expiring keys. Both the _token-service_ and _api-key-service_ permit
 you to invalidate the tokens. See
 <<security-api-invalidate-token,invalidate token API>> and
 <<security-api-invalidate-api-key,invalidate API key API>>.
+
+IMPORTANT:  Authentication support for JWT bearer tokens was introduced in {es} 8.2.
+            It is available via <<jwt-realm>>, not token-authentication services. Realms
+            offer flexible order and configurable of zero, one, or multiple JWT realms.

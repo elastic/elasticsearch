@@ -1,0 +1,24 @@
+[role="xpack"]
+[[jwt-guide]]
+
+== Configuring JWT authentication
+
+JWT realms enable {es} to treat some JWT identification tokens as authentication tokens.
+
+Consider end-users authenticating to a third-party application via a third-party authentication service.
+If the end-user authenticates successfully, the authentication service creates a JWT to identify
+the authenticated end-user.
+
+JWT may be issued to the third-party application, or directly to the end-user. If issued to
+the third-party application, the third-party application performs actions on behalf
+of the end-user, possibly in other third-party applications (e.g. microservices).
+
+IMPORTANT: The above use cases utilize JWTs for identification only, not authentication.
+           Example formats are Open ID Connect ID Tokens, or bespoke JWTs of similar format.
+
+JWT realms allow {es} to treat some JWT identification tokens as authentication tokens.
+Since a JWT represents the end-user, the third-party application needs to be authenticated too.
+A separate client credential is required too, because the third-party application is a client of {es}.
+
+WARNING: Client authentication is enabled by default in JWT realms.
+         Client authentication can be disabled, but it is not recommended.

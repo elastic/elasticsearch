@@ -38,7 +38,7 @@ not actually sent over a channel until the owning `transport_worker` thread is
 free. This means that we require every `transport_worker` thread to be idle
 frequently, which looks something like this in a stack dump:
 
-[console,txt]
+[source,text]
 ----
 "elasticsearch[instance-0000000000][transport_worker][T#1]" #28 daemon prio=5 os_prio=0 cpu=1232378.30ms elapsed=47152.02s tid=0x00007fc8a8569da0 nid=0x16f runnable  [0x00007fc8ac5e6000]
    java.lang.Thread.State: RUNNABLE
@@ -58,7 +58,7 @@ frequently, which looks something like this in a stack dump:
 In the <<cluster-nodes-hot-threads>> API an idle `transport_worker` thread is
 reported like this:
 
-[console,txt]
+[source,text]
 ----
 100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000000][transport_worker][T#1]'
      10/10 snapshots sharing following 9 elements

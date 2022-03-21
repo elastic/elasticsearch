@@ -146,7 +146,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             .setDest(dest);
         if (randomBoolean()) {
             builder.setAnalyzedFields(
-                new FetchSourceContext(
+                FetchSourceContext.of(
                     true,
                     generateRandomStringArray(10, 10, false, false),
                     generateRandomStringArray(10, 10, false, false)

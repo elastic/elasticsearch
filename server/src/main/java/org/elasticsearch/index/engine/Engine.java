@@ -570,7 +570,7 @@ public abstract class Engine implements Closeable {
                 Releasables.close(searcher);
                 throw new VersionConflictEngineException(
                     shardId,
-                    get.id(),
+                    "[" + get.id() + "]",
                     get.versionType().explainConflictForReads(docIdAndVersion.version, get.version())
                 );
             }

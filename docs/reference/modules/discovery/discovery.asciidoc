@@ -37,32 +37,31 @@ process again.
 [TIP]
 .Troubleshooting discovery
 ===============================================
-The discovery process usually completes quickly, and the master usually remains
+In most cases, the discovery process completes quickly, and the master node remains
 elected for a long period of time. If the cluster has no master for more than a
-few seconds, or the master is unstable, then the logs on each node will contain
+few seconds or the master is unstable, the logs for each node will contain
 information explaining why:
 
 * All nodes repeatedly log messages indicating that a master cannot be
 discovered or elected using a logger called
 `org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
-default this happens every 10 seconds.
+default, this happens every 10 seconds.
 
-* If a node wins the election then it logs a message containing the string
-`elected-as-master`. If this happens repeatedly then this indicates the master
-is unstable.
+* If a node wins the election, it logs a message containing `elected-as-master`.
+If this happens repeatedly, the master node is likely unstable.
 
-* When a node discovers a master, or believes the master to have failed, it
-logs a message containing the string `master node changed`.
+* When a node discovers the master or believes the master to have failed, it
+logs a message containing `master node changed`.
 
-* If a node is unable to discover or elect a master for several minutes then it
-starts to report additional detail about the failures in its logs. Be sure to
+* If a node is unable to discover or elect a master for several minutes, it
+starts to report additional details about the failures in its logs. Be sure to
 capture log messages for at least five minutes after the master was lost.
 
-If your cluster does not have a stable master then many of its features will
-not work correctly, and it may report many kinds of error to clients and in its
-logs. However, you must focus on the master instability ahead of all other
-issues. Until the master is stable there is no point in trying to understand or
-resolve any other problems in your cluster.
+If your cluster doesn't have a stable master, many of its features won't work
+correctly. The cluster may report many kinds of error to clients and in its
+logs. We strongly recommend you fix the master node's instability before
+addressing these other issues. It may not be possible to solve the other issues
+while the master node remains unstable.
 ===============================================
 
 [[built-in-hosts-providers]]

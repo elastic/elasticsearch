@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
@@ -592,12 +593,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (isFrozen) {
                             attributes.add(Attribute.FROZEN);
                         }
-                        attributes.sort(Comparator.comparing(e -> e.name().toLowerCase()));
+                        attributes.sort(Comparator.comparing(e -> e.name().toLowerCase(Locale.ROOT)));
                         indices.add(
                             new ResolvedIndex(
                                 ia.getName(),
                                 aliasNames,
-                                attributes.stream().map(Enum::name).map(String::toLowerCase).toArray(String[]::new),
+                                attributes.stream().map(Enum::name).map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new),
                                 ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
                             )
                         );
@@ -624,7 +625,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         enum Attribute {
-            OPEN, CLOSED, HIDDEN, SYSTEM, FROZEN
+            OPEN,
+            CLOSED,
+            HIDDEN,
+            SYSTEM,
+            FROZEN
         }
 
     }

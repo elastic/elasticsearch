@@ -51,10 +51,13 @@ public class CoordinatorRewriteContextProvider {
         ClusterState clusterState = clusterStateSupplier.get();
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
 
-        if (indexMetadata == null || indexMetadata.getTimestampRange().containsAllShardRanges() == false) {
+        if (indexMetadata == null
+            || indexMetadata.getTimestampRange().containsAllShardRanges() == false
+            || indexMetadata.getTimeSeriesRange() == null) {
             return null;
         }
 
+        TimeSeriesRange timeSeriesRange = indexMetadata.getTimeSeriesRange();
         DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
 
         if (dateFieldType == null) {
@@ -62,6 +65,15 @@ public class CoordinatorRewriteContextProvider {
         }
 
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, index, timestampRange, dateFieldType);
+        return new CoordinatorRewriteContext(
+            parserConfig,
+            writeableRegistry,
+            client,
+            nowInMillis,
+            index,
+            timestampRange,
+            timeSeriesRange,
+            dateFieldType
+        );
     }
 }

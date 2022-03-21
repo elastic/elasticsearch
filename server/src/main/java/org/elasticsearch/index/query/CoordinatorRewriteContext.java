@@ -28,7 +28,8 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final Index index;
-    private IndexLongFieldRange indexLongFieldRange;
+    private final IndexLongFieldRange indexLongFieldRange;
+    private final TimeSeriesRange timeSeriesRange;
     private final DateFieldMapper.DateFieldType timestampFieldType;
 
     public CoordinatorRewriteContext(
@@ -38,24 +39,26 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         LongSupplier nowInMillis,
         Index index,
         IndexLongFieldRange indexLongFieldRange,
+        TimeSeriesRange timeSeriesRange,
         DateFieldMapper.DateFieldType timestampFieldType
     ) {
         super(parserConfig, writeableRegistry, client, nowInMillis);
         this.index = index;
         this.indexLongFieldRange = indexLongFieldRange;
+        this.timeSeriesRange = timeSeriesRange;
         this.timestampFieldType = timestampFieldType;
     }
 
     long getMinTimestamp() {
-        return indexLongFieldRange.getMin();
+        return indexLongFieldRange != null ? indexLongFieldRange.getMin() : timeSeriesRange.min();
     }
 
     long getMaxTimestamp() {
-        return indexLongFieldRange.getMax();
+        return indexLongFieldRange != null ? indexLongFieldRange.getMax() : timeSeriesRange.max();
     }
 
     boolean hasTimestampData() {
-        return indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY;
+        return timeSeriesRange != null || (indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY);
     }
 
     @Nullable

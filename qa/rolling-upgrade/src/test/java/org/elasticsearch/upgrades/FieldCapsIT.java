@@ -274,6 +274,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             if (version.equals(Version.CURRENT.toString())) {
                 return client;
             }
+            client.close();
         }
         throw new IllegalStateException("Couldn't find node on version " + Version.CURRENT);
     }
@@ -285,6 +286,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
         FieldCapabilitiesResponse resp = fieldCaps(restClient, List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
         assertThat(resp.getField("red_field").keySet(), contains("keyword"));
         assertNull(resp.getField("yellow_field"));
+        restClient.close();
     }
 
     // Test multifield exclusion on mixed cluster
@@ -300,5 +302,6 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             assertThat(resp.getField("multi_field").keySet(), contains("ip"));
             assertNull(resp.getField("multi_field.keyword"));
         }
+        client.close();
     }
 }

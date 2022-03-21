@@ -9,8 +9,9 @@ Persistent means it exists without the need for the user to be online.
 Stable means it has an unique identifier that does not change through
 the lifetime of a deployment and can be used to refer to the associated
 user.
-Being able to uniquely refer to users is a critical function that underpins
-important features like personalisation and collaboration in {kib}.
+Being able to uniquely refer to users regardless whether they are actively
+online is a critical function that underpins important features like
+personalisation and collaboration in {kib}.
 
 ==== How user profile works
 

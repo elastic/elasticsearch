@@ -128,7 +128,7 @@ public final class TextParams {
         ).acceptsNull();
     }
 
-    public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
+    public static Parameter<String> keywordIndexOptions(Function<FieldMapper, String> initializer) {
         return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
             switch (v) {
                 case "docs":
@@ -142,7 +142,7 @@ public final class TextParams {
         });
     }
 
-    public static Parameter<String> indexOptionsWithPositionsAndOffsets(Function<FieldMapper, String> initializer) {
+    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer) {
         return Parameter.stringParam("index_options", false, initializer, "positions").addValidator(v -> {
             switch (v) {
                 case "positions":

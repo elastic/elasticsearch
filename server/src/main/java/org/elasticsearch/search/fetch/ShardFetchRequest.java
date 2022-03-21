@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -26,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -42,10 +41,10 @@ public class ShardFetchRequest extends TransportRequest {
 
     private ScoreDoc lastEmittedDoc;
 
-    public ShardFetchRequest(ShardSearchContextId contextId, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchRequest(ShardSearchContextId contextId, ArrayList<Integer> docIds, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
-        this.docIds = list.buffer;
-        this.size = list.size();
+        this.docIds = docIds.stream().mapToInt(i -> i).toArray();
+        this.size = docIds.size();
         this.lastEmittedDoc = lastEmittedDoc;
     }
 

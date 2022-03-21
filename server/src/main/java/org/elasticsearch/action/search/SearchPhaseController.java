@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -235,12 +233,12 @@ public final class SearchPhaseController {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public IntArrayList[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
-        IntArrayList[] docIdsToLoad = new IntArrayList[numShards];
+    public ArrayList<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        ArrayList<Integer>[] docIdsToLoad = (ArrayList<Integer>[]) new ArrayList[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            IntArrayList shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
+            ArrayList<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
-                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new IntArrayList();
+                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new ArrayList<>();
             }
             shardDocIdsToLoad.add(shardDoc.doc);
         }

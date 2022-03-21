@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
@@ -27,6 +25,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -128,7 +127,7 @@ final class FetchSearchPhase extends SearchPhase {
             finishPhase.run();
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
-            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+            final ArrayList<Integer>[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
@@ -145,7 +144,7 @@ final class FetchSearchPhase extends SearchPhase {
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
-                    IntArrayList entry = docIdsToLoad[i];
+                    ArrayList<Integer> entry = docIdsToLoad[i];
                     SearchPhaseResult queryResult = queryResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (queryResult != null) {
@@ -186,7 +185,7 @@ final class FetchSearchPhase extends SearchPhase {
     protected ShardFetchSearchRequest createFetchRequest(
         ShardSearchContextId contextId,
         int index,
-        IntArrayList entry,
+        ArrayList<Integer> entry,
         ScoreDoc[] lastEmittedDocPerShard,
         OriginalIndices originalIndices,
         ShardSearchRequest shardSearchRequest,

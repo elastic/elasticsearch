@@ -282,9 +282,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                 return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             }
 
-            // NOCOMMIT - adding this for some logging; super brittle
-            DocValueFormat format = fieldContext.fieldType().docValueFormat(null, null);
-
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**
                  * Proper dates get a real implementation of

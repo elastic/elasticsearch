@@ -112,9 +112,9 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     /**
-        When comparing different types ordering takes place according to the writable name.
-        This is the reason why "long" is greater than "empty" and "double" is less than "empty".
-        See {@link org.elasticsearch.search.sort.SortValue#compareTo}.
+     * When comparing different types ordering takes place according to the writable name.
+     * This is the reason why "long" is greater than "empty" and "double" is less than "empty".
+     * See {@link org.elasticsearch.search.sort.SortValue#compareTo}.
      */
     public void testCompareToEmpty() {
         assertThat(SortValue.from(1.0), lessThan(SortValue.empty()));

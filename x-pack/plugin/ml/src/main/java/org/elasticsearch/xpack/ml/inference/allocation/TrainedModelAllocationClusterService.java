@@ -101,6 +101,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             return;
         }
         if (event.localNodeMaster() && shouldAllocateModels(event)) {
+            logger.info("DEPLOYMENT DEBUG allocating models to nodes");
             clusterService.submitStateUpdateTask("allocating models to nodes", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -113,14 +114,14 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn("failed to allocate models", e);
+                    logger.warn("DEPLOYMENT DEBUG  failed to allocate models", e);
                 }
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    logger.trace(
+                    logger.info(
                         () -> new ParameterizedMessage(
-                            "updated model allocations based on node changes in the cluster; new metadata [{}]",
+                            "DEPLOYMENT DEBUG updated model allocations based on node changes in the cluster; new metadata [{}]",
                             Strings.toString(TrainedModelAllocationMetadata.fromState(newState), false, true)
                         )
                     );
@@ -301,7 +302,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         final String nodeId = request.getNodeId();
         TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(currentState);
         logger.trace(
-            () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
+            () -> new ParameterizedMessage(
+                "[{}] [{}] DEPLOYMENT DEBUG current metadata before update {}",
+                modelId,
+                nodeId,
+                Strings.toString(metadata)
+            )
         );
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
@@ -321,7 +327,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
             logger.debug(
                 () -> new ParameterizedMessage(
-                    "[{}] requested update from node [{}] to update route state to [{}]",
+                    "[{}] DEPLOYMENT DEBUG  requested update from node [{}] to update route state to [{}]",
                     modelId,
                     nodeId,
                     request.getRoutingState()
@@ -370,6 +376,9 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                     && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
             )
             .collect(Collectors.toMap(DiscoveryNode::getId, Function.identity()));
+
+        logger.info("DEPLOYMENT DEBUG eligible nodes: {}", currentEligibleNodes);
+
         // TODO: make more efficient, we iterate every entry, sorting by nodes routed (fewest to most)
         previousState.modelAllocations()
             .entrySet()
@@ -426,23 +435,29 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         // If there are no allocations created at all, there is nothing to update
         final TrainedModelAllocationMetadata newMetadata = event.state().getMetadata().custom(TrainedModelAllocationMetadata.NAME);
         if (newMetadata == null) {
+            logger.info("DEPLOYMENT DEBUG no allocations");
             return false;
         }
+
         if (event.nodesChanged()) {
+            logger.info("DEPLOYMENT DEBUG nodes changed");
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
+            logger.info("DEPLOYMENT DEBUG nodes delta {}", nodesDelta.shortSummary());
             for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {
                 if (trainedModelAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
                     continue;
                 }
                 for (DiscoveryNode removed : nodesDelta.removedNodes()) {
                     if (trainedModelAllocation.isRoutedToNode(removed.getId())) {
+                        logger.info("DEPLOYMENT DEBUG node removed - reallocate");
                         return true;
                     }
                 }
                 for (DiscoveryNode added : nodesDelta.addedNodes()) {
                     if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)
                         && shuttingDownNodes.contains(added.getId()) == false) {
+                        logger.info("DEPLOYMENT DEBUG node added - reallocate");
                         return true;
                     }
                 }

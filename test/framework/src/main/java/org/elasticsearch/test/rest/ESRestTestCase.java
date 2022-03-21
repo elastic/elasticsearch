@@ -1969,6 +1969,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         String fieldTypes,
         String fieldFilters
     ) throws IOException {
+        return fieldCaps(client(), indices, fields, indexFilter, fieldTypes, fieldFilters);
+    }
+
+    protected FieldCapabilitiesResponse fieldCaps(
+        RestClient restClient,
+        List<String> indices,
+        List<String> fields,
+        QueryBuilder indexFilter,
+        String fieldTypes,
+        String fieldFilters
+    ) throws IOException {
         Request request = new Request("POST", "/_field_caps");
         request.addParameter("index", String.join(",", indices));
         request.addParameter("fields", String.join(",", fields));
@@ -1985,7 +1996,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             body.endObject();
             request.setJsonEntity(Strings.toString(body));
         }
-        Response response = client().performRequest(request);
+        Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);

@@ -8,8 +8,11 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -17,7 +20,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -258,10 +263,26 @@ public class FieldCapsIT extends AbstractRollingTestCase {
         assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
     }
 
+    @SuppressWarnings("unchecked")
+    private RestClient getUpgradedNodeClient() throws IOException {
+        for (HttpHost host : getClusterHosts()) {
+            RestClient client = RestClient.builder(host).build();
+            Request nodesRequest = new Request("GET", "_nodes/_local/_none");
+            Map<String, ?> nodeMap = (Map<String, ?>) entityAsMap(client.performRequest(nodesRequest)).get("nodes");
+            Map<String, ?> nameMap = (Map<String, ?>) nodeMap.values().iterator().next();
+            String version = (String) nameMap.get("version");
+            if (version.equals(Version.CURRENT.toString())) {
+                return client;
+            }
+        }
+        throw new IllegalStateException("Couldn't find node on version " + Version.CURRENT);
+    }
+
     // Test field type filtering on mixed cluster
     public void testAllIndicesWithFieldTypeFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
-        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
+        RestClient restClient = getUpgradedNodeClient();
+        FieldCapabilitiesResponse resp = fieldCaps(restClient, List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
         assertThat(resp.getField("red_field").keySet(), contains("keyword"));
         assertNull(resp.getField("yellow_field"));
     }
@@ -269,12 +290,13 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     // Test multifield exclusion on mixed cluster
     public void testAllIndicesWithExclusionFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        RestClient client = getUpgradedNodeClient();
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, null);
             assertThat(resp.getField("multi_field.keyword").keySet(), contains("keyword"));
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, null, "-multifield");
+            FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, "-multifield");
             assertThat(resp.getField("multi_field").keySet(), contains("ip"));
             assertNull(resp.getField("multi_field.keyword"));
         }

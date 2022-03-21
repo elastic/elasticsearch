@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -400,7 +399,7 @@ public class RootObjectMapper extends ObjectMapper {
             List<RuntimeField> sortedRuntimeFields = runtimeFields.values()
                 .stream()
                 .sorted(Comparator.comparing(RuntimeField::name))
-                .collect(Collectors.toList());
+                .toList();
             for (RuntimeField fieldType : sortedRuntimeFields) {
                 fieldType.toXContent(builder, params);
             }

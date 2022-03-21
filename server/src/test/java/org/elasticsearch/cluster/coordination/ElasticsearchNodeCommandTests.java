@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
@@ -115,7 +114,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         return new NamedXContentRegistry(
             Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
                 .flatMap(Function.identity())
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 }

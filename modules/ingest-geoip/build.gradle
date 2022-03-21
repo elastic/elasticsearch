@@ -15,6 +15,10 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+
+  bundleSpec.from("${project.buildDir}/ingest-geoip") {
+    into '/'
+  }
 }
 
 dependencies {
@@ -54,12 +58,6 @@ if (useFixture) {
 tasks.named("internalClusterTest").configure {
   if (useFixture) {
     nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
-  }
-}
-
-tasks.named("bundlePlugin").configure {
-  from("${project.buildDir}/ingest-geoip") {
-    into '/'
   }
 }
 

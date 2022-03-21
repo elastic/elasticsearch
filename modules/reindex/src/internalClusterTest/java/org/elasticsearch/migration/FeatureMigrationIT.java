@@ -80,9 +80,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
 
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
-
         ensureGreen();
 
         PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
@@ -133,7 +130,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
         SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
-        TestPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
             // Check that the ordering of these calls is correct.
             assertThat(postUpgradeHookCalled.get(), nullValue());
             Map<String, Object> metadata = new HashMap<>();
@@ -150,7 +147,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             assertThat(preUpgradeHookCalled.get(), is(true));
 
             assertThat(metadata, hasEntry("stringKey", "stringValue"));
@@ -178,12 +175,14 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertThat(migratingFeatures, hasItem(FEATURE_NAME));
 
         GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+        // The feature upgrade may take longer than ten seconds when tests are running
+        // in parallel, so we give assertBusy a sixty-second timeout.
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
                 .get();
             logger.info(Strings.toString(statusResponse));
             assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Waiting for shards to stabilize if indices were moved around
         ensureGreen();
@@ -241,9 +240,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
-
         ensureGreen();
 
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
@@ -260,9 +256,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     public void testMigrationWillRunAfterError() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
-
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
 
         ensureGreen();
 

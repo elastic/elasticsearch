@@ -11,6 +11,8 @@ package org.elasticsearch.node;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -48,21 +50,18 @@ public class InternalSettingsPreparer {
         Path configPath,
         Supplier<String> defaultNodeName
     ) {
-        // just create enough settings to build the environment, to get the config dir
-        Settings.Builder output = Settings.builder();
-        initializeSettings(output, input, properties);
-        Environment environment = new Environment(output.build(), configPath);
+        Path configFile = findConfigDir(configPath, input, properties);
 
-        if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
+        if (Files.exists(configFile.resolve("elasticsearch.yaml"))) {
             throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
         }
 
-        if (Files.exists(environment.configFile().resolve("elasticsearch.json"))) {
+        if (Files.exists(configFile.resolve("elasticsearch.json"))) {
             throw new SettingsException("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml");
         }
 
-        output = Settings.builder(); // start with a fresh output
-        Path path = environment.configFile().resolve("elasticsearch.yml");
+        Settings.Builder output = Settings.builder(); // start with a fresh output
+        Path path = configFile.resolve("elasticsearch.yml");
         if (Files.exists(path)) {
             try {
                 output.loadFromPath(path);
@@ -75,7 +74,29 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, defaultNodeName);
 
-        return new Environment(output.build(), configPath);
+        return new Environment(output.build(), configFile);
+    }
+
+    static Path findConfigDir(Path configPath, Settings input, Map<String, String> properties) {
+        if (configPath != null) {
+            return configPath;
+        }
+
+        String esHome = properties.get(Environment.PATH_HOME_SETTING.getKey());
+        if (esHome == null) {
+            // TODO: this fallback is only needed for tests, in production input is always Settings.EMPTY
+            esHome = Environment.PATH_HOME_SETTING.get(input);
+            if (esHome == null) {
+                throw new IllegalStateException(Environment.PATH_HOME_SETTING.getKey() + " is not configured");
+            }
+        }
+
+        return resolveConfigDir(esHome);
+    }
+
+    @SuppressForbidden(reason = "reading initial config")
+    private static Path resolveConfigDir(String esHome) {
+        return PathUtils.get(esHome).resolve("config");
     }
 
     /**
@@ -95,7 +116,7 @@ public class InternalSettingsPreparer {
     /**
      * Finish preparing settings by replacing forced settings and any defaults that need to be added.
      */
-    private static void finalizeSettings(Settings.Builder output, Supplier<String> defaultNodeName) {
+    static void finalizeSettings(Settings.Builder output, Supplier<String> defaultNodeName) {
         // allow to force set properties based on configuration of the settings provided
         List<String> forcedSettings = new ArrayList<>();
         for (String setting : output.keys()) {

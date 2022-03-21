@@ -20,6 +20,8 @@ import java.util.Arrays;
  */
 public class NetUtils {
 
+    private NetUtils() {}
+
     /**
      * Returns the extended TCP_KEEPIDLE socket option, if available on this JDK
      */

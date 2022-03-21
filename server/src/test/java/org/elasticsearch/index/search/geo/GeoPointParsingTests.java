@@ -118,12 +118,12 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
     }
 
@@ -136,12 +136,12 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
         }
     }
 
@@ -155,12 +155,12 @@ public class GeoPointParsingTests extends ESTestCase {
             parser.nextToken();
 
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
         }
     }
 
@@ -173,13 +173,13 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
     }
 

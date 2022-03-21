@@ -452,7 +452,7 @@ public class GeoUtils {
                 try {
                     return switch (subParser.currentToken()) {
                         case VALUE_NUMBER, VALUE_STRING -> subParser.doubleValue(true);
-                        default -> throw new ElasticsearchParseException("[{}] must be a number", field);
+                        default -> throw new ElasticsearchParseException("{} must be a number", field);
                     };
                 } catch (NumberFormatException e) {
                     numberFormatException = e;
@@ -477,9 +477,9 @@ public class GeoUtils {
                         String field = subParser.currentName();
                         subParser.nextToken();
                         if (LATITUDE.equals(field)) {
-                            lat = numberFormatExceptionHandler.doubleValue(subParser, field);
+                            lat = numberFormatExceptionHandler.doubleValue(subParser, "latitude");
                         } else if (LONGITUDE.equals(field)) {
-                            lon = numberFormatExceptionHandler.doubleValue(subParser, field);
+                            lon = numberFormatExceptionHandler.doubleValue(subParser, "longitude");
                         } else if (GEOHASH.equals(field)) {
                             if (subParser.currentToken() == Token.VALUE_STRING) {
                                 geohash = subParser.text();
@@ -492,6 +492,8 @@ public class GeoUtils {
                                 while (subParser.nextToken() != Token.END_ARRAY) {
                                     coordinates.add(numberFormatExceptionHandler.doubleValue(subParser, field));
                                 }
+                            } else {
+                                throw new ElasticsearchParseException("GeoJSON 'coordinates' must be an array");
                             }
                         } else if (TYPE.equals(field)) {
                             if (subParser.currentToken() == Token.VALUE_STRING) {
@@ -527,10 +529,16 @@ public class GeoUtils {
             }
             if (coordinates != null) {
                 if (geojsonType == null || geojsonType.toLowerCase(Locale.ROOT).equals("point") == false) {
-                    throw new ElasticsearchParseException("GeoJSON type for geo_point can only be 'point'");
+                    throw new ElasticsearchParseException("GeoJSON 'type' for geo_point can only be 'Point'");
                 }
-                if (coordinates.size() > 2) {
+                if (coordinates.size() < 2) {
+                    throw new ElasticsearchParseException("GeoJSON 'coordinates' must contain at least two values");
+                }
+                if (coordinates.size() == 3) {
                     GeoPoint.assertZValue(ignoreZValue, coordinates.get(2));
+                }
+                if (coordinates.size() > 3) {
+                    throw new ElasticsearchParseException("[geo_point] field type does not accept > 3 dimensions");
                 }
                 return point.reset(coordinates.get(1), coordinates.get(0));
             }
@@ -566,13 +574,20 @@ public class GeoUtils {
     }
 
     private static void assertOnlyOneFormat(boolean geohash, boolean lat, boolean lon, boolean coordinates, boolean type) {
+        String invalidFieldsMessage = "field must be either lat/lon, geohash string or type/coordinates";
         boolean latlon = lat && lon;
         boolean geojson = coordinates && type;
         var found = new ArrayList<String>();
         if (geohash) found.add("geohash");
         if (latlon) found.add("lat/lon");
         if (geojson) found.add("GeoJSON");
-        if (found.size() == 0) {
+        if (found.size() > 1) {
+            throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
+        } else if (geohash) {
+            if (lat || lon || type || coordinates) {
+                throw new ElasticsearchParseException(invalidFieldsMessage);
+            }
+        } else if (found.size() == 0) {
             if (lat) {
                 throw new ElasticsearchParseException("field [{}] missing", LONGITUDE);
             } else if (lon) {
@@ -582,10 +597,8 @@ public class GeoUtils {
             } else if (type) {
                 throw new ElasticsearchParseException("field [{}] missing", COORDINATES);
             } else {
-                throw new ElasticsearchParseException("field must be either lat/lon, geohash string or type/coordinates");
+                throw new ElasticsearchParseException(invalidFieldsMessage);
             }
-        } else if (found.size() > 1) {
-            throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
         }
     }
 

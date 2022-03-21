@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -206,11 +205,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (inferenceThreads < 1) {
                 validationException.addValidationError("[" + INFERENCE_THREADS + "] must be a positive integer");
             }
-            if (modelThreads > 1 && inferenceThreads > 1) {
-                validationException.addValidationError(
-                    "only one of " + List.of(INFERENCE_THREADS, MODEL_THREADS) + " may be greater than 1"
-                );
-            }
             if (queueCapacity < 1) {
                 validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be a positive integer");
             }
@@ -289,18 +283,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public TaskParams(String modelId, long modelBytes, int inferenceThreads, int modelThreads, int queueCapacity) {
             this.modelId = Objects.requireNonNull(modelId);
             this.modelBytes = modelBytes;
+            this.inferenceThreads = inferenceThreads;
+            this.modelThreads = modelThreads;
             this.queueCapacity = queueCapacity;
-
-            // From 8.2 onwards, only one of inferenceThreads or modelThreads may be greater than 1.
-            // But for allocations started prior to 8.2, it may be that they're both greater than 1.
-            if (inferenceThreads > 1 && modelThreads > 1) {
-                // We ensure only one of the two is greater than 1.
-                this.modelThreads = modelThreads >= inferenceThreads ? modelThreads + inferenceThreads : 1;
-                this.inferenceThreads = inferenceThreads > modelThreads ? modelThreads + inferenceThreads : 1;
-            } else {
-                this.modelThreads = modelThreads;
-                this.inferenceThreads = inferenceThreads;
-            }
         }
 
         public TaskParams(StreamInput in) throws IOException {

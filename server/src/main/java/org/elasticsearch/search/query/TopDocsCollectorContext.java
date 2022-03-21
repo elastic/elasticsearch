@@ -97,18 +97,17 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         /**
          * Ctr
-         * @param reader The index reader
+         * @param contextIndexSearcher The index reader
          * @param query The query to execute
          * @param trackTotalHitsUpTo True if the total number of hits should be tracked
          * @param hasFilterCollector True if the collector chain contains a filter
          */
         private EmptyTopDocsCollectorContext(
-            IndexReader reader,
+            ContextIndexSearcher contextIndexSearcher,
             Query query,
             @Nullable SortAndFormats sortAndFormats,
             int trackTotalHitsUpTo,
-            boolean hasFilterCollector,
-            ContextIndexSearcher contextIndexSearcher
+            boolean hasFilterCollector
         ) throws IOException {
             super(REASON_SEARCH_COUNT, 0);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
@@ -119,7 +118,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                 // implicit total hit counts are valid only when there is no filter collector in the chain
-                int hitCount = hasFilterCollector ? -1 : contextIndexSearcher.getTotalHitCount(reader, query);
+                int hitCount = hasFilterCollector ? -1 : contextIndexSearcher.getTotalHitCount(query);
 
                 if (hitCount == -1) {
                     if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
@@ -230,7 +229,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         /**
          * Ctr
-         * @param reader The index reader
          * @param query The Lucene query
          * @param sortAndFormats The query sort
          * @param numHits The number of top hits to retrieve
@@ -240,15 +238,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document
          */
         private SimpleTopDocsCollectorContext(
-            IndexReader reader,
+            ContextIndexSearcher contextIndexSearcher,
             Query query,
             @Nullable SortAndFormats sortAndFormats,
             @Nullable ScoreDoc searchAfter,
             int numHits,
             boolean trackMaxScore,
             int trackTotalHitsUpTo,
-            boolean hasFilterCollector,
-            ContextIndexSearcher contextIndexSearcher
+            boolean hasFilterCollector
         ) throws IOException {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.sortAndFormats = sortAndFormats;
@@ -268,7 +265,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
                 // implicit total hit counts are valid only when there is no filter collector in the chain
-                final int hitCount = hasFilterCollector ? -1 : contextIndexSearcher.getTotalHitCount(reader, query);
+                final int hitCount = hasFilterCollector ? -1 : contextIndexSearcher.getTotalHitCount(query);
                 if (hitCount == -1) {
                     topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHitsUpTo);
                     topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
@@ -331,7 +328,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         private final int numberOfShards;
 
         private ScrollingTopDocsCollectorContext(
-            IndexReader reader,
+            ContextIndexSearcher contextIndexSearch,
             Query query,
             ScrollContext scrollContext,
             @Nullable SortAndFormats sortAndFormats,
@@ -339,19 +336,17 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             boolean trackMaxScore,
             int numberOfShards,
             int trackTotalHitsUpTo,
-            boolean hasFilterCollector,
-            ContextIndexSearcher contextIndexSearcher
+            boolean hasFilterCollector
         ) throws IOException {
             super(
-                reader,
+                contextIndexSearch,
                 query,
                 sortAndFormats,
                 scrollContext.lastEmittedDoc,
                 numHits,
                 trackMaxScore,
                 trackTotalHitsUpTo,
-                hasFilterCollector,
-                contextIndexSearcher
+                hasFilterCollector
             );
             this.scrollContext = Objects.requireNonNull(scrollContext);
             this.numberOfShards = numberOfShards;
@@ -451,12 +446,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         if (searchContext.size() == 0) {
             // no matter what the value of from is
             return new EmptyTopDocsCollectorContext(
-                reader,
+                searchContext.searcher(),
                 query,
                 searchContext.sort(),
                 searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector,
-                searchContext.searcher()
+                hasFilterCollector
             );
         } else if (searchContext.scrollContext() != null) {
             // we can disable the tracking of total hits after the initial scroll query
@@ -467,7 +461,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
             return new ScrollingTopDocsCollectorContext(
-                reader,
+                searchContext.searcher(),
                 query,
                 searchContext.scrollContext(),
                 searchContext.sort(),
@@ -475,8 +469,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 searchContext.trackScores(),
                 searchContext.numberOfShards(),
                 trackTotalHitsUpTo,
-                hasFilterCollector,
-                searchContext.searcher()
+                hasFilterCollector
             );
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
@@ -498,15 +491,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 }
             }
             return new SimpleTopDocsCollectorContext(
-                reader,
+                searchContext.searcher(),
                 query,
                 searchContext.sort(),
                 searchContext.searchAfter(),
                 numDocs,
                 searchContext.trackScores(),
                 searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector,
-                searchContext.searcher()
+                hasFilterCollector
             ) {
                 @Override
                 boolean shouldRescore() {

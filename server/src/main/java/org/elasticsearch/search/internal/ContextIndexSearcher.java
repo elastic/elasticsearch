@@ -317,22 +317,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Returns the total hit count from index reader leaves and a query using the count function.
+     * The query needs to be already rewritten.
+     * The method returns -1 if the count cannot be computed in sub-linear time.
      *
-     * @param reader an index reader.
      * @param query the query to compute hit count.
      * @return the total hit count of a given query.
      * @throws IOException if there is a low-level I/O error
      */
-    public int getTotalHitCount(IndexReader reader, Query query) throws IOException {
+    public int getTotalHitCount(Query query) throws IOException {
+        assert query == rewrite(query);
         int hitCount = -1;
         Weight weight = createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        for (LeafReaderContext leaf : reader.leaves()) {
+        for (LeafReaderContext leaf : this.getIndexReader().leaves()) {
             int count = weight.count(leaf);
             if (count != -1) {
                 if(hitCount == -1){
                     hitCount++;
                 }
                 hitCount += count;
+            } else {
+                return count;
             }
         }
         return hitCount;

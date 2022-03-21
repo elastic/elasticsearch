@@ -54,6 +54,9 @@ public class BinaryOptionalMathProcessor implements Processor {
                 }// otherwise there was an overflow on long values, fall back to floating point implementation.
 
             }
+            if (Double.isNaN(l.doubleValue())) {
+                return 0.0;
+            }
 
             double tenAtScale = Math.pow(10., rLong);
             if (tenAtScale == 0.0) {
@@ -76,7 +79,6 @@ public class BinaryOptionalMathProcessor implements Processor {
             return new BigDecimal(Math.abs(middleResult), prec).round(new MathContext(0))
                 .divide(new BigDecimal(tenAtScale), prec)
                 .doubleValue() * sign;
-
         }),
         TRUNCATE((l, r) -> {
             long rLong = r.longValue();

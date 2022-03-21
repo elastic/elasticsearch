@@ -62,23 +62,22 @@ logs. You must fix the master node's instability before addressing these other
 issues. It will not be possible to solve any other issues while the master node
 is unstable.
 
-If the logs from the `ClusterFormationFailureHelper` indicate that a master
+The logs from the `ClusterFormationFailureHelper` may indicate that a master
 election requires a certain set of nodes and that it has not discovered enough
-nodes to form a quorum then you must address the reason preventing it from
+nodes to form a quorum. If so, you must address the reason preventing {es} from
 discovering the missing nodes. The missing nodes are needed to reconstruct the
-cluster metadata, without which the data in your cluster is meaningless. The
-cluster metadata is stored on a subset of the master-eligible nodes in the
-cluster. Refer to <<modules-discovery-quorums>> for more information. If a
-quorum of the nodes is not available then the missing nodes were the ones
-holding the cluster metadata. If you cannot bring the missing nodes back into
-the cluster, you must start a new cluster and restore data from a recent
-snapshot.
+cluster metadata. Without the cluster metadata, the data in your cluster is
+meaningless. The cluster metadata is stored on a subset of the master-eligible
+nodes in the cluster. If a quorum cannot be discovered then the missing nodes
+were the ones holding the cluster metadata. If you cannot bring the missing
+nodes back into the cluster, start a new cluster and restore data from a recent
+snapshot. Refer to <<modules-discovery-quorums>> for more information.
 
-Sometimes the logs from the `ClusterFormationFailureHelper` indicate that it
-has discovered a possible quorum of master-eligible nodes but the cluster still
-cannot elect a master. Usually this means that one of the other nodes cannot
-discover a quorum. Check the logs on the other master-eligible nodes and ensure
-that every node has discovered a quorum.
+The logs from the `ClusterFormationFailureHelper` may also indicate that it has
+discovered a possible quorum of master-eligible nodes. If so, the usual reason
+that the cluster cannot elect a master is that one of the other nodes cannot
+discover a quorum. Inspect the logs on the other master-eligible nodes and
+ensure that every node has discovered a quorum.
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

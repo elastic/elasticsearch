@@ -10,7 +10,7 @@ Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
 === Bug fixes
 
 Analysis::
-* Add tests for `min_hash` configuration and fix settings names {es-pull}84753[#84753] (issue: {es-issue}84578[#84578])
+* Fix `min_hash` configuration settings names {es-pull}84753[#84753] (issue: {es-issue}84578[#84578])
 
 EQL::
 * Clean any used memory by the sequence matcher and circuit breaker used bytes in case of exception {es-pull}84451[#84451]
@@ -22,7 +22,7 @@ ILM+SLM::
 * Invoke initial `AsyncActionStep` for newly created indices {es-pull}84541[#84541] (issue: {es-issue}77269[#77269])
 
 Indices APIs::
-* Remove existing indices/datastreams/aliases before simulating index template {es-pull}84675[#84675] (issue: {es-issue}84256[#84256])
+* Remove existing `indices/datastreams/aliases` before simulating index template {es-pull}84675[#84675] (issue: {es-issue}84256[#84256])
 
 Infra/Core::
 * Fix `NullPointerException` in `SystemIndexMetadataUpgradeService` hidden alias handling {es-pull}84780[#84780] (issue: {es-issue}81411[#81411])

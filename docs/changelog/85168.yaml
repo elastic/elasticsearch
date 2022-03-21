@@ -2,4 +2,5 @@ pr: 85168
 summary: List data streams as VIEWs
 area: SQL
 type: enhancement
-issues: []
+issues:
+ - 83449

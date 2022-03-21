@@ -20,17 +20,17 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
+public class MinTests extends InternalAggregationTestCase<Min> {
     @Override
-    protected InternalMin createTestInstance(String name, Map<String, Object> metadata) {
+    protected Min createTestInstance(String name, Map<String, Object> metadata) {
         double value = frequently() ? randomDouble() : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY });
         DocValueFormat formatter = randomNumericDocValueFormat();
-        return new InternalMin(name, value, formatter, metadata);
+        return new Min(name, value, formatter, metadata);
     }
 
     @Override
-    protected void assertReduced(InternalMin reduced, List<InternalMin> inputs) {
-        assertEquals(inputs.stream().mapToDouble(InternalMin::value).min().getAsDouble(), reduced.value(), 0);
+    protected void assertReduced(Min reduced, List<Min> inputs) {
+        assertEquals(inputs.stream().mapToDouble(Min::value).min().getAsDouble(), reduced.value(), 0);
     }
 
     @Override
@@ -39,27 +39,27 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
     }
 
     @Override
-    protected void assertSampled(InternalMin sampled, InternalMin reduced, SamplingContext samplingContext) {
-        assertThat(sampled.getValue(), equalTo(reduced.getValue()));
+    protected void assertSampled(Min sampled, Min reduced, SamplingContext samplingContext) {
+        assertThat(sampled.value(), equalTo(reduced.value()));
     }
 
     @Override
-    protected void assertFromXContent(InternalMin min, ParsedAggregation parsedAggregation) {
+    protected void assertFromXContent(Min min, ParsedAggregation parsedAggregation) {
         ParsedMin parsed = ((ParsedMin) parsedAggregation);
-        if (Double.isInfinite(min.getValue()) == false) {
-            assertEquals(min.getValue(), parsed.getValue(), Double.MIN_VALUE);
+        if (Double.isInfinite(min.value()) == false) {
+            assertEquals(min.value(), parsed.value(), Double.MIN_VALUE);
             assertEquals(min.getValueAsString(), parsed.getValueAsString());
         } else {
             // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
             // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.getValue(), Double.POSITIVE_INFINITY, 0);
+            assertEquals(parsed.value(), Double.POSITIVE_INFINITY, 0);
         }
     }
 
     @Override
-    protected InternalMin mutateInstance(InternalMin instance) {
+    protected Min mutateInstance(Min instance) {
         String name = instance.getName();
-        double value = instance.getValue();
+        double value = instance.value();
         DocValueFormat formatter = instance.format;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
@@ -84,6 +84,6 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalMin(name, value, formatter, metadata);
+        return new Min(name, value, formatter, metadata);
     }
 }

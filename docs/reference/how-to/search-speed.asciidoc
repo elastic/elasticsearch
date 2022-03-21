@@ -12,18 +12,21 @@ index in physical memory.
 [discrete]
 === Use faster hardware
 
-If your search is I/O bound, you should investigate giving more memory to the
-filesystem cache (see above) or buying faster drives. In particular SSD drives
-are known to perform better than spinning disks. Always use local storage,
-remote filesystems such as `NFS` or `SMB` should be avoided. Also beware of
-virtualized storage such as Amazon's `Elastic Block Storage`. Virtualized
-storage works very well with Elasticsearch, and it is appealing since it is so
-fast and simple to set up, but it is also unfortunately inherently slower on an
-ongoing basis when compared to dedicated local storage. If you put an index on
-`EBS`, be sure to use provisioned IOPS otherwise operations could be quickly
-throttled.
+If your searches are I/O-bound, consider increasing the size of the filesystem
+cache (see above) or using faster storage. Each search involves a mix of
+sequential and random reads across multiple files, and there may be many
+searches running concurrently on each shard, so SSD drives tend to perform
+better than spinning disks.
 
-If your search is CPU-bound, you should investigate buying faster CPUs.
+Directly-attached (local) storage generally performs better than remote storage
+because it is simpler to configure well and avoids communications overheads.
+With careful tuning it is sometimes possible to achieve acceptable performance
+using remote storage too. Benchmark your system with a realistic workload to
+determine the effects of any tuning parameters. If you cannot achieve the
+performance you expect, work with the vendor of your storage system to identify
+the problem.
+
+If your searches are CPU-bound, consider using a larger number of faster CPUs.
 
 [discrete]
 === Document modeling

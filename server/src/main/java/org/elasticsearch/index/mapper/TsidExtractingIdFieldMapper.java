@@ -172,11 +172,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         StringBuilder description = new StringBuilder("a time series document");
         IndexableField tsidField = context.doc().getField(TimeSeriesIdFieldMapper.NAME);
         if (tsidField != null) {
-            String tsid = TimeSeriesIdFieldMapper.decodeTsid(tsidField.binaryValue()).toString();
-            if (tsid.length() > DESCRIPTION_TSID_LIMIT) {
-                tsid = tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
-            }
-            description.append(" with dimensions ").append(tsid);
+            description.append(" with dimensions ").append(tsidDescription(tsidField));
         }
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampField != null) {
@@ -184,5 +180,21 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             description.append(" at [").append(timestamp).append(']');
         }
         return description.toString();
+    }
+
+    @Override
+    public String documentDescription(ParsedDocument parsedDocument) {
+        IndexableField tsidField = parsedDocument.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
+        long timestamp = parsedDocument.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue();
+        String timestampStr = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(timestamp);
+        return "[" + parsedDocument.id() + "][" + tsidDescription(tsidField) + "@" + timestampStr + "]";
+    }
+
+    private String tsidDescription(IndexableField tsidField) {
+        String tsid = TimeSeriesIdFieldMapper.decodeTsid(tsidField.binaryValue()).toString();
+        if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
+            return tsid;
+        }
+        return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
     }
 }

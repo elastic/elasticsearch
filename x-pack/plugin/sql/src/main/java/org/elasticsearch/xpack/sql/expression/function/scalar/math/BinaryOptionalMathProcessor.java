@@ -58,13 +58,16 @@ public class BinaryOptionalMathProcessor implements Processor {
             double tenAtScale = Math.pow(10., rLong);
             if (tenAtScale == 0.0) {
                 return 0.0;
-            } else if (Double.POSITIVE_INFINITY == tenAtScale) {
-                return l;
             }
+
             double middleResult = l.doubleValue() * tenAtScale;
             int sign = middleResult > 0 ? 1 : -1;
+
+            if (Double.POSITIVE_INFINITY == middleResult || Double.NEGATIVE_INFINITY == middleResult) {
+                return l;
+            }
             if (Long.MIN_VALUE + 1 < middleResult && middleResult < Long.MAX_VALUE) {
-                // the result can still be rounded using Math.abs(), that is limited to long values
+                // the result can still be rounded using Math.round(), that is limited to long values
                 return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
             }
 

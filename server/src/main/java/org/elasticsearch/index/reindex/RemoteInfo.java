@@ -219,7 +219,7 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
             builder.field("username", username);
         }
         if (password != null) {
-            builder.field("password", password);
+            builder.field("password", password.toString());
         }
         builder.field("host", scheme + "://" + host + ":" + port + (pathPrefix == null ? "" : "/" + pathPrefix));
         if (headers.size() > 0) {

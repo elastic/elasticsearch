@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -44,15 +45,28 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -62,6 +76,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
@@ -645,6 +661,122 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Force close the failed job to clean up
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();
+    }
+
+    public void testCluster_GivenAnomalyDetectionJobAndTrainedModelDeployment_ShouldNotAllocateBothOnSameNode() throws Exception {
+        // This test starts 2 ML nodes and then starts an anomaly detection job and a
+        // trained model deployment that do not both fit in one node. We then proceed
+        // to stop both ML nodes and start a single ML node back up. We should see
+        // that both the job and the model cannot be allocated on that node.
+        // At the moment there is a bug that prevents that and they both end up
+        // assigned on the same node so the test makes this clear but we should change this
+        // test when the bug is fixed.
+
+        internalCluster().ensureAtMostNumDataNodes(0);
+        logger.info("Starting dedicated master node...");
+        internalCluster().startMasterOnlyNode();
+        logger.info("Starting ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+        logger.info("Starting another ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+        ensureStableCluster();
+
+        MlMemoryAction.Response memoryStats = client().execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("ml:true")).actionGet();
+
+        long maxNativeBytesPerNode = 0;
+        for (MlMemoryAction.Response.MlMemoryStats stats : memoryStats.getNodes()) {
+            maxNativeBytesPerNode = stats.getMlMax().getBytes();
+        }
+
+        String jobId = "test-node-goes-down-while-running-job";
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofBytes((long) (0.8 * maxNativeBytesPerNode)));
+
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).actionGet();
+
+        TrainedModelConfig model = TrainedModelConfig.builder()
+            .setModelId("test_model")
+            .setModelType(TrainedModelType.PYTORCH)
+            .setModelSize((long) (0.3 * maxNativeBytesPerNode))
+            .setInferenceConfig(new PassThroughConfig(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()), null, null))
+            .setLocation(new IndexLocation(InferenceIndexConstants.nativeDefinitionStore()))
+            .build();
+
+        TrainedModelDefinitionDoc modelDefinitionDoc = new TrainedModelDefinitionDoc(
+            new BytesArray(""),
+            model.getModelId(),
+            0,
+            model.getModelSize(),
+            model.getModelSize(),
+            1,
+            true
+        );
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            modelDefinitionDoc.toXContent(builder, null);
+            client().execute(
+                IndexAction.INSTANCE,
+                new IndexRequest(InferenceIndexConstants.nativeDefinitionStore()).source(builder)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
+        }
+
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(model, true)).actionGet();
+        client().execute(
+            PutTrainedModelVocabularyAction.INSTANCE,
+            new PutTrainedModelVocabularyAction.Request(
+                model.getModelId(),
+                List.of("these", "are", "my", "words", "[SEP]", "[CLS]", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                List.of()
+            )
+        ).actionGet();
+
+        client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(model.getModelId()))
+            .actionGet();
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
+        String jobNode = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId()))
+            .actionGet()
+            .getResponse()
+            .results()
+            .get(0)
+            .getNode()
+            .getId();
+        String modelNode = client().execute(
+            GetTrainedModelsStatsAction.INSTANCE,
+            new GetTrainedModelsStatsAction.Request(model.getModelId())
+        ).actionGet().getResources().results().get(0).getDeploymentStats().getNodeStats().get(0).getNode().getId();
+
+        // Assert the job and model were assigned to different nodes as they would not fit in the same node
+        assertThat(jobNode, not(equalTo(modelNode)));
+
+        // Stop both ML nodes
+        internalCluster().stopNode(jobNode);
+        internalCluster().stopNode(modelNode);
+
+        // Start a new ML node
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response jobStats = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            assertThat(jobStats.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
+        });
+        assertBusy(() -> {
+            GetTrainedModelsStatsAction.Response modelStats = client().execute(
+                GetTrainedModelsStatsAction.INSTANCE,
+                new GetTrainedModelsStatsAction.Request(model.getModelId())
+            ).actionGet();
+            assertThat(modelStats.getResources().results().get(0).getDeploymentStats().getState(), equalTo(AllocationState.STARTED));
+        });
+
+        // Clean up
+        client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();
+        client().execute(StopTrainedModelDeploymentAction.INSTANCE, new StopTrainedModelDeploymentAction.Request(model.getModelId()))
+            .actionGet();
     }
 
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {

@@ -580,24 +580,24 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case CONCRETE_INDEX -> {
                         IndexMetadata writeIndex = metadata.index(ia.getWriteIndex());
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
-                        List<String> attributes = new ArrayList<>();
-                        attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? "open" : "closed");
+                        List<Attribute> attributes = new ArrayList<>();
+                        attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? Attribute.OPEN : Attribute.CLOSED);
                         if (ia.isHidden()) {
-                            attributes.add("hidden");
+                            attributes.add(Attribute.HIDDEN);
                         }
                         if (ia.isSystem()) {
-                            attributes.add("system");
+                            attributes.add(Attribute.SYSTEM);
                         }
                         final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
                         if (isFrozen) {
-                            attributes.add("frozen");
+                            attributes.add(Attribute.FROZEN);
                         }
-                        attributes.sort(String::compareTo);
+                        attributes.sort(Comparator.comparing(e -> e.name().toLowerCase()));
                         indices.add(
                             new ResolvedIndex(
                                 ia.getName(),
                                 aliasNames,
-                                attributes.toArray(Strings.EMPTY_ARRAY),
+                                attributes.stream().map(Enum::name).map(String::toLowerCase).toArray(String[]::new),
                                 ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
                             )
                         );
@@ -622,5 +622,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 }
             }
         }
+
+        enum Attribute {
+            OPEN, CLOSED, HIDDEN, SYSTEM, FROZEN
+        }
+
     }
 }

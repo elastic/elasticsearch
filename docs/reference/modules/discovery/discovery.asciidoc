@@ -54,7 +54,7 @@ logs a message containing `master node changed`.
 
 * If a node is unable to discover or elect a master for several minutes, it
 starts to report additional details about the failures in its logs. Be sure to
-capture log messages for at least five minutes after the master was lost.
+capture log messages covering at least five minutes of discovery problems.
 
 If your cluster doesn't have a stable master, many of its features won't work
 correctly. The cluster may report many kinds of error to clients and in its

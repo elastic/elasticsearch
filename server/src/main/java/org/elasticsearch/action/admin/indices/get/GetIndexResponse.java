@@ -171,10 +171,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
-        out.writeImmutableMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeImmutableMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
-        out.writeImmutableMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
-        out.writeImmutableMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
+        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
+        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
+        out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
     }
 
     @Override

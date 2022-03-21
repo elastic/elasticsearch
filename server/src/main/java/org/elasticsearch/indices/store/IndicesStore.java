@@ -148,7 +148,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         for (IndexRoutingTable indexRoutingTable : routingTable) {
             // Note, closed indices will not have any routing information, so won't be deleted
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                 ShardId shardId = indexShardRoutingTable.shardId();
                 if (folderNotFoundCache.contains(shardId) == false && shardCanBeDeleted(localNodeId, indexShardRoutingTable)) {
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
@@ -189,7 +190,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             return false;
         }
 
-        for (ShardRouting shardRouting : indexShardRoutingTable) {
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
             // be conservative here, check on started, not even active
             if (shardRouting.started() == false) {
                 return false;
@@ -208,7 +210,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
-        for (ShardRouting shardRouting : indexShardRoutingTable) {
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
             assert shardRouting.started() : "expected started shard but was " + shardRouting;
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
             requests.add(

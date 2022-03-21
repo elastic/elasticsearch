@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -503,7 +502,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
-            preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+            preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()
         );
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
@@ -545,9 +544,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.getIndexMode()
         );
 
-        assertNull(
-            postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()))
-        );
+        assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
     }
 
     public void testSelectTimeSeriesWriteIndex() {

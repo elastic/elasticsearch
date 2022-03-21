@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -63,20 +64,31 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         return plugins;
     }
 
-    public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {
+    @Before
+    public void init() {
+        // master node is created in AbstractFeatureMigrationIntegTest#setupTestPlugin when trying to access plugins
+        internalCluster().setBootstrapMasterNodeIndex(0);
+    }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85164")
+    public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {
         CyclicBarrier taskCreated = new CyclicBarrier(2);
         CyclicBarrier shutdownCompleted = new CyclicBarrier(2);
         AtomicBoolean hasBlocked = new AtomicBoolean();
 
-        internalCluster().setBootstrapMasterNodeIndex(0);
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String masterName = internalCluster().getMasterName();
         final String masterAndDataNode = internalCluster().startNode();
+
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
         final ClusterStateListener clusterStateListener = event -> {
+            PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(
+                event.state(),
+                SYSTEM_INDEX_UPGRADE_TASK_NAME
+            );
 
-            if (PersistentTasksCustomMetadata.getTaskWithId(event.state(), SYSTEM_INDEX_UPGRADE_TASK_NAME) != null
+            if (task != null
+                && task.getState() != null // Make sure the task is really started
                 && hasBlocked.compareAndSet(false, true)) {
                 try {
                     logger.info("Task created");

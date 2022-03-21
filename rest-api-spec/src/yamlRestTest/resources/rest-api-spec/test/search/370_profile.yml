@@ -144,3 +144,20 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+
+---
+disabling stored fields removes fetch sub phases:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: _none_
+          profile: true
+
+  - match: { hits.hits.0._index: test }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [] }
+  - is_false: profile.shards.0.fetch.children

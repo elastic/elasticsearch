@@ -1,12 +1,11 @@
 [role="xpack"]
 [[security-api-get-user-profile]]
 === Get user profile API
-
-beta::[]
-
 ++++
 <titleabbrev>Get user profile</titleabbrev>
 ++++
+
+beta::[]
 
 Retrieves a user's profile using the unique profile ID.
 
@@ -24,7 +23,7 @@ Retrieves a user's profile using the unique profile ID.
 [[security-api-get-user-profile-desc]]
 ==== {api-description-title}
 
-The get user profile API returns the user profile document matching a specified 
+The get user profile API returns the user profile document matching a specified
 `uid`, which is generated when
 <<security-api-activiate-user-profile,activating a user profile>>.
 
@@ -39,8 +38,8 @@ The get user profile API returns the user profile document matching a specified
 
 `data`::
 (Optional, string) Comma-separated list of filters for the `data` field of
-the profile document. To return all content, use `data=*`. To return a 
-subset of content, use `data=<key>` to retrieve the content nested under the 
+the profile document. To return all content, use `data=*`. To return a
+subset of content, use `data=<key>` to retrieve the content nested under the
 specified `<key>`. Defaults to returning no content.
 
 [[security-api-get-user-profile-response-body]]
@@ -50,7 +49,7 @@ A successful call returns the JSON representation of the user profile
 and its internal versioning numbers. The API returns an empty object
 if no profile document is found for the provided `uid`.
 The content of the `data` field is not returned by default to avoid deserializing
-a potential large payload. 
+a potential large payload.
 
 [[security-api-get-user-profile-example]]
 ==== {api-examples-title}

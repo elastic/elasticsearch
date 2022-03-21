@@ -24,9 +24,8 @@ public class Min extends InternalNumericMetricsAggregation.SingleValue {
     private final double min;
 
     public Min(String name, double min, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.min = min;
-        this.format = formatter;
     }
 
     /**
@@ -34,7 +33,6 @@ public class Min extends InternalNumericMetricsAggregation.SingleValue {
      */
     public Min(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         min = in.readDouble();
     }
 

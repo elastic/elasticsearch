@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -111,18 +112,22 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
-        final FeatureFactory featureFactory;
-        final String mvtString;
+        final StringBuilder mvtString = new StringBuilder("mvt(");
+        mvtString.append(z).append("/").append(x).append("/").append(y);
+        int extent = SimpleVectorTileFormatter.DEFAULT_EXTENT;
+        int padPixels = SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS;
         if (randomBoolean()) {
-            int extent = randomIntBetween(1 << 8, 1 << 14);
-            mvtString = "mvt(" + z + "/" + x + "/" + y + "@" + extent + ")";
-            featureFactory = new FeatureFactory(z, x, y, extent);
-        } else {
-            mvtString = "mvt(" + z + "/" + x + "/" + y + ")";
-            featureFactory = new FeatureFactory(z, x, y, 4096);
+            extent = randomIntBetween(1 << 8, 1 << 14);
+            mvtString.append(SimpleVectorTileFormatter.EXTENT_PREFIX).append(extent);
         }
+        if (randomBoolean()) {
+            padPixels = randomIntBetween(0, extent);
+            mvtString.append(SimpleVectorTileFormatter.BUFFER_PREFIX).append(padPixels);
+        }
+        mvtString.append(")");
+        final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent, padPixels);
 
-        final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
+        final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString.toString());
         List<byte[]> features;
         try {
             features = featureFactory.getFeatures(normalize(geometry));

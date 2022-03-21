@@ -17,6 +17,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
@@ -207,7 +208,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
             "/",
             new BytesArray("{\"match_all\":{}}"),
             "user",
-            "password",
+            new SecureString("password".toCharArray()),
             Collections.emptyMap(),
             RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
             RemoteInfo.DEFAULT_CONNECT_TIMEOUT

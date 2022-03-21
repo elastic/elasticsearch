@@ -293,23 +293,29 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context) {
-                @Override
-                protected Double parseSourceValue(Object value) {
-                    double doubleValue;
-                    if (value.equals("")) {
-                        if (nullValue == null) {
-                            return null;
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context) {
+                    @Override
+                    protected Double parseSourceValue(Object value) {
+                        double doubleValue;
+                        if (value.equals("")) {
+                            if (nullValue == null) {
+                                return null;
+                            }
+                            doubleValue = nullValue;
+                        } else {
+                            doubleValue = objectToDouble(value);
                         }
-                        doubleValue = nullValue;
-                    } else {
-                        doubleValue = objectToDouble(value);
-                    }
 
-                    double factor = getScalingFactor();
-                    return Math.round(doubleValue * factor) / factor;
-                }
-            };
+                        double factor = getScalingFactor();
+                        return Math.round(doubleValue * factor) / factor;
+                    }
+                };
+            }
+            if (hasDocValues()) {
+                return docValueFetcher(context, format);
+            }
+            throw errorForValueFetcherWithoutSourceOrDocValues(context);
         }
 
         @Override

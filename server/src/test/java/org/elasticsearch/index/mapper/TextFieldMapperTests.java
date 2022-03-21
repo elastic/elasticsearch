@@ -1087,4 +1087,9 @@ public class TextFieldMapperTests extends MapperTestCase {
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
     }
+
+    @Override
+    protected boolean supportsFetchWithSourceDisabled() {
+        return false;
+    }
 }

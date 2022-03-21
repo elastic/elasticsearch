@@ -650,17 +650,23 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
-                @Override
-                protected String parseSourceValue(Object value) {
-                    String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
-                        return null;
-                    }
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context, nullValue) {
+                    @Override
+                    protected String parseSourceValue(Object value) {
+                        String keywordValue = value.toString();
+                        if (keywordValue.length() > ignoreAbove) {
+                            return null;
+                        }
 
-                    return normalizeValue(normalizer(), name(), keywordValue);
-                }
-            };
+                        return normalizeValue(normalizer(), name(), keywordValue);
+                    }
+                };
+            }
+            if (hasDocValues()) {
+                return docValueFetcher(context, format);
+            }
+            throw errorForValueFetcherWithoutSourceOrDocValues(context);
         }
 
         @Override

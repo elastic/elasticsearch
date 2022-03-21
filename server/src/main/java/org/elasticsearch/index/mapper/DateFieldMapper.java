@@ -465,14 +465,20 @@ public final class DateFieldMapper extends FieldMapper {
             if (scriptValues != null) {
                 return FieldValues.valueFetcher(scriptValues, v -> format((long) v, formatter), context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
-                @Override
-                public String parseSourceValue(Object value) {
-                    String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
-                    // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
-                    return format(parse(date), formatter);
-                }
-            };
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context, nullValue) {
+                    @Override
+                    public String parseSourceValue(Object value) {
+                        String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                        // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
+                        return format(parse(date), formatter);
+                    }
+                };
+            }
+            if (hasDocValues()) {
+                return docValueFetcher(context, format);
+            }
+            throw errorForValueFetcherWithoutSourceOrDocValues(context);
         }
 
         private String format(long timestamp, DateFormatter formatter) {

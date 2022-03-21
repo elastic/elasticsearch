@@ -193,17 +193,23 @@ public class BooleanFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
-                @Override
-                protected Boolean parseSourceValue(Object value) {
-                    if (value instanceof Boolean) {
-                        return (Boolean) value;
-                    } else {
-                        String textValue = value.toString();
-                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context, nullValue) {
+                    @Override
+                    protected Boolean parseSourceValue(Object value) {
+                        if (value instanceof Boolean) {
+                            return (Boolean) value;
+                        } else {
+                            String textValue = value.toString();
+                            return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                        }
                     }
-                }
-            };
+                };
+            }
+            if (hasDocValues()) {
+                return docValueFetcher(context, format);
+            }
+            throw errorForValueFetcherWithoutSourceOrDocValues(context);
         }
 
         @Override

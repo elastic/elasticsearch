@@ -94,7 +94,7 @@ setup:
               format: "yyyy/MM/dd"
 
 ---
-"Test disable source":
+"Test disable source from text":
   - do:
       indices.create:
         index:  test
@@ -105,15 +105,15 @@ setup:
             _source:
               enabled: false
             properties:
-              keyword:
-                type: keyword
+              text:
+                type: text
 
   - do:
       index:
         index:  test
         id:     "1"
         body:
-          keyword: [ "a" ]
+          text: [ "the quick brown fox jumped over the lazy dog" ]
 
   - do:
       indices.refresh:
@@ -124,10 +124,9 @@ setup:
       search:
         index: test
         body:
-          fields: [keyword]
+          fields: [text]
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Unable to retrieve the requested [fields] since _source is disabled
-        in the mappings for index [test]" }
+  - match: { error.root_cause.0.reason: "error fetching [text]: Unable to retrieve values because _source is disabled in the mappings for index [test]" }
 
 ---
 "Test ignore malformed":

@@ -39,6 +39,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
         this(context.sourcePath(fieldName), nullValue);
+        if (context.isSourceEnabled() == false) {
+            throw new IllegalArgumentException(
+                "Unable to retrieve values because _source is disabled in the mappings for index [" + context.index().getName() + "]"
+            );
+        }
     }
 
     /**

@@ -136,4 +136,9 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     protected boolean dedupAfterFetch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsFetchWithSourceDisabled() {
+        return false;
+    }
 }

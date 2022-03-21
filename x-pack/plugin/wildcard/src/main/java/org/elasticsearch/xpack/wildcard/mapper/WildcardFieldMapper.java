@@ -847,17 +847,20 @@ public class WildcardFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-
-            return new SourceValueFetcher(name(), context, nullValue) {
-                @Override
-                protected String parseSourceValue(Object value) {
-                    String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
-                        return null;
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context, nullValue) {
+                    @Override
+                    protected String parseSourceValue(Object value) {
+                        String keywordValue = value.toString();
+                        if (keywordValue.length() > ignoreAbove) {
+                            return null;
+                        }
+                        return keywordValue;
                     }
-                    return keywordValue;
-                }
-            };
+                };
+            }
+            assert hasDocValues();
+            return docValueFetcher(context, format);
         }
 
     }

@@ -305,21 +305,26 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-
-            return new SourceValueFetcher(name(), context, nullValueFormatted) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return nullValueFormatted;
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context, nullValueFormatted) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        if (value.equals("")) {
+                            return nullValueFormatted;
+                        }
+                        long ulValue = parseUnsignedLong(value);
+                        if (ulValue >= 0) {
+                            return ulValue;
+                        } else {
+                            return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
+                        }
                     }
-                    long ulValue = parseUnsignedLong(value);
-                    if (ulValue >= 0) {
-                        return ulValue;
-                    } else {
-                        return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
-                    }
-                }
-            };
+                };
+            }
+            if (hasDocValues()) {
+                return docValueFetcher(context, format);
+            }
+            throw errorForValueFetcherWithoutSourceOrDocValues(context);
         }
 
         @Override

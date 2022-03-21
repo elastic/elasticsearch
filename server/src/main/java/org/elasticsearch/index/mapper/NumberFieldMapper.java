@@ -1344,15 +1344,21 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return nullValue;
+            if (context.isSourceEnabled()) {
+                return new SourceValueFetcher(name(), context, nullValue) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        if (value.equals("")) {
+                            return nullValue;
+                        }
+                        return type.parse(value, coerce);
                     }
-                    return type.parse(value, coerce);
-                }
-            };
+                };
+            }
+            if (hasDocValues()) {
+                return docValueFetcher(context, format);
+            }
+            throw errorForValueFetcherWithoutSourceOrDocValues(context);
         }
 
         @Override

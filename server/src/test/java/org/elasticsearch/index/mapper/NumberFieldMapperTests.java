@@ -330,5 +330,4 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     protected abstract Number randomNumber();
-
 }

@@ -133,7 +133,11 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+            if (context.isSourceEnabled()) {
+                return SourceValueFetcher.toString(name(), context, format);
+            }
+            assert hasDocValues();
+            return docValueFetcher(context, format);
         }
 
         @Override

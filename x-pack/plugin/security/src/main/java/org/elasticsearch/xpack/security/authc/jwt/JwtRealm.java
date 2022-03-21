@@ -59,6 +59,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "X-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
+    public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
@@ -71,7 +72,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
     final ClaimParser claimParserGroups;
-    final String clientAuthenticationType;
+    final ClaimParser claimParserDn;
+    final ClaimParser claimParserMail;
+    final ClaimParser claimParserName;
+    final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
@@ -85,6 +89,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
         this.claimParserPrincipal = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_PRINCIPAL, realmConfig, true);
         this.claimParserGroups = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_GROUPS, realmConfig, false);
+        this.claimParserDn = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_DN, realmConfig, false);
+        this.claimParserMail = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_MAIL, realmConfig, false);
+        this.claimParserName = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_NAME, realmConfig, false);
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
@@ -125,9 +132,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        this.jwksAlgsHmac = this.parseJwksAlgsHmac();
-        this.jwksAlgsPkc = this.parseJwksAlgsPkc();
-        this.verifyAnyAvailableJwkAndAlgPair();
+        // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
+        try {
+            this.jwksAlgsHmac = this.parseJwksAlgsHmac();
+            this.jwksAlgsPkc = this.parseJwksAlgsPkc();
+            this.verifyAnyAvailableJwkAndAlgPair();
+        } catch (Throwable t) {
+            this.close();
+            throw t;
+        }
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
@@ -212,8 +225,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private void verifyAnyAvailableJwkAndAlgPair() {
         assert this.jwksAlgsHmac != null : "HMAC not initialized";
         assert this.jwksAlgsPkc != null : "PKC not initialized";
-        if (((this.jwksAlgsHmac.jwks.isEmpty()) && (this.jwksAlgsPkc.jwks.isEmpty()))
-            || ((this.jwksAlgsHmac.algs.isEmpty()) && (this.jwksAlgsPkc.algs.isEmpty()))) {
+        if (this.jwksAlgsHmac.isEmpty() && this.jwksAlgsPkc.isEmpty()) {
             final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
             throw new SettingsException(msg);
         }
@@ -280,7 +292,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
             threadContext,
             JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
         return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
@@ -362,17 +374,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            final List<String> groups = this.claimParserGroups.getClaimValues(claimsSet);
-            final Map<String, Object> userMetadata;
-            try {
-                userMetadata = this.populateUserMetadata ? JwtUtil.toUserMetadata(jwt) : Map.of();
-            } catch (Exception e) {
-                final String msg = "Realm [" + super.name() + "] parse metadata failed for principal=[" + principal + "].";
-                final AuthenticationResult<User> unsuccessful = AuthenticationResult.unsuccessful(msg, e);
-                LOGGER.debug(msg, e);
-                listener.onResponse(unsuccessful);
-                return;
-            }
 
             // Delegated role lookup: If enabled, lookup in authz realms. Otherwise, fall through to JWT realm role mapping.
             if (this.delegatedAuthorizationSupport.hasDelegation()) {
@@ -394,17 +395,30 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return;
             }
 
+            // User metadata: If enabled, extract metadata from JWT claims set. Use it in UserRoleMapper.UserData and User constructors.
+            final Map<String, Object> userMetadata;
+            try {
+                userMetadata = this.populateUserMetadata ? JwtUtil.toUserMetadata(jwt) : Map.of();
+            } catch (Exception e) {
+                final String msg = "Realm [" + super.name() + "] parse metadata failed for principal=[" + principal + "].";
+                final AuthenticationResult<User> unsuccessful = AuthenticationResult.unsuccessful(msg, e);
+                LOGGER.debug(msg, e);
+                listener.onResponse(unsuccessful);
+                return;
+            }
+
             // Role resolution: Handle role mapping in JWT Realm.
-            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, null, groups, userMetadata, super.config);
+            final List<String> groups = this.claimParserGroups.getClaimValues(claimsSet);
+            final String dn = this.claimParserDn.getClaimValue(claimsSet);
+            final String mail = this.claimParserMail.getClaimValue(claimsSet);
+            final String name = this.claimParserName.getClaimValue(claimsSet);
+            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, super.config);
             this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
-                // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
-                final String[] rolesArray = rolesSet.toArray(new String[0]);
-                final User user = new User(principal, rolesArray, null, null, userData.getMetadata(), true);
-                final String rolesString = Arrays.toString(rolesArray);
-                LOGGER.debug("Realm [" + super.name() + "] mapped roles " + rolesString + " for principal=[" + principal + "].");
+                final User user = new User(principal, rolesSet.toArray(Strings.EMPTY_ARRAY), name, mail, userData.getMetadata(), true);
+                LOGGER.debug("Realm [" + super.name() + "] roles " + String.join(",", rolesSet) + " for principal=[" + principal + "].");
                 listener.onResponse(AuthenticationResult.success(user));
             }, e -> {
-                final String msg = "Realm [" + super.name() + "] mapped roles failed for principal=[" + principal + "].";
+                final String msg = "Realm [" + super.name() + "] roles failed for principal=[" + principal + "].";
                 LOGGER.warn(msg, e);
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
             }));

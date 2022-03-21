@@ -143,7 +143,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        static final Set<String> RESERVED_NAMES = Sets.newHashSet("cluster_settings", "node_settings", "index_settings");
+        static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings");
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
         private final Map<String, List<DeprecationIssue>> indexSettingsIssues;

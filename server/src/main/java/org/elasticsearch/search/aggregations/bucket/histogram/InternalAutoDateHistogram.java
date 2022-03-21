@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -551,7 +550,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalAutoDateHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             targetBuckets,
             bucketInfo,
             format,

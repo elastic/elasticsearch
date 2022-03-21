@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.Project;
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
@@ -54,6 +55,7 @@ public class PluginPropertiesExtension {
     private File noticeFile;
 
     private final Project project;
+    private CopySpec bundleSpec;
 
     public PluginPropertiesExtension(Project project) {
         this.project = project;
@@ -167,5 +169,13 @@ public class PluginPropertiesExtension {
 
     public void setExtendedPlugins(List<String> extendedPlugins) {
         this.extendedPlugins = extendedPlugins;
+    }
+
+    public void setBundleSpec(CopySpec bundleSpec) {
+        this.bundleSpec = bundleSpec;
+    }
+
+    public CopySpec getBundleSpec() {
+        return bundleSpec;
     }
 }

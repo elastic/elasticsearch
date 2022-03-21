@@ -1,9 +1,59 @@
 [[release-notes-8.1.0]]
 == {es} version 8.1.0
 
-coming[8.1.0]
-
 Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
+
+[[known-issues-8.1.0]]
+[float]
+=== Known issues
+
+* In 8.1.0, a bug ({es-issue}84784[#84784]) can cause APIs that use filtered fields
+to return a `null_pointer_exception` error with a `401` HTTP status code when
+the `xpack.security.audit.logfile.events.emit_request_body` cluster setting is
+`true`.
++
+--
+When `xpack.security.audit.logfile.events.emit_request_body` is `true`, audit
+logs include the request body of incoming requests for certain events.
+These requests can contain sensitive information, such as passwords, that must not
+be logged. Fields containing such information are filtered out before logging.
+The REST APIs that use requests with filtered fields are:
+
+* <<security-api-change-password,Change passwords API>>
+* <<cluster-nodes-reload-secure-settings,Node reload settings API>>
+* <<security-api-put-user,Create or updates users API>>
+* <<security-api-get-token,Get token API>>
+* <<security-api-invalidate-token,Invalidate token API>>
+* <<security-api-grant-api-key,Grant API key API>>
+* <<watcher-api-put-watch,Create or update watch API>>
+* <<watcher-api-execute-watch,Execute watch API>>
+* <<security-api-saml-authenticate,SAML authenticate API>>
+* <<security-api-oidc-authenticate,OpenID Connect authenticate API>>
+* <<docs-reindex,Reindex API>>
+
+Please note the `xpack.security.audit.logfile.events.emit_request_body` cluster
+setting defaults to `false`. If the setting is `true`, audit logs only include
+the request body for the
+following events (not all of these events are enabled by default):
+
+* `authentication_success`
+* `authentication_failed`
+* `realm_authentication_failed`
+* `tampered_request`
+* `run_as_denied`
+* `anonymous_access_denied`
+
+To work around this issue, you can disable the request body auditing using the cluster settings API:
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "transient": {
+    "xpack.security.audit.logfile.events.emit_request_body": false
+  }
+}
+----
+--
 
 [[breaking-8.1.0]]
 [float]
@@ -17,8 +67,10 @@ Geo::
 === Bug fixes
 
 Aggregations::
-* Fix: reduce float and half-float values to their stored precision {es-pull}83213[#83213]
 * Reenable `BooleanTermsIT` {es-pull}83421[#83421] (issue: {es-issue}83351[#83351])
+* backward compatibility with version 7.17.0 {es-pull}83715[#83715]
+* ip prefix bucket reduction {es-pull}83637[#83637]
+* reduce float and half-float values to their stored precision {es-pull}83213[#83213]
 
 Allocation::
 * Fix `updateMinNode` condition {es-pull}80403[#80403] (issue: {es-issue}41194[#41194])
@@ -33,14 +85,31 @@ Authorization::
 Autoscaling::
 * Fix autoscaling of follower data streams {es-pull}83302[#83302] (issue: {es-issue}82857[#82857])
 
+Client::
+* Fix for self-suppression in REST client {es-pull}83568[#83568] (issue: {es-issue}42223[#42223])
+
+Distributed::
+* [GCE Discovery] Correctly handle large zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
+
+Engine::
+* Fork to `WRITE` thread when failing shard {es-pull}84606[#84606] (issue: {es-issue}84602[#84602])
+
 Geo::
 * Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
 * `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
+
+ILM+SLM::
+* Fix `PolicyStepsRegistry`'s `cachedSteps` null handling {es-pull}84588[#84588]
+
+Indices APIs::
+* Allow removing unreferenced composable data stream templates {es-pull}84376[#84376] (issues: {es-issue}84171[#84171], {es-issue}84188[#84188])
+* Simplify and speed up `ExecutorSelector` {es-pull}83514[#83514] (issue: {es-issue}82450[#82450])
 
 Infra/Core::
 * Always re-run Feature migrations which have encountered errors {es-pull}83918[#83918] (issue: {es-issue}83917[#83917])
 * Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]
 * Preserve context in `ResultDeduplicator` {es-pull}84038[#84038] (issue: {es-issue}84036[#84036])
+* Registration of `SystemIndexMigrationTask` named xcontent objects {es-pull}84192[#84192] (issue: {es-issue}84115[#84115])
 * Update system index mappings if `_meta` is null {es-pull}83896[#83896] (issue: {es-issue}83890[#83890])
 
 Infra/REST API::
@@ -55,20 +124,39 @@ Ingest::
 * Short circuit date patterns after first match {es-pull}83764[#83764]
 
 Machine Learning::
+* Allow autoscaling to work when vertical scaling is possible {es-pull}84242[#84242] (issue: {es-issue}84198[#84198])
 * Correctly capture min stats for `inference.ingest_processors` in ML usage {es-pull}82352[#82352]
 * Fail queued inference requests with cause if the process crashes {es-pull}81584[#81584]
 * Fix NLP tokenization `never_split` handling around punctuation {es-pull}82982[#82982]
 * Fix `ZeroShotClassificationConfig` update mixing fields {es-pull}82848[#82848]
+* Fix bug where initial scale from 0->1 could scale too high {es-pull}84244[#84244]
+* Fix submit after shutdown in process worker service {es-pull}83645[#83645] (issue: {es-issue}83633[#83633])
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
+* Record node shutdown start time for each node {es-pull}84355[#84355]
+* Register the named X-content parser for snapshot upgrade params {es-pull}84420[#84420] (issue: {es-issue}84419[#84419])
+* Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
+* Text structure finder caps exclude lines pattern at 1000 characters {es-pull}84236[#84236] (issue: {es-issue}83434[#83434])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
+* Wait for model process to stop in stop deployment {es-pull}83644[#83644]
+* Fix a bug in the tuning of the hyperparameters when training regression classification models {ml-pull}2128[#2128]
+* Improve training stability for regression and classification models {ml-pull}2144[#2144], {ml-pull}2147[#2147], {ml-pull}2150[#2150]
+* Avoid edge cases in the classification weights calculation to maximize minimum recall which could lead to only a single class being predicted {ml-pull}2194[#2194]
+* Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
+* Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
+* Fix bug restoring data gatherer state for time of day and week anomaly detection functions. This could lead to "No queue item for time" and "Time is out of range. Returning earliest bucket index" log errors {ml-pull}2213[#2213]
 
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
 * Better exception message for `MappingParser.parse` {es-pull}80696[#80696]
+* Completion field to support multiple completion multi-fields {es-pull}83595[#83595] (issue: {es-issue}83534[#83534])
 
 Network::
 * Throw `NoSeedNodeLeftException` on proxy failure {es-pull}80961[#80961] (issue: {es-issue}80898[#80898])
+
+Packaging::
+* Add `log4j-slf4j-impl` to `repository-azure` {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
+* Restart ES after keystore upgrade in postinst {es-pull}84224[#84224] (issue: {es-issue}82433[#82433])
 
 Recovery::
 * Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354]
@@ -78,6 +166,8 @@ SQL::
 * Fix txt format for empty result sets {es-pull}83376[#83376]
 
 Search::
+* Avoid eagerly loading `StoredFieldsReader` in fetch phase {es-pull}83693[#83693] (issue: {es-issue}82777[#82777])
+* Do not deserialise the document when not needed in the fields fetch phase {es-pull}84184[#84184]
 * Returns valid PIT when no index matched {es-pull}83424[#83424]
 
 Security::
@@ -86,6 +176,7 @@ Security::
 Snapshot/Restore::
 * Adjust `LinuxFileSystemNatives.allocatedSizeInBytes` for aarch64 architectures {es-pull}81376[#81376] (issues: {es-issue}80437[#80437], {es-issue}81362[#81362])
 * Distinguish "missing repository" from "missing repository plugin" {es-pull}82457[#82457] (issue: {es-issue}81758[#81758])
+* Fix `DirectBlobContainerIndexInput` cloning method {es-pull}84341[#84341] (issue: {es-issue}84238[#84238])
 * Move get snapshots serialization to management pool {es-pull}83215[#83215]
 * Preserve context in `snapshotDeletionListeners` {es-pull}84089[#84089] (issue: {es-issue}84036[#84036])
 
@@ -97,6 +188,9 @@ Transform::
 * Fix condition on which the transform stops processing buckets {es-pull}82852[#82852]
 * Prevent stopping of transforms due to threadpool limitation {es-pull}81912[#81912] (issue: {es-issue}81796[#81796])
 
+Watcher::
+* Tolerate empty types array in Watch definitions {es-pull}83524[#83524] (issue: {es-issue}83235[#83235])
+
 [[deprecation-8.1.0]]
 [float]
 === Deprecations
@@ -106,6 +200,9 @@ CRUD::
 
 Cluster Coordination::
 * Remove last few mentions of Zen discovery {es-pull}80410[#80410]
+
+SQL::
+* Deprecate `index_include_frozen` request parameter {es-pull}83943[#83943] (issue: {es-issue}81939[#81939])
 
 [[enhancement-8.1.0]]
 [float]
@@ -200,6 +297,8 @@ Machine Learning::
 * Set default value of 30 days for model prune window {es-pull}81377[#81377]
 * Track token positions and use source string to tag NER entities {es-pull}81275[#81275]
 * Warn when creating job with an unusual bucket span {es-pull}82145[#82145] (issue: {es-issue}81645[#81645])
+* Improve skip_model_update rule behavior {ml-pull}2096[#2096]
+* Prevent over-subscription of threads in pytorch_inference {ml-pull}2141[#2141]
 
 Mapping::
 * Allow doc-values only search on geo_point fields {es-pull}83395[#83395]
@@ -208,6 +307,7 @@ Mapping::
 
 Monitoring::
 * Add Enterprise Search monitoring index templates {es-pull}82743[#82743]
+* Add `beats_stats.metrics.apm-server.sampling.tail` to Stack Monitoring templates {es-pull}82401[#82401]
 
 Network::
 * Report close connection exceptions at INFO {es-pull}81768[#81768] (issues: {es-issue}51612[#51612], {es-issue}66473[#66473])
@@ -218,6 +318,7 @@ Recovery::
 * Adjust `indices.recovery.max_bytes_per_sec` according to external settings {es-pull}82819[#82819]
 
 SQL::
+* Compress Cursors {es-pull}83591[#83591]
 * Extend Tableau connector to reconnect with catalog {es-pull}81321[#81321]
 
 Search::
@@ -231,14 +332,6 @@ Search::
 * Rewrite `match` and `match_phrase` queries to `term` queries on `keyword` fields {es-pull}82612[#82612] (issue: {es-issue}82515[#82515])
 * Short cut if reader has point values {es-pull}80268[#80268]
 * Support combining `_shards` preference param with `<custom-string>` {es-pull}80024[#80024] (issue: {es-issue}80021[#80021])
-
-Security::
-* Activate user profile API {es-pull}82400[#82400]
-* Add an initial `ProfileService` for user profiles {es-pull}81899[#81899]
-* Add new system index for user profile documents {es-pull}81355[#81355]
-* Add update user profile data API {es-pull}82772[#82772]
-* Add user profile API for get profile by UID {es-pull}81910[#81910]
-* Update Kibana system user privileges {es-pull}82781[#82781]
 
 Snapshot/Restore::
 * Add Linux x86-64bits native method to retrieve the number of allocated bytes on disk for a file {es-pull}80437[#80437] (issue: {es-issue}79698[#79698])
@@ -260,10 +353,6 @@ Transform::
 [[feature-8.1.0]]
 [float]
 === New features
-
-Authentication::
-* Initial version of JWT Realm {es-pull}82175[#82175]
-* Introduce domain setting to associate realms {es-pull}81968[#81968]
 
 Distributed::
 * Add desired nodes API {es-pull}82975[#82975]
@@ -287,11 +376,19 @@ Transform::
 Geo::
 * Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
 
+Machine Learning::
+* Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
+* Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
+* Upgrade Eigen library to version 3.4.0 {ml-pull}2137[#2137]
+
 Network::
 * Upgrade to Netty 4.1.73 {es-pull}82844[#82844]
 
 Packaging::
 * Bump bundled JDK to 17.0.2+8 {es-pull}83243[#83243] (issue: {es-issue}83242[#83242])
+
+Security::
+* Upgrade jANSI dependency to 2.4.0 {es-pull}83566[#83566]
 
 
 

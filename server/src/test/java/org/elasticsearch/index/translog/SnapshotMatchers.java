@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public final class SnapshotMatchers {
     private SnapshotMatchers() {
@@ -154,8 +153,8 @@ public final class SnapshotMatchers {
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
                 List<Translog.Operation> actualOps = drainAll(snapshot);
-                notFoundOps = expectedOps.stream().filter(o -> actualOps.contains(o) == false).collect(Collectors.toList());
-                notExpectedOps = actualOps.stream().filter(o -> expectedOps.contains(o) == false).collect(Collectors.toList());
+                notFoundOps = expectedOps.stream().filter(o -> actualOps.contains(o) == false).toList();
+                notExpectedOps = actualOps.stream().filter(o -> expectedOps.contains(o) == false).toList();
                 return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read snapshot content", ex);

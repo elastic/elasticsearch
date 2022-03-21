@@ -56,7 +56,9 @@ public class RestSearchProfilesAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final Set<String> dataKeys = Strings.tokenizeByCommaToSet(request.param("data", null));
-        final Payload payload = request.hasContent() ? PARSER.parse(request.contentParser(), null) : new Payload(null, null);
+        final Payload payload = request.hasContentOrSourceParam()
+            ? PARSER.parse(request.contentOrSourceParamParser(), null)
+            : new Payload(null, null);
 
         final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(dataKeys, payload.name(), payload.size());
         return channel -> client.execute(SearchProfilesAction.INSTANCE, searchProfilesRequest, new RestToXContentListener<>(channel));

@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
@@ -172,9 +171,10 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource);
-        fieldValues = fieldValues.stream().map((s) -> convertFieldValue(fieldType, s)).collect(Collectors.toList());
-        return fieldValues;
+        return HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource)
+            .stream()
+            .<Object>map((s) -> convertFieldValue(fieldType, s))
+            .toList();
     }
 
     protected BreakIterator getBreakIterator(SearchHighlightContext.Field field) {

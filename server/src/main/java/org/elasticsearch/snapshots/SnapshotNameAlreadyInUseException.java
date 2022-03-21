@@ -18,7 +18,7 @@ import java.io.IOException;
 public class SnapshotNameAlreadyInUseException extends InvalidSnapshotNameException {
 
     public SnapshotNameAlreadyInUseException(final String repositoryName, final String snapshotName, String desc) {
-        super(repositoryName, snapshotName, "Invalid snapshot name [" + snapshotName + "], " + desc);
+        super(repositoryName, snapshotName, desc);
     }
 
     public SnapshotNameAlreadyInUseException(StreamInput in) throws IOException {

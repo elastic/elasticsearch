@@ -35,7 +35,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -864,7 +863,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new Parameter<>(
                 name,
                 updateable,
-                () -> defaultValue,
+                defaultValue ? () -> true : () -> false,
                 (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
                 initializer,
                 XContentBuilder::field,
@@ -947,7 +946,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new Parameter<>(
                 name,
                 updateable,
-                () -> defaultValue,
+                defaultValue == null ? () -> null : () -> defaultValue,
                 (n, c, o) -> XContentMapValues.nodeStringValue(o),
                 initializer,
                 serializer,
@@ -959,10 +958,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public static Parameter<List<String>> stringArrayParam(
             String name,
             boolean updateable,
-            Function<FieldMapper, List<String>> initializer,
-            List<String> defaultValue
+            Function<FieldMapper, List<String>> initializer
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            return new Parameter<>(name, updateable, List::of, (n, c, o) -> {
                 List<Object> values = (List<Object>) o;
                 List<String> strValues = new ArrayList<>();
                 for (Object item : values) {
@@ -970,32 +968,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 return strValues;
             }, initializer, XContentBuilder::stringListField, Objects::toString);
-        }
-
-        /**
-         * Defines a parameter that takes one of a restricted set of string values
-         * @param name          the parameter name
-         * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
-         * @param values        the set of values that the parameter can take.  The first value in the list
-         *                      is the default value, to be used if the parameter is undefined in a mapping
-         */
-        public static Parameter<String> restrictedStringParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, String> initializer,
-            String... values
-        ) {
-            assert values.length > 0;
-            Set<String> acceptedValues = new LinkedHashSet<>(Arrays.asList(values));
-            return stringParam(name, updateable, initializer, values[0]).addValidator(v -> {
-                if (acceptedValues.contains(v)) {
-                    return;
-                }
-                throw new MapperParsingException(
-                    "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + acceptedValues.toString()
-                );
-            });
         }
 
         /**
@@ -1133,8 +1105,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, String> initializer,
             Parameter<Script> dependentScriptParam
         ) {
-            return Parameter.restrictedStringParam("on_script_error", true, initializer, "fail", "continue")
-                .requiresParameters(dependentScriptParam);
+            return new Parameter<>(
+                "on_script_error",
+                true,
+                () -> "fail",
+                (n, c, o) -> XContentMapValues.nodeStringValue(o),
+                initializer,
+                XContentBuilder::field,
+                Function.identity()
+            ).addValidator(v -> {
+                switch (v) {
+                    case "fail":
+                    case "continue":
+                        return;
+                    default:
+                        throw new MapperParsingException(
+                            "Unknown value [" + v + "] for field [on_script_error] - accepted values are [fail, continue]"
+                        );
+                }
+            }).requiresParameters(dependentScriptParam);
         }
     }
 

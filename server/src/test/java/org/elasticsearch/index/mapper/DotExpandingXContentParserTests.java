@@ -6,10 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -19,11 +21,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
         XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
         XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser);
+        expandedParser.allowDuplicateKeys(true);
 
         XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
         assertEquals(dotsExpanded, Strings.toString(actualOutput));
 
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
+        expectedParser.allowDuplicateKeys(true);
         XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots));
         XContentParser.Token currentToken;
         while ((currentToken = actualParser.nextToken()) != null) {
@@ -99,6 +103,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             {"test":{"with":{"dots":"value"}},"nodots":"value"}""", """
             {"test.":{"with.":{"dots":"value"}},"nodots":"value"}""");
 
+    }
+
+    public void testDuplicateKeys() throws IOException {
+        assertXContentMatches("""
+            {"test":{"with":{"dots1":"value1"}},"test":{"with":{"dots2":"value2"}}}""", """
+            { "test.with.dots1" : "value1",
+              "test.with.dots2" : "value2"}""");
     }
 
     public void testSkipChildren() throws IOException {

@@ -39,7 +39,7 @@ Ingest::
 Machine Learning::
 * Fix Kibana date format and similar overrides in text structure endpoint {es-pull}84967[#84967]
 * Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
-* Return all Datafeeds with GET Anomaly Detector {es-pull}84759[#84759]
+* Return all datafeeds in get anomaly detection jobs API {es-pull}84759[#84759]
 
 Packaging::
 * Remove use of Cloudflare zlib {es-pull}84680[#84680]

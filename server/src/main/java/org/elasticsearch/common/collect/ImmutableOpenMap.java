@@ -374,10 +374,15 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
 
     public static class Builder<KType, VType> {
 
-        private final ImmutableOpenMap<KType, VType> original;
-        private boolean changed = false;
-
+        private ImmutableOpenMap<KType, VType> original;
         private ObjectObjectHashMap<KType, VType> map;
+
+        private void maybeInitializeMap() {
+            if (original != null) {
+                this.map = original.map.clone();
+                this.original = null;
+            }
+        }
 
         @SuppressWarnings("unchecked")
         public Builder() {
@@ -385,24 +390,24 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public Builder(int size) {
-            this.original = null;
             this.map = new ObjectObjectHashMap<>(size);
         }
 
         public Builder(ImmutableOpenMap<KType, VType> map) {
-            this.original = map;
-            this.map = map.map.clone();
+            this.original = Objects.requireNonNull(map);
         }
 
         /**
          * Builds a new instance of the
          */
         public ImmutableOpenMap<KType, VType> build() {
-            ObjectObjectHashMap<KType, VType> map = this.map;
-            this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            if (changed == false && original != null) {
+            if (original != null) {
+                ImmutableOpenMap<KType, VType> original = this.original;
+                this.original = null;
                 return original;
             } else {
+                ObjectObjectHashMap<KType, VType> map = this.map;
+                this.map = null;
                 return map.isEmpty() ? of() : new ImmutableOpenMap<>(map);
             }
         }
@@ -411,7 +416,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
          * Puts all the entries in the map to the builder.
          */
         public Builder<KType, VType> putAllFromMap(Map<KType, VType> map) {
-            changed = true;
+            maybeInitializeMap();
             for (Map.Entry<KType, VType> entry : map.entrySet()) {
                 this.map.put(entry.getKey(), entry.getValue());
             }
@@ -422,26 +427,28 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
          * A put operation that can be used in the fluent pattern.
          */
         public Builder<KType, VType> fPut(KType key, VType value) {
-            changed = true;
+            maybeInitializeMap();
             map.put(key, value);
             return this;
         }
 
         public VType put(KType key, VType value) {
-            changed = true;
+            maybeInitializeMap();
             return map.put(key, value);
         }
 
         public VType get(KType key) {
+            maybeInitializeMap();
             return map.get(key);
         }
 
         public VType getOrDefault(KType kType, VType vType) {
+            maybeInitializeMap();
             return map.getOrDefault(kType, vType);
         }
 
         public void putAll(Builder<KType, VType> builder) {
-            changed = true;
+            maybeInitializeMap();
             for (var entry : builder.map) {
                 map.put(entry.key, entry.value);
             }
@@ -451,47 +458,50 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
          * Remove that can be used in the fluent pattern.
          */
         public Builder<KType, VType> fRemove(KType key) {
-            changed = true;
+            maybeInitializeMap();
             map.remove(key);
             return this;
         }
 
         public VType remove(KType key) {
-            changed = true;
+            maybeInitializeMap();
             return map.remove(key);
         }
 
         public boolean containsKey(KType key) {
+            maybeInitializeMap();
             return map.containsKey(key);
         }
 
         public int size() {
+            maybeInitializeMap();
             return map.size();
         }
 
         public boolean isEmpty() {
+            maybeInitializeMap();
             return map.isEmpty();
         }
 
         public int removeAll(Predicate<? super KType> predicate) {
-            changed = true;
+            maybeInitializeMap();
             return map.removeAll(predicate::test);
         }
 
         public void removeAllFromCollection(Collection<KType> collection) {
-            changed = true;
+            maybeInitializeMap();
             for (var k : collection) {
                 map.remove(k);
             }
         }
 
         public void clear() {
-            changed = true;
+            maybeInitializeMap();
             map.clear();
         }
 
         public Set<KType> keys() {
-            changed = true; // the returned object is a mutable window to this one
+            maybeInitializeMap();
             return new KeySet<>(map.keys());
         }
 
@@ -501,39 +511,42 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         public int removeAll(BiPredicate<? super KType, ? super VType> predicate) {
-            final int removed = map.removeAll(predicate::test);
-            changed |= removed > 0;
-            return removed;
+            maybeInitializeMap();
+            return map.removeAll(predicate::test);
         }
 
         public int indexOf(KType key) {
+            maybeInitializeMap();
             return map.indexOf(key);
         }
 
         public boolean indexExists(int index) {
+            maybeInitializeMap();
             return map.indexExists(index);
         }
 
         public VType indexGet(int index) {
+            maybeInitializeMap();
             return map.indexGet(index);
         }
 
         public VType indexReplace(int index, VType newValue) {
-            changed = true;
+            maybeInitializeMap();
             return map.indexReplace(index, newValue);
         }
 
         public void indexInsert(int index, KType key, VType value) {
-            changed = true;
+            maybeInitializeMap();
             map.indexInsert(index, key, value);
         }
 
         public void release() {
-            changed = true;
+            maybeInitializeMap();
             map.release();
         }
 
         public String visualizeKeyDistribution(int characters) {
+            maybeInitializeMap();
             return map.visualizeKeyDistribution(characters);
         }
     }

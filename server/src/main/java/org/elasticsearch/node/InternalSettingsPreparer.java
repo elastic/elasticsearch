@@ -56,14 +56,16 @@ public class InternalSettingsPreparer {
 
         Settings.Builder output = Settings.builder(); // start with a fresh output
         Path path = configFile.resolve("elasticsearch.yml");
+
         if (Files.exists(path)) {
             try {
                 loadConfigWithSubstitutions(output, path, System::getenv);
-                loadOverrides(output, properties);
             } catch (IOException e) {
                 throw new SettingsException("Failed to load settings from " + path.toString(), e);
             }
         }
+
+        loadOverrides(output, properties);
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input);
@@ -146,7 +148,7 @@ public class InternalSettingsPreparer {
         output.loadFromStream(configFile.getFileName().toString(), is, false);
     }
 
-    static void loadOverrides(Settings.Builder output, Map<String, String> overrides) throws IOException {
+    static void loadOverrides(Settings.Builder output, Map<String, String> overrides) {
         StringBuilder builder = new StringBuilder();
         for (var entry : overrides.entrySet()) {
             builder.append(entry.getKey());
@@ -156,7 +158,11 @@ public class InternalSettingsPreparer {
         }
         var is = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
         // fake the resource name so it loads yaml
-        output.loadFromStream("overrides.yml", is, false);
+        try {
+            output.loadFromStream("overrides.yml", is, false);
+        } catch (IOException e) {
+            throw new SettingsException("Malformed setting override value", e);
+        }
     }
 
     /**

@@ -8,15 +8,23 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.core.CheckedFunction;
+
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
  *
  * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
  * The token location is preserved so that error messages refer to the original content being parsed.
+ * This parser can output duplicate keys, but that is fine given that it's used for document parsing. The mapping
+ * lookups will return the same mapper/field type, and we never load incoming documents in a map where duplicate
+ * keys would end up overriding each other.
  */
 public class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
@@ -74,6 +82,37 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         protected XContentParser delegate() {
             return parsers.peek();
+        }
+
+        @Override
+        public Map<String, Object> map() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, Object> mapOrdered() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, String> mapStrings() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+            throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Object> list() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Object> listOrderedMap() throws IOException {
+            throw new UnsupportedOperationException();
         }
     }
 

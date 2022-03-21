@@ -45,6 +45,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     private BytesStreamOutput bytesOut;
 
+    private String tracePath;
+
     /**
      * Construct a channel for handling the request.
      *
@@ -194,12 +196,12 @@ public abstract class AbstractRestChannel implements RestChannel {
     }
 
     @Override
-    public void startTrace(ThreadContext threadContext) {
-        // no op
+    public String getTracePath() {
+        return tracePath;
     }
 
     @Override
-    public void stopTrace() {
-        // no op
+    public void setTracePath(String tracePath) {
+        this.tracePath = tracePath;
     }
 }

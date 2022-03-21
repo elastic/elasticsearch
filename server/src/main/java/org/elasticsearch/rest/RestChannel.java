@@ -9,13 +9,13 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -50,16 +50,31 @@ public interface RestChannel extends Traceable {
 
     @Override
     default String getSpanName() {
-        return this.request().method() + " " + this.request().path();
+        final String tracePath = this.getTracePath();
+        return this.request().method() + " " + (tracePath != null ? tracePath : this.request().path());
     }
 
     @Override
     default Map<String, Object> getAttributes() {
-        var req = this.request();
-        return Map.of("http.method", req.method().name(), "http.url", req.uri());
+        final RestRequest req = this.request();
+        Map<String, Object> attributes = new HashMap<>();
+        req.getHeaders().forEach((key, values) -> attributes.put("http.request.headers." + key, String.join("; ", values)));
+        attributes.put("http.method", req.method().name());
+        attributes.put("http.url", req.uri());
+        switch (req.getHttpRequest().protocolVersion()) {
+            case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
+            case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
+        }
+        return attributes;
     }
 
-    void startTrace(ThreadContext threadContext);
+    void setTracePath(String path);
 
-    void stopTrace();
+    String getTracePath();
+
+    default void startTrace() {}
+
+    default void stopTrace() {}
+
+    default void recordException(Throwable throwable) {}
 }

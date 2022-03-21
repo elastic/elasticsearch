@@ -437,7 +437,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         try {
             copyRestHeaders(request, threadContext);
-            channel.startTrace(threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
@@ -467,15 +466,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    channel.setTracePath(handlers.getPath());
+                    channel.startTrace();
                     dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
+            channel.startTrace();
+            channel.recordException(e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
+        channel.startTrace();
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -676,13 +680,28 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public void startTrace(ThreadContext threadContext) {
-            delegate.startTrace(threadContext);
+        public void startTrace() {
+            delegate.startTrace();
         }
 
         @Override
         public void stopTrace() {
             delegate.stopTrace();
+        }
+
+        @Override
+        public void recordException(Throwable throwable) {
+            delegate.recordException(throwable);
+        }
+
+        @Override
+        public void setTracePath(String path) {
+            delegate.setTracePath(path);
+        }
+
+        @Override
+        public String getTracePath() {
+            return delegate.getTracePath();
         }
     }
 

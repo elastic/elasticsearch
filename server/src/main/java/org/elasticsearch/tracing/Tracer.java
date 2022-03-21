@@ -26,4 +26,14 @@ public interface Tracer {
     void onTraceStopped(Traceable traceable);
 
     void onTraceEvent(Traceable traceable, String eventName);
+
+    void onTraceException(Traceable traceable, Throwable throwable);
+
+    void setAttribute(Traceable traceable, String key, boolean value);
+
+    void setAttribute(Traceable traceable, String key, double value);
+
+    void setAttribute(Traceable traceable, String key, long value);
+
+    void setAttribute(Traceable traceable, String key, String value);
 }

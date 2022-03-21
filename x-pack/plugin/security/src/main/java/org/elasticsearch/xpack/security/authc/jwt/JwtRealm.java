@@ -109,7 +109,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
         this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
         this.jwtCache = this.buildJwtCache();
-        this.jwtCacheHelper = new CacheIteratorHelper<>(this.jwtCache);
+        this.jwtCacheHelper = (this.jwtCache == null) ? null : new CacheIteratorHelper<>(this.jwtCache);
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
@@ -307,13 +307,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public void expire(final String username) {
         this.ensureInitialized();
         LOGGER.trace("Expiring JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
-        this.jwtCacheHelper.removeValuesIf(expiringUser -> expiringUser.user.principal().equals(username));
+        if (this.jwtCacheHelper != null) {
+            this.jwtCacheHelper.removeValuesIf(expiringUser -> expiringUser.user.principal().equals(username));
+        }
     }
 
     @Override
     public void expireAll() {
         this.ensureInitialized();
-        if (this.jwtCache != null) {
+        if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
             LOGGER.trace("Invalidating JWT cache for realm [" + super.name() + "]");
             try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                 this.jwtCache.invalidateAll();
@@ -466,7 +468,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     final User user = result.getValue();
                     final String rolesString = Arrays.toString(user.roles());
                     LOGGER.debug("Realm [" + super.name() + "] roles [" + rolesString + "] for principal=[" + principal + "].");
-                    if (this.jwtCache != null) {
+                    if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                             final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
                             this.jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));

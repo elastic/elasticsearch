@@ -18,12 +18,10 @@ import org.elasticsearch.env.Environment;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -110,8 +108,8 @@ public class InternalSettingsPreparer {
         output.replacePropertyPlaceholders();
     }
 
-
-    static void loadConfigWithSubstitutions(Settings.Builder output, Path configFile, Function<String, String> substitutions) throws IOException {
+    static void loadConfigWithSubstitutions(Settings.Builder output, Path configFile, Function<String, String> substitutions)
+        throws IOException {
         long existingSize = Files.size(configFile);
         StringBuilder builder = new StringBuilder((int) existingSize);
         try (BufferedReader reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {

@@ -44,15 +44,14 @@ public class RestSearchProfilesActionTests extends RestActionTestCase {
         }));
     }
 
-    public void testInnerPrepareRequestWithEmptyTokenName() {
+    public void testInnerPrepareRequestWithSourceParameter() {
         String expectedName = "bob";
         final Map<String, String> params = new HashMap<>(
             Map.of("source", "{\"name\":\"" + expectedName + "\"}", "source_content_type", "application/json")
         );
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
-            .withPath("/_security/profile/_search")
-            .withParams(params)
-            .build();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+            randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
+        ).withPath("/_security/profile/_search").withParams(params).build();
 
         dispatchRequest(restRequest);
 

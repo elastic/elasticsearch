@@ -106,12 +106,12 @@ determine each node's view of the state of the master over time.
 If a node restarts, it will leave the cluster and then join the cluster again.
 When it rejoins, the `MasterService` will log that it is processing a
 `node-join` task. You can tell from the master logs that the node was restarted
-because the `node-join` message will indicate that it is `joining after
-restart`. In older {es} versions, you can also determine that a node restarted
-by looking at the second "ephemeral" ID in the `node-left` and subsequent
-`node-join` messages. This ID is different each time the node starts up. If a
-node is unexpectedly restarting, you'll need to look at the node's logs to see
-why it is shutting down.
+because the `node-join` message will indicate that it is
+`joining after restart`. In older {es} versions, you can also determine that a
+node restarted by looking at the second "ephemeral" ID in the `node-left` and
+subsequent `node-join` messages. This ephemeral ID is different each time the
+node starts up. If a node is unexpectedly restarting, you'll need to look at
+the node's logs to see why it is shutting down.
 
 If the node did not restart then you should look at the reason for its
 departure in the `node-left` message, which is reported after each node. There
@@ -122,13 +122,15 @@ closed.
 
 * `lagging`: The master published a cluster state update, but the removed node
 did not apply it within the permitted timeout. By default, this timeout is 2
-minutes. Refer to <<modules-discovery-settings>> for more information.
+minutes. Refer to <<modules-discovery-settings>> for information about the
+settings which control this mechanism.
 
 * `followers check retry count exceeded`: The master sent a number of
 consecutive health checks to the removed node. These checks were rejected or
 timed out. By default, each health check times out after 10 seconds and {es}
 removes the node removed after three consecutively failed health checks. Refer
-to <<modules-discovery-settings>> for more information.
+to <<modules-discovery-settings>> for information about the settings which
+control this mechanism.
 
 ===== Diagnosing `disconnected` nodes
 
@@ -149,7 +151,7 @@ If you see a node unexpectedly leave the cluster with the `disconnected`
 reason, something other than {es} likely caused the connection to close. A
 common cause is a misconfigured firewall with an improper timeout or another
 policy that's <<long-lived-connections,incompatible with {es}>>. It could also
-be caused by general connectivity issues, such as packet loss due to unreliable
+be caused by general connectivity issues, such as packet loss due to faulty
 hardware or network congestion. If you're an advanced user, you can get more
 detailed information about network exceptions by configuring the following
 loggers:
@@ -205,7 +207,7 @@ Timeouts and failures may be due to network delays or performance problems on
 the affected nodes. Ensure that `net.ipv4.tcp_retries2` is
 <<system-config-tcpretries,configured properly>> to eliminate network delays as
 a possible cause for this kind of instability. Log messages containing
-`warn threshold` may give further clue about the cause of the instability.
+`warn threshold` may give further clues about the cause of the instability.
 
 If the last check failed with an exception then the exception is reported, and
 typically indicates the problem that needs to be addressed. If any of the

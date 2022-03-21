@@ -66,7 +66,7 @@ public class InternalSettingsPreparer {
         }
 
         // re-initialize settings now that the config file has been loaded
-        initializeSettings(output, input, properties);
+        initializeSettings(output, input);
         finalizeSettings(output, defaultNodeName);
 
         return new Environment(output.build(), configFile);
@@ -100,11 +100,9 @@ public class InternalSettingsPreparer {
      *
      * @param output the settings builder to apply the input and default settings to
      * @param input the input settings
-     * @param esSettings a map from which to apply settings
      */
-    static void initializeSettings(final Settings.Builder output, final Settings input, final Map<String, String> esSettings) {
+    static void initializeSettings(final Settings.Builder output, final Settings input) {
         output.put(input);
-        output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
     }
 

@@ -56,7 +56,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -298,7 +297,7 @@ public final class NodeEnvironment implements Closeable {
                     final String content = "written by Elasticsearch v"
                         + Version.CURRENT
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
-                    Files.write(legacyNodesPath, content.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(legacyNodesPath, content);
                     IOUtils.fsync(legacyNodesPath, false);
                     IOUtils.fsync(dataPath, true);
                 }
@@ -851,8 +850,9 @@ public final class NodeEnvironment implements Closeable {
         final InternalShardLock shardLock;
         final boolean acquired;
         synchronized (shardLocks) {
-            if (shardLocks.containsKey(shardId)) {
-                shardLock = shardLocks.get(shardId);
+            final InternalShardLock found = shardLocks.get(shardId);
+            if (found != null) {
+                shardLock = found;
                 shardLock.incWaitCount();
                 acquired = false;
             } else {

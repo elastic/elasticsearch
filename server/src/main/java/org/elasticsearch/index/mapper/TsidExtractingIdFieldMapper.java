@@ -36,7 +36,7 @@ import java.util.function.Supplier;
  * {@code _tsid} and {@code @timestamp}.
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
-    private static final FieldType FIELD_TYPE = new FieldType();
+    public static final FieldType FIELD_TYPE = new FieldType();
     /**
      * Maximum length of the {@code _tsid} in the {@link #documentDescription}.
      */

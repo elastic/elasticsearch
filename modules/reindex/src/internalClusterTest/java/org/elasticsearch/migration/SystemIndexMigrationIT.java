@@ -70,6 +70,7 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         internalCluster().setBootstrapMasterNodeIndex(0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85164")
     public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {
         CyclicBarrier taskCreated = new CyclicBarrier(2);
         CyclicBarrier shutdownCompleted = new CyclicBarrier(2);

@@ -40,7 +40,6 @@ free. This means that we require every `transport_worker` thread to be idle
 frequently. An idle `transport_worker` looks something like this in a stack
 dump:
 
-[source,text]
 ----
 "elasticsearch[instance-0000000004][transport_worker][T#1]" #32 daemon prio=5 os_prio=0 cpu=9645.94ms elapsed=501.63s tid=0x00007fb83b6307f0 nid=0x1c4 runnable  [0x00007fb7b8ffe000]
    java.lang.Thread.State: RUNNABLE
@@ -60,7 +59,6 @@ dump:
 In the <<cluster-nodes-hot-threads>> API an idle `transport_worker` thread is
 reported like this:
 
-[source,text]
 ----
    100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
      10/10 snapshots sharing following 9 elements

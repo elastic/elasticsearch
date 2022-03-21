@@ -71,7 +71,7 @@ breaks added for clarity):
             reason: disconnected,
         {tiebreaker-0000000003}{UNw_RuazQCSBskWZV8ID_w}{bltyVOQ-RNu20OQfTHSLtA}{172.27.161.154}{172.27.161.154:19251}{mv}
             reason: disconnected
-        ], term: 16, version: 1653783, ...
+        ], term: 14, version: 1653415, ...
 ----
 
 This message says that the `MasterService` on the elected master

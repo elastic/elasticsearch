@@ -374,9 +374,24 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
 
     public static class Builder<KType, VType> {
 
+        // if the Builder was constructed from an existing ImmutableOpenMap, then this will be non-null (at least up until the
+        // point where the builder has been used to actually make some changes to the map that is being built -- see maybeInitializeMap)
         private ImmutableOpenMap<KType, VType> original;
+
+        // if the Builder was constructed with a size (only), then this will be non-null
         private ObjectObjectHashMap<KType, VType> map;
 
+        // n.b. a constructor can either set original or it can set map, but it must not set both.
+
+        /**
+         * {@link Builder#maybeInitializeMap()} must be called before reading or writing via the {@code map} reference -- so every method
+         * of builder should call this as the first thing it does. If the {@code original} reference is not null, it will be used to
+         * populate the {@code map} reference as a (mutable) clone of the {@code original} ImmutableOpenMap. It will then null out the
+         * {@code original} reference.
+         *
+         * If the {@code original} reference is already null (and by extension, the {@code map} reference is already *not* null), then this
+         * method is a no-op.
+         */
         private void maybeInitializeMap() {
             if (original != null) {
                 this.map = original.map.clone();
@@ -403,11 +418,11 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         public ImmutableOpenMap<KType, VType> build() {
             if (original != null) {
                 ImmutableOpenMap<KType, VType> original = this.original;
-                this.original = null;
+                this.original = null; // null out the original reference so that you can't reuse this builder
                 return original;
             } else {
                 ObjectObjectHashMap<KType, VType> map = this.map;
-                this.map = null;
+                this.map = null; // null out the map reference so that you can't reuse this builder
                 return map.isEmpty() ? of() : new ImmutableOpenMap<>(map);
             }
         }

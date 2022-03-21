@@ -6,19 +6,32 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent;
+package org.elasticsearch.index.mapper;
+
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
  *
  * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
  * The token location is preserved so that error messages refer to the original content being parsed.
+ * This parser can output duplicate keys, but that is fine given that it's used for document parsing. The mapping
+ * lookups will return the same mapper/field type, and we never load incoming documents in a map where duplicate
+ * keys would end up overriding each other.
  */
-public class DotExpandingXContentParser extends FilterXContentParserWrapper {
+class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
@@ -75,6 +88,37 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
         protected XContentParser delegate() {
             return parsers.peek();
         }
+
+        @Override
+        public Map<String, Object> map() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, Object> mapOrdered() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, String> mapStrings() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+            throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Object> list() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Object> listOrderedMap() throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static String[] splitAndValidatePath(String fullFieldPath) {
@@ -107,7 +151,7 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    public static XContentParser expandDots(XContentParser in) throws IOException {
+    static XContentParser expandDots(XContentParser in) throws IOException {
         return new WrappingParser(in);
     }
 

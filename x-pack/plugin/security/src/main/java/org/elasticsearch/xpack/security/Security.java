@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
@@ -593,6 +594,8 @@ public class Security extends Plugin
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
+        final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
+
         // audit trail service construction
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
             ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
@@ -760,7 +763,7 @@ public class Security extends Plugin
             apiKeyService,
             serviceAccountService,
             dlsBitsetCache.get(),
-            expressionResolver,
+            restrictedIndices,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -852,7 +855,8 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            restrictedIndices
         );
 
         components.add(nativeRolesStore); // used by roles actions

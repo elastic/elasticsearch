@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -128,6 +129,12 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             });
 
             indexModule.addIndexEventListener(failShardsListener.get());
+
+            indexModule.addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                if (write == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from archive index");
+                }
+            });
         }
     }
 

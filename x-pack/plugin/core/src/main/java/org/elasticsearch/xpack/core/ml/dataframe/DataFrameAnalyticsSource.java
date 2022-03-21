@@ -105,20 +105,14 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public DataFrameAnalyticsSource(StreamInput in) throws IOException {
         index = in.readStringArray();
         queryProvider = QueryProvider.fromStream(in);
-        sourceFiltering = in.readOptionalWriteable(FetchSourceContext::new);
+        sourceFiltering = in.readOptionalWriteable(FetchSourceContext::readFrom);
         runtimeMappings = in.readMap();
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
         this.index = Arrays.copyOf(other.index, other.index.length);
         this.queryProvider = new QueryProvider(other.queryProvider);
-        this.sourceFiltering = other.sourceFiltering == null
-            ? null
-            : new FetchSourceContext(
-                other.sourceFiltering.fetchSource(),
-                other.sourceFiltering.includes(),
-                other.sourceFiltering.excludes()
-            );
+        this.sourceFiltering = other.sourceFiltering;
         this.runtimeMappings = Collections.unmodifiableMap(new HashMap<>(other.runtimeMappings));
     }
 

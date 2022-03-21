@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -89,10 +90,12 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         var result = rolloverOver(state, "logs-myapp", time);
         state = result.clusterState();
 
-        backingIndex = state.getMetadata().index(".ds-logs-myapp-2022.03.15-000002");
+        DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
+        backingIndex = state.getMetadata().index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T10:29:36.000Z"));
         assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T12:29:36.000Z"));
+        String secondBackingIndex = backingIndex.getIndex().getName();
 
         // first backing index:
         {
@@ -118,14 +121,14 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             for (int i = 0; i < 256; i++) {
                 String timestamp = MILLIS_FORMATTER.formatMillis(randomLongBetween(start, end));
                 var writeIndex = getWriteIndex(state, "logs-myapp", timestamp);
-                assertThat(writeIndex.getName(), equalTo(".ds-logs-myapp-2022.03.15-000002"));
+                assertThat(writeIndex.getName(), equalTo(secondBackingIndex));
             }
         }
 
         // Borderline (again):
         {
             var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T12:29:35.999Z");
-            assertThat(writeIndex.getName(), equalTo(".ds-logs-myapp-2022.03.15-000002"));
+            assertThat(writeIndex.getName(), equalTo(secondBackingIndex));
         }
 
         // Outside the valid temporal ranges:
@@ -158,10 +161,12 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         var result = rolloverOver(state, "logs-myapp", time);
         state = result.clusterState();
 
-        backingIndex = state.getMetadata().index(".ds-logs-myapp-2022.03.15-000002");
+        DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
+        backingIndex = state.getMetadata().index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T10:29:36.000Z"));
         assertThat(backingIndex.getSettings().get("index.time_series.end_time"), equalTo("2022-03-15T12:29:36.000Z"));
+        String secondBackingIndex = backingIndex.getIndex().getName();
 
         // first backing index:
         {
@@ -187,14 +192,14 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             for (int i = 0; i < 256; i++) {
                 String timestamp = NANOS_FORMATTER.formatMillis(randomLongBetween(start, end));
                 var writeIndex = getWriteIndex(state, "logs-myapp", timestamp);
-                assertThat(writeIndex.getName(), equalTo(".ds-logs-myapp-2022.03.15-000002"));
+                assertThat(writeIndex.getName(), equalTo(secondBackingIndex));
             }
         }
 
         // Borderline (again):
         {
             var writeIndex = getWriteIndex(state, "logs-myapp", "2022-03-15T12:29:35.999999999Z");
-            assertThat(writeIndex.getName(), equalTo(".ds-logs-myapp-2022.03.15-000002"));
+            assertThat(writeIndex.getName(), equalTo(secondBackingIndex));
         }
     }
 

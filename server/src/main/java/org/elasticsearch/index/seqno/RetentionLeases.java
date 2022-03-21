@@ -147,14 +147,19 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
                 // use a linked hash map to preserve order
                 final LinkedHashMap<String, RetentionLease> map = Maps.newLinkedHashMapWithExpectedSize(leasesCount);
                 for (RetentionLease lease : leases) {
-                    map.merge(lease.id(), lease, (left, right) -> {
-                        assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
-                        throw new IllegalStateException("duplicate retention lease ID [" + left.id() + "]");
-                    });
+                    final RetentionLease existing = map.put(lease.id(), lease);
+                    if (existing != null) {
+                        throwOnIdCollision(existing, lease);
+                    }
                 }
                 this.leases = Collections.unmodifiableMap(map);
             }
         }
+    }
+
+    private static void throwOnIdCollision(RetentionLease existing, RetentionLease added) {
+        assert existing.id().equals(added.id()) : "expected [" + existing.id() + "] to equal [" + added.id() + "]";
+        throw new IllegalStateException("duplicate retention lease ID [" + existing.id() + "]");
     }
 
     /**

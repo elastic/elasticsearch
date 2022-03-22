@@ -72,7 +72,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         routingTable = clusterState.routingTable();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
-        assertThat(routingTable.index("test").shards().size(), equalTo(1));
+        assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingNodes.node("node1"), nullValue());
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(1));
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));

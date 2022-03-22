@@ -84,6 +84,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             .putAllFromMap(
                 state.metadata()
                     .findDataStreams(concreteIndices)
+                    .entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
             )

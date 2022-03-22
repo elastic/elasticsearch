@@ -60,7 +60,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
@@ -96,10 +95,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.size = size;
-        this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
+        this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).toList();
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
         this.missingOrders = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::missingOrder).toArray(MissingOrder[]::new);
-        this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
+        this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).toList();
         this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = context.multiBucketConsumer().getLimit();

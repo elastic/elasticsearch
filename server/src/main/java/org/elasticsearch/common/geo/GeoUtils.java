@@ -438,7 +438,6 @@ public class GeoUtils {
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
         throws IOException, ElasticsearchParseException {
-        // TODO: Consider merging with GeoJSON parser
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;

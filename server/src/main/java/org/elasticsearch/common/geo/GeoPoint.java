@@ -77,7 +77,6 @@ public class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromString(String value, final boolean ignoreZValue, EffectivePoint effectivePoint) {
-        // TODO: Support GeoJSON
         if (value.toLowerCase(Locale.ROOT).contains("point")) {
             return resetFromWKT(value, ignoreZValue);
         } else if (value.contains(",")) {

@@ -6,6 +6,7 @@
     },
     "stability":"experimental",
     "visibility":"feature_flag",
+    "feature_flag": "es.user_profile_feature_flag_enabled",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

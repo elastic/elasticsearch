@@ -35,7 +35,6 @@ public class JwtAuthenticationToken implements AuthenticationToken {
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
     public JwtAuthenticationToken(final SecureString endUserSignedJwt, @Nullable final SecureString clientAuthenticationSharedSecret) {
-        assert endUserSignedJwt != null;
         if (endUserSignedJwt.isEmpty()) {
             throw new IllegalArgumentException("JWT bearer token must be non-empty");
         } else if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {

@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 /**
- * Implements the low-level mechanics of publishing a cluster state to other nodes in the cluster.
+ * Implements the low-level mechanics of sending a cluster state to other nodes in the cluster during a publication.
  * <p>
  * Cluster states can be quite large and expensive to serialize, but we (mostly) send the same serialized representation to every node in
  * the cluster. This class does the serialization work once, up-front, as part of {@link #newPublicationContext} and then just re-uses the

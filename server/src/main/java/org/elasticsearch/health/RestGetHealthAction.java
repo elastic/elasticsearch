@@ -43,20 +43,22 @@ public class RestGetHealthAction extends BaseRestHandler {
     public List<Route> routes() {
         List<Route> routes = new ArrayList<>();
         String pathPrefix = getPathPrefix();
-        Map<String, List<String>> componentsToIndicators = healthService.getComponentToIndicatorMapping();
-        List<Route> componentRoutes = componentsToIndicators.keySet()
-            .stream()
-            .map(componentName -> new Route(GET, pathPrefix + "/" + componentName))
-            .collect(toList());
-        List<Route> indicatorRoutes = componentsToIndicators.entrySet()
-            .stream()
-            .flatMap(
-                entry -> entry.getValue().stream().map(indicator -> new Route(GET, pathPrefix + "/" + entry.getKey() + "/" + indicator))
-            )
-            .collect(toList());
         routes.add(new Route(GET, pathPrefix));
-        routes.addAll(componentRoutes);
-        routes.addAll(indicatorRoutes);
+        if (healthService != null) {
+            Map<String, List<String>> componentsToIndicators = healthService.getComponentToIndicatorMapping();
+            List<Route> componentRoutes = componentsToIndicators.keySet()
+                .stream()
+                .map(componentName -> new Route(GET, pathPrefix + "/" + componentName))
+                .collect(toList());
+            List<Route> indicatorRoutes = componentsToIndicators.entrySet()
+                .stream()
+                .flatMap(
+                    entry -> entry.getValue().stream().map(indicator -> new Route(GET, pathPrefix + "/" + entry.getKey() + "/" + indicator))
+                )
+                .collect(toList());
+            routes.addAll(componentRoutes);
+            routes.addAll(indicatorRoutes);
+        }
         return routes;
     }
 

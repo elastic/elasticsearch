@@ -22,4 +22,3 @@ A separate client credential is required too, because the third-party applicatio
 WARNING: Client authentication is enabled by default in JWT realms.
          Client authentication can be disabled, but it is not recommended.
 
-For more information, see <<jwt-guide>>.

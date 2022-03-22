@@ -1587,6 +1587,7 @@ public class RestoreService implements ClusterStateApplier {
             Settings.builder()
                 .put(snapshotIndexMetadata.getSettings())
                 .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
+                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
         );
         snapshotIndexMetadata = convertedIndexMetadataBuilder.build();
 
@@ -1686,15 +1687,6 @@ public class RestoreService implements ClusterStateApplier {
             }
         }
 
-<<<<<<< HEAD
-=======
-        convertedIndexMetadata.settings(
-            Settings.builder()
-                .put(snapshotIndexMetadata.getSettings())
-                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
-                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-        );
->>>>>>> elastic/master
         // TODO: _routing? Perhaps we don't need to obey any routing here as stuff is read-only anyway and get API will be disabled
         return convertedIndexMetadataBuilder.build();
     }

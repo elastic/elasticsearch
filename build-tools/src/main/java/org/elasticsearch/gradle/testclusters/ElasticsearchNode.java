@@ -41,15 +41,7 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.Nested;
-import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.PathSensitive;
-import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.*;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.process.ExecOperations;
 
@@ -1592,6 +1584,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Internal
     Path getEsLogFile() {
         return esLogFile;
+    }
+
+    public void module(TaskProvider<Sync> module) {
+        module(project.getLayout().file(module.map(m -> m.getDestinationDir())));
     }
 
     private static class FileEntry implements Named {

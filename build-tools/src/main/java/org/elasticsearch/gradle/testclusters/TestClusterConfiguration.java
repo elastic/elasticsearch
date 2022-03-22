@@ -14,6 +14,9 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -39,6 +42,8 @@ public interface TestClusterConfiguration {
     void plugin(String pluginProjectPath);
 
     void module(Provider<RegularFile> module);
+
+    void module(TaskProvider<Sync> module);
 
     void module(String moduleProjectPath);
 

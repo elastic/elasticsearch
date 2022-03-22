@@ -32,10 +32,16 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Description on the document being parsed used in error messages. Not
+     * Description of the document being parsed used in error messages. Not
      * called unless there is an error.
      */
-    public abstract String documentDescription(SourceToParse source);
+    public abstract String documentDescription(DocumentParserContext context);
+
+    /**
+     * Description of the document being indexed used after parsing for things
+     * like version conflicts.
+     */
+    public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
      * Create a {@link Field} to store the provided {@code _id} that "stores"

@@ -66,12 +66,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
 
-        final PublicationTransportHandler handler = new PublicationTransportHandler(
-            transportService,
-            writableRegistry(),
-            pu -> null,
-            (pu, l) -> {}
-        );
+        final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = CoordinationStateTests.clusterState(
@@ -196,12 +191,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 Collections.emptySet()
             );
-            final PublicationTransportHandler handler = new PublicationTransportHandler(
-                transportService,
-                writableRegistry(),
-                pu -> null,
-                (pu, l) -> {}
-            );
+            final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
             transportService.start();
             transportService.acceptIncomingRequests();
 

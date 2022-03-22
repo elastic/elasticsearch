@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -74,7 +75,7 @@ public class TaskManager implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
-    private final List<String> taskHeaders;
+    private final String[] taskHeaders;
     private final ThreadPool threadPool;
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -97,7 +98,7 @@ public class TaskManager implements ClusterStateApplier {
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
-        this.taskHeaders = new ArrayList<>(taskHeaders);
+        this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
@@ -739,6 +740,6 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     public List<String> getTaskHeaders() {
-        return taskHeaders;
+        return List.of(taskHeaders);
     }
 }

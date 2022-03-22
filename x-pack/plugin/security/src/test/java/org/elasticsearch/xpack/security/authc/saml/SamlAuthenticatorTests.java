@@ -182,15 +182,15 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().value, equalTo(nameId));
     }
 
-    public void testLogWarnOnCustomNameIdAttribute() throws Exception {
-        testLoggingWarnOnReservedAttributeName(NAMEID_SYNTHENTIC_ATTRIBUTE);
+    public void testLoggingWarnOnNameIdAttributeName() throws Exception {
+        testLoggingWarnOnReservedTermAttributeName(NAMEID_SYNTHENTIC_ATTRIBUTE);
     }
 
-    public void testLogWarnOnCustomPersistentNameIdAttribute() throws Exception {
-        testLoggingWarnOnReservedAttributeName(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
+    public void testLoggingWarnOnPersistentNameIdAttributeName() throws Exception {
+        testLoggingWarnOnReservedTermAttributeName(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
     }
 
-    private void testLoggingWarnOnReservedAttributeName(String attributeName) throws Exception {
+    private void testLoggingWarnOnReservedTermAttributeName(String attributeName) throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionIndex = randomId();

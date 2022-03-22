@@ -351,20 +351,12 @@ public class InboundHandler {
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleResponse(handler, response);
         } else {
-            boolean success = false;
-            try {
-                threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
-                    @Override
-                    protected void doRun() {
-                        doHandleResponse(handler, response);
-                    }
-                });
-                success = true;
-            } finally {
-                if (success == false) {
-                    response.decRef();
+            threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                @Override
+                protected void doRun() {
+                    doHandleResponse(handler, response);
                 }
-            }
+            });
         }
     }
 

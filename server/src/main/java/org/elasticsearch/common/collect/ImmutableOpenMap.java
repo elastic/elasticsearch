@@ -408,8 +408,8 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             this.map = new ObjectObjectHashMap<>(size);
         }
 
-        public Builder(ImmutableOpenMap<KType, VType> map) {
-            this.original = Objects.requireNonNull(map);
+        public Builder(ImmutableOpenMap<KType, VType> immutableOpenMap) {
+            this.original = Objects.requireNonNull(immutableOpenMap);
         }
 
         /**

@@ -1,59 +1,72 @@
+[[release-notes-8.1.1]]
+== {es} version 8.1.1
+
+coming[8.1.1]
+
+Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
+
+[[bug-8.1.1]]
+[float]
+=== Bug fixes
+
+Analysis::
+* Fix `min_hash` configuration settings names {es-pull}84753[#84753] (issue: {es-issue}84578[#84578])
+
+EQL::
+* Clean any used memory by the sequence matcher and circuit breaker used bytes in case of exception {es-pull}84451[#84451]
+
+Engine::
+* Increase store ref before snapshotting index commit {es-pull}84776[#84776]
+
+ILM+SLM::
+* Invoke initial `AsyncActionStep` for newly created indices {es-pull}84541[#84541] (issue: {es-issue}77269[#77269])
+
+Indices APIs::
+* Remove existing `indices/datastreams/aliases` before simulating index template {es-pull}84675[#84675] (issue: {es-issue}84256[#84256])
+
+Infra/Core::
+* Fix `NullPointerException` in `SystemIndexMetadataUpgradeService` hidden alias handling {es-pull}84780[#84780] (issue: {es-issue}81411[#81411])
+* Require and preserve content type for filtered rest requests {es-pull}84914[#84914] (issue: {es-issue}84784[#84784])
+* Wrap thread creation in `doPrivileged` call {es-pull}85180[#85180]
+
+Infra/REST API::
+* Correctly return `_type` field for documents in V7 compatiblity mode {es-pull}84873[#84873] (issue: {es-issue}84173[#84173])
+
+Ingest::
+* Backport mark `GeoIpDownloaderTask` as completed after cancellation #84028 {es-pull}85014[#85014] (issues: {es-issue}84028[#84028], {es-issue}84652[#84652])
+* `CompoundProcessor` should also catch exceptions when executing a processor {es-pull}84838[#84838] (issue: {es-issue}84781[#84781])
+
+Machine Learning::
+* Fix Kibana date format and similar overrides in text structure endpoint {es-pull}84967[#84967]
+* Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
+* Return all datafeeds in get anomaly detection jobs API {es-pull}84759[#84759]
+
+Packaging::
+* Remove use of Cloudflare zlib {es-pull}84680[#84680]
+
+Search::
+* Fix point visitor in `DiskUsage` API {es-pull}84909[#84909]
+* `DotExpandingXContentParser` to expose the original token location {es-pull}84970[#84970]
+
+Snapshot/Restore::
+* Don't fail if there no symlink for AWS Web Identity Token {es-pull}84697[#84697]
+* Lookup AWS Region for STS Client from STS endpoint {es-pull}84585[#84585] (issue: {es-issue}83826[#83826])
+
+[[enhancement-8.1.1]]
+[float]
+=== Enhancements
+
+SQL::
+* Forward warning headers to JDBC driver {es-pull}84499[#84499]
+
+Watcher::
+* Add list of allowed domains for Watcher email action {es-pull}84894[#84894] (issue: {es-issue}84739[#84739])
+
+
 [[release-notes-8.1.0]]
 == {es} version 8.1.0
 
 Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
-
-[[known-issues-8.1.0]]
-[float]
-=== Known issues
-
-* In 8.1.0, a bug ({es-issue}84784[#84784]) can cause APIs that use filtered fields
-to return a `null_pointer_exception` error with a `401` HTTP status code when
-the `xpack.security.audit.logfile.events.emit_request_body` cluster setting is
-`true`.
-+
---
-When `xpack.security.audit.logfile.events.emit_request_body` is `true`, audit
-logs include the request body of incoming requests for certain events.
-These requests can contain sensitive information, such as passwords, that must not
-be logged. Fields containing such information are filtered out before logging.
-The REST APIs that use requests with filtered fields are:
-
-* <<security-api-change-password,Change passwords API>>
-* <<cluster-nodes-reload-secure-settings,Node reload settings API>>
-* <<security-api-put-user,Create or updates users API>>
-* <<security-api-get-token,Get token API>>
-* <<security-api-invalidate-token,Invalidate token API>>
-* <<security-api-grant-api-key,Grant API key API>>
-* <<watcher-api-put-watch,Create or update watch API>>
-* <<watcher-api-execute-watch,Execute watch API>>
-* <<security-api-saml-authenticate,SAML authenticate API>>
-* <<security-api-oidc-authenticate,OpenID Connect authenticate API>>
-* <<docs-reindex,Reindex API>>
-
-Please note the `xpack.security.audit.logfile.events.emit_request_body` cluster
-setting defaults to `false`. If the setting is `true`, audit logs only include
-the request body for the
-following events (not all of these events are enabled by default):
-
-* `authentication_success`
-* `authentication_failed`
-* `realm_authentication_failed`
-* `tampered_request`
-* `run_as_denied`
-* `anonymous_access_denied`
-
-To work around this issue, you can disable the request body auditing using the cluster settings API:
-[source,console]
-----
-PUT /_cluster/settings
-{
-  "transient": {
-    "xpack.security.audit.logfile.events.emit_request_body": false
-  }
-}
-----
---
 
 [[breaking-8.1.0]]
 [float]
@@ -139,12 +152,6 @@ Machine Learning::
 * Text structure finder caps exclude lines pattern at 1000 characters {es-pull}84236[#84236] (issue: {es-issue}83434[#83434])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
 * Wait for model process to stop in stop deployment {es-pull}83644[#83644]
-* Fix a bug in the tuning of the hyperparameters when training regression classification models {ml-pull}2128[#2128]
-* Improve training stability for regression and classification models {ml-pull}2144[#2144], {ml-pull}2147[#2147], {ml-pull}2150[#2150]
-* Avoid edge cases in the classification weights calculation to maximize minimum recall which could lead to only a single class being predicted {ml-pull}2194[#2194]
-* Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
-* Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
-* Fix bug restoring data gatherer state for time of day and week anomaly detection functions. This could lead to "No queue item for time" and "Time is out of range. Returning earliest bucket index" log errors {ml-pull}2213[#2213]
 
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
@@ -297,8 +304,6 @@ Machine Learning::
 * Set default value of 30 days for model prune window {es-pull}81377[#81377]
 * Track token positions and use source string to tag NER entities {es-pull}81275[#81275]
 * Warn when creating job with an unusual bucket span {es-pull}82145[#82145] (issue: {es-issue}81645[#81645])
-* Improve skip_model_update rule behavior {ml-pull}2096[#2096]
-* Prevent over-subscription of threads in pytorch_inference {ml-pull}2141[#2141]
 
 Mapping::
 * Allow doc-values only search on geo_point fields {es-pull}83395[#83395]
@@ -333,6 +338,14 @@ Search::
 * Short cut if reader has point values {es-pull}80268[#80268]
 * Support combining `_shards` preference param with `<custom-string>` {es-pull}80024[#80024] (issue: {es-issue}80021[#80021])
 
+Security::
+* Activate user profile API {es-pull}82400[#82400]
+* Add an initial `ProfileService` for user profiles {es-pull}81899[#81899]
+* Add new system index for user profile documents {es-pull}81355[#81355]
+* Add update user profile data API {es-pull}82772[#82772]
+* Add user profile API for get profile by UID {es-pull}81910[#81910]
+* Update Kibana system user privileges {es-pull}82781[#82781]
+
 Snapshot/Restore::
 * Add Linux x86-64bits native method to retrieve the number of allocated bytes on disk for a file {es-pull}80437[#80437] (issue: {es-issue}79698[#79698])
 
@@ -353,6 +366,10 @@ Transform::
 [[feature-8.1.0]]
 [float]
 === New features
+
+Authentication::
+* Initial version of JWT Realm {es-pull}82175[#82175]
+* Introduce domain setting to associate realms {es-pull}81968[#81968]
 
 Distributed::
 * Add desired nodes API {es-pull}82975[#82975]
@@ -375,11 +392,6 @@ Transform::
 
 Geo::
 * Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
-
-Machine Learning::
-* Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
-* Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
-* Upgrade Eigen library to version 3.4.0 {ml-pull}2137[#2137]
 
 Network::
 * Upgrade to Netty 4.1.73 {es-pull}82844[#82844]

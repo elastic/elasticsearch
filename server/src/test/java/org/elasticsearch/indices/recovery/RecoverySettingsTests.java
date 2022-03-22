@@ -143,12 +143,9 @@ public class RecoverySettingsTests extends ESTestCase {
             exception.getMessage(),
             containsString(
                 "Settings "
-                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).toList()
                     + " must all be defined or all be undefined; but only settings "
-                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
-                        .filter(randomSettings::contains)
-                        .map(Setting::getKey)
-                        .collect(Collectors.toList())
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().filter(randomSettings::contains).map(Setting::getKey).toList()
                     + " are configured."
             )
         );

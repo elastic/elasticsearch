@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,13 +63,12 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         return plugins;
     }
 
-    @Before
-    public void init() {
-        // master node is created in AbstractFeatureMigrationIntegTest#setupTestPlugin when trying to access plugins
+    @Override
+    protected void createMasterNode() {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startMasterOnlyNode();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85164")
     public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {
         CyclicBarrier taskCreated = new CyclicBarrier(2);
         CyclicBarrier shutdownCompleted = new CyclicBarrier(2);

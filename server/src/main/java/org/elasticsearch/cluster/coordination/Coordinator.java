@@ -1852,7 +1852,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
         }
 
-        private static final TransportRequestOptions APPLY_COMMIT_REQUEST_OPTIONS = TransportRequestOptions.of(
+        private static final TransportRequestOptions COMMIT_STATE_REQUEST_OPTIONS = TransportRequestOptions.of(
             null,
             TransportRequestOptions.Type.STATE
         );
@@ -1868,7 +1868,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 destination,
                 COMMIT_STATE_ACTION_NAME,
                 applyCommit,
-                APPLY_COMMIT_REQUEST_OPTIONS,
+                COMMIT_STATE_REQUEST_OPTIONS,
                 new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
             );
         }

@@ -52,8 +52,7 @@ public class CoordinatorRewriteContextProvider {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
 
         if (indexMetadata == null
-            || indexMetadata.getTimestampRange().containsAllShardRanges() == false
-            || indexMetadata.getTimeSeriesRange() == null) {
+            || (indexMetadata.getTimestampRange().containsAllShardRanges() == false && indexMetadata.getTimeSeriesRange() == null)) {
             return null;
         }
 

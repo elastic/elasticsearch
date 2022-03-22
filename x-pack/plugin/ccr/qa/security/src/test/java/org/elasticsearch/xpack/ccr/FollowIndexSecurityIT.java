@@ -26,7 +26,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -66,7 +68,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         } else {
             followIndex(client(), "leader_cluster", allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(allowedIndex, numDocs, "*:*"));
-            assertThat(countCcrNodeTasks(), equalTo(1));
+            assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
             assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 30, TimeUnit.SECONDS);
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
@@ -74,18 +76,18 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
-                assertThat(countCcrNodeTasks(), equalTo(0));
+                assertThat(getCcrNodeTasks(), empty());
             });
 
             resumeFollow(allowedIndex);
-            assertThat(countCcrNodeTasks(), equalTo(1));
+            assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
-                assertThat(countCcrNodeTasks(), equalTo(0));
+                assertThat(getCcrNodeTasks(), empty());
             });
 
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_close")));
@@ -98,7 +100,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(unallowedIndex), is(false));
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
@@ -113,7 +115,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             );
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(unallowedIndex), is(false));
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             followIndex(adminClient(), "leader_cluster", unallowedIndex, unallowedIndex);
             pauseFollow(adminClient(), unallowedIndex);
@@ -127,7 +129,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                         + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
                 )
             );
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             e = expectThrows(
                 ResponseException.class,
@@ -136,7 +138,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
             assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_close")));
             assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
         }
     }
 
@@ -262,7 +264,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
-                assertThat(countCcrNodeTasks(), equalTo(0));
+                assertThat(getCcrNodeTasks(), empty());
             });
         }
     }

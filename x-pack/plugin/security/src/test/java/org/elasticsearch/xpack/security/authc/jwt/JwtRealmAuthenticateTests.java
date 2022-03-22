@@ -189,8 +189,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Null JWT
         final ThreadContext tc1 = super.createThreadContext(null, clientSecret);
-        final Exception e1 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc1));
-        assertThat(e1.getMessage(), equalTo("JWT bearer token must be non-null"));
+        assertThat(jwtIssuerAndRealm.realm().token(tc1), nullValue());
 
         // Empty JWT string
         final ThreadContext tc2 = super.createThreadContext("", clientSecret);

@@ -80,7 +80,7 @@ public class MLTrainedModelFullClusterRestartIT extends AbstractFullClusterResta
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        assumeTrue("NLP models added in 8.0", getOldClusterVersion().before(Version.V_8_0_0));
+        assumeTrue("NLP models added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
 
         String modelId = "trained-model-full-cluster-restart";
 

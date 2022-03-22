@@ -996,7 +996,7 @@ There are a range of <<reindex-ssl,settings>> available to configure the behavio
  `https` connection.
 
 When using Elastic Cloud, it is also possible to authenticate against the remote cluster
-through the use of `cloud_id` and a valid Api Key.
+through the use of a valid Api Key.
 
 --------------------------------------------------
 POST _reindex

@@ -187,8 +187,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionIndex = randomId();
         final Response response = getSimpleResponse(now, nameId, sessionIndex);
-        response.getAssertions()
-            .get(0)
+        Assertion assertion = response.getAssertions().get(0);
+        assertion
             .getAttributeStatements()
             .get(0)
             .getAttributes()
@@ -205,7 +205,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "SAML assertion contains custom attribute that shadows a reserved name [%s]".formatted(NAMEID_SYNTHENTIC_ATTRIBUTE)
+                    "SAML assertion [%s] contains custom attribute that shadows a reserved name [%s]".formatted(
+                        assertion.getElementQName(),
+                        NAMEID_SYNTHENTIC_ATTRIBUTE
+                    )
                 )
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
@@ -1365,10 +1368,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     private Attribute getAttribute(String name, String format, List<String> values) {
         final Attribute attribute = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
-        attribute.setName(name);
         if (format != null) {
             attribute.setNameFormat(format);
         }
+        attribute.setName(name);
         values.forEach(value -> {
             XSStringBuilder stringBuilder = new XSStringBuilder();
             XSString stringValue = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);

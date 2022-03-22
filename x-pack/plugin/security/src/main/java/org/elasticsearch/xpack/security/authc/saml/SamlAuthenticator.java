@@ -29,6 +29,7 @@ import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import javax.xml.namespace.QName;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -227,7 +228,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             }
         }
 
-        warnOnReservedAttributeNames(attributes);
+        warnOnReservedAttributeNames(assertion, attributes);
 
         return attributes;
     }
@@ -404,10 +405,14 @@ class SamlAuthenticator extends SamlResponseHandler {
         validateNotOnOrAfter(subjectConfirmationData.getNotOnOrAfter());
     }
 
-    private void warnOnReservedAttributeNames(List<Attribute> attributes) {
+    private void warnOnReservedAttributeNames(Assertion assertion, List<Attribute> attributes) {
         attributes.stream().map(Attribute::getName).forEach(attributeName -> {
             if (RESERVED_ATTRIBUTE_NAMES.contains(attributeName)) {
-                logger.warn("SAML assertion contains custom attribute that shadows a reserved name [{}]", attributeName);
+                logger.warn(
+                    "SAML assertion [{}] contains custom attribute that shadows a reserved name [{}]",
+                    assertion.getElementQName(),
+                    attributeName
+                );
             }
         });
     }

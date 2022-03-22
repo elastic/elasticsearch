@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
@@ -42,18 +43,20 @@ public class RestGetHealthAction extends BaseRestHandler {
     public List<Route> routes() {
         List<Route> routes = new ArrayList<>();
         String pathPrefix = getPathPrefix();
-        routes.add(new Route(GET, pathPrefix));
         Map<String, List<String>> componentsToIndicators = healthService.getComponentToIndicatorMapping();
         List<Route> componentRoutes = componentsToIndicators.keySet()
             .stream()
             .map(componentName -> new Route(GET, pathPrefix + "/" + componentName))
-            .collect(Collectors.toList());
+            .collect(toList());
+        List<Route> indicatorRoutes = componentsToIndicators.entrySet()
+            .stream()
+            .flatMap(
+                entry -> entry.getValue().stream().map(indicator -> new Route(GET, pathPrefix + "/" + entry.getKey() + "/" + indicator))
+            )
+            .collect(toList());
+        routes.add(new Route(GET, pathPrefix));
         routes.addAll(componentRoutes);
-        for (Map.Entry<String, List<String>> entry : componentsToIndicators.entrySet()) {
-            for (String indicator : entry.getValue()) {
-                routes.add(new Route(GET, pathPrefix + "/" + entry.getKey() + "/" + indicator));
-            }
-        }
+        routes.addAll(indicatorRoutes);
         return routes;
     }
 

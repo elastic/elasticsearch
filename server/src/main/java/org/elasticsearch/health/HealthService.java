@@ -8,8 +8,6 @@
 
 package org.elasticsearch.health;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +18,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -57,12 +56,8 @@ public class HealthService {
     }
 
     public Map<String, List<String>> getComponentToIndicatorMapping() {
-        Map<String, List<String>> componentsToIndicators = new HashMap<>();
-        for (HealthIndicatorService healthIndicatorService : healthIndicatorServices) {
-            List<String> indicators = componentsToIndicators.computeIfAbsent(healthIndicatorService.component(), k -> new ArrayList<>());
-            indicators.add(healthIndicatorService.name());
-        }
-        return componentsToIndicators;
+        return healthIndicatorServices.stream()
+            .collect(groupingBy(HealthIndicatorService::component, mapping(HealthIndicatorService::name, toList())));
     }
 
     // Non-private for testing purposes

@@ -130,7 +130,8 @@ snapshot repository. While recovery is ongoing, search performance may be
 slower than with a regular index because a search may need some data that has
 not yet been retrieved into the local copy. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
-recovery.
+recovery. On-disk data is preserved across restarts, such that the node does
+not need to re-download data that is already stored on the node after a restart.
 +
 Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
 
@@ -144,7 +145,7 @@ If a search requires data that is not in the cache, {es} fetches the missing
 data from the snapshot repository. Searches that require these fetches are
 slower, but the fetched data is stored in the cache so that similar searches
 can be served more quickly in future. {es} will evict infrequently used data
-from the cache to free up space.
+from the cache to free up space. The cache is cleared when a node is restarted.
 +
 Although slower than a fully mounted index or a regular index, a
 partially mounted index still returns search results quickly, even for

@@ -62,7 +62,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(GREEN, "This cluster has all shards available.", Map.of("started_primaries", 2, "started_replicas", 1))
             )
@@ -86,7 +86,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -111,7 +111,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(createExpectedResult(RED, "This cluster has 1 unavailable primary.", Map.of("unassigned_primaries", 1)))
         );
     }
@@ -130,7 +130,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -155,7 +155,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -174,7 +174,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(createExpectedResult(GREEN, "This cluster has 1 creating primary.", Map.of("creating_primaries", 1)))
         );
     }
@@ -187,7 +187,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(createExpectedResult(GREEN, "This cluster has 1 restarting primary.", Map.of("restarting_primaries", 1)))
         );
     }
@@ -205,13 +205,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(true),
             equalTo(createExpectedResult(RED, "This cluster has 1 unavailable primary.", Map.of("unassigned_primaries", 1)))
         );
     }
 
     private HealthIndicatorResult createExpectedResult(HealthStatus status, String summary, Map<String, Object> details) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)));
+        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), true);
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {

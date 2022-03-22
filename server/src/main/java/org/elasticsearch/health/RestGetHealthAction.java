@@ -24,7 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
 
-    private static final String SHOW_DETAILS_PARAM = "show_details";
     private static final String[] PATH_PREFIX_PARTS = new String[] { "_internal", "_health" };
 
     private final HealthService healthService;
@@ -63,7 +62,7 @@ public class RestGetHealthAction extends BaseRestHandler {
         String componentName = getComponentNameFromPath(request);
         String indicatorName = getIndicatorNameFromPath(request);
         GetHealthAction.Request getHealthRequest = componentName == null
-            ? new GetHealthAction.Request(request.paramAsBoolean(SHOW_DETAILS_PARAM, false))
+            ? new GetHealthAction.Request(false)
             : new GetHealthAction.Request(componentName, indicatorName);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }

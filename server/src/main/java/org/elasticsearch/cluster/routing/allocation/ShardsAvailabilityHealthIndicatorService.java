@@ -80,7 +80,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(includeDetails));
+        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(includeDetails), includeDetails);
     }
 
     private static class ShardAllocationCounts {

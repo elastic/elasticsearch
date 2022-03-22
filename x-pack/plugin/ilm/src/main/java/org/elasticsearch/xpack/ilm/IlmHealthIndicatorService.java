@@ -53,11 +53,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult calculate(boolean includeDetails) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
-            return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, ilmMetadata));
+            return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, ilmMetadata), includeDetails);
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "ILM is not running", createDetails(includeDetails, ilmMetadata));
+            return createIndicator(YELLOW, "ILM is not running", createDetails(includeDetails, ilmMetadata), includeDetails);
         } else {
-            return createIndicator(GREEN, "ILM is running", createDetails(includeDetails, ilmMetadata));
+            return createIndicator(GREEN, "ILM is running", createDetails(includeDetails, ilmMetadata), includeDetails);
         }
     }
 

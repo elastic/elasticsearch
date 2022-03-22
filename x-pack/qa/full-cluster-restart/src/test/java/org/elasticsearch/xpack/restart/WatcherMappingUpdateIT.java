@@ -36,23 +36,25 @@ public class WatcherMappingUpdateIT extends AbstractFullClusterRestartTestCase {
             // post a watch
             Request putWatchRequest = new Request("PUT", "_watcher/watch/log_error_watch");
             putWatchRequest.setJsonEntity(
-                "{\n"
-                    + "  \"trigger\" : {\n"
-                    + "    \"schedule\" : { \"interval\" : \"10s\" }\n"
-                    + "  },\n"
-                    + "  \"input\" : {\n"
-                    + "    \"search\" : {\n"
-                    + "      \"request\" : {\n"
-                    + "        \"indices\" : [ \"logs\" ],\n"
-                    + "        \"body\" : {\n"
-                    + "          \"query\" : {\n"
-                    + "            \"match\" : { \"message\": \"error\" }\n"
-                    + "          }\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}\n"
+                """
+                    {
+                      "trigger" : {
+                        "schedule" : { "interval" : "10s" }
+                      },
+                      "input" : {
+                        "search" : {
+                          "request" : {
+                            "indices" : [ "logs" ],
+                            "body" : {
+                              "query" : {
+                                "match" : { "message": "error" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    """
             );
             client().performRequest(putWatchRequest);
 

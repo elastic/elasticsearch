@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -617,5 +618,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString())))
         );
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
+    }
+
+    public void testLegacyField() throws Exception {
+        // check that unknown normalizers are treated leniently on old indices
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("mykeyw");
+            b.field("type", "keyword");
+            b.field("normalizer", "unknown-normalizer");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+
+        // check that normalizer can be updated
+        merge(service, mapping(b -> {
+            b.startObject("mykeyw");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
     }
 }

@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.sql.qa.rest;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -18,6 +23,8 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 
@@ -39,6 +46,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.RUNTIME_MAPPINGS_NA
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 
 public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestCase {
 
@@ -238,5 +246,19 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
                 return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
             }
         }
+    }
+
+    public static Tuple<String, String> runSqlAsText(RequestObjectBuilder requestObject, String format) throws IOException {
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.addParameter("error_trace", "true");
+        request.setEntity(new StringEntity(requestObject.toString(), ContentType.APPLICATION_JSON));
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Accept", format);
+        request.setOptions(options);
+        Response response = client().performRequest(request);
+        return new Tuple<>(
+            Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
+            response.getHeader("Cursor")
+        );
     }
 }

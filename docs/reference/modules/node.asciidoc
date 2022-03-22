@@ -454,6 +454,20 @@ Like all node settings, it can also be specified on the command line as:
 ./bin/elasticsearch -Epath.data=/var/elasticsearch/data
 ----
 
+The contents of the `path.data` directory must persist across restarts, because
+this is where your data is stored. {es} requires the filesystem to act as if it
+were backed by a local disk, but this means that it will work correctly on
+properly-configured remote block devices (e.g. a SAN) and remote filesystems
+(e.g. NFS) as long the remote storage behaves no differently from local
+storage. You can run multiple {es} nodes on the same filesystem, but each {es}
+node must have its own data path.
+
+The performance of an {es} cluster is often limited by the performance of the
+underlying storage, so you must ensure that your storage supports acceptable
+performance. Some remote storage performs very poorly, especially under the
+kind of load that {es} imposes, so make sure to benchmark your system carefully
+before committing to a particular storage architecture.
+
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
 should be configured to locate the data directory outside the {es} home
 directory, so that the home directory can be deleted without deleting your data!

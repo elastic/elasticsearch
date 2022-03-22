@@ -12,6 +12,11 @@ import org.elasticsearch.common.Strings;
 
 import java.util.List;
 
+/**
+ * An executor for batches of cluster state update tasks.
+ *
+ * @param <T> The type of tasks to execute.
+ */
 public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no update should be published.
@@ -24,24 +29,25 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
      * should do that instead.
      *
+     * @param currentState The initial cluster state on which the tasks should be executed.
      * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
+     * @return The resulting cluster state after executing all the tasks. If {code currentState} is returned then no update is published.
      */
     ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception;
 
     /**
-     * indicates whether this executor should only run if the current node is master
+     * @return {@code true} iff this executor should only run on the elected master.
      */
     default boolean runOnlyOnMaster() {
         return true;
     }
 
     /**
-     * Callback invoked after new cluster state is published. Note that
-     * this method is not invoked if the cluster state was not updated.
+     * Callback invoked after new cluster state is published. Note that this method is not invoked if the cluster state was not updated.
      *
      * Note that this method will be executed using system context.
      *
-     * @param newClusterState the new state which was published
+     * @param newClusterState The new state which was published.
      */
     default void clusterStatePublished(ClusterState newClusterState) {}
 
@@ -50,7 +56,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *
      * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
-     * This allows groupd task description but the submitting source.
+     *
+     * @param tasks the tasks to describe.
+     * @return A string which describes the batch of tasks.
      */
     default String describeTasks(List<T> tasks) {
         final StringBuilder output = new StringBuilder();
@@ -73,6 +81,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * and stability bugs. You should instead implement your update logic in a dedicated {@link ClusterStateTaskExecutor} which is reused
      * across multiple task instances. The task itself is typically just a collection of parameters consumed by the executor, together with
      * any listeners to be notified when execution completes.
+     *
+     * @param <T> The type of task to execute
+     * @return A single-use executor to execute a single task.
      */
     static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
         return new ClusterStateTaskExecutor<>() {
@@ -191,8 +202,43 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         void success(ActionListener<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener);
 
         /**
+         * Record that the task succeeded.
+         * <p>
+         * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
+         * itself as the {@code clusterStateAckListener} argument.
+         * <p>
+         * This method is useful in cases where the task will take some action at the end of acking but takes no action at the end of
+         * publication. If publication fails then the task's {@link ClusterStateTaskListener#onFailure} method is called.
+         *
+         * @param clusterStateAckListener A listener for acknowledgements from nodes. If the publication succeeds then this listener is
+         *                                completed as nodes ack the state update. If the publication fails then the failure
+         *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
+         */
+        default void success(ClusterStateAckListener clusterStateAckListener) {
+            success(new SuccessIgnoringPublishListener(getTask()), clusterStateAckListener);
+        }
+
+        /**
          * Record that the cluster state update task failed.
+         *
+         * @param failure The exception with which the task failed.
          */
         void onFailure(Exception failure);
+    }
+
+    /**
+     * Tasks that listen for acks typically do not care about a successfully-completed publication, but must still handle publication
+     * failures. This adapter makes that pattern easy.
+     */
+    record SuccessIgnoringPublishListener(ClusterStateTaskListener task) implements ActionListener<ClusterState> {
+        @Override
+        public void onResponse(ClusterState clusterState) {
+            // nothing to do here, listener is completed at the end of acking
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            task.onFailure(e);
+        }
     }
 }

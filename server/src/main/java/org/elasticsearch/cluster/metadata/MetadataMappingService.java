@@ -112,17 +112,7 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        taskContext.success(new ActionListener<>() {
-                            @Override
-                            public void onResponse(ClusterState clusterState) {
-                                // listener is notified at the end of acking
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                task.onFailure(e);
-                            }
-                        }, task);
+                        taskContext.success(task);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }

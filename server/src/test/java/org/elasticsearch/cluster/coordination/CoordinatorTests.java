@@ -1713,7 +1713,18 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             Loggers.addAppender(joinHelperLogger, mockAppender);
             try {
                 cluster.runFor(
-                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY,
+                    // This expects 8 tasks to be executed after PeerFinder handling wakeup:
+                    //
+                    // * connectToRemoteMasterNode[0.0.0.0:11]
+                    // * [internal:transport/handshake] from {node1} to {node2}
+                    // * response to [internal:transport/handshake] from {node1} to {node2}
+                    // * [internal:discovery/request_peers] from {node1} to
+                    // * response to [internal:discovery/request_peers] from {node1} to {node2}
+                    // * [internal:cluster/coordination/join] from {node1} to {node2}
+                    // * [internal:transport/handshake] from {node2} to {node1} (rejected due to action block)
+                    // * error response to [internal:cluster/coordination/join] from {node1} to {node2}
+                    //
+                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
                     "allowing time for join attempt"
                 );
                 mockAppender.assertAllExpectationsMatched();
@@ -2016,7 +2027,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                         .<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
                                         .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))
                                 )
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(matchingNodes, hasSize(1));
 
                             assertTrue(

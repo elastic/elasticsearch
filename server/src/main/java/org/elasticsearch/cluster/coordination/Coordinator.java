@@ -15,6 +15,7 @@ import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -116,6 +117,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
+
+    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
@@ -228,12 +231,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
         );
-        this.publicationHandler = new PublicationTransportHandler(
-            transportService,
-            namedWriteableRegistry,
-            this::handlePublishRequest,
-            this::handleApplyCommit
+        transportService.registerRequestHandler(
+            COMMIT_STATE_ACTION_NAME,
+            Names.CLUSTER_COORDINATION,
+            false,
+            false,
+            ApplyCommitRequest::new,
+            (request, channel, task) -> handleApplyCommit(
+                request,
+                new ChannelActionListener<>(channel, COMMIT_STATE_ACTION_NAME, request).map(r -> Empty.INSTANCE)
+            )
         );
+        this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry, this::handlePublishRequest);
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(
             settings,
@@ -277,8 +286,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             settings,
             getStateForMasterService(),
             peerFinder.getLastResolvedAddresses(),
-            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                .collect(Collectors.toList()),
+            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
             electionStrategy,
             nodeHealthService.getHealth()
@@ -1092,7 +1100,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);
 
-            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).toList()) == false) {
                 logger.debug(
                     "skip setting initial configuration as not enough nodes discovered to form a quorum in the "
                         + "initial configuration [knownNodes={}, {}]",
@@ -1749,7 +1757,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                                         futureVoteCollection
                                                     );
                                                 })
-                                                .collect(Collectors.toList());
+                                                .toList();
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
                                                 attemptReconfiguration = false;
@@ -1844,13 +1852,25 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
         }
 
+        private static final TransportRequestOptions COMMIT_STATE_REQUEST_OPTIONS = TransportRequestOptions.of(
+            null,
+            TransportRequestOptions.Type.STATE
+        );
+
         @Override
         protected void sendApplyCommit(
             DiscoveryNode destination,
             ApplyCommitRequest applyCommit,
             ActionListener<Empty> responseActionListener
         ) {
-            publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
+            assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            transportService.sendRequest(
+                destination,
+                COMMIT_STATE_ACTION_NAME,
+                applyCommit,
+                COMMIT_STATE_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
+            );
         }
     }
 }

@@ -15,25 +15,19 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class InternalSettingsPreparer {
-
-    // TODO: refactor this method out, it used to exist for the transport client
-    public static Settings prepareSettings(Settings input) {
-        Settings.Builder output = Settings.builder();
-        initializeSettings(output, input, Collections.emptyMap());
-        finalizeSettings(output, () -> null);
-        return output.build();
-    }
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings.
@@ -62,16 +56,19 @@ public class InternalSettingsPreparer {
 
         Settings.Builder output = Settings.builder(); // start with a fresh output
         Path path = configFile.resolve("elasticsearch.yml");
+
         if (Files.exists(path)) {
             try {
-                output.loadFromPath(path);
+                loadConfigWithSubstitutions(output, path, System::getenv);
             } catch (IOException e) {
                 throw new SettingsException("Failed to load settings from " + path.toString(), e);
             }
         }
 
+        loadOverrides(output, properties);
+
         // re-initialize settings now that the config file has been loaded
-        initializeSettings(output, input, properties);
+        initializeSettings(output, input);
         finalizeSettings(output, defaultNodeName);
 
         return new Environment(output.build(), configFile);
@@ -105,12 +102,67 @@ public class InternalSettingsPreparer {
      *
      * @param output the settings builder to apply the input and default settings to
      * @param input the input settings
-     * @param esSettings a map from which to apply settings
      */
-    static void initializeSettings(final Settings.Builder output, final Settings input, final Map<String, String> esSettings) {
+    static void initializeSettings(final Settings.Builder output, final Settings input) {
         output.put(input);
-        output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
+    }
+
+    static void loadConfigWithSubstitutions(Settings.Builder output, Path configFile, Function<String, String> substitutions)
+        throws IOException {
+        long existingSize = Files.size(configFile);
+        StringBuilder builder = new StringBuilder((int) existingSize);
+        try (BufferedReader reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                int dollarNdx;
+                int nextNdx = 0;
+                while ((dollarNdx = line.indexOf("${", nextNdx)) != -1) {
+                    int closeNdx = line.indexOf('}', dollarNdx + 2);
+                    if (closeNdx == -1) {
+                        // No close substitution was found. Break to leniently copy the rest of the line as is.
+                        break;
+                    }
+                    // copy up to the dollar
+                    if (dollarNdx > nextNdx) {
+                        builder.append(line, nextNdx, dollarNdx);
+                    }
+                    nextNdx = closeNdx + 1;
+
+                    String substKey = line.substring(dollarNdx + 2, closeNdx);
+                    String substValue = substitutions.apply(substKey);
+                    if (substValue != null) {
+                        builder.append(substValue);
+                    } else {
+                        // the substitution name doesn't exist, defer to setting based substitution after yaml parsing
+                        builder.append(line, dollarNdx, nextNdx);
+                    }
+                }
+                if (nextNdx < line.length()) {
+                    builder.append(line, nextNdx, line.length());
+                }
+                builder.append(System.lineSeparator());
+            }
+        }
+        var is = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
+        output.loadFromStream(configFile.getFileName().toString(), is, false);
+    }
+
+    static void loadOverrides(Settings.Builder output, Map<String, String> overrides) {
+        StringBuilder builder = new StringBuilder();
+        for (var entry : overrides.entrySet()) {
+            builder.append(entry.getKey());
+            builder.append(": ");
+            builder.append(entry.getValue());
+            builder.append(System.lineSeparator());
+        }
+        var is = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
+        // fake the resource name so it loads yaml
+        try {
+            output.loadFromStream("overrides.yml", is, false);
+        } catch (IOException e) {
+            throw new SettingsException("Malformed setting override value", e);
+        }
     }
 
     /**

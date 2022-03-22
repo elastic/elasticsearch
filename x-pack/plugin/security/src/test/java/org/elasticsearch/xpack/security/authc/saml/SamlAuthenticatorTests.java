@@ -209,10 +209,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "SAML assertion [%s] contains custom attribute that shadows a reserved name [%s]".formatted(
-                        assertion.getElementQName(),
-                        attributeName
-                    )
+                    "SAML assertion [*] has attribute with name [*]. This clashes with a reserved term. "
+                        + "Rename attribute to not clash with any of [*]"
                 )
             );
             final SamlAttributes attributes = authenticator.authenticate(token);

@@ -37,6 +37,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 final class EmbeddedModulePath {
 
+    private EmbeddedModulePath() {}
+
     private static final String MODULE_INFO = "module-info.class";
 
     private static final String SERVICES_PREFIX = "META-INF/services/";
@@ -79,8 +81,9 @@ final class EmbeddedModulePath {
      */
     static ModuleDescriptor descriptorFor(Path path) {
         Set<ModuleReference> mrefs = Set.of();
+        // This is a loathsome workaround for JDK-8282444, which affects Windows only
         if (hasRootModuleInfo(path) && System.getProperty("os.name").startsWith("Windows") == false) {
-            mrefs = ModuleFinder.of(path).findAll();
+            mrefs = ModuleFinder.of(path).findAll();  // just use the JDK's built-in module finder
         } else {
             try {
                 var omd = getModuleInfoVersioned(path);

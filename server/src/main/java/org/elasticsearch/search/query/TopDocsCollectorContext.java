@@ -28,7 +28,6 @@ import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -39,7 +38,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -229,6 +227,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         /**
          * Ctr
+         * @param contextIndexSearcher The context index search
          * @param query The Lucene query
          * @param sortAndFormats The query sort
          * @param numHits The number of top hits to retrieve

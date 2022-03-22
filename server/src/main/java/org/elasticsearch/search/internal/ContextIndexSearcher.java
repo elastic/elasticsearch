@@ -326,14 +326,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     public int getTotalHitCount(Query query) throws IOException {
         assert query == rewrite(query);
-        int hitCount = -1;
+        int hitCount = 0;
         Weight weight = createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
         for (LeafReaderContext leaf : this.getIndexReader().leaves()) {
             int count = weight.count(leaf);
             if (count != -1) {
-                if(hitCount == -1){
-                    hitCount++;
-                }
                 hitCount += count;
             } else {
                 return count;

@@ -192,7 +192,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .getAttributeStatements()
             .get(0)
             .getAttributes()
-            .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE));
+            .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
@@ -202,7 +202,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             Loggers.addAppender(samlLogger, mockAppender);
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "attribute name nameid warning",
+                    "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
                     "SAML assertion contains custom attribute that shadows a reserved name [%s]".formatted(NAMEID_SYNTHENTIC_ATTRIBUTE)
@@ -227,7 +227,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .getAttributeStatements()
             .get(0)
             .getAttributes()
-            .add(getAttribute(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE));
+            .add(getAttribute(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE, null, List.of("daredevil")));
 
         SamlToken token = token(signResponse(response));
         final SamlAttributes attributes = authenticator.authenticate(token);
@@ -1363,13 +1363,18 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
-    private Attribute getAttribute(String attributeName) {
+    private Attribute getAttribute(String name, String format, List<String> values) {
         final Attribute attribute = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
-        attribute.setName(attributeName);
-        XSStringBuilder stringBuilder = new XSStringBuilder();
-        XSString stringValue = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue.setValue("daredevil");
-        attribute.getAttributeValues().add(stringValue);
+        attribute.setName(name);
+        if (format != null) {
+            attribute.setNameFormat(format);
+        }
+        values.forEach(value -> {
+            XSStringBuilder stringBuilder = new XSStringBuilder();
+            XSString stringValue = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
+            stringValue.setValue(value);
+            attribute.getAttributeValues().add(stringValue);
+        });
         return attribute;
     }
 
@@ -1448,22 +1453,12 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             AttributeStatement.class,
             AttributeStatement.DEFAULT_ELEMENT_NAME
         );
-        final Attribute attribute1 = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
-        attribute1.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
-        attribute1.setName(UID_OID);
-        XSStringBuilder stringBuilder = new XSStringBuilder();
-        XSString stringValue1 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue1.setValue("daredevil");
-        attribute1.getAttributeValues().add(stringValue1);
-        final Attribute attribute2 = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
-        attribute2.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
-        attribute2.setName("urn:oid:1.3.6.1.4.1.5923.1.5.1.1");
-        XSString stringValue2_1 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue2_1.setValue("defenders");
-        XSString stringValue2_2 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue2_2.setValue("netflix");
-        attribute2.getAttributeValues().add(stringValue2_1);
-        attribute2.getAttributeValues().add(stringValue2_2);
+        final Attribute attribute1 = getAttribute(UID_OID, "urn:oasis:names:tc:SAML:2.0:attrname-format:uri", List.of("daredevil"));
+        final Attribute attribute2 = getAttribute(
+            "urn:oid:1.3.6.1.4.1.5923.1.5.1.1",
+            "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+            List.of("defenders", "netflix")
+        );
         attributeStatement.getAttributes().add(attribute1);
         attributeStatement.getAttributes().add(attribute2);
         assertion.getAttributeStatements().add(attributeStatement);

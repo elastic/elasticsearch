@@ -161,10 +161,10 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     }
 
     private static String extractSubjectDn(X509Certificate certificate) {
-        // We are using X500Principal#toString instead of the more canonical X500Principal#getName for backwards compatibility:
-        // Previously, we used the deprecated getSubjectDN to extract the subject DN. X500Principal#getName applies additional
-        // formatting (such as removing spaces between DNs). Since CertificateInfo is exposed in our public API this would be a breaking
-        // change.
+        /* We use X500Principal#toString instead of the more canonical X500Principal#getName for backwards compatibility:
+        * Previously, we used a deprecated approach getSubjectDN().getName() to extract the subject DN.
+        * getSubjectX500Principal().getName() applies additional formatting such as omitting spaces between DNs which would result
+        * in a breaking change to our /_ssl API.*/
         return certificate.getSubjectX500Principal().toString();
     }
 }

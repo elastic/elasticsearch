@@ -43,6 +43,35 @@ final class EmbeddedModulePath {
 
     private static final Attributes.Name AUTOMATIC_MODULE_NAME = new Attributes.Name("Automatic-Module-Name");
 
+    private static final int BASE_VERSION_FEATURE = 8; // lowest supported release version
+    private static final int RUNTIME_VERSION_FEATURE = Runtime.version().feature();
+
+    static {
+        assert RUNTIME_VERSION_FEATURE >= BASE_VERSION_FEATURE;
+    }
+
+    private static final String MRJAR_VERSION_PREFIX = "META-INF/versions/";
+
+    private static Optional<ModuleDescriptor> getModuleInfoVersioned(Path path) throws IOException {
+        for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
+            Path mi = path.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
+            if (Files.exists(mi)) {
+                try (var is = Files.newInputStream(mi)) {
+                    return Optional.of(ModuleDescriptor.read(is));
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean hasRootModuleInfo(Path path) {
+        Path mi = path.resolve(MODULE_INFO);
+        if (Files.exists(mi)) {
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Returns a module descriptor for the module at the given path.
      *
@@ -50,20 +79,18 @@ final class EmbeddedModulePath {
      */
     static ModuleDescriptor descriptorFor(Path path) {
         Set<ModuleReference> mrefs = Set.of();
-        try {
+        if (hasRootModuleInfo(path) && System.getProperty("os.name").startsWith("Windows") == false) {
             mrefs = ModuleFinder.of(path).findAll();
-        } catch (FindException e) {
-            // This is a loathsome workaround for JDK-8282444, which affects Windows only
-            if (System.getProperty("os.name").startsWith("Windows") && Files.isDirectory(path) && Files.exists(path.resolve(MODULE_INFO))) {
-                try (var is = Files.newInputStream(path.resolve(MODULE_INFO))) {
-                    var md = ModuleDescriptor.read(is);
+        } else {
+            try {
+                var omd = getModuleInfoVersioned(path);
+                if (omd.isPresent()) {
+                    var md = omd.get();
                     mrefs = Set.of(new InMemoryModuleFinder.InMemoryModuleReference(md, URI.create("module:/" + md.name())));
-                } catch (IOException ioe) {
-                    e.addSuppressed(ioe);
-                    throw e;
+                    // todo: perform scan and verification
                 }
-            } else {
-                throw e;
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
             }
         }
         if (mrefs.isEmpty()) {

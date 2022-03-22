@@ -259,7 +259,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
      * <p>
      * Re-running this back-to-back helps to ensure that warnings are not being maintained across requests.
      */
-    private void doTestDeprecationWarningsAppearInHeaders() throws IOException {
+    private void doTestDeprecationWarningsAppearInHeaders() throws Exception {
         final boolean useDeprecatedField = randomBoolean();
         final boolean useNonDeprecatedSetting = randomBoolean();
 
@@ -306,6 +306,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));
         }
+
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
+            assertThat(documents.toString(), documents, hasSize(headerMatchers.size()));
+        });
     }
 
     public void testDeprecationRouteThrottling() throws Exception {

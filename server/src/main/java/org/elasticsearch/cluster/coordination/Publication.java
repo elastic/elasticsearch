@@ -382,7 +382,7 @@ public abstract class Publication {
                     return rootCause;
                 } else {
                     assert false : e;
-                    logger.error(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), e);
+                    logger.error(new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), e);
                 }
             }
             return e;

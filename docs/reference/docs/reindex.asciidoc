@@ -534,7 +534,8 @@ Required when indexing from remote.
 (Optional, <<time-units, time units>>) The remote socket read timeout. Defaults to 30 seconds.
 `connect_timeout`::::
 (Optional, <<time-units, time units>>) The remote connection timeout. Defaults to 30 seconds.
-
+`headers`::::
+(Optional, object) An object containing the headers of ther request.
 `size`:::
 {Optional, integer) The number of documents to index per batch.
 Use when indexing from remote to ensure that the batches fit within the on-heap buffer,
@@ -993,6 +994,32 @@ will connect to the remote Elasticsearch node using basic auth. Be sure to use `
 using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
+
+When using Elastic Cloud, it is also possible to authenticate against the remote cluster
+through the use of `cloud_id` and a valid Api Key.
+
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "https://remote-elastic-cloud-deployment:9243",
+      "headers": {
+        "Authorization": "ApiKey <A_SECRET_API_KEY_VALUE_HERE>"
+      }
+    },
+    "index": "source-index",
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "my-new-index-000001"
+  }
+}
+--------------------------------------------------
 
 Remote hosts have to be explicitly allowed in elasticsearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list

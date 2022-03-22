@@ -49,6 +49,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+/**
+ * Implements the low-level mechanics of publishing a cluster state to other nodes in the cluster.
+ * <p>
+ * Cluster states can be quite large and expensive to serialize, but we (mostly) send the same serialized representation to every node in
+ * the cluster. This class does the serialization work once, up-front, as part of {@link #newPublicationContext} and then just re-uses the
+ * resulting bytes across transport messages.
+ * <p>
+ * It also uses the {@link Diff} mechanism to reduce the data to be transferred wherever possible. This is only a best-effort mechanism so
+ * we fall back to sending a full cluster state if the diff cannot be applied for some reason.
+ */
 public class PublicationTransportHandler {
 
     private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);

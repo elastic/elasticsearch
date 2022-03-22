@@ -136,10 +136,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     )
                 )
             )
@@ -158,10 +155,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     )
                 )
             )

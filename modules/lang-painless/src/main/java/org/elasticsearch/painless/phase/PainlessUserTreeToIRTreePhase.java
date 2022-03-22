@@ -429,7 +429,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 LinkageError.class,
                 OutOfMemoryError.class,
                 StackOverflowError.class,
-                Exception.class)) {
+                Exception.class
+            )) {
 
                 irThrowNode = createCatchAndThrow(throwable, internalLocation, irTryNode);
 

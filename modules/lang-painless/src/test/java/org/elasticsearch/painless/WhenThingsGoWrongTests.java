@@ -212,11 +212,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testSecurityException() {
-        expectThrows(SecurityException.class, () -> {
-            exec("params.v.get();", Map.of("v", (Supplier<String>) () -> {
-                throw new SecurityException();
-            }), true);
-        });
+        expectThrows(
+            SecurityException.class,
+            () -> { exec("params.v.get();", Map.of("v", (Supplier<String>) () -> { throw new SecurityException(); }), true); }
+        );
     }
 
     public void testOutOfMemoryError() {

@@ -35,8 +35,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
 
@@ -46,6 +49,8 @@ import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
 class SamlAuthenticator extends SamlResponseHandler {
 
     private static final String RESPONSE_TAG_NAME = "Response";
+
+    private static final Set<String> RESERVED_ATTRIBUTE_NAMES = Set.of(NAMEID_SYNTHENTIC_ATTRIBUTE, PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
 
     SamlAuthenticator(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         super(clock, idp, sp, maxSkew);
@@ -221,6 +226,9 @@ class SamlAuthenticator extends SamlResponseHandler {
                 }
             }
         }
+
+        warnOnReservedAttributeNames(attributes);
+
         return attributes;
     }
 
@@ -394,5 +402,13 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private void checkLifetimeRestrictions(SubjectConfirmationData subjectConfirmationData) {
         validateNotOnOrAfter(subjectConfirmationData.getNotOnOrAfter());
+    }
+
+    private void warnOnReservedAttributeNames(List<Attribute> attributes) {
+        attributes.stream().map(Attribute::getName).forEach(attributeName -> {
+            if (RESERVED_ATTRIBUTE_NAMES.contains(attributeName)) {
+                logger.warn("SAML assertion contains attribute with a reserved name [{}]", attributeName);
+            }
+        });
     }
 }

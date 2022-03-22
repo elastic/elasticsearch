@@ -84,7 +84,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     }
 
     private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
-        super(parent);
+        super(null);
         this.prefixes = prefixToCodeBase.keySet().stream().toList();
         this.prefixToCodeBase = prefixToCodeBase;
         this.parent = parent;
@@ -137,7 +137,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                 throw new UncheckedIOException(e);
             }
         }
-        return super.findClass(name);
+        return parent.loadClass(name);
     }
 
     @Override
@@ -147,7 +147,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         if (url != null) {
             return url;
         }
-        return super.findResource(name);
+        return parent.getResource(name);
     }
 
     @Override
@@ -158,7 +158,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         for (int i = 0; i < size; i++) {
             tmp[i] = parent.getResources(prefixes.get(i) + "/" + name);
         }
-        tmp[size] = super.findResources(name);
+        tmp[size] = parent.getResources(name);
         return new CompoundEnumeration<>(tmp);
     }
 

@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -453,6 +455,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
             mappingBuilder.startObject().startObject("properties");
             mappingBuilder.startObject("val").field("type", "long").endObject();
+            mappingBuilder.startObject("test").field("type", "text").endObject();
             mappingBuilder.endObject().endObject();
             assertTrue(
                 client.indices().putMapping(new PutMappingRequest(index).source(mappingBuilder), RequestOptions.DEFAULT).isAcknowledged()
@@ -473,6 +476,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).collect(Collectors.toList()),
                 Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
             );
+
+            // look up by id (only 6.0+ as we would otherwise need ability to specify _type in GET API)
+            if (oldVersion.onOrAfter(Version.fromString("6.0.0"))) {
+                GetResponse getResponse = client.get(new GetRequest(index, id), RequestOptions.DEFAULT);
+                assertTrue(getResponse.isExists());
+                assertEquals(sourceForDoc(getIdAsNumeric(id)), getResponse.getSourceAsString());
+            }
+
+            // look up postings
+            searchResponse = client.search(
+                new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num))),
+                randomRequestOptions
+            );
+            logger.info(searchResponse);
+            // check match
+            assertEquals(List.of(id), Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList()));
 
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 // search on _type and check that results contain _type information

@@ -18,9 +18,11 @@ import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 
 public class BWCLucene70Codec extends BWCCodec {
@@ -35,6 +37,12 @@ public class BWCLucene70Codec extends BWCCodec {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return defaultDVFormat;
+        }
+    };
+    private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
+        @Override
+        public PostingsFormat getPostingsFormatForField(String field) {
+            throw new IllegalStateException("This codec should only be used for reading, not writing");
         }
     };
 
@@ -71,5 +79,10 @@ public class BWCLucene70Codec extends BWCCodec {
     @Override
     public final DocValuesFormat docValuesFormat() {
         return docValuesFormat;
+    }
+
+    @Override
+    public PostingsFormat postingsFormat() {
+        return postingsFormat;
     }
 }

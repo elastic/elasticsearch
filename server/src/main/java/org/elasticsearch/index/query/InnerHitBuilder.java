@@ -177,7 +177,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 scriptFields.add(new ScriptField(in));
             }
         }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
             int size = in.readVInt();
             sorts = new ArrayList<>(size);

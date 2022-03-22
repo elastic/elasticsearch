@@ -1,0 +1,6 @@
+pr: 85248
+summary: Warn on reserved term SAML attributes
+area: Authentication
+type: enhancement
+issues:
+ - 48613

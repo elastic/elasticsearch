@@ -64,6 +64,7 @@ Focus particularly on logs from the elected master. When a node leaves the
 cluster, logs for the elected master include a message like this (with line
 breaks added for clarity):
 
+[source,text]
 ----
 [2022-03-21T11:02:35,513][INFO ][o.e.c.s.MasterService    ]
     [instance-0000000000] node-left[
@@ -73,13 +74,13 @@ breaks added for clarity):
             reason: disconnected
         ], term: 14, version: 1653415, ...
 ----
-// TEST[skip: not a snippet]
 
 This message says that the `MasterService` on the elected master
 (`instance-0000000000`) is processing a `node-left` task. It lists the nodes
 that are being removed and the reasons for their removal. Other nodes may log
 similar messages, but report fewer details:
 
+[source,text]
 ----
 [2020-01-29T11:02:36,985][INFO ][o.e.c.s.ClusterApplierService]
     [instance-0000000001] removed {
@@ -87,7 +88,6 @@ similar messages, but report fewer details:
         {tiebreaker-0000000003}{UNw_RuazQCSBskWZV8ID_w}{bltyVOQ-RNu20OQfTHSLtA}{172.27.161.154}{172.27.161.154:19251}{mv}
     }, term: 14, version: 1653415, reason: Publication{term=14, version=1653415}
 ----
-// TEST[skip: not a snippet]
 
 Focus on the one from the `MasterService` which is only emitted on the elected
 master, since it contains more details. If you don't see the messages from the

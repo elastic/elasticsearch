@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Circle;
@@ -28,6 +29,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -39,8 +41,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -630,26 +632,37 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * Produce an array of objects each representing a single point in a variety of
+     * supported point formats. For `geo_shape` we only support GeoJSON and WKT,
+     * while for `geo_point` we support a variety of additional special case formats.
+     * This method is therefor overridden in the tests for `geo_point` (@see GeoPointShapeQueryTests).
+     */
+    protected Object[] samplePointDataMultiFormat(Point pointA, Point pointB, Point pointC, Point pointD) {
+        String wktA = WellKnownText.toWKT(pointA);
+        String wktB = WellKnownText.toWKT(pointB);
+        Map<String, Object> geojsonC = GeoJson.toMap(pointC);
+        Map<String, Object> geojsonD = GeoJson.toMap(pointD);
+        return new Object[] { wktA, wktB, geojsonC, geojsonD };
+    }
+
     public void testQueryPointFromMultiPoint() throws Exception {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        double[] pointDoubles = new double[] { 35.0, 25.0 };
-        HashMap<String, Object> geojson = new HashMap<>();
-        geojson.put("type", "Point");
-        geojson.put("coordinates", pointDoubles);
-        Object[] points = new Object[] { "POINT(-45 -35)", "POINT(-35 -25)", geojson };
+        Point pointA = new Point(-45, -35);
+        Point pointB = new Point(-35, -25);
+        Point pointC = new Point(35, 25);
+        Point pointD = new Point(45, 35);
+        Object[] points = samplePointDataMultiFormat(pointA, pointB, pointC, pointD);
         client().prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, points).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        Point pointA = new Point(-45, -35);
-        Point pointB = new Point(-35, -25);
-        Point pointC = new Point(35, 25);
         Point pointInvalid = new Point(-35, -35);
-        for (Point point : new Point[] { pointA, pointB, pointC, pointInvalid }) {
+        for (Point point : new Point[] { pointA, pointB, pointC, pointD, pointInvalid }) {
             int expectedDocs = point.equals(pointInvalid) ? 0 : 1;
             int disjointDocs = point.equals(pointInvalid) ? 1 : 0;
             {

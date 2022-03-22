@@ -10,18 +10,16 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
@@ -72,58 +70,19 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
         assertEquals(1, response.getHits().getTotalHits().value);
     }
 
-    public void testQueryPointFromMultiPointFormats() throws Exception {
-        createMapping(defaultIndexName, defaultGeoFieldName);
-        ensureGreen();
-
-        double[] geojsonDoubles = new double[] { 45.0, 35.0 };
-        HashMap<String, Object> geojson = new HashMap<>();
-        geojson.put("type", "Point");
-        geojson.put("coordinates", geojsonDoubles);
-        double[] pointDoubles = new double[] { 35.0, 25.0 };
-        Object[] points = new Object[] { "-35, -45", "POINT(-35 -25)", pointDoubles, geojson };
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
-            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, points).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        Point pointA = new Point(-45, -35);
-        Point pointB = new Point(-35, -25);
-        Point pointC = new Point(35, 25);
-        Point pointD = new Point(45, 35);
-        Point pointInvalid = new Point(-35, -35);
-        for (Point point : new Point[] { pointA, pointB, pointC, pointD, pointInvalid }) {
-            int expectedDocs = point.equals(pointInvalid) ? 0 : 1;
-            int disjointDocs = point.equals(pointInvalid) ? 1 : 0;
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc matches %s" + point, expectedDocs, searchHits.getTotalHits().value);
-            }
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.WITHIN))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc WITHIN %s" + point, 0, searchHits.getTotalHits().value);
-            }
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.CONTAINS))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc CONTAINS %s" + point, expectedDocs, searchHits.getTotalHits().value);
-            }
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.DISJOINT))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc DISJOINT with %s" + point, disjointDocs, searchHits.getTotalHits().value);
-            }
-        }
+    /**
+     * Produce an array of objects each representing a single point in a variety of
+     * supported point formats. For `geo_shape` we only support GeoJSON and WKT,
+     * while for `geo_point` we support a variety of additional special case formats.
+     * Therefor we define here sample data for <code>double[]{lon,lat}</code> as well as
+     * a string "lat,lon".
+     */
+    @Override
+    protected Object[] samplePointDataMultiFormat(Point pointA, Point pointB, Point pointC, Point pointD) {
+        String str = "" + pointA.getLat() + ", " + pointA.getLon();
+        String wkt = WellKnownText.toWKT(pointB);
+        double[] pointDoubles = new double[] { pointC.getLon(), pointC.getLat() };
+        Map<String, Object> geojson = GeoJson.toMap(pointD);
+        return new Object[] { str, wkt, pointDoubles, geojson };
     }
 }

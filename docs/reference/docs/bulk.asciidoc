@@ -115,6 +115,11 @@ Experiment with different settings to find the optimal size for your particular 
 When using the HTTP API, make sure that the client does not send HTTP chunks,
 as this will slow things down.
 
+[NOTE]
+====
+A 200 OK status code on a bulk response means that the coordinating node successfully parsed and executed the client request. You need to check the errors field to know if there were any errors handling the individual requests.
+====
+
 [discrete]
 [[bulk-clients]]
 ===== Client support for bulk requests

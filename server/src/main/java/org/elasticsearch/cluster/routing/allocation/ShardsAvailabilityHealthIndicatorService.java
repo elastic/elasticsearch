@@ -23,7 +23,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -96,7 +96,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int initializing = 0;
         private int started = 0;
         private int relocating = 0;
-        private LinkedHashSet<String> indicesWithUnavailableShards = new LinkedHashSet<>();
+        private Set<String> indicesWithUnavailableShards = new HashSet<>();
 
         public void increment(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
@@ -220,11 +220,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         public List<HealthIndicatorImpact> getImpacts() {
             final List<HealthIndicatorImpact> impacts = new ArrayList<>();
-            LinkedHashSet<String> indicesWithUnavailablePrimariesAndReplicas = new LinkedHashSet<>(primaries.indicesWithUnavailableShards);
+            Set<String> indicesWithUnavailablePrimariesAndReplicas = new HashSet<>(primaries.indicesWithUnavailableShards);
             indicesWithUnavailablePrimariesAndReplicas.retainAll(replicas.indicesWithUnavailableShards);
-            LinkedHashSet<String> indicesWithUnavailablePrimariesOnly = new LinkedHashSet<>(primaries.indicesWithUnavailableShards);
+            Set<String> indicesWithUnavailablePrimariesOnly = new HashSet<>(primaries.indicesWithUnavailableShards);
             indicesWithUnavailablePrimariesOnly.removeAll(replicas.indicesWithUnavailableShards);
-            LinkedHashSet<String> indicesWithUnavailableReplicasOnly = new LinkedHashSet<>(replicas.indicesWithUnavailableShards);
+            Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
             indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
             if (indicesWithUnavailablePrimariesAndReplicas.isEmpty() == false) {
                 String impactDescription = String.format(

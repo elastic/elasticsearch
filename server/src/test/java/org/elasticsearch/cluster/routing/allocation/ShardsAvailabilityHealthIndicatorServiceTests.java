@@ -48,6 +48,7 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -178,21 +179,26 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
+        HealthIndicatorResult result = service.calculate();
+        assertEquals(RED, result.status());
+        assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.summary());
+        assertEquals(2, result.impacts().size());
+        assertEquals(
+            result.impacts().get(0),
+            new HealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+        );
         assertThat(
-            service.calculate(),
-            equalTo(
-                createExpectedResult(
-                    RED,
-                    "This cluster has 1 unavailable primary, 2 unavailable replicas.",
-                    Map.of("unassigned_primaries", 1, "started_primaries", 2, "unassigned_replicas", 2, "started_replicas", 1),
-                    List.of(
-                        new HealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results."),
-                        new HealthIndicatorImpact(
-                            3,
-                            "Redundancy for 2 indices [yellow-index-1, yellow-index-2] is currently disrupted. Fault tolerance and "
-                                + "search scalability are reduced."
-                        )
-                    )
+            result.impacts().get(1),
+            oneOf(
+                new HealthIndicatorImpact(
+                    3,
+                    "Redundancy for 2 indices [yellow-index-1, yellow-index-2] is currently disrupted. Fault tolerance and "
+                        + "search scalability are reduced."
+                ),
+                new HealthIndicatorImpact(
+                    3,
+                    "Redundancy for 2 indices [yellow-index-2, yellow-index-1] is currently disrupted. Fault tolerance and "
+                        + "search scalability are reduced."
                 )
             )
         );

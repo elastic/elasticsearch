@@ -1,24 +1,130 @@
 [role="xpack"]
 [[jwt-realm]]
-=== JWT authentication
+=== JWT Authentication
 
-JWT realms enable {es} to treat some JWT identification tokens as authentication tokens.
+JWT realms allow reuse of some JWT identification tokens for {es} authentication and authorization.
+JWT realms are only intended for use with existing, external workflows that issue JWT identification tokens.
+See <<jwt-realm,external-workflow-requirements>>.
 
-Consider end-users authenticating to a third-party application via a third-party authentication service.
-If the end-user authenticates successfully, the authentication service creates a JWT to identify
-the authenticated end-user.
+WARNING: If the workflow does not exist, do not create a new external workflow. Use `api` tokens instead.
 
-JWT may be issued to the third-party application, or directly to the end-user. If issued to
-the third-party application, the third-party application performs actions on behalf
-of the end-user, possibly in other third-party applications (e.g. microservices).
+WARNING: If the workflow is Open ID Connect with {es} as the OIDC RP, that is not external. Use `oidc` realm instead.
 
-IMPORTANT: The above use cases utilize JWTs for identification only, not authentication.
-           Example formats are Open ID Connect ID Tokens, or bespoke JWTs of similar format.
+[[external-workflow-requirements]]
+==== External Workflow Requirements
 
-JWT realms allow {es} to treat some JWT identification tokens as authentication tokens.
-Since a JWT represents the end-user, the third-party application needs to be authenticated too.
-A separate client credential is required too, because the third-party application is a client of {es}.
+Consider a completely external workflow separate from {es}. End-users authenticate to a third-party application
+via a third-party authentication service.
 
-WARNING: Client authentication is enabled by default in JWT realms.
-         Client authentication can be disabled, but it is not recommended.
+The end-user authenticates to the authentication service, and an `identification token` is issued to the
+third-party application or the end-user. The third-party application receives the `identification token`,
+and perform actions on behalf of the end-user.
 
+If the identification token is a supported JWT format, it can be repurposed for {es} authentication and authorization.
+
+[[jwt-authentication-requirements]]
+==== JWT Authentication Requirements
+
+JWT realms allow repurposing an identification token for {es} authentication and authorization.
+The external workflow can be Open ID Connect or bespoke.
+The JWT claims set must be the same as an Open ID Connect ID Token.
+
+IMPORTANT: `nonce` claim is ignored; it is only applicable to OIDC workflow, not JWT realm.
+
+The third-party application presents a client credential to authenticate itself, and the JWT to identify the end-user.
+
+[[client-authentication]]
+=== Client authentication
+
+If JWT realm client authentication type is `shared_secret`, {es} requests must contain header
+`X-Client-Authentication` with an exact match (case-sensitive) to the realm secure setting.
+
+IMPORTANT: Client authentication is enabled by default in JWT realms.
+
+If JWT realm authentication type is `none`, `X-Client-Authentication` headers are not required.
+
+WARNING: Client authentication can be disabled, but it is not recommended.
+
+[[jwt-validation]]
+=== JWT validation
+
+Supported JWT encoding is JSON Web Signature (JWS).
+
+[[jws-header-validation]]
+==== JWS header validation
+
+Values `alg` and `typ` are validated using OIDC ID Token validation rules.
+
+[[jwt-claims-set-validation]]
+==== JWT claims set validation
+
+Claims `iss`, `aud`, `sub`, `iat`, `exp`, `nbf`, and `auth_time` are validated using OIDC ID Token validation rules.
+Configurable claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
+
+[[jws-signature-validation]]
+==== JWS signature validation
+
+Signature is validated using OIDC ID Token validation rules.
+
+[[jwt-realm-settings]]
+=== JWT realm settings
+
+TBD
+
+[[hmac-oidc-example]]
+=== HMAC OIDC Example
+
+This example uses an HMAC signing key in OIDC UTF-8 byte compatible format.
+
+[[hmac-oidc-example-jwt-issuer]]
+==== JWT issuer
+
+[source,text]
+--------------------------------------------------
+Issuer: iss8
+Audiences: aud8
+Algorithms: HS256
+HMAC OIDC: hmac-oidc-key-string-for-hs256-algorithm
+--------------------------------------------------
+
+[[hmac-oidc-example-jwt-realm]]
+==== JWT realm
+
+elasticsearch.yml settings
+[source,yml]
+--------------------------------------------------
+xpack.security.authc.realms.jwt.jwt8.allowed_audiences: [aud8]
+xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms: [HS256]
+xpack.security.authc.realms.jwt.jwt8.order: 8
+xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
+xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
+xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SHARED_SECRET
+--------------------------------------------------
+
+elasticsearch-keystore secure settings
+[source,yml]
+--------------------------------------------------
+xpack.security.authc.realms.jwt.jwt8.hmac_key: hmac-oidc-key-string-for-hs256-algorithm
+xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client-shared-secret-string
+--------------------------------------------------
+
+[[hmac-oidc-example-request-headers]]
+==== Request Headers
+
+[source,text]
+--------------------------------------------------
+X-Client-Authentication: client-shared-secret-string
+Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoiYXVkOCIsInN1YiI6InNlY3VyaXR5X3Rlc3RfdXNlciIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9.UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
+--------------------------------------------------
+
+[[hmac-oidc-example-jwt-decoded]]
+==== JWT Decoded
+
+[source,text]
+--------------------------------------------------
+Header: {"typ":"JWT","alg":"HS256"}
+Claims: {"aud":"aud8","sub":"security_test_user","iss":"iss8","exp":4070908800,"iat":946684800}
+Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
+--------------------------------------------------
+
+IMPORTANT: The validity period in this example is 2000 to 2099.

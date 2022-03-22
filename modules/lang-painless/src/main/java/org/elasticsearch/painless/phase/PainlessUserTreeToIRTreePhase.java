@@ -340,6 +340,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      *
      * and
      *
+     * } catch (SecurityException e) {
+     *     throw e;
+     * }
+     *
+     * and
+     *
      * } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
      *     throw this.convertToScriptException(e, e.getHeaders())
      * }

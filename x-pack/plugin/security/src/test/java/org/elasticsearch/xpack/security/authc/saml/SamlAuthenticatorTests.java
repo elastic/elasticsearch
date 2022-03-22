@@ -183,16 +183,20 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testLogWarnOnCustomNameIdAttribute() throws Exception {
+        testLoggingWarnOnReservedAttributeName(NAMEID_SYNTHENTIC_ATTRIBUTE);
+    }
+
+    public void testLogWarnOnCustomPersistentNameIdAttribute() throws Exception {
+        testLoggingWarnOnReservedAttributeName(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
+    }
+
+    private void testLoggingWarnOnReservedAttributeName(String attributeName) throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionIndex = randomId();
         final Response response = getSimpleResponse(now, nameId, sessionIndex);
         Assertion assertion = response.getAssertions().get(0);
-        assertion
-            .getAttributeStatements()
-            .get(0)
-            .getAttributes()
-            .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE, null, List.of("daredevil")));
+        assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(attributeName, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
@@ -207,7 +211,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     Level.WARN,
                     "SAML assertion [%s] contains custom attribute that shadows a reserved name [%s]".formatted(
                         assertion.getElementQName(),
-                        NAMEID_SYNTHENTIC_ATTRIBUTE
+                        attributeName
                     )
                 )
             );
@@ -218,23 +222,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             Loggers.removeAppender(samlLogger, mockAppender);
             mockAppender.stop();
         }
-    }
-
-    public void testLogWarnOnCustomPersistantNameIdAttribute() throws Exception {
-        Instant now = clock.instant();
-        final String nameId = randomAlphaOfLengthBetween(12, 24);
-        final String sessionindex = randomId();
-        final Response response = getSimpleResponse(now, nameId, sessionindex);
-        response.getAssertions()
-            .get(0)
-            .getAttributeStatements()
-            .get(0)
-            .getAttributes()
-            .add(getAttribute(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE, null, List.of("daredevil")));
-
-        SamlToken token = token(signResponse(response));
-        final SamlAttributes attributes = authenticator.authenticate(token);
-        assertThat(attributes, notNullValue());
     }
 
     public void testSuccessfullyParseContentFromRawXmlWithASingleValidAssertion() throws Exception {

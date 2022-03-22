@@ -34,7 +34,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -178,7 +177,11 @@ public class ProfileService {
     public void suggestProfile(SuggestProfilesRequest request, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
-            return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[] {}, 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+            return new SuggestProfilesResponse(
+                new SuggestProfilesResponse.ProfileHit[] {},
+                0,
+                new TotalHits(0, TotalHits.Relation.EQUAL_TO)
+            );
         })).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
             if (Strings.hasText(request.getName())) {
@@ -192,7 +195,7 @@ public class ProfileService {
                         "user_profile.user.full_name._2gram",
                         "user_profile.user.full_name._3gram",
                         "user_profile.user.email"
-                    ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX).fuzziness(Fuzziness.AUTO)
+                    ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
                 );
             }
             final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)

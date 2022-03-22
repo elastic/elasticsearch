@@ -35,27 +35,25 @@ public class WatcherMappingUpdateIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             // post a watch
             Request putWatchRequest = new Request("PUT", "_watcher/watch/log_error_watch");
-            putWatchRequest.setJsonEntity(
-                """
-                    {
-                      "trigger" : {
-                        "schedule" : { "interval" : "10s" }
-                      },
-                      "input" : {
-                        "search" : {
-                          "request" : {
-                            "indices" : [ "logs" ],
-                            "body" : {
-                              "query" : {
-                                "match" : { "message": "error" }
-                              }
-                            }
+            putWatchRequest.setJsonEntity("""
+                {
+                  "trigger" : {
+                    "schedule" : { "interval" : "10s" }
+                  },
+                  "input" : {
+                    "search" : {
+                      "request" : {
+                        "indices" : [ "logs" ],
+                        "body" : {
+                          "query" : {
+                            "match" : { "message": "error" }
                           }
                         }
                       }
                     }
-                    """
-            );
+                  }
+                }
+                """);
             client().performRequest(putWatchRequest);
 
             if (getOldClusterVersion().onOrAfter(Version.V_7_13_0)) {

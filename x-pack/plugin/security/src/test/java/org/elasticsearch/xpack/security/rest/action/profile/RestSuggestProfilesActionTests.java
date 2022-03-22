@@ -51,7 +51,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         );
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
             randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
-        ).withPath("/_security/profile/_search").withParams(params).build();
+        ).withPath("/_security/profile/_suggest").withParams(params).build();
 
         dispatchRequest(restRequest);
 

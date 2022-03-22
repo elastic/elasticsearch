@@ -425,6 +425,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
     };
 
+    public static final Logger log = LogManager.getLogger(CoreValuesSourceType.class);
+
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
@@ -437,8 +439,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     public String typeName() {
         return value();
     }
-
-    public static final Logger log = LogManager.getLogger(CoreValuesSourceType.class);
 
     /** List containing all members of the enumeration. */
     public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());

@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -24,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -33,7 +36,7 @@ import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
-public class RemoteInfo implements Writeable, ToXContentObject {
+public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
     /**
      * Default {@link #socketTimeout} for requests that don't have one set.
      */
@@ -51,7 +54,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     private final String pathPrefix;
     private final BytesReference query;
     private final String username;
-    private final String password;
+    private final SecureString password;
     private final Map<String, String> headers;
     /**
      * Time to wait for a response from each request.
@@ -69,7 +72,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         String pathPrefix,
         BytesReference query,
         String username,
-        String password,
+        SecureString password,
         Map<String, String> headers,
         TimeValue socketTimeout,
         TimeValue connectTimeout
@@ -96,7 +99,11 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         port = in.readVInt();
         query = in.readBytesReference();
         username = in.readOptionalString();
-        password = in.readOptionalString();
+        if (in.getVersion().before(Version.V_8_2_0)) {
+            password = new SecureString(in.readOptionalString().toCharArray());
+        } else {
+            password = in.readOptionalSecureString();
+        }
         int headersLength = in.readVInt();
         Map<String, String> headers = Maps.newMapWithExpectedSize(headersLength);
         for (int i = 0; i < headersLength; i++) {
@@ -115,7 +122,11 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         out.writeVInt(port);
         out.writeBytesReference(query);
         out.writeOptionalString(username);
-        out.writeOptionalString(password);
+        if (out.getVersion().before(Version.V_8_2_0)) {
+            out.writeOptionalString(password.toString());
+        } else {
+            out.writeOptionalSecureString(password);
+        }
         out.writeVInt(headers.size());
         for (Map.Entry<String, String> header : headers.entrySet()) {
             out.writeString(header.getKey());
@@ -124,6 +135,11 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         out.writeTimeValue(socketTimeout);
         out.writeTimeValue(connectTimeout);
         out.writeOptionalString(pathPrefix);
+    }
+
+    @Override
+    public void close() throws IOException {
+        this.password.close();
     }
 
     public String getScheme() {
@@ -153,7 +169,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     }
 
     @Nullable
-    public String getPassword() {
+    public SecureString getPassword() {
         return password;
     }
 
@@ -203,7 +219,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
             builder.field("username", username);
         }
         if (password != null) {
-            builder.field("password", password);
+            builder.field("password", password.toString());
         }
         builder.field("host", scheme + "://" + host + ":" + port + (pathPrefix == null ? "" : "/" + pathPrefix));
         if (headers.size() > 0) {

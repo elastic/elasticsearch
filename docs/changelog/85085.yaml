@@ -1,0 +1,5 @@
+pr: 85085
+summary: Add delete privilege to `kibana_system` for APM
+area: Authorization
+type: bug
+issues: []

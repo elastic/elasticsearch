@@ -177,7 +177,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.source = new DataFrameAnalyticsSource(in);
         this.dest = new DataFrameAnalyticsDest(in);
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
-        this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::new);
+        this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::readFrom);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         this.createTime = in.readOptionalInstant();
@@ -384,7 +384,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.modelMemoryLimit = config.modelMemoryLimit;
             this.maxModelMemoryLimit = maxModelMemoryLimit;
             if (config.analyzedFields != null) {
-                this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
+                this.analyzedFields = FetchSourceContext.of(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
             this.createTime = config.createTime;
             this.version = config.version;

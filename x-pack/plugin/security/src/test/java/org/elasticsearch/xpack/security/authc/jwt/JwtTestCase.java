@@ -169,6 +169,12 @@ public abstract class JwtTestCase extends ESTestCase {
                 RealmSettings.getFullSettingKey(name, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
                 randomBoolean() ? "" : "authz1, authz2"
             )
+            // Cache settings
+            .put(
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_TTL),
+                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(10, 120) + randomFrom("s", "m", "h")
+            )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_SIZE), randomIntBetween(0, 1))
             // HTTP settings for outgoing connections
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_CONNECT_TIMEOUT),

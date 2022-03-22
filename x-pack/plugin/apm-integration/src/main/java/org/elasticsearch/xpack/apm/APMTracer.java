@@ -28,6 +28,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Traceable;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -118,13 +120,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private void createApmServices() {
-        assert enabled;
-
-        var openTelemetry = GlobalOpenTelemetry.get();
-        var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-
+        assert this.enabled;
         assert this.services == null;
-        this.services = new APMServices(tracer, openTelemetry);
+
+        this.services = AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
+            var openTelemetry = GlobalOpenTelemetry.get();
+            var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+            return new APMServices(tracer, openTelemetry);
+        });
     }
 
     private void destroyApmServices() {
@@ -148,63 +151,66 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
 
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
-            // services might be in shutdown state by this point, but this is handled by the open telemetry internally
-            final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
-            Context parentContext = getParentSpanContext();
-            if (parentContext != null) {
-                spanBuilder.setParent(parentContext);
-            }
-
-            for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
-                final Object value = entry.getValue();
-                if (value instanceof String) {
-                    spanBuilder.setAttribute(entry.getKey(), (String) value);
-                } else if (value instanceof Long) {
-                    spanBuilder.setAttribute(entry.getKey(), (Long) value);
-                } else if (value instanceof Integer) {
-                    spanBuilder.setAttribute(entry.getKey(), (Integer) value);
-                } else if (value instanceof Double) {
-                    spanBuilder.setAttribute(entry.getKey(), (Double) value);
-                } else if (value instanceof Boolean) {
-                    spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
-                } else {
-                    throw new IllegalArgumentException(
-                        "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
-                    );
+            return AccessController.doPrivileged((PrivilegedAction<Span>) () -> {
+                // services might be in shutdown state by this point, but this is handled by the open telemetry internally
+                final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
+                Context parentContext = getParentSpanContext();
+                if (parentContext != null) {
+                    spanBuilder.setParent(parentContext);
                 }
-            }
 
-            // hack transactions to avoid the 'custom' type
-            // this one is not part of OTel semantic attributes
-            spanBuilder.setAttribute("type", "elasticsearch");
+                for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+                    final Object value = entry.getValue();
+                    if (value instanceof String) {
+                        spanBuilder.setAttribute(entry.getKey(), (String) value);
+                    } else if (value instanceof Long) {
+                        spanBuilder.setAttribute(entry.getKey(), (Long) value);
+                    } else if (value instanceof Integer) {
+                        spanBuilder.setAttribute(entry.getKey(), (Integer) value);
+                    } else if (value instanceof Double) {
+                        spanBuilder.setAttribute(entry.getKey(), (Double) value);
+                    } else if (value instanceof Boolean) {
+                        spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                        );
+                    }
+                }
 
-            // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
-            // also allows to set destination resource name in map
-            spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
-            spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
+                // hack transactions to avoid the 'custom' type
+                // this one is not part of OTel semantic attributes
+                spanBuilder.setAttribute("type", "elasticsearch");
 
-            // this will duplicate the "resource attributes" that are defined globally
-            // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
-            // 7.16.
-            spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-            spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
+                // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
+                // also allows to set destination resource name in map
+                spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
+                spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
 
-            final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-            if (xOpaqueId != null) {
-                spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
-            }
-            final Span span = spanBuilder.startSpan();
+                // this will duplicate the "resource attributes" that are defined globally
+                // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
+                // 7.16.
+                spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+                spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
 
-            final Map<String, String> spanHeaders = new HashMap<>();
-            final Context contextForNewSpan = Context.current().with(span);
-            services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
-            spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
+                final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+                if (xOpaqueId != null) {
+                    spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
+                }
 
-            // Ignore the result here, we don't need to restore the threadContext
-            threadContext.removeRequestHeaders(TRACE_HEADERS);
-            threadContext.putHeader(spanHeaders);
+                final Span span = spanBuilder.startSpan();
 
-            return span;
+                final Map<String, String> spanHeaders = new HashMap<>();
+                final Context contextForNewSpan = Context.current().with(span);
+                services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
+                spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
+
+                // Ignore the result here, we don't need to restore the threadContext
+                threadContext.removeRequestHeaders(TRACE_HEADERS);
+                threadContext.putHeader(spanHeaders);
+
+                return span;
+            });
         });
     }
 

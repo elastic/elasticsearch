@@ -13,12 +13,16 @@ grant {
     // required by io.grpc.internal.DnsNameResolver in grpc-core
     permission java.net.NetPermission "getProxySelector";
     permission java.lang.RuntimePermission "getClassLoader";
+    permission java.lang.RuntimePermission "createClassLoader";
     permission java.net.SocketPermission "*", "connect,resolve";
+    permission java.lang.RuntimePermission "accessSystemModules";
 };
 
 grant codeBase "${codebase.elastic-apm-agent}" {
-  permission java.lang.RuntimePermission "setFactory";
-  permission java.lang.RuntimePermission "getClassLoader";
-  permission java.lang.RuntimePermission "setContextClassLoader";
-  permission java.net.SocketPermission "*", "connect,resolve";
+    permission java.lang.RuntimePermission "setFactory";
+    permission java.lang.RuntimePermission "getClassLoader";
+    permission java.lang.RuntimePermission "createClassLoader";
+    permission java.lang.RuntimePermission "setContextClassLoader";
+    permission java.net.SocketPermission "*", "connect,resolve";
+    permission java.lang.RuntimePermission "accessSystemModules";
 };

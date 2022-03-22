@@ -8,6 +8,9 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
@@ -21,6 +24,8 @@ import java.util.stream.Stream;
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+
+    private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
     private final ThreadContext contextHolder;
 
@@ -77,6 +82,10 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
             } else {
                 throw ex;
             }
+        } catch (Exception e) {
+            assert false : "executor throws an exception (not a rejected execution exception) before the task has been submitted " + e;
+            logger.error(() -> new ParameterizedMessage("[{}] unexpected exception when submitting task for execution", name), e);
+            throw e;
         }
     }
 

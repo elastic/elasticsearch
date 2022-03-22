@@ -413,7 +413,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         }
 
         /**
-         * Builds a new instance of the
+         * Builds a new ImmutableOpenMap from this builder.
          */
         public ImmutableOpenMap<KType, VType> build() {
             if (original != null) {

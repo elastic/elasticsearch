@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
@@ -29,7 +30,6 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -631,12 +631,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final class Parameter<T> implements Supplier<T> {
 
         public final String name;
-        private final List<String> deprecatedNames = new ArrayList<>();
+        private List<String> deprecatedNames = List.of();
         private final Supplier<T> defaultValue;
         private final TriFunction<String, MappingParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
-        private final List<Consumer<T>> validators = new ArrayList<>();
+        private Consumer<T> validator;
         private final Serializer<T> serializer;
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private final Function<T, String> conflictSerializer;
@@ -644,8 +644,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
-        private final List<Parameter<?>> requires = new ArrayList<>();
-        private final List<Parameter<?>> precludes = new ArrayList<>();
+        private List<Parameter<?>> requires = List.of();
+        private List<Parameter<?>> precludes = List.of();
 
         /**
          * Creates a new Parameter
@@ -731,7 +731,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * be emitted.  The parameter will be serialized with its main name.
          */
         public Parameter<T> addDeprecatedName(String deprecatedName) {
-            this.deprecatedNames.add(deprecatedName);
+            this.deprecatedNames = CollectionUtils.appendToCopyNoNullElements(this.deprecatedNames, deprecatedName);
             return this;
         }
 
@@ -751,7 +751,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * validators can be added and all of them will be executed.
          */
         public Parameter<T> addValidator(Consumer<T> validator) {
-            this.validators.add(validator);
+            this.validator = this.validator == null ? validator : this.validator.andThen(validator);
             return this;
         }
 
@@ -788,20 +788,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public Parameter<T> requiresParameters(Parameter<?>... ps) {
-            this.requires.addAll(Arrays.asList(ps));
+        public Parameter<T> requiresParameter(Parameter<?> ps) {
+            this.requires = CollectionUtils.appendToCopyNoNullElements(this.requires, ps);
             return this;
         }
 
         public Parameter<T> precludesParameters(Parameter<?>... ps) {
-            this.precludes.addAll(Arrays.asList(ps));
+            this.precludes = CollectionUtils.appendToCopyNoNullElements(this.precludes, ps);
             return this;
         }
 
         void validate() {
             // Iterate over the list of validators and execute them one by one.
-            for (Consumer<T> v : validators) {
-                v.accept(getValue());
+            if (validator != null) {
+                validator.accept(getValue());
             }
             if (this.isConfigured()) {
                 for (Parameter<?> p : requires) {
@@ -1123,7 +1123,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                             "Unknown value [" + v + "] for field [on_script_error] - accepted values are [fail, continue]"
                         );
                 }
-            }).requiresParameters(dependentScriptParam);
+            }).requiresParameter(dependentScriptParam);
         }
     }
 

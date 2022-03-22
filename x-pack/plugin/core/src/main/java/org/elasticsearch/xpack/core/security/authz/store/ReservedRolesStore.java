@@ -797,7 +797,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),
-                new WriteProfileDataPrivileges(Set.of("kibana-*")) },
+                new WriteProfileDataPrivileges(Set.of("kibana*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null

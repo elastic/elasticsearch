@@ -124,14 +124,12 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
-        createMasterNode();
-        final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
+        final PluginsService pluginsService = getPluginService();
         return pluginsService.filterPlugins(type).stream().findFirst().get();
     }
 
-    protected void createMasterNode() {
-        // most tests do not care how master node is created, and can rely on internalCluster().getCurrentMasterNodeInstance
-        // but some like SystemIndexMigrationIT need master node to be master only node
+    protected PluginsService getPluginService() {
+        return internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {

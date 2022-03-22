@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -64,9 +65,10 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
     }
 
     @Override
-    protected void createMasterNode() {
+    protected PluginsService getPluginService() {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();
+        return internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
     }
 
     public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {

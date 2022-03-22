@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase {
 
     static final String VERSION_META_KEY = "version";
@@ -116,20 +117,23 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
+    protected String masterAndDataNode;
+    protected String masterName;
+
     @Before
-    public void setupTestPlugin() {
+    public void setup() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        masterName = internalCluster().startMasterOnlyNode();
+        masterAndDataNode = internalCluster().startNode();
+
         TestPlugin testPlugin = getPlugin(TestPlugin.class);
         testPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
         testPlugin.postMigrationHook.set((state, metadata) -> {});
     }
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
-        final PluginsService pluginsService = getPluginService();
+        final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
         return pluginsService.filterPlugins(type).stream().findFirst().get();
-    }
-
-    protected PluginsService getPluginService() {
-        return internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {

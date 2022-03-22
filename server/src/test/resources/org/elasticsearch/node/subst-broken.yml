@@ -1,0 +1,2 @@
+foo: ${no closing brace
+bar: ${goodsubst}

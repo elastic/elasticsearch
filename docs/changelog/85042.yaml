@@ -1,0 +1,6 @@
+pr: 85042
+summary: Provide 'system' attribute when resolving system indices
+area: Infra/Core
+type: enhancement
+issues:
+ - 82671

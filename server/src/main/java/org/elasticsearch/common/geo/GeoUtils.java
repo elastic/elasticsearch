@@ -443,31 +443,6 @@ public class GeoUtils {
         String geohash = null;
         String geojsonType = null;
         ArrayList<Double> coordinates = null;
-        class NumberFormatExceptionHandler {
-            NumberFormatException numberFormatException = null;
-            String field = null;
-
-            public double doubleValue(XContentSubParser subParser, String field) throws IOException {
-                try {
-                    return switch (subParser.currentToken()) {
-                        case VALUE_NUMBER, VALUE_STRING -> subParser.doubleValue(true);
-                        default -> throw new ElasticsearchParseException("{} must be a number", field);
-                    };
-                } catch (NumberFormatException e) {
-                    numberFormatException = e;
-                    this.field = field;
-                    return Double.NaN;
-                }
-            }
-
-            // TODO: Re-evaluate why this exception is not thrown earlier
-            public void assertNoException() {
-                if (numberFormatException != null) {
-                    throw new ElasticsearchParseException("[{}] must be a valid double value", numberFormatException, field);
-                }
-            }
-        }
-        NumberFormatExceptionHandler numberFormatExceptionHandler = new NumberFormatExceptionHandler();
 
         if (parser.currentToken() == Token.START_OBJECT) {
             try (XContentSubParser subParser = new XContentSubParser(parser)) {
@@ -476,9 +451,9 @@ public class GeoUtils {
                         String field = subParser.currentName();
                         subParser.nextToken();
                         if (LATITUDE.equals(field)) {
-                            lat = numberFormatExceptionHandler.doubleValue(subParser, "latitude");
+                            lat = parseValidDouble(subParser, "latitude");
                         } else if (LONGITUDE.equals(field)) {
-                            lon = numberFormatExceptionHandler.doubleValue(subParser, "longitude");
+                            lon = parseValidDouble(subParser, "longitude");
                         } else if (GEOHASH.equals(field)) {
                             if (subParser.currentToken() == Token.VALUE_STRING) {
                                 geohash = subParser.text();
@@ -489,7 +464,7 @@ public class GeoUtils {
                             if (subParser.currentToken() == Token.START_ARRAY) {
                                 coordinates = new ArrayList<>();
                                 while (subParser.nextToken() != Token.END_ARRAY) {
-                                    coordinates.add(numberFormatExceptionHandler.doubleValue(subParser, field));
+                                    coordinates.add(parseValidDouble(subParser, field));
                                 }
                             } else {
                                 throw new ElasticsearchParseException("GeoJSON 'coordinates' must be an array");
@@ -515,7 +490,6 @@ public class GeoUtils {
                     }
                 }
             }
-            numberFormatExceptionHandler.assertNoException();
             assertOnlyOneFormat(
                 geohash != null,
                 Double.isNaN(lat) == false,
@@ -569,6 +543,17 @@ public class GeoUtils {
             return point.resetFromString(val, ignoreZValue, effectivePoint);
         } else {
             throw new ElasticsearchParseException("geo_point expected");
+        }
+    }
+
+    private static double parseValidDouble(XContentSubParser subParser, String field) throws IOException {
+        try {
+            return switch (subParser.currentToken()) {
+                case VALUE_NUMBER, VALUE_STRING -> subParser.doubleValue(true);
+                default -> throw new ElasticsearchParseException("{} must be a number", field);
+            };
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("[{}] must be a valid double value", e, field);
         }
     }
 

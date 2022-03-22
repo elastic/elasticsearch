@@ -116,10 +116,10 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
-            this.indexed.requiresParameters(similarity);
+            this.indexed.requiresParameter(similarity);
             this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameters(indexed);
-            this.indexOptions.requiresParameters(indexed);
+            this.similarity.requiresParameter(indexed);
+            this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 

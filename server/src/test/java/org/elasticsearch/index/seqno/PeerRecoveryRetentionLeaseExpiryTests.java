@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -104,7 +105,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         builder.addShard(replicaShardRouting.moveToStarted());
         replicationTracker.updateFromMaster(
             replicationTracker.appliedClusterStateVersion + 1,
-            replicationTracker.routingTable.shards().stream().map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),
+            RoutingNodesHelper.asStream(replicationTracker.routingTable).map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),
             builder.build()
         );
     }
@@ -124,8 +125,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )
@@ -155,7 +155,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             equalTo(
                 Stream.concat(
                     Stream.of(ReplicationTracker.getPeerRecoveryRetentionLeaseId(unknownNodeId)),
-                    replicationTracker.routingTable.shards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                    RoutingNodesHelper.asStream(replicationTracker.routingTable).map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                 ).collect(Collectors.toSet())
             )
         );
@@ -186,8 +186,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )
@@ -214,8 +213,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )
@@ -240,8 +238,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )

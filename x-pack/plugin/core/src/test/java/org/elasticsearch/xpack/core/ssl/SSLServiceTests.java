@@ -681,7 +681,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(pemPath.toString()));
         assertThat(cert.format(), equalTo("PEM"));
         assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
-        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA,DC=ad,DC=test,DC=elasticsearch,DC=com"));
+        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2029-08-27T16:32:42Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -690,7 +690,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
-        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA,DC=ad,DC=test,DC=elasticsearch,DC=com"));
+        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2029-08-27T16:32:42Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -699,7 +699,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(p12Path.toString()));
         assertThat(cert.format(), equalTo("PKCS12"));
         assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
-        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA,DC=ad,DC=test,DC=elasticsearch,DC=com"));
+        assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2029-08-27T16:32:42Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -726,7 +726,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("d3850b2b1995ad5f"));
-        assertThat(cert.subjectDn(), equalTo("CN=OpenLDAP,OU=Elasticsearch,O=Elastic,L=Mountain View,ST=CA,C=US"));
+        assertThat(cert.subjectDn(), equalTo("CN=OpenLDAP, OU=Elasticsearch, O=Elastic, L=Mountain View, ST=CA, C=US"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2027-07-23T16:41:14Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -735,7 +735,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(p12Path.toString()));
         assertThat(cert.format(), equalTo("PKCS12"));
         assertThat(cert.serialNumber(), equalTo("d3850b2b1995ad5f"));
-        assertThat(cert.subjectDn(), equalTo("CN=OpenLDAP,OU=Elasticsearch,O=Elastic,L=Mountain View,ST=CA,C=US"));
+        assertThat(cert.subjectDn(), equalTo("CN=OpenLDAP, OU=Elasticsearch, O=Elastic, L=Mountain View, ST=CA, C=US"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2027-07-23T16:41:14Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -744,7 +744,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("b9d497f2924bbe29"));
-        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Client,OU=elasticsearch,O=org"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Client, OU=elasticsearch, O=org"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:55Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -753,7 +753,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(p12Path.toString()));
         assertThat(cert.format(), equalTo("PKCS12"));
         assertThat(cert.serialNumber(), equalTo("b9d497f2924bbe29"));
-        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Client,OU=elasticsearch,O=org"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Client, OU=elasticsearch, O=org"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:55Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
@@ -816,7 +816,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
         assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
-        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node,OU=elasticsearch,O=org"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
@@ -825,7 +825,7 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.path(), equalTo(p12Path.toString()));
         assertThat(cert.format(), equalTo("PKCS12"));
         assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
-        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node,OU=elasticsearch,O=org"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
         assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 

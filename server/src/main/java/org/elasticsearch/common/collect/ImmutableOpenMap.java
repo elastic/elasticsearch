@@ -384,7 +384,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         // n.b. a constructor can either set original or it can set map, but it must not set both.
 
         /**
-         * {@link Builder#maybeInitializeMap()} must be called before reading or writing via the {@code map} reference -- so every method
+         * This method must be called before reading or writing via the {@code map} reference -- so every method
          * of builder should call this as the first thing it does. If the {@code original} reference is not null, it will be used to
          * populate the {@code map} reference as a (mutable) clone of the {@code original} ImmutableOpenMap. It will then null out the
          * {@code original} reference.

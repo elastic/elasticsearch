@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -69,7 +68,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -108,7 +106,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     @Before
     public void setupAuthenticator() throws Exception {
-        System.out.println("here");
         this.clock = new ClockMock();
         this.maxSkew = TimeValue.timeValueMinutes(1);
         this.authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
@@ -185,25 +182,42 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().value, equalTo(nameId));
     }
 
-    public void testWarnOnCustomNameIdAttribute() throws Exception {
+    public void testLogWarnOnCustomNameIdAttribute() throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);
-        final String sessionindex = randomId();
-        final Response response = getSimpleResponse(now, nameId, sessionindex);
+        final String sessionIndex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionIndex);
         response.getAssertions()
             .get(0)
             .getAttributeStatements()
             .get(0)
             .getAttributes()
             .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.WARN, null);
-
         SamlToken token = token(signResponse(response));
-        final SamlAttributes attributes = authenticator.authenticate(token);
-        assertThat(attributes, notNullValue());
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "attribute name nameid warning",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    "SAML assertion contains custom attribute that shadows a reserved name [%s]".formatted(NAMEID_SYNTHENTIC_ATTRIBUTE)
+                )
+            );
+            final SamlAttributes attributes = authenticator.authenticate(token);
+            assertThat(attributes, notNullValue());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
-    public void testWarnOnCustomPersistantNameIdAttribute() throws Exception {
+    public void testLogWarnOnCustomPersistantNameIdAttribute() throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionindex = randomId();

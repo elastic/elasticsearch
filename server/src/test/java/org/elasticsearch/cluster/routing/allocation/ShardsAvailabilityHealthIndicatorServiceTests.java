@@ -112,7 +112,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             3,
-                            "Redundancy for 1 index [yellow-index] is currently disrupted. Fault tolerance and search scalability are "
+                            "Data redundancy is affected on 1 index [yellow-index]. Fault tolerance and search scalability are "
                                 + "reduced."
                         )
                     )
@@ -137,8 +137,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
-                            2,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete " + "results."
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
                         )
                     )
                 )
@@ -159,8 +159,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
-                            2,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete " + "results."
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
                         )
                     )
                 )
@@ -185,19 +185,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(2, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
-            new HealthIndicatorImpact(2, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
         );
         assertThat(
             result.impacts().get(1),
             oneOf(
                 new HealthIndicatorImpact(
                     3,
-                    "Redundancy for 2 indices [yellow-index-1, yellow-index-2] is currently disrupted. Fault tolerance and "
+                    "Data redundancy is affected on 2 indices [yellow-index-1, yellow-index-2]. Fault tolerance and "
                         + "search scalability are reduced."
                 ),
                 new HealthIndicatorImpact(
                     3,
-                    "Redundancy for 2 indices [yellow-index-2, yellow-index-1] is currently disrupted. Fault tolerance and "
+                    "Data redundancy is affected on 2 indices [yellow-index-2, yellow-index-1]. Fault tolerance and "
                         + "search scalability are reduced."
                 )
             )
@@ -273,7 +273,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             3,
-                            "Redundancy for 1 index [restarting-index] is currently disrupted. Fault tolerance and search scalability are "
+                            "Data redundancy is affected on 1 index [restarting-index]. Fault tolerance and search scalability are "
                                 + "reduced."
                         )
                     )
@@ -343,7 +343,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
-                            2,
+                            1,
                             "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results."
                         )
                     )

@@ -226,31 +226,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             indicesWithUnavailablePrimariesOnly.removeAll(replicas.indicesWithUnavailableShards);
             Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
             indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
-            if (indicesWithUnavailablePrimariesAndReplicas.isEmpty() == false) {
-                String impactDescription = String.format(
-                    Locale.ROOT,
-                    "%s [%s] %s unavailable. You are at risk of losing the data in %s.",
-                    indicesWithUnavailablePrimariesAndReplicas.size() == 1 ? "Index" : "Indices",
-                    getTruncatedIndicesString(indicesWithUnavailablePrimariesAndReplicas),
-                    indicesWithUnavailablePrimariesAndReplicas.size() == 1 ? "is" : "are",
-                    indicesWithUnavailablePrimariesAndReplicas.size() == 1 ? "this index" : "these indices"
-                );
-                impacts.add(new HealthIndicatorImpact(1, impactDescription));
-            }
-            if (indicesWithUnavailablePrimariesOnly.isEmpty() == false) {
+            if (indicesWithUnavailablePrimariesAndReplicas.isEmpty() == false || indicesWithUnavailablePrimariesOnly.isEmpty() == false) {
+                Set<String> indicesWithUnavailablePrimaries = new HashSet<>(indicesWithUnavailablePrimariesAndReplicas);
+                indicesWithUnavailablePrimaries.addAll(indicesWithUnavailablePrimariesOnly);
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
-                    indicesWithUnavailablePrimariesOnly.size(),
-                    indicesWithUnavailablePrimariesOnly.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(indicesWithUnavailablePrimariesOnly)
+                    indicesWithUnavailablePrimaries.size(),
+                    indicesWithUnavailablePrimaries.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(indicesWithUnavailablePrimaries)
                 );
-                impacts.add(new HealthIndicatorImpact(2, impactDescription));
+                impacts.add(new HealthIndicatorImpact(1, impactDescription));
             }
             if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "Redundancy for %d %s [%s] is currently disrupted. Fault tolerance and search scalability are reduced.",
+                    "Data redundancy is affected on %d %s [%s]. Fault tolerance and search scalability are reduced.",
                     indicesWithUnavailableReplicasOnly.size(),
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(indicesWithUnavailableReplicasOnly)

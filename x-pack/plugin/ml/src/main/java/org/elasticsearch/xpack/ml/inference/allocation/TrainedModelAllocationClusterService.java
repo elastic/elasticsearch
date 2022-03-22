@@ -428,7 +428,21 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (newMetadata == null) {
             return false;
         }
-        if (event.nodesChanged()) {
+
+        // Reallocate in reaction to either node change events or
+        // changes triggered by the node shutdown API.
+        // When the shutdown API is used the metadata is modified
+        // before the node is removed and then once again after
+        // the node has returned. In this situation the node change
+        // events become a no-op due to the checks against shutting
+        // down nodes and reallocation is triggered by the node
+        // shutdown metadata changes. 
+        // If the shutdown API is not used the node change events
+        // are sufficient to cause a reallocation.
+        //
+        // Shutdowns should be respected so that the service does not
+        // allocate models to a node that is about to leave the cluster
+        if (event.nodesChanged() || event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE)) {
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
             for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {

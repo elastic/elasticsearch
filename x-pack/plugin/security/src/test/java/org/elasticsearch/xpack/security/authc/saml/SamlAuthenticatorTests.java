@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -78,6 +79,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE;
 import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE_WITH_COMMENTS;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -105,6 +108,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     @Before
     public void setupAuthenticator() throws Exception {
+        System.out.println("here");
         this.clock = new ClockMock();
         this.maxSkew = TimeValue.timeValueMinutes(1);
         this.authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
@@ -179,6 +183,41 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name(), notNullValue());
         assertThat(attributes.name().format, equalTo(TRANSIENT));
         assertThat(attributes.name().value, equalTo(nameId));
+    }
+
+    public void testWarnOnCustomNameIdAttribute() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionindex);
+        response.getAssertions()
+            .get(0)
+            .getAttributeStatements()
+            .get(0)
+            .getAttributes()
+            .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE));
+        Logger logger = CapturingLogger.newCapturingLogger(Level.WARN, null);
+
+        SamlToken token = token(signResponse(response));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+    }
+
+    public void testWarnOnCustomPersistantNameIdAttribute() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionindex);
+        response.getAssertions()
+            .get(0)
+            .getAttributeStatements()
+            .get(0)
+            .getAttributes()
+            .add(getAttribute(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE));
+
+        SamlToken token = token(signResponse(response));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
     }
 
     public void testSuccessfullyParseContentFromRawXmlWithASingleValidAssertion() throws Exception {
@@ -1308,6 +1347,16 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         Instant subjectConfirmationValidUntil = now.plusSeconds(120);
         Instant sessionValidUntil = now.plusSeconds(60);
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
+    }
+
+    private Attribute getAttribute(String attributeName) {
+        final Attribute attribute = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
+        attribute.setName(attributeName);
+        XSStringBuilder stringBuilder = new XSStringBuilder();
+        XSString stringValue = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
+        stringValue.setValue("daredevil");
+        attribute.getAttributeValues().add(stringValue);
+        return attribute;
     }
 
     private Response getSimpleResponse(

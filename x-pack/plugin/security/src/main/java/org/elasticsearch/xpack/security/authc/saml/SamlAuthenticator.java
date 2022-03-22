@@ -407,7 +407,7 @@ class SamlAuthenticator extends SamlResponseHandler {
     private void warnOnReservedAttributeNames(List<Attribute> attributes) {
         attributes.stream().map(Attribute::getName).forEach(attributeName -> {
             if (RESERVED_ATTRIBUTE_NAMES.contains(attributeName)) {
-                logger.warn("SAML assertion contains attribute with a reserved name [{}]", attributeName);
+                logger.warn("SAML assertion contains custom attribute that shadows a reserved name [{}]", attributeName);
             }
         });
     }

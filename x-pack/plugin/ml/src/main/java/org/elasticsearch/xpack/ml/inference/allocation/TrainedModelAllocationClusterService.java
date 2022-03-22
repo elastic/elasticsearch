@@ -450,7 +450,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
         if (event.nodesChanged()) {
             logger.info("DEPLOYMENT DEBUG nodes changed, fully allocated: {}", someNotRouted);
-//            Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
+            // Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             logShutdowns(event.state());
 
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();

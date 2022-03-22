@@ -76,7 +76,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // The gradle-profiler unfortunately does not generate compliant formatted
                 // sources so we ignore that altered file when running build benchmarks
                 if(Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
-                    java.ignoreErrorForPath("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
+                    java.targetExclude("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
                 }
             });
 

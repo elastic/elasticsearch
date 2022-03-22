@@ -460,7 +460,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 Map.of(),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
@@ -469,7 +469,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             : new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
                 Map.of(),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
                 randomFrom(WriteRequest.RefreshPolicy.values())
@@ -477,8 +477,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication), is(true));
         updateProfileDataRequest = new UpdateProfileDataRequest(
             randomAlphaOfLength(10),
-            Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
-            Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+            Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+            Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
             randomFrom(-1L, randomLong()),
             randomFrom(-1L, randomLong()),
             randomFrom(WriteRequest.RefreshPolicy.values())
@@ -487,7 +487,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
-                Map.of(randomAlphaOfLengthBetween(0, 6), mock(Object.class)),
+                Map.of(randomValueOtherThan("kibana", () -> randomAlphaOfLengthBetween(0, 6)), mock(Object.class)),
                 Map.of(),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
@@ -506,23 +506,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
                 Map.of(
-                    "kibana-" + randomAlphaOfLengthBetween(0, 4),
+                    "kibana" + randomAlphaOfLengthBetween(0, 4),
                     mock(Object.class),
-                    randomAlphaOfLengthBetween(0, 6),
+                    randomValueOtherThan("kibana", () -> randomAlphaOfLengthBetween(0, 6)),
                     mock(Object.class)
                 ),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
                 randomFrom(WriteRequest.RefreshPolicy.values())
             )
             : new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 Map.of(
-                    "kibana-" + randomAlphaOfLengthBetween(0, 4),
+                    "kibana" + randomAlphaOfLengthBetween(0, 4),
                     mock(Object.class),
-                    randomAlphaOfLengthBetween(0, 6),
+                    randomValueOtherThan("kibana", () -> randomAlphaOfLengthBetween(0, 6)),
                     mock(Object.class)
                 ),
                 randomFrom(-1L, randomLong()),

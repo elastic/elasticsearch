@@ -332,6 +332,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
+        if (authenticationParameterValue == null) {
+            return null;
+        }
         // Get all other possible parameters. A different JWT realm may do the actual authentication.
         final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
             threadContext,

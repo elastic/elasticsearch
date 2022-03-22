@@ -15,6 +15,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert.assertResultSets;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.createDataStream;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.deleteDataStream;
 
 /**
  * Tests for our implementation of {@link DatabaseMetaData}.

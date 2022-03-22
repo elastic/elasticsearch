@@ -219,7 +219,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
         deleteIndex(provisioningClient(), name);
     }
 
-    protected void createDataStream(String dataStreamName) throws IOException {
+    public static void createDataStream(String dataStreamName) throws IOException {
         Request request = new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
         request.setJsonEntity("{\"index_patterns\": [\"" + dataStreamName + "*\"], \"data_stream\": {}}");
         Response response = provisioningClient().performRequest(request);
@@ -230,7 +230,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    protected static void deleteDataStream(String dataStreamName) throws IOException {
+    public static void deleteDataStream(String dataStreamName) throws IOException {
         Request request = new Request("DELETE", "_data_stream/" + dataStreamName);
         provisioningClient().performRequest(request);
         request = new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);

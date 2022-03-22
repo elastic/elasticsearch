@@ -416,7 +416,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 diskThresholdSettings.getFreeBytesThresholdHigh().getBytes(),
                 thresholdFromPercentage(diskThresholdSettings.getFreeDiskThresholdHigh(), diskUsage)
             );
-            long missing = threshold - diskUsage.getFreeBytes();
+            long missing = threshold - diskUsage.freeBytes();
             return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().orElseThrow());
         }
 
@@ -425,7 +425,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return 0L;
             }
 
-            return (long) Math.ceil(diskUsage.getTotalBytes() * percentage / 100);
+            return (long) Math.ceil(diskUsage.totalBytes() * percentage / 100);
         }
 
         Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {

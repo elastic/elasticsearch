@@ -157,7 +157,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
         if (usage != null) {
-            long freeBytes = usage.getFreeBytes();
+            long freeBytes = usage.freeBytes();
             double freeDiskPercentage = usage.getFreeDiskAsPercentage();
             if (exceedsLowWatermark(nodeSettings, clusterSettings, freeBytes, freeDiskPercentage)
                 || exceedsLowWatermark(dynamicSettings, clusterSettings, freeBytes, freeDiskPercentage)) {

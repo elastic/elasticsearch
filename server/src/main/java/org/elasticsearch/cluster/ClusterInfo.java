@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -83,8 +84,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
-        Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
+        Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::of);
+        Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::of);
         Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
         Map<ShardId, Long> dataSetSizeMap;
         if (in.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
@@ -95,7 +96,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
         Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
         if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
+            reservedSpaceMap = in.readMap(NodeAndPath::of, ReservedSpace::of);
         } else {
             reservedSpaceMap = Map.of();
         }
@@ -138,7 +139,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             for (Map.Entry<String, DiskUsage> c : this.leastAvailableSpaceUsage.entrySet()) {
                 builder.startObject(c.getKey());
                 { // node
-                    builder.field("node_name", c.getValue().getNodeName());
+                    builder.field("node_name", c.getValue().nodeName());
                     builder.startObject("least_available");
                     {
                         c.getValue().toShortXContent(builder);
@@ -255,31 +256,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents a data path on a node
      */
-    public static class NodeAndPath implements Writeable {
-        public final String nodeId;
-        public final String path;
-
-        public NodeAndPath(String nodeId, String path) {
-            this.nodeId = Objects.requireNonNull(nodeId);
-            this.path = Objects.requireNonNull(path);
+    public record NodeAndPath(String nodeId, String path) implements Writeable {
+        public NodeAndPath {
+            Objects.requireNonNull(nodeId);
+            Objects.requireNonNull(path);
         }
 
-        public NodeAndPath(StreamInput in) throws IOException {
-            this.nodeId = in.readString();
-            this.path = in.readString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeAndPath that = (NodeAndPath) o;
-            return nodeId.equals(that.nodeId) && path.equals(that.path);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(nodeId, path);
+        public static NodeAndPath of(StreamInput in) throws IOException {
+            return new NodeAndPath(in.readString(), in.readString());
         }
 
         @Override
@@ -292,25 +276,18 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
      */
-    public static class ReservedSpace implements Writeable {
+    public record ReservedSpace(long total, Set<ShardId> shardIds) implements Writeable {
 
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
-        private final long total;
-        private final HashSet<ShardId> shardIds;
-
-        private ReservedSpace(long total, HashSet<ShardId> shardIds) {
-            this.total = total;
-            this.shardIds = shardIds;
-        }
-
-        ReservedSpace(StreamInput in) throws IOException {
-            total = in.readVLong();
+        static ReservedSpace of(StreamInput in) throws IOException {
+            long total = in.readVLong();
             final int shardIdCount = in.readVInt();
-            shardIds = new HashSet<>(shardIdCount);
+            Set<ShardId> shardIds = new HashSet<>(shardIdCount);
             for (int i = 0; i < shardIdCount; i++) {
                 shardIds.add(new ShardId(in));
             }
+            return new ReservedSpace(total, shardIds);
         }
 
         @Override
@@ -322,25 +299,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             }
         }
 
-        public long getTotal() {
-            return total;
-        }
-
         public boolean containsShardId(ShardId shardId) {
             return shardIds.contains(shardId);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ReservedSpace that = (ReservedSpace) o;
-            return total == that.total && shardIds.equals(that.shardIds);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(total, shardIds);
         }
 
         void toXContent(XContentBuilder builder, Params params) throws IOException {

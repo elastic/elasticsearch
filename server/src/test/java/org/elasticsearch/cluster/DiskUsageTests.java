@@ -39,29 +39,29 @@ public class DiskUsageTests extends ESTestCase {
         DiskUsage du = new DiskUsage("node1", "n1", "random", 100, 40);
         assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));
         assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - 40.0));
-        assertThat(du.getFreeBytes(), equalTo(40L));
+        assertThat(du.freeBytes(), equalTo(40L));
         assertThat(du.getUsedBytes(), equalTo(60L));
-        assertThat(du.getTotalBytes(), equalTo(100L));
+        assertThat(du.totalBytes(), equalTo(100L));
 
         // Test that DiskUsage handles invalid numbers, as reported by some
         // filesystems (ZFS & NTFS)
         DiskUsage du2 = new DiskUsage("node1", "n1", "random", 100, 101);
         assertThat(du2.getFreeDiskAsPercentage(), equalTo(101.0));
-        assertThat(du2.getFreeBytes(), equalTo(101L));
+        assertThat(du2.freeBytes(), equalTo(101L));
         assertThat(du2.getUsedBytes(), equalTo(-1L));
-        assertThat(du2.getTotalBytes(), equalTo(100L));
+        assertThat(du2.totalBytes(), equalTo(100L));
 
         DiskUsage du3 = new DiskUsage("node1", "n1", "random", -1, -1);
         assertThat(du3.getFreeDiskAsPercentage(), equalTo(100.0));
-        assertThat(du3.getFreeBytes(), equalTo(-1L));
+        assertThat(du3.freeBytes(), equalTo(-1L));
         assertThat(du3.getUsedBytes(), equalTo(0L));
-        assertThat(du3.getTotalBytes(), equalTo(-1L));
+        assertThat(du3.totalBytes(), equalTo(-1L));
 
         DiskUsage du4 = new DiskUsage("node1", "n1", "random", 0, 0);
         assertThat(du4.getFreeDiskAsPercentage(), equalTo(100.0));
-        assertThat(du4.getFreeBytes(), equalTo(0L));
+        assertThat(du4.freeBytes(), equalTo(0L));
         assertThat(du4.getUsedBytes(), equalTo(0L));
-        assertThat(du4.getTotalBytes(), equalTo(0L));
+        assertThat(du4.totalBytes(), equalTo(0L));
     }
 
     public void testRandomDiskUsage() {
@@ -71,14 +71,14 @@ public class DiskUsageTests extends ESTestCase {
             long free = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             DiskUsage du = new DiskUsage("random", "random", "random", total, free);
             if (total == 0) {
-                assertThat(du.getFreeBytes(), equalTo(free));
-                assertThat(du.getTotalBytes(), equalTo(0L));
+                assertThat(du.freeBytes(), equalTo(free));
+                assertThat(du.totalBytes(), equalTo(0L));
                 assertThat(du.getUsedBytes(), equalTo(-free));
                 assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0));
                 assertThat(du.getUsedDiskAsPercentage(), equalTo(0.0));
             } else {
-                assertThat(du.getFreeBytes(), equalTo(free));
-                assertThat(du.getTotalBytes(), equalTo(total));
+                assertThat(du.freeBytes(), equalTo(free));
+                assertThat(du.totalBytes(), equalTo(total));
                 assertThat(du.getUsedBytes(), equalTo(total - free));
                 assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0 * ((double) free / total)));
                 assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - (100.0 * ((double) free / total))));
@@ -325,9 +325,9 @@ public class DiskUsageTests extends ESTestCase {
     private void assertDiskUsage(DiskUsage usage, FsInfo.Path path) {
         assertNotNull(usage);
         assertNotNull(path);
-        assertEquals(usage.toString(), usage.getPath(), path.getPath());
-        assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().getBytes());
-        assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().getBytes());
+        assertEquals(usage.toString(), usage.path(), path.getPath());
+        assertEquals(usage.toString(), usage.totalBytes(), path.getTotal().getBytes());
+        assertEquals(usage.toString(), usage.freeBytes(), path.getAvailable().getBytes());
 
     }
 }

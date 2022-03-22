@@ -241,7 +241,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 DiskUsage diskUsage = new DiskUsage(nodeId, null, randomAlphaOfLength(5), total, randomLongBetween(0, total));
                 leastUsagesBuilder.put(nodeId, diskUsage);
                 if (randomBoolean()) {
-                    diskUsage = new DiskUsage(nodeId, null, diskUsage.getPath(), total, diskUsage.getFreeBytes());
+                    diskUsage = new DiskUsage(nodeId, null, diskUsage.path(), total, diskUsage.freeBytes());
                 }
                 mostUsagesBuilder.put(nodeId, diskUsage);
                 sumTotal += total;
@@ -298,9 +298,9 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 new DiskUsage(
                     multiPathNodeId,
                     null,
-                    randomValueOtherThan(original.getPath(), () -> randomAlphaOfLength(5)),
-                    original.getTotalBytes(),
-                    original.getFreeBytes()
+                    randomValueOtherThan(original.path(), () -> randomAlphaOfLength(5)),
+                    original.totalBytes(),
+                    original.freeBytes()
                 )
             );
 

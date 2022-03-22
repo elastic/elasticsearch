@@ -252,7 +252,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             .getNodeMostAvailableDiskUsages()
             .values()
             .stream()
-            .allMatch(e -> e.getFreeBytes() > WATERMARK_BYTES)) {
+            .allMatch(e -> e.freeBytes() > WATERMARK_BYTES)) {
             assertAcked(client().admin().cluster().prepareReroute());
         }
 

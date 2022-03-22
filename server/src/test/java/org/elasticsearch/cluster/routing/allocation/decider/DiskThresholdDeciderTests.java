@@ -670,8 +670,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
         DiskUsage node1Usage = decider.averageUsage(rn, usages.build());
-        assertThat(node1Usage.getTotalBytes(), equalTo(100L));
-        assertThat(node1Usage.getFreeBytes(), equalTo(25L));
+        assertThat(node1Usage.totalBytes(), equalTo(100L));
+        assertThat(node1Usage.freeBytes(), equalTo(25L));
     }
 
     public void testFreeDiskPercentageAfterShardAssigned() {
@@ -1276,7 +1276,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             logger.info("--> simulating snapshot shards size retrieval success");
             snapshotShardSizes.put(snapshotShard, shardSizeInBytes);
             logger.info("--> shard allocation depends on its size");
-            shouldAllocate = shardSizeInBytes < usages.get("node1").getFreeBytes();
+            shouldAllocate = shardSizeInBytes < usages.get("node1").freeBytes();
         } else {
             logger.info("--> simulating snapshot shards size retrieval failure");
             snapshotShardSizes.put(snapshotShard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

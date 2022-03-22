@@ -14,13 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ParsedMin extends ParsedSingleValueNumericMetricsAggregation implements Min {
-
-    @Override
-    public double getValue() {
-        return value();
-    }
-
+public class ParsedMin extends ParsedSingleValueNumericMetricsAggregation {
     @Override
     public String getType() {
         return MinAggregationBuilder.NAME;

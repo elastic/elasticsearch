@@ -448,9 +448,9 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             logger.info("DEPLOYMENT DEBUG changed customs {}", event.changedCustomMetadataSet());
         }
 
-        if (event.nodesChanged()) {
+        if (event.nodesChanged() || event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE)) {
             logger.info("DEPLOYMENT DEBUG nodes changed, some not routed: {}", someNotRouted);
-            // Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
+            Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             logShutdowns(event.state());
 
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
@@ -466,7 +466,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                     }
                 }
                 for (DiscoveryNode added : nodesDelta.addedNodes()) {
-                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)) {
+                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)
+                        && shuttingDownNodes.contains(added.getId()) == false) {
                         logger.info("DEPLOYMENT DEBUG node added - reallocate");
                         return true;
                     }
@@ -540,6 +541,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         var meta = NodesShutdownMetadata.getShutdowns(state);
         if (meta.isPresent()) {
             logger.info("DEPLOYMENT DEBUG shutdowns {}", Strings.toString(meta.get()));
+        } else {
+            logger.info("DEPLOYMENT DEBUG no shutdowns");
         }
     }
 

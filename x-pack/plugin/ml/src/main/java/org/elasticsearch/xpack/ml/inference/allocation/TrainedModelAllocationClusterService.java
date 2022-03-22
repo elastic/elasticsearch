@@ -435,7 +435,6 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         // If there are no allocations created at all, there is nothing to update
         final TrainedModelAllocationMetadata newMetadata = event.state().getMetadata().custom(TrainedModelAllocationMetadata.NAME);
         if (newMetadata == null) {
-            logger.info("DEPLOYMENT DEBUG no allocations");
             return false;
         }
 
@@ -445,11 +444,15 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             .map(TrainedModelAllocation::getNodeRoutingTable)
             .anyMatch(Map::isEmpty);
 
-        logger.info("DEPLOYMENT DEBUG changed customs {}", event.changedCustomMetadataSet());
+        if (event.changedCustomMetadataSet().isEmpty() == false) {
+            logger.info("DEPLOYMENT DEBUG changed customs {}", event.changedCustomMetadataSet());
+        }
 
-        if (event.nodesChanged() || someNotRouted) {
-            logger.info("DEPLOYMENT DEBUG nodes changed");
-            Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
+        if (event.nodesChanged()) {
+            logger.info("DEPLOYMENT DEBUG nodes changed, fully allocated: {}", someNotRouted);
+//            Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
+            logShutdowns(event.state());
+
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
             logger.info("DEPLOYMENT DEBUG nodes delta {}", nodesDelta.shortSummary());
             for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {
@@ -463,8 +466,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                     }
                 }
                 for (DiscoveryNode added : nodesDelta.addedNodes()) {
-                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)
-                        && shuttingDownNodes.contains(added.getId()) == false) {
+                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)) {
                         logger.info("DEPLOYMENT DEBUG node added - reallocate");
                         return true;
                     }
@@ -532,6 +534,13 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
             .map(Map::keySet)
             .orElse(Collections.emptySet());
+    }
+
+    static void logShutdowns(final ClusterState state) {
+        var meta = NodesShutdownMetadata.getShutdowns(state);
+        if (meta.isPresent()) {
+            logger.info("DEPLOYMENT DEBUG shutdowns {}", Strings.toString(meta.get()));
+        }
     }
 
 }

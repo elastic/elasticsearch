@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
@@ -28,9 +29,9 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     private final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
 
     public FieldDataStats stats(String... fields) {
-        ObjectLongHashMap<String> fieldTotals = null;
+        Map<String, Long> fieldTotals = null;
         if (CollectionUtils.isEmpty(fields) == false) {
-            fieldTotals = new ObjectLongHashMap<>();
+            fieldTotals = new HashMap<>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {
                     fieldTotals.put(entry.getKey(), entry.getValue().count());

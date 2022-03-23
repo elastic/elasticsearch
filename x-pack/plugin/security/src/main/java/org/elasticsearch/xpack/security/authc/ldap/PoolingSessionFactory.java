@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
@@ -93,7 +94,9 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         } else {
             if (bindPassword == null) {
                 throw new IllegalArgumentException(
-                    "When bind_dn is set you must specify ["
+                    "When ["
+                        + RealmSettings.getFullSettingKey(config, BIND_DN)
+                        + "] is set you must also specify ["
                         + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
                         + "] or ["
                         + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)

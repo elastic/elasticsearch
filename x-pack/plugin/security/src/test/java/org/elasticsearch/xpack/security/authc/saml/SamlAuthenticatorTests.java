@@ -235,6 +235,29 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         }
     }
 
+    public void testLoggingNoLogIfNotSpecialAttributeName() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionIndex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionIndex);
+        Assertion assertion = response.getAssertions().get(0);
+        assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
+        SamlToken token = token(signResponse(response));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+            final SamlAttributes attributes = authenticator.authenticate(token);
+            assertThat(attributes, notNullValue());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
     public void testLoggingWarnOnSpecialAttributeNameInNameAndFriendlyName() throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);

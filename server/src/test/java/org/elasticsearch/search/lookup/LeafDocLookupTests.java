@@ -104,7 +104,7 @@ public class LeafDocLookupTests extends ESTestCase {
             }
         };
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
-        doReturn(delegateDocValuesField).when(leafFieldData).getScriptField(name);
+        doReturn(delegateDocValuesField).when(leafFieldData).getScriptFieldFactory(name);
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn(name);

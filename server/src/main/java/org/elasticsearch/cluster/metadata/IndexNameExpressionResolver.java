@@ -196,7 +196,7 @@ public class IndexNameExpressionResolver {
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**

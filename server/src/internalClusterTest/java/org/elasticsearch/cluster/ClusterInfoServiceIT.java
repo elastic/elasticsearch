@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -40,13 +41,13 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
@@ -211,7 +212,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
 
-        final List<ShardRouting> shardRoutings = client().admin()
+        final IndexShardRoutingTable indexShardRoutingTable = client().admin()
             .cluster()
             .prepareState()
             .clear()
@@ -220,8 +221,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .getState()
             .getRoutingTable()
             .index("test")
-            .shard(0)
-            .shards();
+            .shard(0);
+        final List<ShardRouting> shardRoutings = new ArrayList<>(indexShardRoutingTable.size());
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            shardRoutings.add(indexShardRoutingTable.shard(copy));
+        }
 
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
@@ -283,16 +287,13 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // indices stats from remote nodes will time out, but the local node's shard will be included
         assertThat(infoAfterTimeout.shardSizes.size(), greaterThan(0));
         assertThat(infoAfterTimeout.shardDataSetSizes.size(), greaterThan(0));
-        assertThat(
-            shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null).collect(Collectors.toList()),
-            hasSize(1)
-        );
+        assertThat(shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null).toList(), hasSize(1));
         assertThat(
             shardRoutings.stream()
                 .map(ShardRouting::shardId)
                 .distinct()
                 .filter(shard -> infoAfterTimeout.getShardDataSetSize(shard).isPresent())
-                .collect(Collectors.toList()),
+                .toList(),
             hasSize(1)
         );
 

@@ -282,7 +282,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             if (internalNetworks != null) {
                 internalNetworkTemplates = internalNetworks.stream()
                     .map(n -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "internal_networks", n, scriptService))
-                    .collect(Collectors.toList());
+                    .toList();
             }
             return new NetworkDirectionProcessor(
                 processorTag,

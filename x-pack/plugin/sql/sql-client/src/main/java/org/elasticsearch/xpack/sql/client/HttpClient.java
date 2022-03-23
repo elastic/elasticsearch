@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -43,6 +45,24 @@ import static java.util.Collections.emptyList;
  * and follows a request-response flow.
  */
 public class HttpClient {
+
+    public static class ResponseWithWarnings<R> {
+        private final R response;
+        private final List<String> warnings;
+
+        ResponseWithWarnings(R response, List<String> warnings) {
+            this.response = response;
+            this.warnings = warnings;
+        }
+
+        public R response() {
+            return response;
+        }
+
+        public List<String> warnings() {
+            return warnings;
+        }
+    }
 
     private final ConnectionConfiguration cfg;
     private final ContentType requestBodyContentType;
@@ -82,10 +102,10 @@ public class HttpClient {
             false,
             cfg.binaryCommunication()
         );
-        return query(sqlRequest);
+        return query(sqlRequest).response();
     }
 
-    public SqlQueryResponse query(SqlQueryRequest sqlRequest) throws SQLException {
+    public ResponseWithWarnings<SqlQueryResponse> query(SqlQueryRequest sqlRequest) throws SQLException {
         return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse);
     }
 
@@ -98,28 +118,28 @@ public class HttpClient {
             new RequestInfo(Mode.CLI),
             cfg.binaryCommunication()
         );
-        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse);
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).response();
     }
 
     public boolean queryClose(String cursor, Mode mode) throws SQLException {
-        SqlClearCursorResponse response = post(
+        ResponseWithWarnings<SqlClearCursorResponse> response = post(
             CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT,
             new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
             Payloads::parseClearCursorResponse
         );
-        return response.isSucceeded();
+        return response.response().isSucceeded();
     }
 
     @SuppressWarnings({ "removal" })
-    private <Request extends AbstractSqlRequest, Response> Response post(
+    private <Request extends AbstractSqlRequest, Response> ResponseWithWarnings<Response> post(
         String path,
         Request request,
         CheckedFunction<JsonParser, Response, IOException> responseParser
     ) throws SQLException {
         byte[] requestBytes = toContent(request);
         String query = "error_trace";
-        Tuple<ContentType, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<ContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
+        Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
+            (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 query,
                 cfg,
@@ -131,7 +151,11 @@ public class HttpClient {
                 )
             )
         ).getResponseOrThrowException();
-        return fromContent(response.v1(), response.v2(), responseParser);
+        List<String> warnings = response.v1().apply("Warning");
+        return new ResponseWithWarnings<>(
+            fromContent(contentType(response.v1()), response.v2(), responseParser),
+            warnings == null ? Collections.emptyList() : warnings
+        );
     }
 
     @SuppressWarnings({ "removal" })
@@ -162,15 +186,15 @@ public class HttpClient {
 
     @SuppressWarnings({ "removal" })
     private <Response> Response get(String path, CheckedFunction<JsonParser, Response, IOException> responseParser) throws SQLException {
-        Tuple<ContentType, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<ContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
+        Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
+            (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 "error_trace",
                 cfg,
                 con -> con.request(null, this::readFrom, "GET")
             )
         ).getResponseOrThrowException();
-        return fromContent(response.v1(), response.v2(), responseParser);
+        return fromContent(contentType(response.v1()), response.v2(), responseParser);
     }
 
     private <Request extends AbstractSqlRequest> byte[] toContent(Request request) {
@@ -184,31 +208,35 @@ public class HttpClient {
         }
     }
 
-    private Tuple<ContentType, byte[]> readFrom(InputStream inputStream, Function<String, String> headers) {
-        String contentType = headers.apply("Content-Type");
-        ContentType type = ContentFactory.parseMediaType(contentType);
-        if (type == null) {
-            throw new IllegalStateException("Unsupported Content-Type: " + contentType);
-        }
+    private Tuple<Function<String, List<String>>, byte[]> readFrom(InputStream inputStream, Function<String, List<String>> headers) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             Streams.copy(inputStream, out);
         } catch (Exception ex) {
             throw new ClientException("Cannot deserialize response", ex);
         }
-        return new Tuple<>(type, out.toByteArray());
+        return new Tuple<>(headers, out.toByteArray());
 
     }
 
+    private ContentType contentType(Function<String, List<String>> headers) {
+        List<String> contentTypeHeaders = headers.apply("Content-Type");
+
+        String contentType = contentTypeHeaders == null || contentTypeHeaders.isEmpty() ? null : contentTypeHeaders.get(0);
+        ContentType type = ContentFactory.parseMediaType(contentType);
+        if (type == null) {
+            throw new IllegalStateException("Unsupported Content-Type: " + contentType);
+        } else {
+            return type;
+        }
+    }
+
     private <Response> Response fromContent(
-        ContentType contentType,
+        ContentType type,
         byte[] bytesReference,
         CheckedFunction<JsonParser, Response, IOException> responseParser
     ) {
-        try (
-            InputStream stream = new ByteArrayInputStream(bytesReference);
-            JsonParser parser = ContentFactory.parser(contentType, stream)
-        ) {
+        try (InputStream stream = new ByteArrayInputStream(bytesReference); JsonParser parser = ContentFactory.parser(type, stream)) {
             return responseParser.apply(parser);
         } catch (Exception ex) {
             throw new ClientException("Cannot parse response", ex);

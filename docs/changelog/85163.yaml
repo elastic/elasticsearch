@@ -1,0 +1,6 @@
+pr: 85163
+summary: Update X509Certificate principal methods
+area: Security
+type: enhancement
+issues:
+ - 81008

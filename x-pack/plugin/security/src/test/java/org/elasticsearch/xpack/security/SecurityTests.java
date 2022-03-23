@@ -704,7 +704,6 @@ public class SecurityTests extends ESTestCase {
                 null,
                 null,
                 usageService,
-                null,
                 null
             );
             actionModule.initRestHandlers(null);

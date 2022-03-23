@@ -11,14 +11,12 @@ package org.elasticsearch.health;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -53,11 +51,6 @@ public class HealthService {
                 )
                 .values()
         );
-    }
-
-    public Map<String, List<String>> getComponentToIndicatorMapping() {
-        return healthIndicatorServices.stream()
-            .collect(groupingBy(HealthIndicatorService::component, mapping(HealthIndicatorService::name, toList())));
     }
 
     // Non-private for testing purposes

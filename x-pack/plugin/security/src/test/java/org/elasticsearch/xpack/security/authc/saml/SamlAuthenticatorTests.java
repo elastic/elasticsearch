@@ -102,6 +102,10 @@ import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_HOLDER_OF_
 public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     private static final String UID_OID = "urn:oid:0.9.2342.19200300.100.1.1";
+    public static final String SPECIAL_ATTRIBUTE_LOG_MESSAGE =
+        "SAML assertion [*] has attribute with * [*] which clashes with a special attribute name. "
+            + "Attributes with a name clash cannot be mapped. "
+            + "Change attribute * to not clash with any of [*].";
 
     private SamlAuthenticator authenticator;
 
@@ -221,9 +225,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "SAML assertion [*] has attribute with * [*] which clashes with a special attribute name. "
-                        + "Attributes with name clash cannot be mapped. "
-                        + "Change attribute * to not clash with any of [*]."
+                    SPECIAL_ATTRIBUTE_LOG_MESSAGE
                 )
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
@@ -280,9 +282,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "SAML assertion [*] has attribute with name [*] which clashes with a special attribute name. "
-                        + "Attributes with name clash cannot be mapped. "
-                        + "Change attribute name to not clash with any of [*]."
+                    SPECIAL_ATTRIBUTE_LOG_MESSAGE
                 )
             );
             mockAppender.addExpectation(
@@ -290,9 +290,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "attribute friendly name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "SAML assertion [*] has attribute with friendly name [*] which clashes with a special attribute name. "
-                        + "Attributes with name clash cannot be mapped. "
-                        + "Change attribute friendly name to not clash with any of [*]."
+                    SPECIAL_ATTRIBUTE_LOG_MESSAGE
                 )
             );
             final SamlAttributes attributes = authenticator.authenticate(token);

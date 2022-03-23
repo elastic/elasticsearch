@@ -418,7 +418,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         if (SPECIAL_ATTRIBUTE_NAMES.contains(attributeName)) {
             logger.warn(
                 "SAML assertion [{}] has attribute with {} [{}] which clashes with a special attribute name. "
-                    + "Attributes with name clash cannot be mapped. "
+                    + "Attributes with a name clash cannot be mapped. "
                     + "Change attribute {} to not clash with any of [{}].",
                 assertion.getElementQName(),
                 fieldNameForLogMessage,

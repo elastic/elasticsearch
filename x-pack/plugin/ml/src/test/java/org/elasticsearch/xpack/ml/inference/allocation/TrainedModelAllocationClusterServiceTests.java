@@ -42,8 +42,10 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -827,6 +829,172 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                 )
             ),
             is(false)
+        );
+    }
+
+    public void testShouldAllocateModels_WithNodeShutdowns() {
+        String clusterName = "testShouldAllocateModels_WithNodeShutdowns";
+        String model1 = "model-1";
+        DiscoveryNode mlNode1 = buildNode("ml-node-1", true, ByteSizeValue.ofGb(4).getBytes());
+        DiscoveryNode mlNode2 = buildNode("ml-node-2", true, ByteSizeValue.ofGb(4).getBytes());
+        DiscoveryNode esNode1 = buildNode("es-node-1", false, ByteSizeValue.ofGb(4).getBytes());
+        DiscoveryNode esNode2 = buildNode("es-node-2", false, ByteSizeValue.ofGb(4).getBytes());
+        DiscoveryNode esNode3 = buildNode("es-node-3", false, ByteSizeValue.ofGb(4).getBytes());
+
+        Supplier<TrainedModelAllocationMetadata.Builder> fullAllocationBuilder = () -> TrainedModelAllocationMetadata.Builder.empty()
+            .addNewAllocation(
+                model1,
+                TrainedModelAllocation.Builder.empty(newParams(model1, 100))
+                    .addNewRoutingEntry(mlNode1.getId())
+                    .updateExistingRoutingEntry(mlNode1.getId(), started())
+                    .addNewRoutingEntry(mlNode2.getId())
+                    .updateExistingRoutingEntry(mlNode2.getId(), started())
+            );
+
+        ClusterState fullAllocated = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder().putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build()).build()
+        ).build();
+
+        // do not reallocate when the node is marked for shutdown
+        var previousState = fullAllocated;
+        var currentState = ClusterState.builder(fullAllocated)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                    .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                    .build()
+            )
+            .build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(false)
+        );
+
+        previousState = currentState;
+
+        // mlNode1 node is now removed we should rellocate
+        currentState = csBuilderWithNodes(clusterName, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(true)
+        );
+
+        previousState = currentState;
+
+        // mlNode1 has returned but is still marked for shutdown
+        currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(false)
+        );
+
+        previousState = currentState;
+
+        // mlNode1 no longer marked for shutdown
+        currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder().putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build()).build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(true)
+        );
+
+        previousState = currentState;
+
+        // now an ES node is marked for shutdown
+        currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(false)
+        );
+
+        currentState = previousState;
+
+        // The ES node is removed
+        currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(false)
+        );
+
+        currentState = previousState;
+
+        // The ES node returns
+        currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(false)
+        );
+
+        currentState = previousState;
+
+        // The ES node is no longer marked as shutdown
+        currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(esNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(false)
+        );
+    }
+
+    private ClusterState.Builder csBuilderWithNodes(String name, DiscoveryNode... nodes) {
+        var csBuilder = ClusterState.builder(new ClusterName(name));
+        var nodeBuilder = DiscoveryNodes.builder();
+        for (var node : nodes) {
+            nodeBuilder.add(node);
+        }
+        csBuilder.nodes(nodeBuilder);
+        return csBuilder;
+    }
+
+    private NodesShutdownMetadata nodesShutdownMetadata(DiscoveryNode nodeToShutdown) {
+        return new NodesShutdownMetadata(
+            Map.of(
+                nodeToShutdown.getId(),
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(nodeToShutdown.getId())
+                    .setStartedAtMillis(1L)
+                    .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                    .setReason("because this cannot be null")
+                    .build()
+            )
         );
     }
 

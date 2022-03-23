@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestStatus;
@@ -448,27 +449,40 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             logger.info("DEPLOYMENT DEBUG changed customs {}", event.changedCustomMetadataSet());
         }
 
-        if (event.nodesChanged() || event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE)) {
+        boolean shutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
+        if (event.nodesChanged() || shutdownChanged) {
             logger.info("DEPLOYMENT DEBUG nodes changed, some not routed: {}", someNotRouted);
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             logShutdowns(event.state());
 
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
             logger.info("DEPLOYMENT DEBUG nodes delta {}", nodesDelta.shortSummary());
+
+            Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+            Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+
+            if (shutdownChanged) {
+                // asymmetric difference, nodes that where marked for shutdown in the
+                // previous state but are no longer marked as shutdown in the current state.
+                Set<String> returningShutDownNodes = Sets.difference(nodesShuttingDown(event.previousState()), shuttingDownNodes);
+                addedNodes.addAll(returningShutDownNodes);
+            }
+
+            addedNodes.removeAll(shuttingDownNodes);
+
             for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {
                 if (trainedModelAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
                     continue;
                 }
-                for (DiscoveryNode removed : nodesDelta.removedNodes()) {
-                    if (trainedModelAllocation.isRoutedToNode(removed.getId())) {
-                        logger.info("DEPLOYMENT DEBUG node removed - reallocate");
+                for (var nodeId : removedNodes) {
+                    if (trainedModelAllocation.isRoutedToNode(nodeId)) {
+                        logger.info("DEPLOYMENT DEBUG node removed - reallocate {}", event.state().nodes().get(nodeId));
                         return true;
                     }
                 }
-                for (DiscoveryNode added : nodesDelta.addedNodes()) {
-                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)
-                        && shuttingDownNodes.contains(added.getId()) == false) {
-                        logger.info("DEPLOYMENT DEBUG node added - reallocate");
+                for (var nodeId : addedNodes) {
+                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(event.state().nodes().get(nodeId))) {
+                        logger.info("DEPLOYMENT DEBUG node added - reallocate {}", event.state().nodes().get(nodeId));
                         return true;
                     }
                 }

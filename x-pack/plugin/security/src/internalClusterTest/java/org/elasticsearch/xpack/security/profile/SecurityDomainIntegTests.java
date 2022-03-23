@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.XContentTestUtils;
@@ -25,11 +27,14 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -42,14 +47,29 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
 
-    private static final Map<String, Object> REALM_DOMAIN_MAP = Map.of(
+    private static boolean isOtherDomain;
+
+    @BeforeClass
+    private static void initOtherDomain() {
+        isOtherDomain = randomBoolean();
+    }
+
+    private static final Map<String, Object> MY_DOMAIN_REALM_MAP = Map.of(
         "name",
         "my_domain",
         "realms",
         List.of(Map.of("name", "index", "type", "native"), Map.of("name", "jwt_realm_1", "type", "jwt"))
+    );
+
+    private static final Map<String, Object> OTHER_DOMAIN_REALM_MAP = Map.of(
+        "name",
+        "other_domain",
+        "realms",
+        List.of(Map.of("name", "file", "type", "file"), Map.of("name", "jwt_realm_2", "type", "jwt"))
     );
 
     private static final String HEADER_SECRET_JWT_REALM_1 = "client-shared-secret-string";
@@ -146,13 +166,13 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         );
         // index is in a domain with one of the jwt realms
         builder.put("xpack.security.authc.domains.my_domain.realms", "index,jwt_realm_1");
-        if (randomBoolean()) {
+        if (isOtherDomain) {
             builder.put("xpack.security.authc.domains.other_domain.realms", "jwt_realm_2,file");
         }
         return builder.build();
     }
 
-    public void testTokenRefreshUnderSameUsernameInDomain() {
+    public void testTokenRefreshUnderSameUsernameInDomain() throws IOException {
         // "index"-realm user creates token for the "file"-realm user
         var createTokenResponse = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD.clone()))
@@ -171,6 +191,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .actionGet();
         var refreshToken = createTokenResponse.getRefreshToken();
         assertNotNull(refreshToken);
+        assertAccessToken(createTokenResponse);
         // same-domain "jwt" user refreshes token
         var refreshTokenResponse = client().filterWithHeader(
             Map.of(
@@ -181,6 +202,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             )
         ).execute(RefreshTokenAction.INSTANCE, new CreateTokenRequest("refresh_token", null, null, null, null, refreshToken)).actionGet();
         assertNotNull(refreshTokenResponse.getRefreshToken());
+        assertAccessToken(createTokenResponse);
         // "jwt" user creates token for the "file" user
         createTokenResponse = client().filterWithHeader(
             Map.of(
@@ -204,14 +226,16 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .actionGet();
         refreshToken = createTokenResponse.getRefreshToken();
         assertNotNull(refreshToken);
+        assertAccessToken(createTokenResponse);
         // same-domain "index" user refreshes token
         refreshTokenResponse = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD.clone()))
         ).execute(RefreshTokenAction.INSTANCE, new CreateTokenRequest("refresh_token", null, null, null, null, refreshToken)).actionGet();
         assertNotNull(refreshTokenResponse.getRefreshToken());
+        assertAccessToken(createTokenResponse);
     }
 
-    public void testTokenRefreshFailsForUsernameOutsideDomain() {
+    public void testTokenRefreshFailsForUsernameOutsideDomain() throws IOException {
         // "index"-realm user creates token for the "file"-realm user
         var createTokenResponse = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD.clone()))
@@ -230,6 +254,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .actionGet();
         var refreshToken = createTokenResponse.getRefreshToken();
         assertNotNull(refreshToken);
+        assertAccessToken(createTokenResponse);
         // fail to refresh from outside realms
         var e = expectThrows(
             ElasticsearchSecurityException.class,
@@ -272,6 +297,13 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
                 .actionGet()
         );
         assertThat(e.getDetailedMessage(), containsString("invalid_grant"));
+        // but the refresh token is indeed usable
+        client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD)))
+            .execute(
+                RefreshTokenAction.INSTANCE,
+                new CreateTokenRequest("refresh_token", null, null, null, null, createTokenResponse.getRefreshToken())
+            )
+            .actionGet();
     }
 
     public void testDomainCaptureForApiKey() {
@@ -288,7 +320,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         );
 
         // domain info is captured
-        assertThat(getResponseView.get("creator.realm_domain"), equalTo(REALM_DOMAIN_MAP));
+        assertThat(getResponseView.get("creator.realm_domain"), equalTo(MY_DOMAIN_REALM_MAP));
 
         // API key is usable
         client().filterWithHeader(
@@ -324,7 +356,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             )
         );
 
-        assertThat(responseView.get("creator.realm_domain"), equalTo(REALM_DOMAIN_MAP));
+        assertThat(responseView.get("creator.realm_domain"), equalTo(MY_DOMAIN_REALM_MAP));
 
         // The service token is usable
         client().filterWithHeader(Map.of("Authorization", "Bearer " + createServiceTokenResponse.getValue()))
@@ -333,5 +365,29 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .prepareHealth()
             .execute()
             .actionGet();
+    }
+
+    private void assertAccessToken(CreateTokenResponse createTokenResponse) throws IOException {
+        client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()))
+            .admin()
+            .cluster()
+            .prepareHealth()
+            .execute()
+            .actionGet();
+        final SearchResponse searchResponse = client().prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).execute().actionGet();
+
+        final String encodedAuthentication = createTokenResponse.getAuthentication().encode();
+        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+            final XContentTestUtils.JsonMapView responseView = XContentTestUtils.createJsonMapView(
+                new ByteArrayInputStream(searchHit.getSourceAsString().getBytes(StandardCharsets.UTF_8))
+            );
+            if (encodedAuthentication.equals(responseView.get("access_token.user_token.authentication"))) {
+                if (isOtherDomain) {
+                    assertThat(responseView.get("access_token.realm_domain"), equalTo(OTHER_DOMAIN_REALM_MAP));
+                } else {
+                    assertThat(responseView.get("access_token.realm_domain"), nullValue());
+                }
+            }
+        }
     }
 }

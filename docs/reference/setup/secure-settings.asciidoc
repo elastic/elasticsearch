@@ -12,7 +12,8 @@ settings to the keystore causes {es} to fail to start. To see whether a setting
 is supported in the keystore, look for a "Secure" qualifier the setting
 reference.
 
-All the modifications to the keystore take effect only after restarting {es}.
+All the modifications to secure settings take effect only after restarting {es}, except
+for the keystore reloadable-secure-settings.
 
 These settings, just like the regular ones in the `elasticsearch.yml` config file,
 need to be specified on each node in the cluster. Currently, all secure settings
@@ -24,8 +25,7 @@ are node-specific settings that must have the same value on every node.
 
 Just like the settings values in `elasticsearch.yml`, changes to the keystore
 contents are not automatically applied to the running {es} node. Re-reading
-settings requires a node restart. However, certain secure settings are marked as
-*reloadable*. Such settings can be <<cluster-nodes-reload-secure-settings, re-read and applied on a running node>>.
+*reloadable* settings requires a reload. Such settings can be <<cluster-nodes-reload-secure-settings, re-read and applied on a running node>>.
 
 The values of all secure settings, *reloadable* or not, must be identical
 across all cluster nodes. After making the desired secure settings changes,

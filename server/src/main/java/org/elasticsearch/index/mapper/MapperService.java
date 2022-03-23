@@ -451,7 +451,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all mapped field types.
+     * Returns field types that have eager global ordinals.
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         DocumentMapper mapper = this.mapper;

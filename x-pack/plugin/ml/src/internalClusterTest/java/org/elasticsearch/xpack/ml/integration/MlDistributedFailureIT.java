@@ -789,17 +789,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void waitForJobClosed(String jobId) throws Exception {
-        assertBusy(() -> {
-            JobStats jobStats = getJobStats(jobId);
-            assertEquals(jobStats.getState(), JobState.CLOSED);
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    private void ensureStableCluster() {
-        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
-    }
-
     private void indexModelSnapshotFromCurrentJobStats(String jobId) throws IOException {
         JobStats jobStats = getJobStats(jobId);
         DataCounts dataCounts = jobStats.getDataCounts();

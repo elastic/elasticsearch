@@ -300,7 +300,14 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
-  filter(ReplaceTokens, tokens: [testGitCommit:GitInfo.gitInfo(root).revision])
+  filter(ReplaceTokens, tokens: [
+          testGitCommit:GitInfo.gitInfo(root).revision,
+          masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
+          branchWrapper:"${-> new File(root, "build-tools-internal/src/main/resources/minimumGradleVersion").text}".toString()])
+}
+
+def resolveMasterWrapperVersion() {
+  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/master/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }
 
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {

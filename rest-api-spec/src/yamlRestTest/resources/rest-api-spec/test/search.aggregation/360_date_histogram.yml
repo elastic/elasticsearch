@@ -15,6 +15,11 @@ setup:
             properties:
               range:
                 type: date_range
+              date:
+                type: date
+              date_not_indexed:
+                type: date
+                index: false
 
   - do:
       bulk:
@@ -33,6 +38,8 @@ setup:
           - '{"range": {"gte": "2016-04-01"}}'
           - '{"index": {}}'
           - '{"range": {"lt": "2016-02-01"}}'
+          - '{"index": {}}'
+          - '{ "date":["2021-05-01","2021-04-01","2021-04-22"], "date_not_indexed":["2021-05-01","2021-04-01","2021-03-22"]}'
 
 ---
 "date_histogram on range with hard bounds":
@@ -53,7 +60,7 @@ setup:
                   "min": "2015-06-01"
                   "max": "2016-06-01"
 
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 7 }
   - length: { aggregations.histo.buckets: 13 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2015-06-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
@@ -61,3 +68,45 @@ setup:
   - match: { aggregations.histo.buckets.8.doc_count: 1 }
   - match: { aggregations.histo.buckets.12.key_as_string: "2016-06-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
+---
+"Multi-value date histogram":
+  - skip:
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              date: "2021-04-01"
+          aggs:
+            datehisto:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1M"
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.datehisto.buckets: 2 }
+
+---
+"Multi-value date histogram docvalues only":
+  - skip:
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
+
+  - do:
+      search:
+        body:
+          profile: true
+          query:
+            match:
+              date_not_indexed: "2021-04-01"
+          aggs:
+            datehisto:
+              date_histogram:
+                field: "date_not_indexed"
+                calendar_interval: "1M"
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.datehisto.buckets: 3 }

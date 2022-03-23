@@ -250,6 +250,18 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(
                 Map.of(
+                    "Authorization",
+                    basicAuthHeaderValue(RAC_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.clone())
+                )
+            )
+                .execute(RefreshTokenAction.INSTANCE, new CreateTokenRequest("refresh_token", null, null, null, null, refreshToken))
+                .actionGet()
+        );
+        assertThat(e.getDetailedMessage(), containsString("invalid_grant"));
+        e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(
+                Map.of(
                     JwtRealm.HEADER_CLIENT_AUTHENTICATION,
                     JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_2,
                     JwtRealm.HEADER_END_USER_AUTHENTICATION,

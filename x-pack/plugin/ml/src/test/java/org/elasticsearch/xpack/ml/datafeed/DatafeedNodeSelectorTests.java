@@ -670,9 +670,10 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
-                new Metadata.Builder().put(
-                    DataStreamTestHelper.newInstance(dataStreamName, Collections.singletonList(index))
-                ).putCustom(PersistentTasksCustomMetadata.TYPE, tasks).putCustom(MlMetadata.TYPE, mlMetadata).put(indexMetadata, false)
+                new Metadata.Builder().put(DataStreamTestHelper.newInstance(dataStreamName, Collections.singletonList(index)))
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(MlMetadata.TYPE, mlMetadata)
+                    .put(indexMetadata, false)
             )
             .nodes(nodes)
             .routingTable(generateRoutingTable(indexMetadata, states))

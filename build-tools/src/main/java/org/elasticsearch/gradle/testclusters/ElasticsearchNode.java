@@ -41,7 +41,18 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.*;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.process.ExecOperations;
@@ -113,7 +124,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
     private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
 
-    private final String clusterName;
     private final String path;
     private final String name;
     private final Project project;
@@ -154,10 +164,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
+    private final List<ElasticsearchDistribution> distributions = new ArrayList<>();
+    private final Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
 
     private int currentDistro = 0;
     private TestDistribution testDistribution;
-    private List<ElasticsearchDistribution> distributions = new ArrayList<>();
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
@@ -166,8 +177,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Path confPathData;
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
-
-    private Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
 
     ElasticsearchNode(
         String clusterName,
@@ -183,7 +192,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Provider<File> runtimeJava,
         Function<Version, Boolean> isReleasedVersion
     ) {
-        this.clusterName = clusterName;
         this.path = path;
         this.name = name;
         this.project = project;
@@ -300,15 +308,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             return project.getConfigurations().detachedConfiguration(bundleDependency);
         });
 
-        /**
-         * dependencies.create(files(provider { println("provider"); File(".") }))
-         *
-         * */
         Provider<File> fileProvider = configuration.getElements()
             .map(
                 s -> s.stream()
                     .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("zip configuration of project " + path + " had no files"))
+                    .orElseThrow(
+                        () -> new IllegalStateException(consumingConfiguration + " configuration of project " + path + " had no files")
+                    )
                     .getAsFile()
             );
         return project.getLayout().file(fileProvider);
@@ -327,7 +333,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public void plugin(TaskProvider<Zip> plugin) {
-        plugin(plugin.flatMap(m -> m.getArchiveFile()));
+        plugin(plugin.flatMap(AbstractArchiveTask::getArchiveFile));
     }
 
     @Override
@@ -338,7 +344,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public void module(TaskProvider<Sync> module) {
-        module(project.getLayout().file(module.map(m -> m.getDestinationDir())));
+        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
     }
 
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
@@ -477,17 +483,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
-        distributions.stream().forEach(d -> d.maybeFreeze());
+        distributions.forEach(ElasticsearchDistribution::maybeFreeze);
         configurationFrozen.set(true);
-    }
-
-    /**
-     * Returns a stream of lines in the generated logs similar to Files.lines
-     *
-     * @return stream of log lines
-     */
-    public Stream<String> logLines() throws IOException {
-        return Files.lines(esLogFile, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -661,7 +658,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         extraJarFiles.forEach(from -> {
             if (from.getName().endsWith(".jar") == false) {
-                throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+                throw new IllegalArgumentException("extra jar file " + from + " doesn't appear to be a JAR");
             }
 
             Path destination = getDistroDir().resolve("lib").resolve(from.getName());
@@ -669,7 +666,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
                 LOGGER.info("Added extra jar {} to {}", from.getName(), destination);
             } catch (IOException e) {
-                throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
+                throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination, e);
             }
         });
     }
@@ -804,9 +801,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     ArrayList<CharSequence> result = new ArrayList<>();
                     result.add("/c");
                     result.add("bin\\" + tool + ".bat");
-                    for (CharSequence arg : args) {
-                        result.add(arg);
-                    }
+                    Collections.addAll(result, args);
                     return result;
                 }).onUnix(() -> Arrays.asList(args)).supply());
                 spec.setStandardInput(byteArrayInputStream);
@@ -909,7 +904,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         final ProcessBuilder processBuilder = new ProcessBuilder();
         Path effectiveDistroDir = getDistroDir();
         List<String> command = OS.<List<String>>conditional()
-            .onUnix(() -> Arrays.asList(effectiveDistroDir.resolve("./bin/elasticsearch").toString()))
+            .onUnix(() -> List.of(effectiveDistroDir.resolve("./bin/elasticsearch").toString()))
             .onWindows(() -> Arrays.asList("cmd", "/c", effectiveDistroDir.resolve("bin\\elasticsearch.bat").toString()))
             .supply();
         processBuilder.command(command);
@@ -1637,16 +1632,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private static class FeatureFlag {
-        private final String feature;
-        private final Version from;
-        private final Version until;
-
-        public FeatureFlag(String feature, Version from, Version until) {
-            this.feature = feature;
-            this.from = from;
-            this.until = until;
-        }
+    private record FeatureFlag(String feature, Version from, Version until) {
 
         @Input
         public String getFeature() {

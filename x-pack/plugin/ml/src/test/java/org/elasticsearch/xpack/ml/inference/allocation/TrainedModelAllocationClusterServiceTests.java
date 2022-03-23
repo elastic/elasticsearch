@@ -928,7 +928,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
             is(false)
         );
 
-        currentState = previousState;
+        previousState = currentState;
 
         // The ES node is removed
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode2, esNode3).metadata(
@@ -943,7 +943,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
             is(false)
         );
 
-        currentState = previousState;
+        previousState = currentState;
 
         // The ES node returns
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
@@ -958,7 +958,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
             is(false)
         );
 
-        currentState = previousState;
+        previousState = currentState;
 
         // The ES node is no longer marked as shutdown
         currentState = csBuilderWithNodes(clusterName, mlNode1, mlNode2, esNode1, esNode2, esNode3).metadata(
@@ -971,6 +971,31 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         assertThat(
             TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
+        );
+
+
+        // shutdown and node removed in the same event
+        previousState = fullAllocated;
+        currentState = csBuilderWithNodes(clusterName, mlNode2, esNode1, esNode2, esNode3).metadata(
+            Metadata.builder()
+                .putCustom(TrainedModelAllocationMetadata.NAME, fullAllocationBuilder.get().build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata(mlNode1))
+                .build()
+        ).build();
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(true)
+        );
+
+        previousState = currentState;
+
+        // node comes back and the shutdown is removed
+        currentState = fullAllocated;
+
+        assertThat(
+            TrainedModelAllocationClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            is(true)
         );
     }
 

@@ -162,6 +162,23 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnSameIndex() {
+        var clusterState = createClusterStateWith(
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate();
+        assertEquals(RED, result.status());
+        assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.summary());
+        assertEquals(1, result.impacts().size());
+        assertEquals(
+            result.impacts().get(0),
+            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+        );
+    }
+
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnDifferentIndices() {
         var clusterState = createClusterStateWith(
             List.of(

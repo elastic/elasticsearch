@@ -220,24 +220,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         public List<HealthIndicatorImpact> getImpacts() {
             final List<HealthIndicatorImpact> impacts = new ArrayList<>();
-            Set<String> indicesWithUnavailablePrimariesAndReplicas = new HashSet<>(primaries.indicesWithUnavailableShards);
-            indicesWithUnavailablePrimariesAndReplicas.retainAll(replicas.indicesWithUnavailableShards);
-            Set<String> indicesWithUnavailablePrimariesOnly = new HashSet<>(primaries.indicesWithUnavailableShards);
-            indicesWithUnavailablePrimariesOnly.removeAll(replicas.indicesWithUnavailableShards);
-            Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
-            indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
-            if (indicesWithUnavailablePrimariesAndReplicas.isEmpty() == false || indicesWithUnavailablePrimariesOnly.isEmpty() == false) {
-                Set<String> indicesWithUnavailablePrimaries = new HashSet<>(indicesWithUnavailablePrimariesAndReplicas);
-                indicesWithUnavailablePrimaries.addAll(indicesWithUnavailablePrimariesOnly);
+            if (primaries.indicesWithUnavailableShards.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
-                    indicesWithUnavailablePrimaries.size(),
-                    indicesWithUnavailablePrimaries.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(indicesWithUnavailablePrimaries)
+                    primaries.indicesWithUnavailableShards.size(),
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(primaries.indicesWithUnavailableShards)
                 );
                 impacts.add(new HealthIndicatorImpact(1, impactDescription));
             }
+            Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
+            indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
             if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,

@@ -493,34 +493,47 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     public void testAutoExpandDuringRestart() throws Exception {
         final String primaryNode = internalCluster().startNode();
         final String primaryNodeId = getNodeId(primaryNode);
-        createIndex("myindex",
-            Settings.builder().put("index.number_of_shards", 1).put("index.auto_expand_replicas", randomFrom("0-all", "0-1")).build());
+        createIndex(
+            "myindex",
+            Settings.builder().put("index.number_of_shards", 1).put("index.auto_expand_replicas", randomFrom("0-all", "0-1")).build()
+        );
 
         final String nodeB = internalCluster().startNode();
         assertBusy(() -> {
-            assertThat(client().admin().indices().prepareGetSettings("myindex").setNames("index.number_of_replicas").get().getSetting(
-                "myindex",
-                "index.number_of_replicas"), equalTo("1"));
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("myindex")
+                    .setNames("index.number_of_replicas")
+                    .get()
+                    .getSetting("myindex", "index.number_of_replicas"),
+                equalTo("1")
+            );
         });
         ensureGreen("myindex");
 
         // Mark the node for shutdown
-        assertAcked(client().execute(PutShutdownNodeAction.INSTANCE, new PutShutdownNodeAction.Request(
-            primaryNodeId,
-            SingleNodeShutdownMetadata.Type.RESTART,
-            this.getTestName(),
-            null,
-            null
-        )).get());
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, this.getTestName(), null, null)
+            ).get()
+        );
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
         updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
 
         assertBusy(() -> {
-            assertThat(client().admin().indices().prepareGetSettings("myindex").setNames("index.number_of_replicas").get().getSetting(
-                "myindex",
-                "index.number_of_replicas"), equalTo("1"));
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("myindex")
+                    .setNames("index.number_of_replicas")
+                    .get()
+                    .getSetting("myindex", "index.number_of_replicas"),
+                equalTo("1")
+            );
         });
 
         client().prepareIndex("myindex").setSource("field", "value");

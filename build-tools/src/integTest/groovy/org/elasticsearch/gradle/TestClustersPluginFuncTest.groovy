@@ -11,7 +11,6 @@ package org.elasticsearch.gradle
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
-import spock.lang.IgnoreRest
 import spock.lang.Unroll
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedClasspathMockedDistributionDownload
@@ -120,7 +119,6 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         inputProperty << ["distributionClasspath", "distributionFiles"]
     }
 
-    @IgnoreRest
     @Unroll
     def "test cluster #pluginType #propertyName change is detected"() {
         given:
@@ -155,12 +153,12 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh', '--stacktrace')) {
+        withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh')) {
             build()
         }
         fileChange.delegate = this
         fileChange.call(this)
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', 'guh', '--stacktrace')) {
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', 'guh')) {
             build()
         }
 

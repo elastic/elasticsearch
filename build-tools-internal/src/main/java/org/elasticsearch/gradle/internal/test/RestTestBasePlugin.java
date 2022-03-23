@@ -20,11 +20,9 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Sync;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
@@ -89,18 +87,12 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
-                t.dependsOn(bundle);
-                t.getClusters().forEach(c -> c.module(bundle.map(b -> toRegularFile(project, b.getDestinationDir().getPath()))));
+                t.getClusters().forEach(c -> c.module(bundle));
             } else {
                 var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-                t.dependsOn(bundle);
-                t.getClusters().forEach(c -> c.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+                t.getClusters().forEach(c -> c.plugin(bundle));
             }
         }));
-    }
-
-    private RegularFile toRegularFile(Project project, String path) {
-        return project.getLayout().getProjectDirectory().file(path);
     }
 
     private String systemProperty(String propName) {

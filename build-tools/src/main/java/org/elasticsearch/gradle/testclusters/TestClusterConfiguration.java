@@ -14,9 +14,9 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -38,6 +38,8 @@ public interface TestClusterConfiguration {
     void setTestDistribution(TestDistribution distribution);
 
     void plugin(Provider<RegularFile> plugin);
+
+    void plugin(TaskProvider<Zip> plugin);
 
     void plugin(String pluginProjectPath);
 

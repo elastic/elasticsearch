@@ -86,14 +86,10 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
-                cluster.configure(
-                    c -> c.module(bundle.map(b -> project.getLayout().getProjectDirectory().file(b.getDestinationDir().getPath())))
-                );
-                yamlRestTestTask.configure(t -> t.dependsOn(bundle));
+                cluster.configure(c -> c.module(bundle));
             } else {
                 var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-                cluster.configure(c -> c.plugin(bundle.flatMap(Zip::getArchiveFile)));
-                yamlRestTestTask.configure(t -> t.dependsOn(bundle));
+                cluster.configure(c -> c.plugin(bundle));
             }
         });
 

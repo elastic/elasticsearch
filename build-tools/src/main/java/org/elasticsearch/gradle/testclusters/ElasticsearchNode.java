@@ -42,6 +42,7 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.*;
+import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.process.ExecOperations;
 
@@ -325,11 +326,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip"));
     }
 
+    public void plugin(TaskProvider<Zip> plugin) {
+        plugin(plugin.flatMap(m -> m.getArchiveFile()));
+    }
+
     @Override
     public void module(Provider<RegularFile> module) {
         checkFrozen();
         registerExtractedConfig(module);
         this.modules.add(module.map(RegularFile::getAsFile));
+    }
+
+    public void module(TaskProvider<Sync> module) {
+        module(project.getLayout().file(module.map(m -> m.getDestinationDir())));
     }
 
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
@@ -1584,10 +1593,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Internal
     Path getEsLogFile() {
         return esLogFile;
-    }
-
-    public void module(TaskProvider<Sync> module) {
-        module(project.getLayout().file(module.map(m -> m.getDestinationDir())));
     }
 
     private static class FileEntry implements Named {

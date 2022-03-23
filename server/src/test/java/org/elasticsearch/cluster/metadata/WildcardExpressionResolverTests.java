@@ -360,7 +360,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     dataStreamName,
-                        List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())
+                    List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())
                 )
             );
 

@@ -583,11 +583,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, singletonList(indexMetadata.getIndex())))
-            )
+            .metadata(Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, singletonList(indexMetadata.getIndex()))))
             .build();
 
         IllegalArgumentException exception = expectThrows(

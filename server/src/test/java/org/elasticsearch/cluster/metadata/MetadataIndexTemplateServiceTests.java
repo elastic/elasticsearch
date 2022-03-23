@@ -1758,7 +1758,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "unreferenced",
-                                Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
+                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
                     .put(
@@ -1795,7 +1795,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                                Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )
                     .put(
@@ -1918,7 +1918,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "unreferenced",
-                                Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
+                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
                     .put(
@@ -1955,7 +1955,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                                Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )
                     .put(

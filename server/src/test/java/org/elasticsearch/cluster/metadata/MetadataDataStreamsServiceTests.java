@@ -46,12 +46,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        mb.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
-            )
-        );
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -101,12 +96,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        mb.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
-            )
-        );
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToRemove = backingIndices[randomIntBetween(0, numBackingIndices - 2)];
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
@@ -149,12 +139,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        mb.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
-            )
-        );
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToRemove = backingIndices[numBackingIndices - 1];
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
@@ -197,12 +182,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        mb.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
-            )
-        );
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -256,12 +236,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        mb.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
-            )
-        );
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -346,12 +321,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        mb.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
-            )
-        );
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final String missingIndex = randomAlphaOfLength(5);
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();

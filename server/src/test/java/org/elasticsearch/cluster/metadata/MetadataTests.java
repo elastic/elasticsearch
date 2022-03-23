@@ -1153,9 +1153,7 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(AliasMetadata.builder(dataStreamName).build()).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(newInstance(dataStreamName, List.of(idx.getIndex())));
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1174,9 +1172,7 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(newInstance(dataStreamName, List.of(idx.getIndex())));
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         AssertionError e = expectThrows(AssertionError.class, b::build);
         assertThat(e.getMessage(), containsString("aliases [" + conflictingName + "] cannot refer to backing indices of data streams"));

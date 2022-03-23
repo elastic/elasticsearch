@@ -178,10 +178,7 @@ public class ResolveIndexTests extends ESTestCase {
             builder.put(index, false);
         }
 
-        DataStream ds = DataStreamTestHelper.newInstance(
-            dataStreamName,
-            backingIndices.stream().map(IndexMetadata::getIndex).toList()
-        );
+        DataStream ds = DataStreamTestHelper.newInstance(dataStreamName, backingIndices.stream().map(IndexMetadata::getIndex).toList());
         builder.put(ds);
 
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
@@ -302,10 +299,7 @@ public class ResolveIndexTests extends ESTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = DataStreamTestHelper.newInstance(
-                dataStreamName,
-                backingIndices.stream().map(IndexMetadata::getIndex).toList()
-            );
+            DataStream ds = DataStreamTestHelper.newInstance(dataStreamName, backingIndices.stream().map(IndexMetadata::getIndex).toList());
             builder.put(ds);
         }
 

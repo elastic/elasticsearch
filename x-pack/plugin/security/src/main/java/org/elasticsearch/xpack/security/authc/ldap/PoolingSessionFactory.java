@@ -91,6 +91,15 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         if (bindDn == null) {
             bindCredentials = new SimpleBindRequest();
         } else {
+            if (bindPassword == null) {
+                throw new IllegalArgumentException(
+                    "When bind_dn is set you must specify ["
+                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                        + "] or ["
+                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                        + "]"
+                );
+            }
             bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
         }
 

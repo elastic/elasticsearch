@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -49,13 +50,15 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
     @Override
     public CreateSnapshotStep mutateInstance(CreateSnapshotStep instance) {
         StepKey key = instance.getKey();
+        StepKey nextKeyOnCompleteResponse = instance.getNextKeyOnComplete();
         StepKey nextKeyOnIncompleteResponse = instance.getNextKeyOnIncomplete();
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKeyOnIncompleteResponse = randomStepKey();
+            case 1 -> nextKeyOnCompleteResponse = randomStepKey();
+            case 2 -> nextKeyOnIncompleteResponse = randomStepKey();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CreateSnapshotStep(key, randomStepKey(), nextKeyOnIncompleteResponse, instance.getClient());
+        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClient());
     }
 
     public void testPerformActionFailure() {
@@ -170,7 +173,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(true);
                     }
                 };
-                completeStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
+                completeStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
 
@@ -200,7 +203,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(false);
                     }
                 };
-                incompleteStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
+                incompleteStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
 
@@ -212,6 +215,36 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                     }
                 });
                 assertThat(incompleteStep.getNextStepKey(), is(nextKeyOnIncomplete));
+            }
+        }
+
+        {
+            try (NoOpClient client = new NoOpClient(getTestName())) {
+                StepKey nextKeyOnComplete = randomStepKey();
+                StepKey nextKeyOnIncomplete = randomStepKey();
+                CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(
+                    randomStepKey(),
+                    nextKeyOnComplete,
+                    nextKeyOnIncomplete,
+                    client
+                ) {
+                    @Override
+                    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+                        listener.onFailure(new SnapshotNameAlreadyInUseException(repository, snapshotName, "simulated"));
+                    }
+                };
+                doubleInvocationStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+
+                    }
+                });
+                assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }
     }

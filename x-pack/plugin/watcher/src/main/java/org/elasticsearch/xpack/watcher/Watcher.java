@@ -771,6 +771,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
+                .setIndexFormat(6)
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(TriggeredWatchStoreField.INDEX_NAME + "*")
@@ -780,6 +781,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getTriggeredWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
+                .setIndexFormat(6)
                 .build()
         );
     }

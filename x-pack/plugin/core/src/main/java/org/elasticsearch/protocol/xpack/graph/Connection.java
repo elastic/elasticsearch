@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
@@ -107,7 +105,7 @@ public class Connection {
     private static final ParseField WEIGHT = new ParseField("weight");
     private static final ParseField DOC_COUNT = new ParseField("doc_count");
 
-    void toXContent(XContentBuilder builder, Params params, ObjectIntHashMap<Vertex> vertexNumbers) throws IOException {
+    void toXContent(XContentBuilder builder, Params params, Map<Vertex, Integer> vertexNumbers) throws IOException {
         builder.field(SOURCE.getPreferredName(), vertexNumbers.get(from));
         builder.field(TARGET.getPreferredName(), vertexNumbers.get(to));
         builder.field(WEIGHT.getPreferredName(), weight);

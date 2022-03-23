@@ -61,6 +61,44 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
 ---
+"kNN search with filter":
+  - do:
+      knn_search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+          filter:
+            term:
+              name: "rabbit.jpg"
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      knn_search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+          filter:
+            - term:
+                name: "rabbit.jpg"
+            - term:
+                _id: 2
+
+  - match: {hits.total.value: 0}
+
+---
 "Test nonexistent field":
   - do:
       catch: bad_request
@@ -81,7 +119,6 @@ setup:
   - do:
       catch: bad_request
       search:
-        rest_total_hits_as_int: true
         index: test-index
         body:
           query:

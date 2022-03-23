@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -23,10 +24,11 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestActivateProfileAction extends SecurityBaseRestHandler {
+public class RestActivateProfileAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<ActivateProfileRequest, Void> PARSER = new ObjectParser<>(
         "activate_profile_request",
@@ -76,5 +78,10 @@ public class RestActivateProfileAction extends SecurityBaseRestHandler {
         return new SecureString(
             Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
         );
+    }
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return Set.of("password", "access_token");
     }
 }

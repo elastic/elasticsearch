@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,6 +16,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -357,7 +356,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         String input = "{ \"key\": [true, false }";
         XContentParser xContentParser = createXContentParser(input);
 
-        expectThrows(JsonParseException.class, () -> parser.parse(xContentParser));
+        expectThrows(XContentParseException.class, () -> parser.parse(xContentParser));
     }
 
     public void testEmptyObject() throws Exception {

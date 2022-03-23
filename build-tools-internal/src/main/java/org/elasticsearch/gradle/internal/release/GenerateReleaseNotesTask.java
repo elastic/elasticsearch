@@ -82,7 +82,9 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     @TaskAction
     public void executeTask() throws IOException {
-        if (needsGitTags(VersionProperties.getElasticsearch())) {
+        final String currentVersion = VersionProperties.getElasticsearch();
+
+        if (needsGitTags(currentVersion)) {
             findAndUpdateUpstreamRemote(gitWrapper);
         }
 
@@ -90,7 +92,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFilesByVersion(
             gitWrapper,
-            VersionProperties.getElasticsearch(),
+            currentVersion,
             this.changelogs.getFiles()
         );
 
@@ -103,7 +105,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             changelogsByVersion.put(version, entriesForVersion);
         });
 
-        final Set<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
+        final Set<QualifiedVersion> versions = getVersions(gitWrapper, currentVersion);
 
         LOGGER.info("Updating release notes index...");
         ReleaseNotesIndexGenerator.update(
@@ -113,10 +115,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         );
 
         LOGGER.info("Generating release notes...");
+        final QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
         ReleaseNotesGenerator.update(
             this.releaseNotesTemplate.get().getAsFile(),
             this.releaseNotesFile.get().getAsFile(),
-            changelogsByVersion
+            qualifiedVersion,
+            changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
         );
 
         LOGGER.info("Generating release highlights...");
@@ -179,7 +183,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
-            .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
+            .filter(
+                each -> each.isBefore(currentVersion)
+                    && (currentVersion.isSnapshot() || (currentVersion.hasQualifier() == each.hasQualifier()))
+            )
             .sorted(naturalOrder())
             .toList();
 

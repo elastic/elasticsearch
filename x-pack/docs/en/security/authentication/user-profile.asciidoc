@@ -5,7 +5,7 @@
 beta::[]
 
 User profiles provide persistent and stable representations of end-users.
-Persistent means it exists without the need for the user to be online.
+Persistent means that a profile exists without the need for the user to be online.
 Stable means it has an unique identifier that does not change through
 the lifetime of a deployment and can be used to refer to the associated
 user.
@@ -16,8 +16,8 @@ personalisation and collaboration in {kib}.
 ==== How user profile works
 
 In the {stack}, a user is required to authenticate each request. Each user is
-represented as an object that encapsulates its identity and privileges.
-This object is ephemeral especially for users authenticating from a realm
+stored in memory with its identity and privileges.
+This user-object is ephemeral especially for users authenticating from a realm
 backed by external identity providers, e.g. <<saml-realm,SAML>>.
 There is simply no way to refer to a user without that user being online
 at the moment.
@@ -37,15 +37,18 @@ This unique ID also offers a way to uniquely refer to a user so that
 {kib} can route messages and notifications to the appropriate user,
 regardless of whether they're logged in.
 
-===== Why a new unique ID instead of just the `username`?
+===== Distinction between a profile ID and a `username`
 
-The `username` is _not_ unique outside a single realm. Using just the `username`
-is not possible to differentiate two users with the same `username` but from
-different realms.
+Elasticsearch does not require that a `username` is unique across multiple realms.
+It is possible for two different realms to authenticate users with the same `username`
+with different roles.
+Elasticsearch does not assume that these are the same person, and will default
+to treating them as separate individuals with distinct user profiles. 
 
-NOTE: For certain use cases where the same user can indeed authenticate with
-different realms, consider using the <<security-domain,security domain>>
-feature.
+NOTE: For use cases where one individual can authenticate against
+multiple realms, the <<security-domain,security domain>> feature may be
+used so that these distinct _users_ are considered to be the same identity
+and share a single _user profile_.
 
 ==== Create and manage user profiles
 
@@ -55,19 +58,19 @@ submit a request, {es} attempts to locate an existing profile document for the
 specified user. If one doesn't exist, {es} creates a new profile document.
 
 In either case, the profile document captures the user's `full_name`, `email`,
-`roles`, and `realms`, and also includes the profile unique ID, timestamp for
+`roles`, and `realms`, and also includes the profile unique ID, timestamp of
 the operation, and version control numbers. You can retrieve a user profile with
 the <<security-api-get-user-profile,get user profile API>> by including the
 profile's unique ID (`uid`).
 
-On top of the user's basic information, you can add data to a profile document
+In addition to the user's basic information, you can add data to a profile document
 with the <<security-api-update-user-profile-data,update user profile API>>. For
 example, you can add user-specific preferences as part of the profile data.
 
-The <<security-api-search-user-profile>> can be used to search profiles
-that match given criteria. The search API is tailor-made for {kib}'s collaboration
-feature and is not intended to support every conceivable piece of user-search
-functionality.
+The <<security-api-search-user-profile,search user profile API>> can be used to search profiles
+that match given criteria. This search API is designed to support user-suggestions, 
+in collaboration features such as those found in {kib}.
+It is not intended to provide a general-purpose search API.
 
 ==== Limitations
 
@@ -75,8 +78,10 @@ functionality.
 (`username` and `password` or its
 <<token-authentication-services,OAuth2 access token>>).
 This means that a user must authenticate at least one time to create a
-profile document. If a user hasn't authenticated into the system,
-then it's not possible to refer to that user with user profile.
+profile document. Users who have never authenticated to {kib}
+(or another profile aware application) will not have a user profile
+and will not be returned by the 
+<<security-api-search-user-profile,search user profile API>> 
 
 * User profiles are meant for interactive users, such as a human user who
 interacts with {kib}. Therefore, user profiles don't support API keys or

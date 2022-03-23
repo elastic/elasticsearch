@@ -26,6 +26,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -642,6 +644,76 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
     }
 
+    public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedTsdb() throws Exception {
+        Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
+        Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            "mydata",
+            new DataStream.TimestampField("@timestamp"),
+            List.of(dataStreamIndex1, dataStreamIndex2)
+        );
+
+        List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
+
+        long indexMinTimestamp = randomLongBetween(0, 5000);
+        long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        for (Index dataStreamIndex : dataStream.getIndices()) {
+            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, indexMinTimestamp, indexMaxTimestamp);
+        }
+
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp");
+        // We query a range outside of the timestamp range covered by both datastream indices
+        rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
+
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(rangeQueryBuilder);
+
+        if (randomBoolean()) {
+            // Add an additional filter that cannot be evaluated in the coordinator but shouldn't
+            // affect the end result as we're filtering
+            queryBuilder.filter(new TermQueryBuilder("fake", "value"));
+        }
+
+        assignShardsAndExecuteCanMatchPhase(
+            dataStream,
+            regularIndices,
+            contextProviderBuilder.build(),
+            queryBuilder,
+            (updatedSearchShardIterators, requests) -> {
+                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                ;
+
+                List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
+                    .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                    .toList();
+                ;
+
+                int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
+                    .filter(s -> regularIndices.contains(s.shardId().getIndex()))
+                    .count();
+
+                // When all the shards can be skipped we should query at least 1
+                // in order to get a valid search response.
+                if (regularIndexShardCount == 0) {
+                    assertThat(nonSkippedShards.size(), equalTo(1));
+                } else {
+                    boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
+                        .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
+
+                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
+                }
+
+                boolean allSkippedShardAreFromDataStream = skippedShards.stream()
+                    .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromDataStream, equalTo(true));
+
+                boolean allRequestsWereTriggeredAgainstRegularIndices = requests.stream()
+                    .allMatch(request -> regularIndices.contains(request.shardId().getIndex()));
+                assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
+            }
+        );
+    }
+
     private void assertAllShardsAreQueried(List<SearchShardIterator> updatedSearchShardIterators, List<ShardSearchRequest> requests) {
         int skippedShards = (int) updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).count();
 
@@ -816,6 +888,28 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
 
             fields.put(index, new DateFieldMapper.DateFieldType(fieldName));
+        }
+
+        private void addIndexMinMaxTimestamps(Index index, long minTimestamp, long maxTimestamp) {
+            if (clusterState.metadata().index(index) != null) {
+                throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
+            }
+
+            Settings.Builder indexSettings = settings(Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a_field")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(maxTimestamp));
+
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+                .settings(indexSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+
+            Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
+            clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
         }
 
         public CoordinatorRewriteContextProvider build() {

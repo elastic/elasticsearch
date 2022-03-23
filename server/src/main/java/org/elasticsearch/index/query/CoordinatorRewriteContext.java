@@ -50,11 +50,11 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     long getMinTimestamp() {
-        return indexLongFieldRange != null ? indexLongFieldRange.getMin() : timeSeriesRange.min();
+        return indexLongFieldRange.containsAllShardRanges() ? indexLongFieldRange.getMin() : timeSeriesRange.min();
     }
 
     long getMaxTimestamp() {
-        return indexLongFieldRange != null ? indexLongFieldRange.getMax() : timeSeriesRange.max();
+        return indexLongFieldRange.containsAllShardRanges() ? indexLongFieldRange.getMax() : timeSeriesRange.max();
     }
 
     boolean hasTimestampData() {

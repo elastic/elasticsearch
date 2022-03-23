@@ -85,6 +85,11 @@ public class WatcherMappingUpdateIT extends AbstractFullClusterRestartTestCase {
     private void assertNoMappingVersion(String index) throws Exception {
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
+            if (isRunningAgainstOldCluster()
+                && getOldClusterVersion().before(Version.V_7_0_0)
+                && getOldClusterVersion().onOrAfter(Version.V_6_7_0)) {
+                mappingRequest.addParameter("include_type_name", "true");
+            }
             if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
                 mappingRequest.setOptions(getWarningHandlerOptions(index));
             }

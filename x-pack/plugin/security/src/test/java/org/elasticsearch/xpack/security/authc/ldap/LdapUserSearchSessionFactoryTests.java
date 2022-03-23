@@ -194,6 +194,28 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         assertDeprecationWarnings(config.identifier(), useAttribute, useLegacyBindPassword);
     }
 
+    public void testThrowIfBindDnSetWithoutPassword() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";
+
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userSearchBase, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .build();
+        RealmConfig config = new RealmConfig(
+            REALM_IDENTIFIER,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> getLdapUserSearchSessionFactory(config, sslService, threadPool)
+        );
+    }
+
     public void testUserSearchBaseScopePassesWithCorrectBaseDN() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";

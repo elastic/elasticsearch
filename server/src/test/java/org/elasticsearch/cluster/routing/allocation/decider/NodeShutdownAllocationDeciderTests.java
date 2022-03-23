@@ -150,7 +150,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is restarting")
+            equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster (is restarting)")
         );
     }
 
@@ -162,10 +162,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster"));
     }
 
     public void testCannotAutoExpandToRemovingNode() {

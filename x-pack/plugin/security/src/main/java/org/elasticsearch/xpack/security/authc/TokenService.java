@@ -2808,7 +2808,7 @@ public final class TokenService {
                     throw new IllegalStateException("invalid client authentication for refresh", e);
                 }
                 if (clientInfo.containsKey("user") || clientInfo.containsKey("realm")) {
-                    throw new IllegalStateException("user and/or associated realm must not be present when associated realm is");
+                    throw new IllegalStateException("user and/or associated realm must not be present when associated authentication is");
                 }
                 return new RefreshTokenStatus(
                     invalidated,

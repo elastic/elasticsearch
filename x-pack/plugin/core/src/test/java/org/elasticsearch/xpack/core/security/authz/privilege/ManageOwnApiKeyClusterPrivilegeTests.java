@@ -110,7 +110,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         if (isRunAs) {
             final User runByUser = new User("not-joe");
             if (randomBoolean()) {
-                authentication = AuthenticationTests.randomAuthentication(runByUser, realmRef, false).runAs(userJoe, realmRef);
+                authentication = Authentication.newRealmAuthentication(runByUser, realmRef).runAs(userJoe, realmRef);
             } else {
                 authentication = AuthenticationTests.randomApiKeyAuthentication(runByUser, randomAlphaOfLength(20))
                     .runAs(userJoe, realmRef);
@@ -138,7 +138,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         if (isRunAs) {
             final User runByUser = new User("not-joe");
             if (randomBoolean()) {
-                authentication = AuthenticationTests.randomAuthentication(runByUser, realmRef, false).runAs(userJoe, realmRef);
+                authentication = Authentication.newRealmAuthentication(runByUser, realmRef).runAs(userJoe, realmRef);
             } else {
                 authentication = AuthenticationTests.randomApiKeyAuthentication(runByUser, randomAlphaOfLength(20))
                     .runAs(userJoe, realmRef);
@@ -166,10 +166,9 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
 
-        final Authentication authentication = AuthenticationTests.randomAuthentication(
+        final Authentication authentication = Authentication.newRealmAuthentication(
             new User("user_a"),
-            new Authentication.RealmRef("realm_a", "realm_a_type", randomAlphaOfLengthBetween(3, 8)),
-            false
+            new Authentication.RealmRef("realm_a", "realm_a_type", randomAlphaOfLengthBetween(3, 8))
         ).runAs(new User("user_b"), new Authentication.RealmRef("realm_b", "realm_b_type", randomAlphaOfLengthBetween(3, 8)));
 
         assertTrue(

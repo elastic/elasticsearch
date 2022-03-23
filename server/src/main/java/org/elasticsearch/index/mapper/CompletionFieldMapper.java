@@ -23,7 +23,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -236,7 +235,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     }
 
-    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(
+    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Set.of(
         Fields.CONTENT_FIELD_NAME_INPUT,
         Fields.CONTENT_FIELD_NAME_WEIGHT,
         Fields.CONTENT_FIELD_NAME_CONTEXTS

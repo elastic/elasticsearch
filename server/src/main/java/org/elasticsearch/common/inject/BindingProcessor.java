@@ -46,9 +46,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
-
 /**
  * Handles {@link Binder#bind} and {@link Binder#bindConstant} elements.
  *
@@ -282,19 +279,17 @@ class BindingProcessor extends AbstractProcessor {
     // It's unfortunate that we have to maintain a blacklist of specific
     // classes, but we can't easily block the whole package because of
     // all our unit tests.
-    private static final Set<Class<?>> FORBIDDEN_TYPES = unmodifiableSet(
-        newHashSet(
-            AbstractModule.class,
-            Binder.class,
-            Binding.class,
-            Injector.class,
-            Key.class,
-            MembersInjector.class,
-            Module.class,
-            Provider.class,
-            Scope.class,
-            TypeLiteral.class
-        )
+    private static final Set<Class<?>> FORBIDDEN_TYPES = Set.of(
+        AbstractModule.class,
+        Binder.class,
+        Binding.class,
+        Injector.class,
+        Key.class,
+        MembersInjector.class,
+        Module.class,
+        Provider.class,
+        Scope.class,
+        TypeLiteral.class
     );
     // TODO(jessewilson): fix BuiltInModule, then add Stage
 

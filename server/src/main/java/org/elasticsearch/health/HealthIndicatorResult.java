@@ -35,6 +35,9 @@ public record HealthIndicatorResult(String name,
         builder.field("summary", summary);
         builder.field("details", details, params);
         // TODO 83303: Add detail / documentation
+        if (userActions != null && userActions.size() > 0) {
+            builder.field("user_actions", userActions);
+        }
         return builder.endObject();
     }
 }

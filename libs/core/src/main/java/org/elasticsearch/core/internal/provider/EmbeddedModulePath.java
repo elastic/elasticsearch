@@ -18,7 +18,6 @@ import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,18 +53,6 @@ final class EmbeddedModulePath {
 
     private static final String MRJAR_VERSION_PREFIX = "META-INF/versions/";
 
-    private static Optional<ModuleDescriptor> getModuleInfoVersioned(Path path) throws IOException {
-        for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-            Path mi = path.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
-            if (Files.exists(mi)) {
-                try (var is = Files.newInputStream(mi)) {
-                    return Optional.of(ModuleDescriptor.read(is));
-                }
-            }
-        }
-        return Optional.empty();
-    }
-
     private static boolean hasRootModuleInfo(Path path) {
         Path mi = path.resolve(MODULE_INFO);
         if (Files.exists(mi)) {
@@ -74,35 +61,53 @@ final class EmbeddedModulePath {
         return false;
     }
 
+    static ModuleDescriptor readModuleInfo(Path path) {
+        try (var is = Files.newInputStream(path)) {
+            return ModuleDescriptor.read(is);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
+
+    static Optional<ModuleDescriptor> getModuleInfoVersioned(Path path) {
+        for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
+            Path mi = path.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
+            if (Files.exists(mi)) {
+                return Optional.of(readModuleInfo(mi));
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * Returns a module descriptor for the module at the given path.
      *
      * @throws FindException if not exactly one module is found
      */
     static ModuleDescriptor descriptorFor(Path path) {
-        Set<ModuleReference> mrefs = Set.of();
-        // This is a loathsome workaround for JDK-8282444, which affects Windows only
-        if (hasRootModuleInfo(path) && System.getProperty("os.name").startsWith("Windows") == false) {
-            mrefs = ModuleFinder.of(path).findAll();  // just use the JDK's built-in module finder
-        } else {
-            try {
-                var omd = getModuleInfoVersioned(path);
-                if (omd.isPresent()) {
-                    var md = omd.get();
-                    mrefs = Set.of(new InMemoryModuleFinder.InMemoryModuleReference(md, URI.create("module:/" + md.name())));
-                    // todo: perform scan and verification
+        Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
+
+        if (vmd.isPresent()) {
+            var md = vmd.get();
+            // todo: perform scan and verification
+            return md;
+        } else if (hasRootModuleInfo(path)) {
+            if (System.getProperty("os.name").startsWith("Windows")) {
+                // This is a loathsome workaround for JDK-8282444, which affects Windows only
+                var md = readModuleInfo(path.resolve(MODULE_INFO));
+                // todo: perform scan and verification
+                return md;
+            } else {
+                // just use the JDK's built-in module finder
+                Set<ModuleReference> mrefs = ModuleFinder.of(path).findAll();
+                if (mrefs.size() == 1) {
+                    return mrefs.iterator().next().descriptor();
+                } else {
+                    throw new FindException("more than one module found at path: %s, mods: %s.".formatted(path, mrefs));
                 }
-            } catch (IOException ioe) {
-                throw new UncheckedIOException(ioe);
             }
-        }
-        if (mrefs.isEmpty()) {
-            // must be an automatic module
-            return descriptorForAutomatic(path);
-        } else if (mrefs.size() == 1) {
-            return mrefs.iterator().next().descriptor();
         } else {
-            throw new FindException("more than one module found at path: %s, mods: %s.".formatted(path, mrefs));
+            return descriptorForAutomatic(path);
         }
     }
 

@@ -42,10 +42,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
     /**
      * Valid response codes that note explicitly that {@code _xpack} does not exist.
      */
-    public static final Set<Integer> XPACK_DOES_NOT_EXIST = Sets.newHashSet(
-        RestStatus.NOT_FOUND.getStatus(),
-        RestStatus.BAD_REQUEST.getStatus()
-    );
+    public static final Set<Integer> XPACK_DOES_NOT_EXIST = Set.of(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus());
 
     /**
      * The cluster service allows this check to be limited to only handling <em>elected</em> master nodes

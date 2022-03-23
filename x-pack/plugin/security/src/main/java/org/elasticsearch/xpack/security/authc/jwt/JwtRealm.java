@@ -477,9 +477,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                             principal
                         )
                     );
-                    try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
-                        final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
-                        this.jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
+                    if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
+                        try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
+                            final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
+                            this.jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
+                        }
                     }
                 }
                 listener.onResponse(result);

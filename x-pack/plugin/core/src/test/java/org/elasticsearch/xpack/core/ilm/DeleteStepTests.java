@@ -143,7 +143,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
-                List.of(index1.getIndex(), sourceIndexMetadata.getIndex())
+            List.of(index1.getIndex(), sourceIndexMetadata.getIndex())
         );
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build())

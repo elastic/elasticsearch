@@ -104,10 +104,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             .metadata(
                 Metadata.builder()
                     .put(
-                        DataStreamTestHelper.newInstance(
-                            dataStreamName,
-                                List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())
-                        )
+                        DataStreamTestHelper.newInstance(dataStreamName, List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()))
                     )
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)

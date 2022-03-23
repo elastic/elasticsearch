@@ -124,11 +124,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         mockClientRollupCall(backingIndexName);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex())))
-                    .put(indexMetadata, true)
-            )
+            .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }

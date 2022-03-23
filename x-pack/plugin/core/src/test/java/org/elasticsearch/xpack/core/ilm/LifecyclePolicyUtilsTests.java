@@ -211,12 +211,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                     )
                 );
             // Need to get the real Index instance of myindex:
-            mBuilder.put(
-                DataStreamTestHelper.newInstance(
-                    "myds",
-                        Collections.singletonList(mBuilder.get("myindex").getIndex())
-                )
-            );
+            mBuilder.put(DataStreamTestHelper.newInstance("myds", Collections.singletonList(mBuilder.get("myindex").getIndex())));
 
             // Test where policy exists and is used by an index, datastream, and template
             ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();

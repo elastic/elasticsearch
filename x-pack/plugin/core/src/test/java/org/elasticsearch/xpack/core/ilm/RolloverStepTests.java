@@ -107,11 +107,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         mockClientRolloverCall(dataStreamName);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex())))
-                    .put(indexMetadata, true)
-            )
+            .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
@@ -140,12 +136,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                 Metadata.builder()
                     .put(firstGenerationIndex, true)
                     .put(writeIndex, true)
-                    .put(
-                        newInstance(
-                            dataStreamName,
-                            List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())
-                        )
-                    )
+                    .put(newInstance(dataStreamName, List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             )
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(firstGenerationIndex, clusterState, null, f));

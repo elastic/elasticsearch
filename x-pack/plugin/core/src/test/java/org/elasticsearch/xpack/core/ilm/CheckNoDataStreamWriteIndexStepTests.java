@@ -74,10 +74,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex())))
-                    .build()
+                Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).build()
             )
             .build();
 

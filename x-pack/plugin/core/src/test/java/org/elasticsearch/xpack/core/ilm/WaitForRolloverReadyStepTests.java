@@ -230,12 +230,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Metadata metadata = Metadata.builder()
             .put(firstGenerationIndex, true)
             .put(writeIndex, true)
-            .put(
-                DataStreamTestHelper.newInstance(
-                    dataStreamName,
-                        List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())
-                )
-            )
+            .put(DataStreamTestHelper.newInstance(dataStreamName, List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             .build();
         step.evaluateCondition(metadata, firstGenerationIndex.getIndex(), new AsyncWaitStep.Listener() {
 

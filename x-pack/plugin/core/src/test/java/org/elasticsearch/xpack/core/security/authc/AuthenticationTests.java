@@ -560,6 +560,10 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomAuthentication(User user, RealmRef realmRef) {
+        return randomAuthentication(user, realmRef, randomBoolean());
+    }
+
+    public static Authentication randomAuthentication(User user, RealmRef realmRef, boolean isRunAs) {
         if (user == null) {
             user = randomUser();
         }
@@ -586,7 +590,7 @@ public class AuthenticationTests extends ESTestCase {
                 .distinct()
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
         }
-        if (randomBoolean()) { // run-as
+        if (isRunAs) { // run-as
             return new Authentication(
                 new User(user.principal(), user.roles(), randomUser()),
                 randomRealmRef(randomBoolean()),

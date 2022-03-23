@@ -304,6 +304,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put("index.routing.rebalance.enable", "none")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .get();

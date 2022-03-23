@@ -194,7 +194,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         assertDeprecationWarnings(config.identifier(), useAttribute, useLegacyBindPassword);
     }
 
-    public void testThrowIfBindDnSetWithoutPassword() throws Exception {
+    public void testConstructorThrowsIfBindDnSetWithoutPassword() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";
 
@@ -210,10 +210,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> getLdapUserSearchSessionFactory(config, sslService, threadPool)
-        );
+        expectThrows(IllegalArgumentException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
     }
 
     public void testUserSearchBaseScopePassesWithCorrectBaseDN() throws Exception {

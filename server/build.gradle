@@ -139,6 +139,7 @@ if (BuildParams.isSnapshotBuild() == false) {
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+            'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
@@ -149,7 +150,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.core.PrettyPrinter',
             'com.fasterxml.jackson.core.type.TypeReference',
             'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
-            'com.fasterxml.jackson.databind.ObjectMapper',
             'com.fasterxml.jackson.databind.SerializationFeature',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',

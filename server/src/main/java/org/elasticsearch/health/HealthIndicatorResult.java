@@ -8,14 +8,25 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
-public record HealthIndicatorResult(String name, String component, HealthStatus status, String summary, HealthIndicatorDetails details)
+public record HealthIndicatorResult(String name,
+                                    String component,
+                                    HealthStatus status,
+                                    String summary,
+                                    HealthIndicatorDetails details,
+                                    @Nullable List<UserAction> userActions)
     implements
         ToXContentObject {
+
+    public HealthIndicatorResult(String name, String component, HealthStatus status, String summary, HealthIndicatorDetails details) {
+        this(name, component, status, summary, details, null);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

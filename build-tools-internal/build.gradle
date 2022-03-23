@@ -300,7 +300,21 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
-  filter(ReplaceTokens, tokens: [testGitCommit:GitInfo.gitInfo(root).revision])
+  filter(ReplaceTokens, tokens: [
+          testGitCommit:GitInfo.gitInfo(root).revision,
+          masterWrapper:"${ -> resolveWrapperVersion(root)}".toString(),
+          branchWrapper:"${-> new File(root, "build-tools-internal/src/main/resources/minimumGradleVersion").text}".toString()])
+}
+
+def resolveWrapperVersion(File root) {
+  new ByteArrayOutputStream().with { outputStream ->
+    project.exec { ExecSpec it ->
+      it.setStandardOutput(outputStream)
+      it.setWorkingDir(root)
+      it.setCommandLine("git", "show", "master:build-tools-internal/src/main/resources/minimumGradleVersion")
+    }
+    return outputStream.toString()
+  }
 }
 
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {

@@ -480,7 +480,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
-            new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
         );
 
@@ -551,7 +550,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
-            new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
         );
 
@@ -592,7 +590,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
-            new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
         );
 

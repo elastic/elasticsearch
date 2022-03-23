@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -215,8 +214,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
             mBuilder.put(
                 DataStreamTestHelper.newInstance(
                     "myds",
-                    new DataStream.TimestampField("@timestamp"),
-                    Collections.singletonList(mBuilder.get("myindex").getIndex())
+                        Collections.singletonList(mBuilder.get("myindex").getIndex())
                 )
             );
 

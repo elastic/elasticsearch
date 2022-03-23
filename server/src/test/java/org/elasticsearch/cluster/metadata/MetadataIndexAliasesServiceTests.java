@@ -28,7 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -587,7 +586,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, singletonList(indexMetadata.getIndex())))
             )
             .build();
 

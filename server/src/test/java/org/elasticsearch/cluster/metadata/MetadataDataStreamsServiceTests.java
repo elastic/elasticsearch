@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -50,8 +49,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(
             DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
+                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -106,8 +104,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(
             DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
+                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -155,8 +152,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(
             DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
+                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -204,8 +200,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(
             DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
+                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -264,8 +259,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(
             DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
+                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 
@@ -355,8 +349,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(
             DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField("@timestamp"),
-                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
+                    Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()
             )
         );
 

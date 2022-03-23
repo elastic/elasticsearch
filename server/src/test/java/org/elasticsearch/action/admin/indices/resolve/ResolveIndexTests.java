@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -59,9 +58,9 @@ public class ResolveIndexTests extends ESTestCase {
         { ".test-system-index", false, false, true, false, null, new String[] {} } };
 
     private final Object[][] dataStreams = new Object[][] {
-        // name, timestampField, numBackingIndices
-        { "logs-mysql-prod", "@timestamp", 4 },
-        { "logs-mysql-test", "@timestamp", 2 } };
+        // name, numBackingIndices
+        { "logs-mysql-prod", 4 },
+        { "logs-mysql-test", 2 } };
 
     private Metadata metadata;
     private final IndexAbstractionResolver resolver = new IndexAbstractionResolver(TestIndexNameExpressionResolver.newInstance());
@@ -181,7 +180,6 @@ public class ResolveIndexTests extends ESTestCase {
 
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-            createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).toList()
         );
         builder.put(ds);
@@ -295,8 +293,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Object[] dsInfo : dataStreams) {
             String dataStreamName = (String) dsInfo[0];
-            String timestampField = (String) dsInfo[1];
-            int numBackingIndices = (int) dsInfo[2];
+            int numBackingIndices = (int) dsInfo[1];
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
                 backingIndices.add(
@@ -307,7 +304,6 @@ public class ResolveIndexTests extends ESTestCase {
 
             DataStream ds = DataStreamTestHelper.newInstance(
                 dataStreamName,
-                createTimestampField(timestampField),
                 backingIndices.stream().map(IndexMetadata::getIndex).toList()
             );
             builder.put(ds);

@@ -45,7 +45,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -449,8 +448,7 @@ public class IndicesPermissionTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-            createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         builder.put(ds);
         for (IndexMetadata index : backingIndices) {
@@ -511,8 +509,7 @@ public class IndicesPermissionTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             "test_write2",
-            createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         metadata.put(ds);
         for (IndexMetadata index : backingIndices) {

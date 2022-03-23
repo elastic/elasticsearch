@@ -4,8 +4,9 @@
 
 beta::[]
 
-Security domains are a method of grouping <<realms,realms>> to enable resource
-sharing across different realms for the same user.
+Security domains are a method of grouping different <<realms,realms>>
+so that the {stack} can recognize when a single user authenticates with
+these realms.
 
 ==== How security domains work
 
@@ -34,10 +35,10 @@ be the same user.
 
 With security domains, you can configure multiple realms to be under the same
 domain, users can authenticate with any of the realms and have access to the
-same set of resources regardless of which realm authenticating from, 
+same set of resources regardless of which realm authenticating from,
 (provided those realms are under the same domain).
 For example, a single <<user-profile,user profile>> is
-associated to the user which enables user preferences, notifications, and other
+associated to the user, enabling user preferences, notifications, and other
 user data to be shared across domains. The same user can view results from an
 asynchronous search request or a scrolling search. If the user has the
 necessary privileges, they can also view and manage API keys across realms.

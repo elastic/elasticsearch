@@ -102,13 +102,13 @@ public class PemKeyConfigTests extends ESTestCase {
         StoredCertificate c1 = iterator.next();
         StoredCertificate c2 = iterator.next();
 
-        assertThat(c1.certificate().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(c1.certificate().getSubjectX500Principal().toString(), equalTo("CN=cert1"));
         assertThat(c1.hasPrivateKey(), equalTo(true));
         assertThat(c1.alias(), nullValue());
         assertThat(c1.format(), equalTo("PEM"));
         assertThat(c1.path(), equalTo(chain.toString()));
 
-        assertThat(c2.certificate().getSubjectDN().toString(), equalTo("CN=Test CA 1"));
+        assertThat(c2.certificate().getSubjectX500Principal().toString(), equalTo("CN=Test CA 1"));
         assertThat(c2.hasPrivateKey(), equalTo(false));
         assertThat(c2.alias(), nullValue());
         assertThat(c2.format(), equalTo("PEM"));
@@ -119,7 +119,7 @@ public class PemKeyConfigTests extends ESTestCase {
         assertThat(keys.get(0).v1(), notNullValue());
         assertThat(keys.get(0).v1().getAlgorithm(), equalTo("RSA"));
         assertThat(keys.get(0).v2(), notNullValue());
-        assertThat(keys.get(0).v2().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(keys.get(0).v2().getSubjectX500Principal().toString(), equalTo("CN=cert1"));
     }
 
     public void testInvertedCertificateChainFailsToCreateKeyManager() throws Exception {
@@ -212,8 +212,8 @@ public class PemKeyConfigTests extends ESTestCase {
         assertThat(chain, notNullValue());
         assertThat(chain, arrayWithSize(1 + caDN.length));
         final X509Certificate certificate = chain[0];
-        assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-        assertThat(certificate.getSubjectDN().getName(), is(certDN));
+        assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+        assertThat(certificate.getSubjectX500Principal().getName(), is(certDN));
         assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
         assertThat(
             certificate.getSubjectAlternativeNames(),
@@ -222,7 +222,7 @@ public class PemKeyConfigTests extends ESTestCase {
 
         for (int i = 0; i < caDN.length; i++) {
             final X509Certificate ca = chain[i + 1];
-            assertThat(ca.getSubjectDN().getName(), is(caDN[i]));
+            assertThat(ca.getSubjectX500Principal().getName(), is(caDN[i]));
         }
     }
 

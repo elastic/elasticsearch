@@ -405,16 +405,16 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private void warnOnSpecialAttributeNames(Assertion assertion, List<Attribute> attributes) {
         attributes.forEach(attribute -> {
-            warnOnSpecialAttributeName(assertion, "name", attribute.getName());
+            warnOnSpecialAttributeName(assertion, attribute.getName(), "name");
 
             String attributeFriendlyName = attribute.getFriendlyName();
             if (attributeFriendlyName != null) {
-                warnOnSpecialAttributeName(assertion, "friendly name", attributeFriendlyName);
+                warnOnSpecialAttributeName(assertion, attributeFriendlyName, "friendly name");
             }
         });
     }
 
-    private void warnOnSpecialAttributeName(Assertion assertion, String fieldNameForLogMessage, String attributeName) {
+    private void warnOnSpecialAttributeName(Assertion assertion, String attributeName, String fieldNameForLogMessage) {
         if (SPECIAL_ATTRIBUTE_NAMES.contains(attributeName)) {
             logger.warn(
                 "SAML assertion [{}] has attribute with {} [{}] which clashes with a special attribute name. "

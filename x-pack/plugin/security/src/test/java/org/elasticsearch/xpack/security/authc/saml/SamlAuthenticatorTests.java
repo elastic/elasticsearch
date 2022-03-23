@@ -184,20 +184,67 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testLoggingWarnOnNameIdAttributeName() throws Exception {
-        testLoggingWarnOnReservedTermAttributeName(NAMEID_SYNTHENTIC_ATTRIBUTE);
+        testLoggingWarnOnSpecialAttributeName(NAMEID_SYNTHENTIC_ATTRIBUTE, null);
     }
 
     public void testLoggingWarnOnPersistentNameIdAttributeName() throws Exception {
-        testLoggingWarnOnReservedTermAttributeName(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
+        testLoggingWarnOnSpecialAttributeName(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE, null);
     }
 
-    private void testLoggingWarnOnReservedTermAttributeName(String attributeName) throws Exception {
+    public void testLoggingWarnOnNameIdAttributeFriendlyName() throws Exception {
+        testLoggingWarnOnSpecialAttributeName(UID_OID, NAMEID_SYNTHENTIC_ATTRIBUTE);
+    }
+
+    public void testLoggingWarnOnPersistentNameIdAttributeFriendlyName() throws Exception {
+        testLoggingWarnOnSpecialAttributeName(UID_OID, PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
+    }
+
+    private void testLoggingWarnOnSpecialAttributeName(String attributeName, String attributeFriendlyName) throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);
         final String sessionIndex = randomId();
         final Response response = getSimpleResponse(now, nameId, sessionIndex);
         Assertion assertion = response.getAssertions().get(0);
-        assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(attributeName, null, List.of("daredevil")));
+        assertion.getAttributeStatements()
+            .get(0)
+            .getAttributes()
+            .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
+        SamlToken token = token(signResponse(response));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "attribute name warning",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    "SAML assertion [*] has attribute with * [*] which clashes with a special attribute name. "
+                        + "Attributes with name clash cannot be mapped. "
+                        + "Change attribute * to not clash with any of [*]."
+                )
+            );
+            final SamlAttributes attributes = authenticator.authenticate(token);
+            assertThat(attributes, notNullValue());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    public void testLoggingWarnOnSpecialAttributeNameInNameAndFriendlyName() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionIndex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionIndex);
+        Assertion assertion = response.getAssertions().get(0);
+        assertion.getAttributeStatements()
+            .get(0)
+            .getAttributes()
+            .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE, NAMEID_SYNTHENTIC_ATTRIBUTE, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
@@ -213,6 +260,16 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "SAML assertion [*] has attribute with name [*] which clashes with a special attribute name. "
                         + "Attributes with name clash cannot be mapped. "
                         + "Change attribute name to not clash with any of [*]."
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "attribute friendly name warning",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    "SAML assertion [*] has attribute with friendly name [*] which clashes with a special attribute name. "
+                        + "Attributes with name clash cannot be mapped. "
+                        + "Change attribute friendly name to not clash with any of [*]."
                 )
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
@@ -1353,8 +1410,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
-    private Attribute getAttribute(String name, String format, List<String> values) {
+    private Attribute getAttribute(String name, String friendlyName, String format, List<String> values) {
         final Attribute attribute = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
+        if (friendlyName != null) {
+            attribute.setFriendlyName(friendlyName);
+        }
         if (format != null) {
             attribute.setNameFormat(format);
         }
@@ -1443,9 +1503,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             AttributeStatement.class,
             AttributeStatement.DEFAULT_ELEMENT_NAME
         );
-        final Attribute attribute1 = getAttribute(UID_OID, "urn:oasis:names:tc:SAML:2.0:attrname-format:uri", List.of("daredevil"));
+        final Attribute attribute1 = getAttribute(UID_OID, null, "urn:oasis:names:tc:SAML:2.0:attrname-format:uri", List.of("daredevil"));
         final Attribute attribute2 = getAttribute(
             "urn:oid:1.3.6.1.4.1.5923.1.5.1.1",
+            null,
             "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
             List.of("defenders", "netflix")
         );

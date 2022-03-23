@@ -179,7 +179,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
-            .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
+            .filter(
+                each -> each.isBefore(currentVersion)
+                    && (currentVersion.isSnapshot() || (currentVersion.hasQualifier() == each.hasQualifier()))
+            )
             .sorted(naturalOrder())
             .toList();
 

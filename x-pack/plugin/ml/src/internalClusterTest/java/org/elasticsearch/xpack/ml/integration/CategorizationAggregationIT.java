@@ -98,10 +98,6 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
         assertThat(((Min) bucket.getAggregations().get("min")).value(), not(notANumber()));
     }
 
-    private void ensureStableCluster() {
-        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
-    }
-
     private void createSourceData() {
         client().admin().indices().prepareCreate(DATA_INDEX).setMapping("time", "type=date,format=epoch_millis", "msg", "type=text").get();
 

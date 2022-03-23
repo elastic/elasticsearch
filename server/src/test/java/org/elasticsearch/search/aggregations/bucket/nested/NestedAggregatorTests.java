@@ -600,7 +600,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Terms.Bucket bucket = terms.getBuckets().get(i);
                     assertEquals(book.v1(), bucket.getKeyAsString());
                     Min numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                    assertEquals(book.v2()[0], (int) numPages.getValue());
+                    assertEquals(book.v2()[0], (int) numPages.value());
                 }
             }
         }

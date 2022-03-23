@@ -329,7 +329,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
         }
 
         /**
-         * Builds a new instance of the
+         * Builds a new ImmutableOpenIntMap from this builder.
          */
         public ImmutableOpenIntMap<VType> build() {
             IntObjectHashMap<VType> map = this.map;

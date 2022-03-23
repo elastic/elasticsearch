@@ -57,6 +57,7 @@ public class DeprecationIndexingAppender extends AbstractAppender {
     @Override
     public void append(LogEvent event) {
         if (this.isEnabled == false) {
+            System.out.println("ignored..");
             return;
         }
 

@@ -181,17 +181,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
         indexingLatch.await();
 
-        final StringBuilder bulkBody = new StringBuilder();
-        for (int i = 0; i < numDocs; i++) {
-            bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\"}}\n");
-            bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Document number ").append(i).append("\"}\n");
-        }
-
-        final Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-        documents.addParameter("refresh", Boolean.TRUE.toString());
-        documents.setJsonEntity(bulkBody.toString());
-        assertOK(client().performRequest(documents));
-
         if (randomBoolean()) {
             final StringBuilder bulkUpdateBody = new StringBuilder();
             for (int i = 0; i < randomIntBetween(1, numDocs); i++) {
@@ -420,6 +409,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                             if (maybeStop.get()) {
                                 return;
                             }
+
                             Request searchRequest = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_search");
                             searchRequest.addParameter("search_type", "query_then_fetch");
                             searchRequest.setJsonEntity(

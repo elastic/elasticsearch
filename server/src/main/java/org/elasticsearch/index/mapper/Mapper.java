@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
@@ -35,6 +36,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public interface TypeParser {
         Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException;
 
+        /**
+         * Whether we can parse this field on legacy indices (see {@link Version#isLegacyIndexVersion()}).
+         */
         default boolean supportsLegacyField() {
             return false;
         }

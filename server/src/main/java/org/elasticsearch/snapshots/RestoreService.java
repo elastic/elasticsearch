@@ -62,6 +62,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -1666,8 +1667,11 @@ public class RestoreService implements ClusterStateApplier {
             IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
 
             try {
-                indexMetadataVerifier.checkMappingsCompatibility(convertedIndexMetadata);
-                return convertedIndexMetadata;
+                Mapping mapping = indexMetadataVerifier.checkMappingsCompatibility(convertedIndexMetadata);
+                convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
+                // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)
+                convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mapping.toCompressedXContent()));
+                return convertedIndexMetadataBuilder.build();
             } catch (Exception e) {
                 logger.warn(
                     new ParameterizedMessage("could not import mappings for legacy index {}", snapshotIndexMetadata.getIndex().getName()),
@@ -1684,6 +1688,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 updatedMappingMetadata = new MappingMetadata(mappingMetadata.type(), newMapping);
                 convertedIndexMetadataBuilder.putMapping(updatedMappingMetadata);
+                throw new IllegalArgumentException(e);
             }
         }
 

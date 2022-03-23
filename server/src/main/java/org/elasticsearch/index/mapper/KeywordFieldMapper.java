@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -77,6 +80,8 @@ import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
 public final class KeywordFieldMapper extends FieldMapper {
+
+    private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -251,7 +256,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
                     if (indexCreatedVersion.isLegacyIndexVersion()) {
-                        // TODO: log warning
+                        logger.warn(
+                            new ParameterizedMessage(
+                                "Could not find normalizer [{}] of legacy index, falling back to default",
+                                normalizerName
+                            )
+                        );
                         normalizer = Lucene.KEYWORD_ANALYZER;
                     } else {
                         throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");

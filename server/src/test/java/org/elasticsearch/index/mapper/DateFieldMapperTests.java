@@ -396,12 +396,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testFetchMillisFromIso8601() throws IOException {
-        assertFetch(
-            dateMapperService(),
-            "field",
-            DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, MAX_ISO_DATE)),
-            "iso8601"
-        );
+        assertFetch(dateMapperService(), "field", DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, MAX_ISO_DATE)), "iso8601");
     }
 
     public void testFetchMillisFromIso8601Nanos() throws IOException {
@@ -477,9 +472,7 @@ public class DateFieldMapperTests extends MapperTestCase {
      * I'd expect this to be 1970-04-15T05:59:59.253Z but that causes
      * errors. I'm curious about why but not curious enough to track it down.
      */
-    private static final long MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION = DEFAULT_DATE_TIME_FORMATTER.parseMillis(
-        "1970-04-10T00:00:00.000Z"
-    );
+    private static final long MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION = DEFAULT_DATE_TIME_FORMATTER.parseMillis("1970-04-10T00:00:00.000Z");
 
     /**
      * Tests round tripping a date with nanosecond resolution through doc

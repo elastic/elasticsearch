@@ -24,6 +24,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
@@ -126,8 +127,9 @@ public class IndexMetadataVerifier {
      * Note that we don't expect users to encounter mapping incompatibilities, since our index compatibility
      * policy guarantees we can read mappings from previous compatible index versions. A failure here would
      * indicate a compatibility bug (which are unfortunately not that uncommon).
+     * @return the mapping
      */
-    public void checkMappingsCompatibility(IndexMetadata indexMetadata) {
+    public Mapping checkMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node
@@ -194,6 +196,7 @@ public class IndexMetadataVerifier {
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                return mapperService.documentMapper().mapping();
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message

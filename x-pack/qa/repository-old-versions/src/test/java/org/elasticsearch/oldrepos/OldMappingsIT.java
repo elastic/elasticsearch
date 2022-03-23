@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,8 +28,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,690 +41,6 @@ public class OldMappingsIT extends ESRestTestCase {
     static final Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
 
     static boolean setupDone;
-
-    static final String fileBeat5Mapping = """
-        "_default_": {
-              "_meta": {
-                "version": "5.6.17"
-              },
-              "date_detection": false,
-              "dynamic_templates": [
-                {
-                  "strings_as_keyword": {
-                    "mapping": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "match_mapping_type": "string"
-                  }
-                }
-              ],
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "apache2": {
-                  "properties": {
-                    "access": {
-                      "properties": {
-                        "agent": {
-                          "norms": false,
-                          "type": "text"
-                        },
-                        "body_sent": {
-                          "properties": {
-                            "bytes": {
-                              "type": "long"
-                            }
-                          }
-                        },
-                        "geoip": {
-                          "properties": {
-                            "city_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "continent_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "country_iso_code": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "location": {
-                              "type": "geo_point"
-                            },
-                            "region_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "http_version": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "method": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "referrer": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "remote_ip": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "response_code": {
-                          "type": "long"
-                        },
-                        "url": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "user_agent": {
-                          "properties": {
-                            "device": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "major": {
-                              "type": "long"
-                            },
-                            "minor": {
-                              "type": "long"
-                            },
-                            "name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "os": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "os_major": {
-                              "type": "long"
-                            },
-                            "os_minor": {
-                              "type": "long"
-                            },
-                            "os_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "patch": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "user_name": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
-                      }
-                    },
-                    "error": {
-                      "properties": {
-                        "client": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "level": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "message": {
-                          "norms": false,
-                          "type": "text"
-                        },
-                        "module": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "pid": {
-                          "type": "long"
-                        },
-                        "tid": {
-                          "type": "long"
-                        }
-                      }
-                    }
-                  }
-                },
-                "auditd": {
-                  "properties": {
-                    "log": {
-                      "properties": {
-                        "a0": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "acct": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "geoip": {
-                          "properties": {
-                            "city_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "continent_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "country_iso_code": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "location": {
-                              "type": "geo_point"
-                            },
-                            "region_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "item": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "items": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "new_auid": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "new_ses": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "old_auid": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "old_ses": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "pid": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "ppid": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "record_type": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "res": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "sequence": {
-                          "type": "long"
-                        }
-                      }
-                    }
-                  }
-                },
-                "beat": {
-                  "properties": {
-                    "hostname": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "name": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "version": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "error": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "fileset": {
-                  "properties": {
-                    "module": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "name": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "input_type": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "message": {
-                  "norms": false,
-                  "type": "text"
-                },
-                "meta": {
-                  "properties": {
-                    "cloud": {
-                      "properties": {
-                        "availability_zone": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "instance_id": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "machine_type": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "project_id": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "provider": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "region": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
-                      }
-                    }
-                  }
-                },
-                "mysql": {
-                  "properties": {
-                    "error": {
-                      "properties": {
-                        "level": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "message": {
-                          "norms": false,
-                          "type": "text"
-                        },
-                        "thread_id": {
-                          "type": "long"
-                        },
-                        "timestamp": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
-                      }
-                    },
-                    "slowlog": {
-                      "properties": {
-                        "host": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "id": {
-                          "type": "long"
-                        },
-                        "ip": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "lock_time": {
-                          "properties": {
-                            "sec": {
-                              "type": "float"
-                            }
-                          }
-                        },
-                        "query": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "query_time": {
-                          "properties": {
-                            "sec": {
-                              "type": "float"
-                            }
-                          }
-                        },
-                        "rows_examined": {
-                          "type": "long"
-                        },
-                        "rows_sent": {
-                          "type": "long"
-                        },
-                        "timestamp": {
-                          "type": "long"
-                        },
-                        "user": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
-                      }
-                    }
-                  }
-                },
-                "nginx": {
-                  "properties": {
-                    "access": {
-                      "properties": {
-                        "agent": {
-                          "norms": false,
-                          "type": "text"
-                        },
-                        "body_sent": {
-                          "properties": {
-                            "bytes": {
-                              "type": "long"
-                            }
-                          }
-                        },
-                        "geoip": {
-                          "properties": {
-                            "city_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "continent_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "country_iso_code": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "location": {
-                              "type": "geo_point"
-                            },
-                            "region_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "http_version": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "method": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "referrer": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "remote_ip": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "response_code": {
-                          "type": "long"
-                        },
-                        "url": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "user_agent": {
-                          "properties": {
-                            "device": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "major": {
-                              "type": "long"
-                            },
-                            "minor": {
-                              "type": "long"
-                            },
-                            "name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "os": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "os_major": {
-                              "type": "long"
-                            },
-                            "os_minor": {
-                              "type": "long"
-                            },
-                            "os_name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "patch": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "user_name": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
-                      }
-                    },
-                    "error": {
-                      "properties": {
-                        "connection_id": {
-                          "type": "long"
-                        },
-                        "level": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "message": {
-                          "norms": false,
-                          "type": "text"
-                        },
-                        "pid": {
-                          "type": "long"
-                        },
-                        "tid": {
-                          "type": "long"
-                        }
-                      }
-                    }
-                  }
-                },
-                "offset": {
-                  "type": "long"
-                },
-                "read_timestamp": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "source": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "system": {
-                  "properties": {
-                    "auth": {
-                      "properties": {
-                        "groupadd": {
-                          "properties": {
-                            "gid": {
-                              "type": "long"
-                            },
-                            "name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "hostname": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "message": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "pid": {
-                          "type": "long"
-                        },
-                        "program": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "ssh": {
-                          "properties": {
-                            "dropped_ip": {
-                              "type": "ip"
-                            },
-                            "event": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "geoip": {
-                              "properties": {
-                                "city_name": {
-                                  "ignore_above": 1024,
-                                  "type": "keyword"
-                                },
-                                "continent_name": {
-                                  "ignore_above": 1024,
-                                  "type": "keyword"
-                                },
-                                "country_iso_code": {
-                                  "ignore_above": 1024,
-                                  "type": "keyword"
-                                },
-                                "location": {
-                                  "type": "geo_point"
-                                },
-                                "region_name": {
-                                  "ignore_above": 1024,
-                                  "type": "keyword"
-                                }
-                              }
-                            },
-                            "ip": {
-                              "type": "ip"
-                            },
-                            "method": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "port": {
-                              "type": "long"
-                            },
-                            "signature": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "sudo": {
-                          "properties": {
-                            "command": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "error": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "pwd": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "tty": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "user": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "timestamp": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "user": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "useradd": {
-                          "properties": {
-                            "gid": {
-                              "type": "long"
-                            },
-                            "home": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "name": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "shell": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "uid": {
-                              "type": "long"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "syslog": {
-                      "properties": {
-                        "hostname": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "message": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "pid": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "program": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        },
-                        "timestamp": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
-                      }
-                    }
-                  }
-                },
-                "tags": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "type": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
-            }
-        """;
 
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -758,23 +75,13 @@ public class OldMappingsIT extends ESRestTestCase {
         String indexName = "filebeat5";
         String repoName = "old_mappings_repo";
         String snapshotName = "snap";
+        List<String> indices = Arrays.asList(indexName, "bla");
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
-            Request createIndex = new Request("PUT", "/" + indexName);
-            int numberOfShards = randomIntBetween(1, 3);
 
-            XContentBuilder builder = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("settings")
-                .field("index.number_of_shards", numberOfShards)
-                .endObject()
-                .startObject("mappings");
-            builder.rawValue(new BytesArray(fileBeat5Mapping).streamInput(), XContentType.JSON);
-            builder.endObject().endObject();
-
-            createIndex.setJsonEntity(Strings.toString(builder));
-            assertOK(oldEs.performRequest(createIndex));
+            assertOK(oldEs.performRequest(createIndex(indexName, "filebeat.json")));
+            assertOK(oldEs.performRequest(createIndex("bla", "bla.txt")));
 
             Request doc1 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
@@ -811,7 +118,7 @@ public class OldMappingsIT extends ESRestTestCase {
 
             Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
             createSnapshotRequest.addParameter("wait_for_completion", "true");
-            createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+            createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
             assertOK(oldEs.performRequest(createSnapshotRequest));
         }
 
@@ -824,8 +131,25 @@ public class OldMappingsIT extends ESRestTestCase {
 
         final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
         createRestoreRequest.addParameter("wait_for_completion", "true");
-        createRestoreRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+        createRestoreRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
         assertOK(client().performRequest(createRestoreRequest));
+    }
+
+    private Request createIndex(String indexName, String file) throws IOException {
+        Request createIndex = new Request("PUT", "/" + indexName);
+        int numberOfShards = randomIntBetween(1, 3);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("settings")
+            .field("index.number_of_shards", numberOfShards)
+            .endObject()
+            .startObject("mappings");
+        builder.rawValue(OldMappingsIT.class.getResourceAsStream(file), XContentType.JSON);
+        builder.endObject().endObject();
+
+        createIndex.setJsonEntity(Strings.toString(builder));
+        return createIndex;
     }
 
     public void testSearchKeyword() throws IOException {
@@ -844,9 +168,6 @@ public class OldMappingsIT extends ESRestTestCase {
         Map<String, Object> response = entityAsMap(client().performRequest(search));
         List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
         assertThat(hits, hasSize(1));
-        // Map<?, ?> bestHit = (Map<?, ?>) ().get(0);
-        // List<?> date = (List<?>) XContentMapValues.extractValue("fields.date", bestHit);
-        // assertThat(date.size(), equalTo(1));
     }
 
     public void testSearchOnPlaceHolderField() throws IOException {

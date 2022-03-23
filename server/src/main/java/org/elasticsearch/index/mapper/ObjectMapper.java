@@ -223,11 +223,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.warn(
-                    DeprecationCategory.MAPPINGS,
-                    "include_in_all",
-                    "[include_in_all] is deprecated, the _all field have been removed in this version"
-                );
+                if (parserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "include_in_all",
+                        "[include_in_all] is deprecated, the _all field have been removed in this version"
+                    );
+                }
                 return true;
             }
             return false;
@@ -284,7 +286,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     } else {
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     }
-                    addIntermediateBuilders(fieldNameParts, fieldBuilder, objBuilder);
+                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                        Builder intermediate = new Builder(fieldNameParts[i]);
+                        intermediate.add(fieldBuilder);
+                        fieldBuilder = intermediate;
+                    }
+                    objBuilder.add(fieldBuilder);
                     propNode.remove("type");
                     MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();
@@ -298,15 +305,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
 
             MappingParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
-        }
-
-        private static void addIntermediateBuilders(String[] fieldNameParts, Mapper.Builder fieldBuilder, Builder objBuilder) {
-            for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                Builder intermediate = new Builder(fieldNameParts[i]);
-                intermediate.add(fieldBuilder);
-                fieldBuilder = intermediate;
-            }
-            objBuilder.add(fieldBuilder);
         }
 
     }

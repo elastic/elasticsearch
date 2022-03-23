@@ -133,6 +133,9 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                     return true;
                 }
             }
+            if (unknownParams.isEmpty() == false) {
+                return true;
+            }
             return false;
         }
 

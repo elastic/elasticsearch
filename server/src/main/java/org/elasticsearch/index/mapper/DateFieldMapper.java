@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -72,6 +75,7 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 public final class DateFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
+    private static final Logger logger = LogManager.getLogger(DateFieldMapper.class);
 
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
@@ -283,7 +287,10 @@ public final class DateFieldMapper extends FieldMapper {
                 return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 if (indexCreatedVersion.isLegacyIndexVersion()) {
-                    // TODO: log warning
+                    logger.warn(
+                        new ParameterizedMessage("Error parsing format [{}] of legacy index, falling back to default", format.getValue()),
+                        e
+                    );
                     return DateFormatter.forPattern(format.getDefaultValue()).withLocale(locale.getValue());
                 } else {
                     throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);

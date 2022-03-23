@@ -1163,6 +1163,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+        // Parameters of legacy indices that are not interpreted by the current ES version. We still need to capture them here so that
+        // they can be preserved in the mapping that is serialized out based on the toXContent method.
+        // We use LinkedHashMap to preserve the parameter order.
         protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
         /**
@@ -1304,7 +1307,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (parameter == null) {
                     if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
-                        // ignore
+                        // ignore but preserve unknown parameters on legacy indices
                         unknownParams.put(propName, propNode);
                         iterator.remove();
                         continue;
@@ -1393,7 +1396,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
-        private boolean supportsLegacyField;
+        private boolean supportsLegacyField; // see Mapper.TypeParser#supportsLegacyField()
 
         /**
          * Creates a new TypeParser

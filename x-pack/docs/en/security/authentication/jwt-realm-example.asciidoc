@@ -1,0 +1,62 @@
+[[hmac-oidc-example]]
+==== HMAC OIDC Example
+
+This is a complete example of a JWT issuer, JWT realm, and ES request headers for
+authenticating to {es}. It uses a static HMAC signing key in OIDC UTF-8 byte compatible format.
+
+TIP: The signature in this example is deterministic because it uses fixed values for the
+HMAC key, HMAC signature algorithm, JWS header, and JWT claims set. If you want to reproduce
+this example, change the key at a minimum to make it secure, and re-signature the JWT.
+
+[[hmac-oidc-example-jwt-issuer]]
+. JWT issuer
+
+[source,text]
+--------------------------------------------------
+Issuer: iss8
+Audiences: aud8
+Algorithms: HS256
+HMAC OIDC: hmac-oidc-key-string-for-hs256-algorithm
+--------------------------------------------------
+
+[[hmac-oidc-example-jwt-realm]]
+. JWT realm
+
+elasticsearch.yml settings
+[source,yml]
+--------------------------------------------------
+xpack.security.authc.realms.jwt.jwt8.allowed_audiences: [aud8]
+xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms: [HS256]
+xpack.security.authc.realms.jwt.jwt8.order: 8
+xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
+xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
+xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SHARED_SECRET
+--------------------------------------------------
+
+elasticsearch-keystore secure settings
+[source,yml]
+--------------------------------------------------
+xpack.security.authc.realms.jwt.jwt8.hmac_key: hmac-oidc-key-string-for-hs256-algorithm
+xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client-shared-secret-string
+--------------------------------------------------
+
+[[hmac-oidc-example-request-headers]]
+. Request Headers
+
+[source,text]
+--------------------------------------------------
+X-Client-Authentication: client-shared-secret-string
+Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoiYXVkOCIsInN1YiI6InNlY3VyaXR5X3Rlc3RfdXNlciIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9.UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
+--------------------------------------------------
+
+[[hmac-oidc-example-jwt-decoded]]
+. JWT Decoded
+
+[source,text]
+--------------------------------------------------
+Header: {"typ":"JWT","alg":"HS256"}
+Claims: {"aud":"aud8","sub":"security_test_user","iss":"iss8","exp":4070908800,"iat":946684800}
+Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
+--------------------------------------------------
+
+IMPORTANT: The validity period in this example is 2000 to 2099.

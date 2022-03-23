@@ -2,13 +2,13 @@
 [[jwt-realm]]
 === JWT Authentication
 
-JWT realms allow reuse of some JWT identification tokens for {es} authentication and authorization.
+JWT realms allow reuse of certain JWT identification tokens for {es} authentication and authorization.
 JWT realms are only intended for use with existing, external workflows that issue JWT identification tokens.
 See <<jwt-realm,external-workflow-requirements>>.
 
-WARNING: If the workflow does not exist, do not create a new external workflow. Use `api` tokens instead.
+WARNING: If the external workflow does not exist, use `api` tokens instead.
 
-WARNING: If the workflow is Open ID Connect with {es} as the OIDC RP, that is not external. Use `oidc` realm instead.
+WARNING: If the workflow is Open ID Connect, and {es} is the OIDC RP, use `oidc` realm instead.
 
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
@@ -20,7 +20,7 @@ The end-user authenticates to the authentication service, and an `identification
 third-party application or the end-user. The third-party application receives the `identification token`,
 and perform actions on behalf of the end-user.
 
-If the identification token is a supported JWT format, it can be repurposed for {es} authentication and authorization.
+If the identification token is a supported JWT format, it can be reused for {es} authentication and authorization.
 
 [[jwt-authentication-requirements]]
 ==== JWT Authentication Requirements
@@ -32,21 +32,30 @@ The JWT claims set must be the same as an Open ID Connect ID Token.
 IMPORTANT: `nonce` claim is ignored; it is only applicable to OIDC workflow, not JWT realm.
 
 The third-party application presents a client credential to authenticate itself, and the JWT to identify the end-user.
+See <<jwt-realm,client-authentication>>  and <<jwt-realm,jwt-validation>>.
 
 [[client-authentication]]
 === Client authentication
 
-If JWT realm client authentication type is `shared_secret`, {es} requests must contain header
-`X-Client-Authentication` with an exact match (case-sensitive) to the realm secure setting.
+Client authentication is one of two request header credentials for JWT realm authentication and authorization.
+See <<jwt-realm,jwt-validation>> for the other request header credential.
+
+JWT realms support two client authentication settings: `shared_secret` and `none`.
 
 IMPORTANT: Client authentication is enabled by default in JWT realms.
 
-If JWT realm authentication type is `none`, `X-Client-Authentication` headers are not required.
-
 WARNING: Client authentication can be disabled, but it is not recommended.
+
+If client authentication type is `shared_secret`, JWT realm looks for request header `X-Client-Authentication`.
+The value must be an exact match (case-sensitive) to the realm's secure setting. See <<jwt-realm,jwt-realm-settings>>.
+
+If client authentication type is `none`, the request header `X-Client-Authentication` is not required.
 
 [[jwt-validation]]
 === JWT validation
+
+JWT is one of two request header credentials for JWT realm authentication and authorization.
+See <<jwt-realm,client-authentication>> for the other request header credential.
 
 Supported JWT encoding is JSON Web Signature (JWS).
 
@@ -71,60 +80,4 @@ Signature is validated using OIDC ID Token validation rules.
 
 TBD
 
-[[hmac-oidc-example]]
-=== HMAC OIDC Example
-
-This example uses an HMAC signing key in OIDC UTF-8 byte compatible format.
-
-[[hmac-oidc-example-jwt-issuer]]
-==== JWT issuer
-
-[source,text]
---------------------------------------------------
-Issuer: iss8
-Audiences: aud8
-Algorithms: HS256
-HMAC OIDC: hmac-oidc-key-string-for-hs256-algorithm
---------------------------------------------------
-
-[[hmac-oidc-example-jwt-realm]]
-==== JWT realm
-
-elasticsearch.yml settings
-[source,yml]
---------------------------------------------------
-xpack.security.authc.realms.jwt.jwt8.allowed_audiences: [aud8]
-xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms: [HS256]
-xpack.security.authc.realms.jwt.jwt8.order: 8
-xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
-xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
-xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SHARED_SECRET
---------------------------------------------------
-
-elasticsearch-keystore secure settings
-[source,yml]
---------------------------------------------------
-xpack.security.authc.realms.jwt.jwt8.hmac_key: hmac-oidc-key-string-for-hs256-algorithm
-xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client-shared-secret-string
---------------------------------------------------
-
-[[hmac-oidc-example-request-headers]]
-==== Request Headers
-
-[source,text]
---------------------------------------------------
-X-Client-Authentication: client-shared-secret-string
-Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoiYXVkOCIsInN1YiI6InNlY3VyaXR5X3Rlc3RfdXNlciIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9.UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
---------------------------------------------------
-
-[[hmac-oidc-example-jwt-decoded]]
-==== JWT Decoded
-
-[source,text]
---------------------------------------------------
-Header: {"typ":"JWT","alg":"HS256"}
-Claims: {"aud":"aud8","sub":"security_test_user","iss":"iss8","exp":4070908800,"iat":946684800}
-Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
---------------------------------------------------
-
-IMPORTANT: The validity period in this example is 2000 to 2099.
+include::jwt-realm-example.asciidoc[]

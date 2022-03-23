@@ -50,7 +50,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // usersRange
             new MinMax(0, 0), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1), // userCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -74,7 +73,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // usersRange
             new MinMax(0, 3), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1), // userCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -100,7 +98,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 3), // usersRange
             new MinMax(0, 3), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1), // userCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -140,7 +137,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final JwtIssuer jwtIssuer = this.createJwtIssuer(0, 12, 1, 1, 1, true);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
-            final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(jwtIssuer, 0);
+            final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(jwtIssuer, 0, 0);
             final String configKey = RealmSettings.getFullSettingKey(realmNameAndSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
             final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid");
             realmNameAndSettingsBuilder.settingsBuilder().put(configKey, configValue);
@@ -168,7 +165,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(1, 1), // usersRange
             new MinMax(1, 1), // rolesRange
             new MinMax(0, 1), // jwtCacheSizeRange
-            new MinMax(0, 1), // userCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -193,8 +189,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Null JWT
         final ThreadContext tc1 = super.createThreadContext(null, clientSecret);
-        final Exception e1 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc1));
-        assertThat(e1.getMessage(), equalTo("JWT bearer token must be non-null"));
+        assertThat(jwtIssuerAndRealm.realm().token(tc1), nullValue());
 
         // Empty JWT string
         final ThreadContext tc2 = super.createThreadContext("", clientSecret);

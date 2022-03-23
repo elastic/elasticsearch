@@ -160,6 +160,15 @@ public class ReadinessServiceTests extends ESTestCase {
         readinessService.close();
     }
 
+    public void testStopWithoutStart() {
+        assertTrue(ReadinessService.enabled(env));
+        assertFalse(readinessService.ready());
+        assertNull(readinessService.serverChannel());
+        readinessService.stop();
+        assertFalse(readinessService.ready());
+        readinessService.close();
+    }
+
     public void testTCPProbe() throws Exception {
         readinessService.start();
         // manually starting the listener, no Elasticsearch booted

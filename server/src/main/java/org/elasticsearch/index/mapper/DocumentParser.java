@@ -660,8 +660,7 @@ public final class DocumentParser {
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-                // TODO: shouldn't this skip, not parse?
-                parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                context.parser().skipChildren();
             } else {
                 Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
                 if (objectMapperFromTemplate == null) {

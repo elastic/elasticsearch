@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
@@ -152,6 +153,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
@@ -188,6 +190,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesA
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSearchProfilesAction;
+import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
@@ -229,6 +232,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
@@ -281,6 +285,8 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestGetBuiltinPriv
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestDisableProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestEnableProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestSearchProfilesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
@@ -407,6 +413,11 @@ public class Security extends Plugin
     public static final LicensedFeature.Persistent OIDC_REALM_FEATURE = LicensedFeature.persistent(
         REALMS_FEATURE_FAMILY,
         "oidc",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent JWT_REALM_FEATURE = LicensedFeature.persistent(
+        REALMS_FEATURE_FAMILY,
+        "jwt",
         License.OperationMode.PLATINUM
     );
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE = LicensedFeature.persistent(
@@ -583,6 +594,8 @@ public class Security extends Plugin
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
+        final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
+
         // audit trail service construction
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
             ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
@@ -750,7 +763,7 @@ public class Security extends Plugin
             apiKeyService,
             serviceAccountService,
             dlsBitsetCache.get(),
-            expressionResolver,
+            restrictedIndices,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -842,7 +855,8 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            restrictedIndices
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1088,6 +1102,7 @@ public class Security extends Plugin
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuthenticationServiceField.RUN_AS_USER_HEADER, false));
         }
+        headers.add(new RestHeaderDefinition(JwtRealm.HEADER_CLIENT_AUTHENTICATION, false));
         return headers;
     }
 
@@ -1220,7 +1235,8 @@ public class Security extends Plugin
                     new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
                     new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
                     new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
-                    new ActionHandler<>(SearchProfilesAction.INSTANCE, TransportSearchProfilesAction.class)
+                    new ActionHandler<>(SearchProfilesAction.INSTANCE, TransportSearchProfilesAction.class),
+                    new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class)
                 )
             ).toList();
         } else {
@@ -1306,7 +1322,9 @@ public class Security extends Plugin
                     new RestGetProfileAction(settings, getLicenseState()),
                     new RestActivateProfileAction(settings, getLicenseState()),
                     new RestUpdateProfileDataAction(settings, getLicenseState()),
-                    new RestSearchProfilesAction(settings, getLicenseState())
+                    new RestSearchProfilesAction(settings, getLicenseState()),
+                    new RestEnableProfileAction(settings, getLicenseState()),
+                    new RestDisableProfileAction(settings, getLicenseState())
                 )
             ).toList();
         } else {

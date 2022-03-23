@@ -20,7 +20,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
@@ -516,7 +515,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeMap(@Nullable Map<String, Object> map) throws IOException {
+    public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
 
@@ -546,6 +545,20 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes values of a map as a collection
+     */
+    public final <V> void writeMapValues(final Map<?, V> map, final Writer<V> valueWriter) throws IOException {
+        writeCollection(map.values(), valueWriter);
+    }
+
+    /**
+     * Writes values of a map as a collection
+     */
+    public final <V extends Writeable> void writeMapValues(final Map<?, V> map) throws IOException {
+        writeMapValues(map, (o, v) -> v.writeTo(o));
+    }
+
+    /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = ...;
@@ -567,6 +580,13 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+     */
+    public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
+        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
      * <pre><code>
      * Map&lt;String, String&gt; map = ...;
      * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
@@ -581,28 +601,6 @@ public abstract class StreamOutput extends OutputStream {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
         }
-    }
-
-    /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     *
-     * @param keyWriter The key writer
-     * @param valueWriter The value writer
-     */
-    public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
-        }
-    }
-
-    /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     */
-    public final <K extends Writeable, V extends Writeable> void writeMap(final ImmutableOpenMap<K, V> map) throws IOException {
-        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
     }
 
     /**
@@ -625,102 +623,115 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer<?>> WRITERS = Map.ofEntries(entry(String.class, (o, v) -> {
-        o.writeByte((byte) 0);
-        o.writeString((String) v);
-    }), entry(Integer.class, (o, v) -> {
-        o.writeByte((byte) 1);
-        o.writeInt((Integer) v);
-    }), entry(Long.class, (o, v) -> {
-        o.writeByte((byte) 2);
-        o.writeLong((Long) v);
-    }), entry(Float.class, (o, v) -> {
-        o.writeByte((byte) 3);
-        o.writeFloat((float) v);
-    }), entry(Double.class, (o, v) -> {
-        o.writeByte((byte) 4);
-        o.writeDouble((double) v);
-    }), entry(Boolean.class, (o, v) -> {
-        o.writeByte((byte) 5);
-        o.writeBoolean((boolean) v);
-    }), entry(byte[].class, (o, v) -> {
-        o.writeByte((byte) 6);
-        final byte[] bytes = (byte[]) v;
-        o.writeVInt(bytes.length);
-        o.writeBytes(bytes);
-    }), entry(List.class, (o, v) -> {
-        o.writeByte((byte) 7);
-        final List<?> list = (List<?>) v;
-        o.writeVInt(list.size());
-        for (Object item : list) {
-            o.writeGenericValue(item);
-        }
-    }), entry(Object[].class, (o, v) -> {
-        o.writeByte((byte) 8);
-        final Object[] list = (Object[]) v;
-        o.writeVInt(list.length);
-        for (Object item : list) {
-            o.writeGenericValue(item);
-        }
-    }), entry(Map.class, (o, v) -> {
-        if (v instanceof LinkedHashMap) {
-            o.writeByte((byte) 9);
-        } else {
-            o.writeByte((byte) 10);
-        }
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> map = (Map<String, Object>) v;
-        o.writeVInt(map.size());
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            o.writeString(entry.getKey());
-            o.writeGenericValue(entry.getValue());
-        }
-    }), entry(Byte.class, (o, v) -> {
-        o.writeByte((byte) 11);
-        o.writeByte((Byte) v);
-    }), entry(Date.class, (o, v) -> {
-        o.writeByte((byte) 12);
-        o.writeLong(((Date) v).getTime());
-    }), entry(BytesReference.class, (o, v) -> {
-        o.writeByte((byte) 14);
-        o.writeBytesReference((BytesReference) v);
-    }), entry(Text.class, (o, v) -> {
-        o.writeByte((byte) 15);
-        o.writeText((Text) v);
-    }), entry(Short.class, (o, v) -> {
-        o.writeByte((byte) 16);
-        o.writeShort((Short) v);
-    }), entry(int[].class, (o, v) -> {
-        o.writeByte((byte) 17);
-        o.writeIntArray((int[]) v);
-    }), entry(long[].class, (o, v) -> {
-        o.writeByte((byte) 18);
-        o.writeLongArray((long[]) v);
-    }), entry(float[].class, (o, v) -> {
-        o.writeByte((byte) 19);
-        o.writeFloatArray((float[]) v);
-    }), entry(double[].class, (o, v) -> {
-        o.writeByte((byte) 20);
-        o.writeDoubleArray((double[]) v);
-    }), entry(BytesRef.class, (o, v) -> {
-        o.writeByte((byte) 21);
-        o.writeBytesRef((BytesRef) v);
-    }), entry(GeoPoint.class, (o, v) -> {
-        o.writeByte((byte) 22);
-        o.writeGeoPoint((GeoPoint) v);
-    }), entry(ZonedDateTime.class, (o, v) -> {
-        o.writeByte((byte) 23);
-        final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
-        o.writeString(zonedDateTime.getZone().getId());
-        o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-    }), entry(Set.class, (o, v) -> {
-        if (v instanceof LinkedHashSet) {
-            o.writeByte((byte) 24);
-        } else {
-            o.writeByte((byte) 25);
-        }
-        o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
-    }),
+    private static final Map<Class<?>, Writer<?>> WRITERS = Map.ofEntries(
+        entry(String.class, (o, v) -> o.writeGenericString((String) v)),
+        entry(Integer.class, (o, v) -> {
+            o.writeByte((byte) 1);
+            o.writeInt((Integer) v);
+        }),
+        entry(Long.class, (o, v) -> {
+            o.writeByte((byte) 2);
+            o.writeLong((Long) v);
+        }),
+        entry(Float.class, (o, v) -> {
+            o.writeByte((byte) 3);
+            o.writeFloat((float) v);
+        }),
+        entry(Double.class, (o, v) -> {
+            o.writeByte((byte) 4);
+            o.writeDouble((double) v);
+        }),
+        entry(Boolean.class, (o, v) -> {
+            o.writeByte((byte) 5);
+            o.writeBoolean((boolean) v);
+        }),
+        entry(byte[].class, (o, v) -> {
+            o.writeByte((byte) 6);
+            final byte[] bytes = (byte[]) v;
+            o.writeVInt(bytes.length);
+            o.writeBytes(bytes);
+        }),
+        entry(List.class, (o, v) -> o.writeGenericList((List<?>) v, StreamOutput::writeGenericValue)),
+        entry(Object[].class, (o, v) -> {
+            o.writeByte((byte) 8);
+            final Object[] list = (Object[]) v;
+            o.writeVInt(list.length);
+            for (Object item : list) {
+                o.writeGenericValue(item);
+            }
+        }),
+        entry(Map.class, (o, v) -> {
+            if (v instanceof LinkedHashMap) {
+                o.writeByte((byte) 9);
+            } else {
+                o.writeByte((byte) 10);
+            }
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> map = (Map<String, Object>) v;
+            o.writeVInt(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                o.writeString(entry.getKey());
+                o.writeGenericValue(entry.getValue());
+            }
+        }),
+        entry(Byte.class, (o, v) -> {
+            o.writeByte((byte) 11);
+            o.writeByte((Byte) v);
+        }),
+        entry(Date.class, (o, v) -> {
+            o.writeByte((byte) 12);
+            o.writeLong(((Date) v).getTime());
+        }),
+        entry(BytesReference.class, (o, v) -> {
+            o.writeByte((byte) 14);
+            o.writeBytesReference((BytesReference) v);
+        }),
+        entry(Text.class, (o, v) -> {
+            o.writeByte((byte) 15);
+            o.writeText((Text) v);
+        }),
+        entry(Short.class, (o, v) -> {
+            o.writeByte((byte) 16);
+            o.writeShort((Short) v);
+        }),
+        entry(int[].class, (o, v) -> {
+            o.writeByte((byte) 17);
+            o.writeIntArray((int[]) v);
+        }),
+        entry(long[].class, (o, v) -> {
+            o.writeByte((byte) 18);
+            o.writeLongArray((long[]) v);
+        }),
+        entry(float[].class, (o, v) -> {
+            o.writeByte((byte) 19);
+            o.writeFloatArray((float[]) v);
+        }),
+        entry(double[].class, (o, v) -> {
+            o.writeByte((byte) 20);
+            o.writeDoubleArray((double[]) v);
+        }),
+        entry(BytesRef.class, (o, v) -> {
+            o.writeByte((byte) 21);
+            o.writeBytesRef((BytesRef) v);
+        }),
+        entry(GeoPoint.class, (o, v) -> {
+            o.writeByte((byte) 22);
+            o.writeGeoPoint((GeoPoint) v);
+        }),
+        entry(ZonedDateTime.class, (o, v) -> {
+            o.writeByte((byte) 23);
+            final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
+            o.writeString(zonedDateTime.getZone().getId());
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+        }),
+        entry(Set.class, (o, v) -> {
+            if (v instanceof LinkedHashSet) {
+                o.writeByte((byte) 24);
+            } else {
+                o.writeByte((byte) 25);
+            }
+            o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
+        }),
         entry(
             // TODO: improve serialization of BigInteger
             BigInteger.class,
@@ -736,6 +747,20 @@ public abstract class StreamOutput extends OutputStream {
             o.writeLong(offsetTime.toLocalTime().toNanoOfDay());
         })
     );
+
+    public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
+        writeByte((byte) 7);
+        writeCollection(v, writer);
+    }
+
+    public void writeGenericString(String value) throws IOException {
+        writeByte((byte) 0);
+        writeString(value);
+    }
+
+    public void writeGenericNull() throws IOException {
+        writeByte((byte) -1);
+    }
 
     private static Class<?> getGenericType(Object value) {
         if (value instanceof List) {
@@ -761,7 +786,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeGenericValue(@Nullable Object value) throws IOException {
         if (value == null) {
-            writeByte((byte) -1);
+            writeGenericNull();
             return;
         }
         final Class<?> type = getGenericType(value);

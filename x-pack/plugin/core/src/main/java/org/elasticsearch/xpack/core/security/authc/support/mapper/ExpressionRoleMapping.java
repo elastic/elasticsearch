@@ -115,7 +115,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(expression, out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**

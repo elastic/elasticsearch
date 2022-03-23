@@ -38,8 +38,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -69,6 +67,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -108,6 +107,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -133,7 +133,6 @@ public class ClusterStateChanges {
     private final TransportCreateIndexAction transportCreateIndexAction;
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-    private final JoinTaskExecutor joinTaskExecutor;
 
     @SuppressWarnings("unchecked")
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
@@ -310,7 +309,6 @@ public class ClusterStateChanges {
         );
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -351,7 +349,7 @@ public class ClusterStateChanges {
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
-            joinTaskExecutor,
+            new JoinTaskExecutor(allocationService, (s, p, r) -> {}, clusterState.term()),
             clusterState,
             List.of(
                 JoinTask.singleNode(
@@ -365,7 +363,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            joinTaskExecutor,
+            new JoinTaskExecutor(allocationService, (s, p, r) -> {}, clusterState.term() + between(1, 10)),
             clusterState,
             List.of(
                 JoinTask.completingElection(
@@ -445,13 +443,7 @@ public class ClusterStateChanges {
         List<T> entries
     ) {
         try {
-            ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (TaskResult taskResult : result.executionResults().values()) {
-                if (taskResult.isSuccess() == false) {
-                    throw taskResult.getFailure();
-                }
-            }
-            return result.resultingState();
+            return ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(clusterState, executor, entries);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -476,16 +468,9 @@ public class ClusterStateChanges {
         ClusterState[] resultingState = new ClusterState[1];
         doCallRealMethod().when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         doAnswer(invocationOnMock -> {
-            ClusterStateTaskListener task = (ClusterStateTaskListener) invocationOnMock.getArguments()[1];
-            ClusterStateTaskExecutor<ClusterStateTaskListener> executor = (ClusterStateTaskExecutor<
-                ClusterStateTaskListener>) invocationOnMock.getArguments()[3];
-            ClusterTasksResult<ClusterStateTaskListener> result = executor.execute(state, List.of(task));
-            for (TaskResult taskResult : result.executionResults().values()) {
-                if (taskResult.isSuccess() == false) {
-                    throw taskResult.getFailure();
-                }
-            }
-            resultingState[0] = result.resultingState();
+            var task = (ClusterStateTaskListener) invocationOnMock.getArguments()[1];
+            var executor = (ClusterStateTaskExecutor<ClusterStateTaskListener>) invocationOnMock.getArguments()[3];
+            resultingState[0] = ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(state, executor, List.of(task));
             return null;
         }).when(clusterService)
             .submitStateUpdateTask(anyString(), any(ClusterStateTaskListener.class), any(ClusterStateTaskConfig.class), any());

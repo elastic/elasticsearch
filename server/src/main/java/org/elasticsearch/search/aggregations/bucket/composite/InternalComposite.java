@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -254,6 +255,22 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            buckets.isEmpty() ? formats : buckets.get(buckets.size() - 1).formats,
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            buckets.isEmpty() ? afterKey : buckets.get(buckets.size() - 1).getRawKey(),
+            reverseMuls,
+            missingOrders,
+            earlyTerminated,
+            metadata
+        );
+    }
+
+    @Override
     protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
@@ -450,6 +467,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
              * See {@link CompositeAggregation#bucketToXContent}
              */
             throw new UnsupportedOperationException("not implemented");
+        }
+
+        InternalBucket finalizeSampling(SamplingContext samplingContext) {
+            return new InternalBucket(
+                sourceNames,
+                formats,
+                key,
+                reverseMuls,
+                missingOrders,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 

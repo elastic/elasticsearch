@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -27,7 +25,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,6 +73,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -473,13 +471,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
+        Set<String> indicesKeys = indices.keySet();
+        Stream.of(concreteIndices).filter(indicesKeys::contains).forEach(index -> {
             onNextIndex.run();
             IndexMetadata indexMetadata = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
-        }
+        });
         return indexMapBuilder.build();
     }
 
@@ -896,7 +894,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     @Override
     public Iterator<IndexMetadata> iterator() {
-        return indices.valuesIt();
+        return indices.values().iterator();
     }
 
     @Override
@@ -1086,13 +1084,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         final Function<String, MappingMetadata> mappingLookup;
         if (in.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final int mappings = in.readVInt();
-            if (mappings > 0) {
-                final Map<String, MappingMetadata> mappingMetadataMap = new HashMap<>(mappings);
-                for (int i = 0; i < mappings; i++) {
-                    final MappingMetadata m = new MappingMetadata(in);
-                    mappingMetadataMap.put(m.getSha256(), m);
-                }
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.size() > 0) {
                 mappingLookup = mappingMetadataMap::get;
             } else {
                 mappingLookup = null;
@@ -1131,7 +1124,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         if (out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeCollection(mappingsByHash.values());
+            out.writeMapValues(mappingsByHash);
         }
         out.writeVInt(indices.size());
         final boolean writeMappingsHash = out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
@@ -1303,34 +1296,34 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
             previousIndicesLookup = null;
 
-            for (var cursor : indices) {
-                put(cursor.value, false);
+            for (var value : indices.values()) {
+                put(value, false);
             }
             return this;
         }
 
         void updateAliases(IndexMetadata previous, IndexMetadata current) {
             if (previous == null && current != null) {
-                for (var cursor : current.getAliases()) {
-                    putAlias(cursor.key, current.getIndex());
+                for (var key : current.getAliases().keySet()) {
+                    putAlias(key, current.getIndex());
                 }
             } else if (previous != null && current == null) {
-                for (var cursor : previous.getAliases()) {
-                    removeAlias(cursor.key, previous.getIndex());
+                for (var key : previous.getAliases().keySet()) {
+                    removeAlias(key, previous.getIndex());
                 }
             } else if (previous != null && current != null) {
                 if (Objects.equals(previous.getAliases(), current.getAliases())) {
                     return;
                 }
 
-                for (var currentCursor : current.getAliases()) {
-                    if (previous.getAliases().containsKey(currentCursor.key) == false) {
-                        putAlias(currentCursor.key, current.getIndex());
+                for (var key : current.getAliases().keySet()) {
+                    if (previous.getAliases().containsKey(key) == false) {
+                        putAlias(key, current.getIndex());
                     }
                 }
-                for (var previousCursor : previous.getAliases()) {
-                    if (current.getAliases().containsKey(previousCursor.key) == false) {
-                        removeAlias(previousCursor.key, current.getIndex());
+                for (var key : previous.getAliases().keySet()) {
+                    if (current.getAliases().containsKey(key) == false) {
+                        removeAlias(key, current.getIndex());
                     }
                 }
             }
@@ -1385,7 +1378,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder templates(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
-            this.templates.putAll(templates);
+            this.templates.putAllFromMap(templates);
             return this;
         }
 
@@ -1609,8 +1602,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
-            this.customs.putAll(customs);
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.customs.putAllFromMap(customs);
             return this;
         }
 
@@ -1625,7 +1618,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
+                indices = this.indices.keys().toArray(new String[0]);
             }
             for (String index : indices) {
                 IndexMetadata indexMetadata = this.indices.get(index);
@@ -1756,11 +1749,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             var aliasedIndices = this.aliasedIndices.build();
-            for (var cursor : aliasedIndices) {
-                List<IndexMetadata> aliasIndices = cursor.value.stream()
-                    .map(idx -> indicesMap.get(idx.getName()))
-                    .collect(Collectors.toList());
-                validateAlias(cursor.key, aliasIndices);
+            for (var entry : aliasedIndices.entrySet()) {
+                List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
+                validateAlias(entry.getKey(), aliasIndices);
             }
             final DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata);
@@ -1944,7 +1935,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
                         aliases.add(alias.getName());
                         return dataStreamMetadata.dataStreams().get(name);
-                    }).flatMap(ds -> ds.getIndices().stream()).collect(Collectors.toList());
+                    }).flatMap(ds -> ds.getIndices().stream()).toList();
                     Index writeIndexOfWriteDataStream = null;
                     if (alias.getWriteDataStream() != null) {
                         DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
@@ -1974,17 +1965,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
-            for (var entry : indices) {
-                final String name = entry.key;
-                final IndexMetadata indexMetadata = entry.value;
+            for (var entry : indices.entrySet()) {
+                final String name = entry.getKey();
+                final IndexMetadata indexMetadata = entry.getValue();
                 final IndexAbstraction.DataStream parent = indexToDataStreamLookup.get(name);
                 assert parent == null || parent.getIndices().stream().anyMatch(index -> name.equals(index.getName()))
                     : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                 IndexAbstraction existing = indicesLookup.put(name, new ConcreteIndex(indexMetadata, parent));
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
-                for (var aliasCursor : indexMetadata.getAliases()) {
-                    AliasMetadata aliasMetadata = aliasCursor.value;
+                for (var aliasMetadata : indexMetadata.getAliases().values()) {
                     List<IndexMetadata> aliasIndices = aliasToIndices.computeIfAbsent(aliasMetadata.getAlias(), k -> new ArrayList<>());
                     aliasIndices.add(indexMetadata);
                 }
@@ -2008,7 +1998,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             List<String> writeIndices = indexMetadatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .map(im -> im.getIndex().getName())
-                .collect(Collectors.toList());
+                .toList();
             if (writeIndices.size() > 1) {
                 throw new IllegalStateException(
                     "alias ["
@@ -2023,14 +2013,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
                 .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
             if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
-                List<String> hiddenOn = groupedByHiddenStatus.get(true)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
-                List<String> nonHiddenOn = groupedByHiddenStatus.get(false)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
+                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream().map(idx -> idx.getIndex().getName()).toList();
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream().map(idx -> idx.getIndex().getName()).toList();
                 throw new IllegalStateException(
                     "alias ["
                         + aliasName
@@ -2053,14 +2037,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
                     .map(i -> i.getIndex().getName())
                     .sorted() // reliable error message for testing
-                    .collect(Collectors.toList());
+                    .toList();
 
                 if (newVersionSystemIndices.isEmpty() == false) {
                     final List<String> nonSystemIndices = groupedBySystemStatus.get(false)
                         .stream()
                         .map(i -> i.getIndex().getName())
                         .sorted() // reliable error message for testing
-                        .collect(Collectors.toList());
+                        .toList();
                     throw new IllegalStateException(
                         "alias ["
                             + aliasName

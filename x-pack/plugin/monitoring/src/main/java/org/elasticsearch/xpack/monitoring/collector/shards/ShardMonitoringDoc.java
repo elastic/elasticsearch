@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -86,7 +85,7 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         return builder.toString();
     }
 
-    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+    public static final Set<String> XCONTENT_FILTERS = Set.of(
         "state_uuid",
         "shard.state",
         "shard.primary",

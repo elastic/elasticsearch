@@ -101,7 +101,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene90";
+    public static final String LATEST_CODEC = "Lucene91";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -1034,12 +1034,12 @@ public class Lucene {
             }
 
             @Override
-            public VectorValues getVectorValues(String field) throws IOException {
+            public VectorValues getVectorValues(String field) {
                 return null;
             }
 
             @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
                 return null;
             }
 

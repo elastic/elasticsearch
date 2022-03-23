@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -35,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -715,10 +714,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, indexName);
-            imdBuilder.put(IndexMetadata.builder("metrics-" + i).settings(builder).numberOfShards(1).numberOfReplicas(0));
+            imdBuilder.put(IndexMetadata.builder(indexName).settings(builder).numberOfShards(1).numberOfReplicas(0));
 
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING)
-                .moveToStarted();
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId(imdBuilder.get(indexName).getIndex(), 0),
+                "1",
+                true,
+                ShardRoutingState.INITIALIZING
+            ).moveToStarted();
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get(indexName).getIndex())
                 .addShard(shardRouting)
                 .build();
@@ -1786,10 +1789,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            boolean expect = index.value.getState() == IndexMetadata.State.OPEN;
-            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(expect));
-            assertThat(followedIndices.contains(index.key), is(expect));
+        for (var index : remoteState.metadata().indices().entrySet()) {
+            boolean expect = index.getValue().getState() == IndexMetadata.State.OPEN;
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(expect));
+            assertThat(followedIndices.contains(index.getKey()), is(expect));
         }
     }
 
@@ -1893,11 +1896,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
-        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            final Index remoteIndex = index.value.getIndex();
+        for (var index : remoteState.metadata().indices().entrySet()) {
+            final Index remoteIndex = index.getValue().getIndex();
             boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
-            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(followed));
-            assertThat(followedIndices.contains(index.key), is(followed));
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(followed));
+            assertThat(followedIndices.contains(index.getKey()), is(followed));
             assertThat(autoFollowedIndices.contains(remoteIndex.getUUID()), equalTo(followed));
         }
     }
@@ -2191,8 +2194,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).version(metadataVersion));
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
@@ -2217,7 +2224,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             metadataBuilder.put(indexMetadata, true);
             routingTableBuilder.add(
                 IndexRoutingTable.builder(indexMetadata.getIndex())
-                    .addShard(TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted())
+                    .addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(indexMetadata.getIndex(), 0),
+                            "1",
+                            true,
+                            ShardRoutingState.INITIALIZING
+                        ).moveToStarted()
+                    )
                     .build()
             );
         }
@@ -2287,8 +2301,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(dataStreamName, 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }

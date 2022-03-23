@@ -44,6 +44,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -58,7 +60,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class OldLuceneVersions extends Plugin implements IndexStorePlugin, ClusterPlugin, RepositoryPlugin, ActionPlugin {
@@ -69,9 +71,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         License.OperationMode.ENTERPRISE
     );
 
-    public static boolean isArchiveIndex(Version version) {
-        return version.before(Version.CURRENT.minimumIndexCompatibilityVersion());
-    }
+    private static Version MINIMUM_ARCHIVE_VERSION = Version.fromString("5.0.0");
 
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
 
@@ -120,7 +120,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (isArchiveIndex(indexModule.indexSettings().getIndexVersionCreated())) {
+        if (indexModule.indexSettings().getIndexVersionCreated().isLegacyIndexVersion()) {
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void afterFilesRestoredFromRepository(IndexShard indexShard) {
@@ -129,15 +129,29 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             });
 
             indexModule.addIndexEventListener(failShardsListener.get());
+
+            indexModule.addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                if (write == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from archive index");
+                }
+            });
         }
     }
 
     @Override
-    public Consumer<IndexMetadata> addPreRestoreCheck() {
-        return indexMetadata -> {
-            if (isArchiveIndex(indexMetadata.getCreationVersion())) {
+    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+        return (snapshot, version) -> {
+            if (version.isLegacyIndexVersion()) {
                 if (ARCHIVE_FEATURE.checkWithoutTracking(getLicenseState()) == false) {
                     throw LicenseUtils.newComplianceException("archive");
+                }
+                if (version.before(MINIMUM_ARCHIVE_VERSION)) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        "the snapshot was created with Elasticsearch version ["
+                            + version
+                            + "] which isn't supported by the archive functionality"
+                    );
                 }
             }
         };

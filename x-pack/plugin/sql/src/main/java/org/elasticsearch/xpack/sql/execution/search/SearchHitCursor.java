@@ -12,12 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -26,17 +23,14 @@ import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
-import static org.elasticsearch.xpack.sql.execution.search.Querier.deserializeQuery;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
-import static org.elasticsearch.xpack.sql.execution.search.Querier.serializeQuery;
 
 public class SearchHitCursor implements Cursor {
 
@@ -44,20 +38,13 @@ public class SearchHitCursor implements Cursor {
 
     public static final String NAME = "h";
 
-    private final byte[] nextQuery;
+    private final SearchSourceBuilder nextQuery;
     private final List<HitExtractor> extractors;
     private final BitSet mask;
     private final int limit;
     private final boolean includeFrozen;
 
-    /**
-     * @param nextQuery a serialized {@link SearchSourceBuilder} representing the query to fetch the next page. The query is serialized
-     *                  because cursors have to be (de)serialized on the transport layer in {@code TextFormat.PLAIN_TEXT.format} which does
-     *                  not have all the required {@link NamedWriteable}`s available that is required to deserialize
-     *                  {@link SearchSourceBuilder}. As a workaround the deserialization of {@code nextQuery} is deferred until the query is
-     *                  needed.
-     */
-    SearchHitCursor(byte[] nextQuery, List<HitExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen) {
+    SearchHitCursor(SearchSourceBuilder nextQuery, List<HitExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen) {
         this.nextQuery = nextQuery;
         this.extractors = exts;
         this.mask = mask;
@@ -66,7 +53,7 @@ public class SearchHitCursor implements Cursor {
     }
 
     public SearchHitCursor(StreamInput in) throws IOException {
-        nextQuery = in.readByteArray();
+        nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(HitExtractor.class);
@@ -76,7 +63,7 @@ public class SearchHitCursor implements Cursor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByteArray(nextQuery);
+        nextQuery.writeTo(out);
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
@@ -89,7 +76,7 @@ public class SearchHitCursor implements Cursor {
         return NAME;
     }
 
-    byte[] next() {
+    SearchSourceBuilder next() {
         return nextQuery;
     }
 
@@ -110,40 +97,24 @@ public class SearchHitCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
-        SearchSourceBuilder q;
-        try {
-            q = deserializeQuery(registry, nextQuery);
-        } catch (Exception ex) {
-            listener.onFailure(ex);
-            return;
-        }
-
-        SearchSourceBuilder query = q;
+    public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
-            log.trace("About to execute search hit query {}", StringUtils.toString(query));
+            log.trace("About to execute search hit query {}", StringUtils.toString(nextQuery));
         }
 
-        SearchRequest request = prepareRequest(query, cfg.requestTimeout(), includeFrozen);
+        SearchRequest request = prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen);
 
         client.search(
             request,
             ActionListener.wrap(
-                (SearchResponse response) -> handle(
-                    client,
-                    response,
-                    request.source(),
-                    makeRowSet(query.size(), response),
-                    listener,
-                    includeFrozen
-                ),
+                (SearchResponse response) -> handle(client, response, request.source(), makeRowSet(response), listener, includeFrozen),
                 listener::onFailure
             )
         );
     }
 
-    private Supplier<SearchHitRowSet> makeRowSet(int sizeRequested, SearchResponse response) {
-        return () -> new SearchHitRowSet(extractors, mask, sizeRequested, limit, response);
+    private Supplier<SearchHitRowSet> makeRowSet(SearchResponse response) {
+        return () -> new SearchHitRowSet(extractors, mask, nextQuery.size(), limit, response);
     }
 
     static void handle(
@@ -170,19 +141,10 @@ public class SearchHitCursor implements Cursor {
                 ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
             );
         } else {
-            source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
             updateSearchAfter(hits, source);
 
-            byte[] nextQuery;
-            try {
-                nextQuery = serializeQuery(source);
-            } catch (IOException e) {
-                listener.onFailure(e);
-                return;
-            }
-
             SearchHitCursor nextCursor = new SearchHitCursor(
-                nextQuery,
+                source,
                 rowSet.extractors(),
                 rowSet.mask(),
                 rowSet.getRemainingLimit(),
@@ -198,21 +160,14 @@ public class SearchHitCursor implements Cursor {
     }
 
     @Override
-    public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
-        SearchSourceBuilder query;
-        try {
-            query = deserializeQuery(registry, nextQuery);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
-        Check.isTrue(query.pointInTimeBuilder() != null, "Expected cursor with point-in-time id but got null");
-        closePointInTime(client, query.pointInTimeBuilder().getEncodedId(), listener);
+    public void clear(Client client, ActionListener<Boolean> listener) {
+        Check.isTrue(nextQuery.pointInTimeBuilder() != null, "Expected cursor with point-in-time id but got null");
+        closePointInTime(client, nextQuery.pointInTimeBuilder().getEncodedId(), listener);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(nextQuery), extractors, limit, mask, includeFrozen);
+        return Objects.hash(nextQuery, extractors, limit, mask, includeFrozen);
     }
 
     @Override
@@ -221,7 +176,7 @@ public class SearchHitCursor implements Cursor {
             return false;
         }
         SearchHitCursor other = (SearchHitCursor) obj;
-        return Arrays.equals(nextQuery, other.nextQuery)
+        return Objects.equals(nextQuery, other.nextQuery)
             && Objects.equals(extractors, other.extractors)
             && Objects.equals(limit, other.limit)
             && Objects.equals(includeFrozen, other.includeFrozen);

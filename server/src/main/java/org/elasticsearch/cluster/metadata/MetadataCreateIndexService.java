@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -303,8 +305,13 @@ public class MetadataCreateIndexService {
                     super.onFailure(e);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
@@ -507,7 +514,7 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
-            templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
+            templates.stream().map(IndexTemplateMetadata::name).toList()
         );
 
         final Map<String, Object> mappingsMap = parseV1Mappings(
@@ -520,7 +527,7 @@ public class MetadataCreateIndexService {
         if (mappingsMap.isEmpty()) {
             mappings = null;
         } else {
-            mappings = new CompressedXContent((builder, params) -> builder.mapContents(mappingsMap));
+            mappings = new CompressedXContent(mappingsMap);
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
@@ -717,7 +724,7 @@ public class MetadataCreateIndexService {
         if (requestMappings != null) {
             Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
             if (parsedRequestMappings.isEmpty() == false) {
-                result.add(new CompressedXContent((builder, params) -> builder.mapContents(parsedRequestMappings)));
+                result.add(new CompressedXContent(parsedRequestMappings));
             }
         }
         return result;

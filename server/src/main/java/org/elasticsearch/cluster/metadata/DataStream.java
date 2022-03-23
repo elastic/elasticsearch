@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
 
@@ -212,7 +211,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                     return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
                 })
                 .sorted(Comparator.comparing(entry -> entry.v2().v1())) // Sort by start time
-                .collect(Collectors.toList());
+                .toList();
 
             Tuple<String, Tuple<Instant, Instant>> previous = null;
             var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -472,9 +471,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                     "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
                     index.getName(),
                     getName(),
-                    Strings.collectionToCommaDelimitedString(
-                        im.getAliases().stream().map(Map.Entry::getKey).sorted().collect(Collectors.toList())
-                    )
+                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList())
                 )
             );
         }
@@ -602,7 +599,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);

@@ -82,7 +82,10 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertNull(new Round(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertEquals(123.456, new Round(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
         assertEquals(0.0, new Round(EMPTY, l(123.456), l(Integer.MIN_VALUE)).makePipe().asProcessor().process(null));
-        assertEquals(0L, new Round(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
+        assertEquals(0L, new Round(EMPTY, l(0L), l(0)).makePipe().asProcessor().process(null));
+        assertEquals(0, new Round(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
+        assertEquals((short) 0, new Round(EMPTY, l((short) 0), l(0)).makePipe().asProcessor().process(null));
+        assertEquals((byte) 0, new Round(EMPTY, l((byte) 0), l(0)).makePipe().asProcessor().process(null));
         assertEquals(Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), null).makePipe().asProcessor().process(null));
         assertEquals(Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), l(5)).makePipe().asProcessor().process(null));
         assertEquals(Long.MIN_VALUE, new Round(EMPTY, l(Long.MIN_VALUE), null).makePipe().asProcessor().process(null));
@@ -91,9 +94,11 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertEquals(9223372036854775800L, new Round(EMPTY, l(Long.MAX_VALUE), l(-2)).makePipe().asProcessor().process(null));
         assertEquals(-9223372036854775800L, new Round(EMPTY, l(Long.MIN_VALUE), l(-2)).makePipe().asProcessor().process(null));
         assertEquals(-9223372036854775800L, new Round(EMPTY, l(Long.MIN_VALUE + 1), l(-2)).makePipe().asProcessor().process(null));
-        // scaling to double precision, because of Long value overflow
-        assertEquals(9.223372036854776E18, new Round(EMPTY, l(Long.MAX_VALUE), l(-3)).makePipe().asProcessor().process(null));
-        assertEquals(-9.223372036854776E18, new Round(EMPTY, l(Long.MIN_VALUE), l(-3)).makePipe().asProcessor().process(null));
+        // overflows
+        expectThrows(ArithmeticException.class, () -> new Round(EMPTY, l(Long.MAX_VALUE), l(-3)).makePipe().asProcessor().process(null));
+        expectThrows(ArithmeticException.class, () -> new Round(EMPTY, l(Long.MIN_VALUE), l(-3)).makePipe().asProcessor().process(null));
+        expectThrows(ArithmeticException.class, () -> new Round(EMPTY, l(Integer.MAX_VALUE), l(-3)).makePipe().asProcessor().process(null));
+        expectThrows(ArithmeticException.class, () -> new Round(EMPTY, l(Integer.MIN_VALUE), l(-3)).makePipe().asProcessor().process(null));
         // very big numbers, ie. overflow with Long rounding
         assertEquals(1234456.234567, new Round(EMPTY, l(1234456.234567), l(20)).makePipe().asProcessor().process(null));
         assertEquals(12344561234567456.2345, new Round(EMPTY, l(12344561234567456.234567), l(4)).makePipe().asProcessor().process(null));
@@ -126,7 +131,10 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertEquals(123.4, new Truncate(EMPTY, l(123.45), l(1)).makePipe().asProcessor().process(null));
         assertEquals(123.0, new Truncate(EMPTY, l(123.45), l(0)).makePipe().asProcessor().process(null));
         assertEquals(123.0, new Truncate(EMPTY, l(123.45), null).makePipe().asProcessor().process(null));
-        assertEquals(-100L, new Truncate(EMPTY, l(-123), l(-2)).makePipe().asProcessor().process(null));
+        assertEquals((byte) -100, new Truncate(EMPTY, l((byte) -123), l(-2)).makePipe().asProcessor().process(null));
+        assertEquals((short) -100, new Truncate(EMPTY, l((short) -123), l(-2)).makePipe().asProcessor().process(null));
+        assertEquals(-100, new Truncate(EMPTY, l(-123), l(-2)).makePipe().asProcessor().process(null));
+        assertEquals(-100L, new Truncate(EMPTY, l(-123L), l(-2)).makePipe().asProcessor().process(null));
         assertEquals(-120.0, new Truncate(EMPTY, l(-123.45), l(-1)).makePipe().asProcessor().process(null));
         assertEquals(-123.0, new Truncate(EMPTY, l(-123.5), l(0)).makePipe().asProcessor().process(null));
         assertEquals(-123.0, new Truncate(EMPTY, l(-123.45), null).makePipe().asProcessor().process(null));
@@ -134,7 +142,8 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
 
     public void testTruncateFunctionWithEdgeCasesInputs() {
         assertNull(new Truncate(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(0L, new Truncate(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
+        assertEquals(0, new Truncate(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
+        assertEquals(0L, new Truncate(EMPTY, l(0L), l(0)).makePipe().asProcessor().process(null));
         assertEquals(Long.MAX_VALUE, new Truncate(EMPTY, l(Long.MAX_VALUE), l(0)).makePipe().asProcessor().process(null));
         assertEquals(9223372036854775800L, new Truncate(EMPTY, l(Long.MAX_VALUE), l(-1)).makePipe().asProcessor().process(null));
         assertEquals(-9223372036854775800L, new Truncate(EMPTY, l(Long.MIN_VALUE), l(-1)).makePipe().asProcessor().process(null));

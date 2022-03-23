@@ -60,7 +60,7 @@
   - match:
       $body: |
             /^
-              ( 0                      \s+
+              ( \d                     \s+   #usually 0, unless some system index has been recreated before this runs
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes

@@ -41,7 +41,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -156,7 +155,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         while (keepGoing) {
             List<ShardRouting> primaries = shardsWithState(state.getRoutingNodes(), STARTED).stream()
                 .filter(ShardRouting::primary)
-                .collect(Collectors.toList());
+                .toList();
 
             // Pick a random subset of primaries to fail
             List<FailedShard> shardsToFail = new ArrayList<>();

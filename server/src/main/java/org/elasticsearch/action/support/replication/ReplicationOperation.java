@@ -383,7 +383,7 @@ public class ReplicationOperation<
             return null;
         } else {
             final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL
-                ? Integer.toString(shardRoutingTable.shards().size())
+                ? Integer.toString(shardRoutingTable.size())
                 : waitForActiveShards.toString();
             logger.trace(
                 "[{}] not enough active copies to meet shard count of [{}] (have {}, needed {}), scheduling a retry. op [{}], "

@@ -15,7 +15,8 @@ import java.util.Deque;
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
  *
- * A fieldname named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}
+ * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
+ * The token location is preserved so that error messages refer to the original content being parsed.
  */
 public class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
@@ -59,13 +60,14 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (subpaths.length == 1 && field.endsWith(".") == false) {
                 return;
             }
+            XContentLocation location = delegate().getTokenLocation();
             Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), delegate(), subpaths));
+                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), delegate(), subpaths, location));
             } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), delegate(), subpaths));
+                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), delegate(), subpaths, location));
             }
         }
 
@@ -118,14 +120,16 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
     final String[] subPaths;
     final XContentParser subparser;
 
+    private XContentLocation currentLocation;
     private int expandedTokens = 0;
     private int innerLevel = -1;
     private State state = State.EXPANDING_START_OBJECT;
 
-    private DotExpandingXContentParser(XContentParser subparser, XContentParser root, String[] subPaths) {
+    private DotExpandingXContentParser(XContentParser subparser, XContentParser root, String[] subPaths, XContentLocation startLocation) {
         super(root);
         this.subPaths = subPaths;
         this.subparser = subparser;
+        this.currentLocation = startLocation;
     }
 
     @Override
@@ -158,11 +162,20 @@ public class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (token != null) {
                 return token;
             }
+            currentLocation = getTokenLocation();
             state = State.ENDING_EXPANDED_OBJECT;
         }
         assert expandedTokens % 2 == 1;
         expandedTokens -= 2;
         return expandedTokens < 0 ? null : Token.END_OBJECT;
+    }
+
+    @Override
+    public XContentLocation getTokenLocation() {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            return super.getTokenLocation();
+        }
+        return currentLocation;
     }
 
     @Override

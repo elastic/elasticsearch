@@ -11,6 +11,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -84,9 +85,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(100, 500))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(100, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         client().admin().indices().prepareFlush(indexName).get();
         if (randomBoolean()) {
@@ -94,9 +93,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 randomBoolean(),
                 false,
                 randomBoolean(),
-                IntStream.range(0, between(0, 80))
-                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                    .collect(Collectors.toList())
+                IntStream.range(0, between(0, 80)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
@@ -163,9 +160,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(10, 100))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
         if (randomBoolean()) {
@@ -173,9 +168,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 randomBoolean(),
                 false,
                 randomBoolean(),
-                IntStream.range(0, between(10, 100))
-                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                    .collect(Collectors.toList())
+                IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
@@ -202,9 +195,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(50, 200))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(50, 200)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         client().admin().indices().prepareFlush(indexName).get();
         assertBusy(() -> {
@@ -259,18 +250,14 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         client().admin().indices().prepareFlush(indexName).get();
         indexRandom(
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(0, 80))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(0, 80)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).get();
@@ -321,9 +308,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         client().admin().indices().prepareFlush(indexName).get();
         String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
@@ -335,9 +320,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(1, 100))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(1, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
@@ -348,9 +331,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 randomBoolean(),
                 false,
                 randomBoolean(),
-                IntStream.range(0, between(1, 100))
-                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                    .collect(Collectors.toList())
+                IntStream.range(0, between(1, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
 
@@ -395,9 +376,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         client().admin().indices().prepareFlush(indexName).get();
         String brokenNode = internalCluster().startDataOnlyNode();
@@ -447,9 +426,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(1, 100))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(Collectors.toList())
+            IntStream.range(0, randomIntBetween(1, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         assertAcked(client().admin().indices().prepareClose(indexName));
@@ -489,12 +466,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         final ClusterService clusterService = internalCluster().clusterService();
         assertBusy(() -> {
             Index index = resolveIndex(indexName);
-            Set<String> activeRetentionLeaseIds = clusterService.state()
-                .routingTable()
-                .index(index)
-                .shard(0)
-                .shards()
-                .stream()
+            Set<String> activeRetentionLeaseIds = RoutingNodesHelper.asStream(clusterService.state().routingTable().index(index).shard(0))
                 .map(shardRouting -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId()))
                 .collect(Collectors.toSet());
             for (String node : internalCluster().nodesInclude(indexName)) {

@@ -64,6 +64,7 @@ public class Realms implements Iterable<Realm> {
 
     // All realms that were configured from the node settings, some of these may not be enabled due to licensing
     private final List<Realm> allConfiguredRealms;
+    private final Map<String, String> domainForRealmMap;
 
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
@@ -86,7 +87,7 @@ public class Realms implements Iterable<Realm> {
         assert XPackSettings.SECURITY_ENABLED.get(settings) : "security must be enabled";
         assert factories.get(ReservedRealm.TYPE) == null;
 
-        final Map<String, String> domainForRealmMap = RealmSettings.computeRealmNameToDomainNameAssociation(settings);
+        domainForRealmMap = RealmSettings.computeRealmNameToDomainNameAssociation(settings);
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
         final List<Realm> initialRealms = initRealms(realmConfigs);
         configureRealmRef(initialRealms, realmConfigs, domainForRealmMap);
@@ -270,10 +271,7 @@ public class Realms implements Iterable<Realm> {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
-        final List<Realm> realmList = getActiveRealms().stream()
-            .filter(r -> ReservedRealm.TYPE.equals(r.type()) == false)
-            .collect(Collectors.toList());
-        final Set<String> realmTypes = realmList.stream().map(Realm::type).collect(Collectors.toSet());
+        final List<Realm> realmList = getActiveRealms().stream().filter(r -> ReservedRealm.TYPE.equals(r.type()) == false).toList();
         final CountDown countDown = new CountDown(realmList.size());
         final Runnable doCountDown = () -> {
             if ((realmList.isEmpty() || countDown.countDown()) && failed.get() == false) {
@@ -325,6 +323,19 @@ public class Realms implements Iterable<Realm> {
                     }
                 }));
             }
+        }
+    }
+
+    public Map<String, Object> domainUsageStats() {
+        if (domainForRealmMap.isEmpty()) {
+            return Map.of();
+        } else {
+            return domainForRealmMap.entrySet()
+                .stream()
+                .collect(Collectors.groupingBy(Entry::getValue, Collectors.mapping(Entry::getKey, Collectors.toList())))
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Entry::getKey, entry -> Map.of("realms", entry.getValue())));
         }
     }
 

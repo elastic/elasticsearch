@@ -1,0 +1,35 @@
+{
+  "security.search_user_profiles":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-search-user-profile.html",
+      "description":"Searches for user profiles that match specified criteria."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/profile/_search",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "data":{
+        "type":"list",
+        "description":"A comma-separated list of keys for which the corresponding application data are retrieved."
+      }
+    },
+    "body":{
+      "description":"The search definition for user profiles",
+      "required":false
+    }
+  }
+}

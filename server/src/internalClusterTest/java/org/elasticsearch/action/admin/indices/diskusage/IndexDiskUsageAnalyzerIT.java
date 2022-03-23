@@ -8,31 +8,42 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -45,7 +56,10 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EngineTestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(EngineTestPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
     }
 
     private static final Set<ShardId> failOnFlushShards = Sets.newConcurrentHashSet();
@@ -147,6 +161,59 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertMetadataFields(stats);
     }
 
+    public void testGeoShape() throws Exception {
+        final XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("location");
+                    mapping.field("type", "geo_shape");
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        final String index = "test-index";
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setMapping(mapping)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .get();
+
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            final XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("location")
+                .field("type", "point")
+                .field("coordinates", new double[] { GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude() })
+                .endObject()
+                .endObject();
+            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
+        }
+        AnalyzeIndexDiskUsageResponse resp = client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+        ).actionGet();
+
+        final IndexDiskUsageStats stats = resp.getStats().get(index);
+        logger.info("--> stats {}", stats);
+        assertNotNull(stats);
+        assertThat(stats.getIndexSizeInBytes(), greaterThan(100L));
+
+        final IndexDiskUsageStats.PerFieldDiskUsage locationField = stats.getFields().get("location");
+        assertThat(locationField.totalBytes(), greaterThan(0L));
+        assertThat(locationField.getPointsBytes(), greaterThan(0L));
+        assertMetadataFields(stats);
+    }
+
     public void testFailOnFlush() throws Exception {
         final String indexName = "test-index";
         int numberOfShards = between(1, 5);
@@ -181,6 +248,108 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         ).actionGet();
         assertThat(resp.getTotalShards(), equalTo(numberOfShards));
         assertThat(resp.getFailedShards(), equalTo(failedShards.size()));
+    }
+
+    public void testManyShards() throws Exception {
+        List<String> indices = IntStream.range(0, between(1, 5)).mapToObj(n -> "index_" + n).toList();
+        int totalShards = 0;
+        for (String indexName : indices) {
+            int numberOfShards = between(10, 30);
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+                        .put("index.shard.check_on_startup", false)
+                        .put("index.routing.rebalance.enable", "none")
+                )
+                .get();
+            totalShards += numberOfShards;
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                int value = randomIntBetween(5, 20);
+                final XContentBuilder doc = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("english_text", English.intToEnglish(value))
+                    .field("value", value)
+                    .endObject();
+                client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            }
+        }
+
+        AnalyzeIndexDiskUsageResponse resp = client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { "index_*" }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+        ).actionGet();
+        assertThat(Arrays.toString(resp.getShardFailures()), resp.getShardFailures(), emptyArray());
+        assertThat(resp.getTotalShards(), equalTo(totalShards));
+        assertThat(resp.getSuccessfulShards(), equalTo(totalShards));
+        assertThat(resp.getFailedShards(), equalTo(0));
+        for (String index : indices) {
+            IndexDiskUsageStats stats = resp.getStats().get(index);
+            assertThat(stats.getIndexSizeInBytes(), greaterThan(0L));
+            assertThat(stats.total().totalBytes(), greaterThan(0L));
+        }
+    }
+
+    public void testFailingTargetShards() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String indexName = "test-index";
+        int numberOfShards = between(1, 5);
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .get();
+        int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            int value = randomIntBetween(1, 10);
+            final XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("english_text", English.intToEnglish(value))
+                .field("value", value)
+                .endObject();
+            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+        }
+        final AtomicBoolean relocated = new AtomicBoolean();
+        final AtomicInteger failedShards = new AtomicInteger();
+        try {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.addRequestHandlingBehavior(AnalyzeIndexDiskUsageAction.NAME + "[s]", (handler, request, channel, task) -> {
+                    if (relocated.compareAndSet(false, true)) {
+                        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                        for (IndexService indexService : indicesService) {
+                            for (IndexShard indexShard : indexService) {
+                                failedShards.incrementAndGet();
+                                indexShard.close("test", randomBoolean());
+                            }
+                        }
+                    }
+                    handler.messageReceived(request, channel, task);
+                });
+            }
+            AnalyzeIndexDiskUsageResponse resp = client().execute(
+                AnalyzeIndexDiskUsageAction.INSTANCE,
+                new AnalyzeIndexDiskUsageRequest(new String[] { indexName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+            ).actionGet();
+            assertThat(failedShards.get(), greaterThan(0));
+            assertThat(resp.getTotalShards(), equalTo(numberOfShards));
+            assertThat(resp.getFailedShards(), equalTo(failedShards.get()));
+            assertThat(resp.getSuccessfulShards(), equalTo(resp.getTotalShards() - resp.getFailedShards()));
+            assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.clearAllRules();
+            }
+        }
     }
 
     void assertMetadataFields(IndexDiskUsageStats stats) {

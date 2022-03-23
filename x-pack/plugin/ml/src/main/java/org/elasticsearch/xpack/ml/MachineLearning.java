@@ -435,7 +435,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -1723,7 +1722,7 @@ public class MachineLearning extends Plugin
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
                 unsetResetModeListener.onFailure(
                     new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                 );
@@ -1756,7 +1755,7 @@ public class MachineLearning extends Plugin
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
                 unsetResetModeListener.onFailure(
                     new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                 );

@@ -304,6 +304,41 @@ public class CollectionUtils {
         return Collections.unmodifiableList(Arrays.asList(array));
     }
 
+    /**
+     * Same as {@link #appendToCopy(Collection, Object)} but faster by assuming that all elements in the collection and the given element
+     * are non-null.
+     * @param collection collection to copy
+     * @param element    element to append
+     * @return           list with appended element
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopyNoNullElements(Collection<E> collection, E element) {
+        final int existingSize = collection.size();
+        if (existingSize == 0) {
+            return List.of(element);
+        }
+        final int size = existingSize + 1;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        array[size - 1] = element;
+        return List.of(array);
+    }
+
+    /**
+     * Same as {@link #appendToCopyNoNullElements(Collection, Object)} but for multiple elements to append.
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopyNoNullElements(Collection<E> collection, E... elements) {
+        final int existingSize = collection.size();
+        if (existingSize == 0) {
+            return List.of(elements);
+        }
+        final int addedSize = elements.length;
+        final int size = existingSize + addedSize;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        System.arraycopy(elements, 0, array, size - 1, addedSize);
+        return List.of(array);
+    }
+
     public static <E> ArrayList<E> newSingletonArrayList(E element) {
         return new ArrayList<>(Collections.singletonList(element));
     }

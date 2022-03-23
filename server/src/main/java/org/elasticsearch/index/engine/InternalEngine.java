@@ -60,6 +60,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -83,6 +84,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -511,6 +513,8 @@ public class InternalEngine extends Engine {
         translog.trimUnreferencedReaders();
     }
 
+    private static final AtomicBoolean loggingStarted = new AtomicBoolean(false);
+
     private Translog openTranslog(
         EngineConfig engineConfig,
         TranslogDeletionPolicy translogDeletionPolicy,
@@ -522,6 +526,17 @@ public class InternalEngine extends Engine {
         final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
         final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+
+        final Object justInCaseLock = new Object();
+
+        if (loggingStarted.compareAndSet(false, true)) {
+            engineConfig.getThreadPool().scheduleWithFixedDelay(() -> {
+                synchronized (justInCaseLock) {
+                    TranslogWriter.logFsyncStats();
+                }
+            }, TimeValue.timeValueSeconds(30), ThreadPool.Names.SAME);
+        }
+
         return new Translog(
             translogConfig,
             translogUUID,

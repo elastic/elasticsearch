@@ -27,7 +27,7 @@ testClusters.register("runTask") {
       }
       // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
       systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
-      setting 'xpack.security.enabled', 'true'
+      setting 'xpack.security.enabled', 'false'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
     }

@@ -11,6 +11,8 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.procedures.LongProcedure;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -41,11 +44,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(TranslogWriter.class);
 
     private final ShardId shardId;
     private final FileChannel checkpointChannel;
@@ -83,6 +90,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
     private final DiskIoBufferPool diskIoBufferPool;
+
+    private final AtomicLong opsWrittenSinceLastFsync = new AtomicLong(0);
+    private final AtomicLong bytesWrittenSinceLastFsync = new AtomicLong(0);
+
+    private static final AtomicReference<MeanMetric> bytesPerFsync = new AtomicReference<>(new MeanMetric());
+    private static final AtomicReference<MeanMetric> opsPerFsync = new AtomicReference<>(new MeanMetric());
 
     private TranslogWriter(
         final ShardId shardId,
@@ -227,6 +240,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += data.length();
+            opsWrittenSinceLastFsync.getAndIncrement();
             data.writeTo(buffer);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
@@ -485,6 +499,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     try {
                         assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
                         if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                            long opsForced = opsWrittenSinceLastFsync.getAndSet(0);
+                            long bytesForced = bytesWrittenSinceLastFsync.getAndSet(0);
+                            opsPerFsync.get().inc(opsForced);
+                            bytesPerFsync.get().inc(bytesForced);
                             channel.force(false);
                         }
                         writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
@@ -569,6 +587,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     @SuppressForbidden(reason = "Channel#write")
     private void writeToFile(ByteBuffer ioBuffer) throws IOException {
+        bytesWrittenSinceLastFsync.getAndAdd(ioBuffer.remaining());
         while (ioBuffer.remaining() > 0) {
             channel.write(ioBuffer);
         }
@@ -635,5 +654,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
+    }
+
+    public static void logFsyncStats() {
+        MeanMetric bytes = bytesPerFsync.getAndSet(new MeanMetric());
+        MeanMetric ops = opsPerFsync.getAndSet(new MeanMetric());
+        logger.info("[fsyncs=" + bytes.count() + ", bytes_per_sync=" + bytes.mean() + ", ops_per_sync=" + ops.mean() + "]");
     }
 }

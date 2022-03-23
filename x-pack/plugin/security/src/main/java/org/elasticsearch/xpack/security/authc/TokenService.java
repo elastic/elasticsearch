@@ -139,6 +139,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -2823,13 +2824,17 @@ public final class TokenService {
                 final String associatedRealm;
                 // the previous way that only recorded selected fields of the creator client's authentication
                 if (false == clientInfo.containsKey("user")) {
-                    throw new IllegalStateException("token document must contain the \"client.user\" field if the associated " +
-                        "\"authentication\" field does not exist");
+                    throw new IllegalStateException(
+                        "token document must contain the \"client.user\" field if the associated "
+                            + "\"authentication\" field does not exist"
+                    );
                 }
                 associatedUser = (String) clientInfo.get("user");
                 if (false == clientInfo.containsKey("realm")) {
-                    throw new IllegalStateException("token document must contain the \"client.realm\" field if the associated " +
-                        "\"authentication\" field does not exist");
+                    throw new IllegalStateException(
+                        "token document must contain the \"client.realm\" field if the associated "
+                            + "\"authentication\" field does not exist"
+                    );
                 }
                 associatedRealm = (String) clientInfo.get("realm");
                 return new RefreshTokenStatus(

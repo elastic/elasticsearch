@@ -21,8 +21,9 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
-import javax.inject.Inject;
 import java.io.File;
+
+import javax.inject.Inject;
 
 /**
  * This plugin defines tasks related to releasing Elasticsearch.

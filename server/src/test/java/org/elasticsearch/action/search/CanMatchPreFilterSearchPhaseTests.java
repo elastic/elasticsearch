@@ -895,8 +895,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a_field")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))

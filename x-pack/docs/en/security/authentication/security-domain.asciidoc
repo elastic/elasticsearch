@@ -7,18 +7,18 @@ beta::[]
 Security domains are a method of grouping <<realms,realms>> to enable resource
 sharing across different realms for the same user.
 
-==== How security domain works
+==== How security domains work
 
-Users can create various resources in {es} that they own, access, and manage.
-For example, using the <<async-search,async search API>> to create a search
-request, <<security-api-create-api-key,creating an API key>>, or activating a
-<<user-profile,user profile>>.
+Some types of resources in {es} are owned by a single user.
+For example <<async-search,async search contexts>>,
+<<security-api-create-api-key,API keys>>,
+and <<user-profile,user profiles>> each have an owning user.
 
 When a user creates a resource, {es} captures the user's `username` and realm
 information as part of the resource's metadata.
 When the user attempts to access the resource at a later time, {es} compares
-captured `username` and realm information against those from the accessing
-user. The access is allowed only when both of them match.
+the captured `username` and realm information against those from the accessing
+user. The access is not allowed unless both the realm and `username` match.
 That is, if {es} detects that a `username` from two different realms is
 attempting to access a resource, {es} assumes that these users are distinct and
 doesn't allow resources to be shared between them.
@@ -34,8 +34,9 @@ be the same user.
 
 With security domains, you can configure multiple realms to be under the same
 domain, users can authenticate with any of the realms and have access to the
-same set of resources regardless of which realm under the same domain they're
-authenticating from. For example, a single <<user-profile,user profile>> is
+same set of resources regardless of which realm authenticating from, 
+(provided those realms are under the same domain).
+For example, a single <<user-profile,user profile>> is
 associated to the user which enables user preferences, notifications, and other
 user data to be shared across domains. The same user can view results from an
 asynchronous search request or a scrolling search. If the user has the
@@ -44,8 +45,7 @@ necessary privileges, they can also view and manage API keys across realms.
 ==== Configure a security domain
 
 You specify the realms for a domain in `elasticsearch.yml`. The realms must
-be defined in `elasticsearch.yml`, it doesn't have to be enabled to be listed
-under a domain.
+be defined in `elasticsearch.yml` (but do not need to be enabled).
 Specifying either an undefined realm, synthetic realm, or the reserved realm
 under a domain will prevent the node from starting.
 A realm doesn't need to belong to a domain. If it does, the realm can only
@@ -82,7 +82,7 @@ authenticating with different realms, it is _not_ recommended.
 Using <<configuring-authorization-delegation,authorization delegation>>
 is a good way to ensure that a user is assigned the same roles from multiple realms.
 
-{es} always enforces the user privileges for the authentication it has at the moment.
+{es} always enforces the privileges associated with the currently authenticated user.
 Security domains don't bypass <<authorization,user authorization>> when
 resource sharing requires them. For example, a user requires the
 `manage_own_api_key` privilege to manage their own API keys. If that user does

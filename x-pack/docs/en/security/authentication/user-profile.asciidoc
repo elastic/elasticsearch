@@ -28,13 +28,14 @@ The term "users" refer to the entities that authenticate requests to the {stack}
 Each user has a username and a set of privileges (represented by <<roles,roles>>) that
 determine which types of requests may be performed by that user.
 This _user_ may be ephemeral - it could exist only for the duration of a request to
-an {es} API or for the lifetime of a session in {kib}. It cannot be retrieved once
-the session is complete, and does not support storage of preferences.
+an {es} API or for the lifetime of a session in {kib}. These ephemeral users 
+cannot be retrieved once the session is complete, and do not support storage
+of preferences.
 
 A "user profile" is the long term record associated with a _user_.
 It has a unique identifier, it is searchable and it can be used to store personalisation
 data and preferences for the user. It is a representation of the _user_ that persists
-and even when the _user_ itself has no active requests or sessions in the {stack}.
+even when the _user_ itself has no active requests or sessions in the {stack}.
 
 When a user logs in to {kib}, a profile is automatically created for the user, or an
 existing profile is updated to reflect the user's new active session.

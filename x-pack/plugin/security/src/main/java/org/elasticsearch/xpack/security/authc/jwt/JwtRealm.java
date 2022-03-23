@@ -14,6 +14,7 @@ import com.nimbusds.jwt.SignedJWT;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
@@ -45,7 +46,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -203,7 +203,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
             jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
         }
-        LOGGER.info("Usable HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
+        LOGGER.info("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
         return jwksAlgsHmac;
     }
 
@@ -241,7 +241,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
             jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
         }
-        LOGGER.info("Usable PKC: JWKs [" + jwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", jwksAlgsPkc.algs()) + "].");
+        LOGGER.info("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
         return jwksAlgsPkc;
     }
 
@@ -292,7 +292,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             try {
                 this.httpClient.close();
             } catch (IOException e) {
-                LOGGER.warn("Exception closing HTTPS client for realm [" + super.name() + "]", e);
+                LOGGER.warn(new ParameterizedMessage("Exception closing HTTPS client for realm [{}]", super.name()), e);
             }
         }
     }
@@ -360,7 +360,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
             try {
                 JwtUtil.validateClientAuthentication(this.clientAuthenticationType, this.clientAuthenticationSharedSecret, clientSecret);
-                LOGGER.trace("Realm [" + super.name() + "] client authentication succeeded for token=[" + tokenPrincipal + "].");
+                LOGGER.trace("Realm [{}] client authentication succeeded for token=[{}].", super.name(), tokenPrincipal);
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
                 LOGGER.debug(msg, e);
@@ -438,7 +438,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     jwksAndAlgs.jwks
                 );
                 claimsSet = jwt.getJWTClaimsSet();
-                LOGGER.trace("Realm [" + super.name() + "] JWT validation succeeded for token=[" + tokenPrincipal + "].");
+                LOGGER.trace("Realm [{}] JWT validation succeeded for token=[{}].", super.name(), tokenPrincipal);
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
                 final AuthenticationResult<User> failure = AuthenticationResult.unsuccessful(msg, e);
@@ -469,8 +469,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final ActionListener<AuthenticationResult<User>> logAndCacheListener = ActionListener.wrap(result -> {
                 if (result.isAuthenticated()) {
                     final User user = result.getValue();
-                    final String rolesString = Arrays.toString(user.roles());
-                    LOGGER.debug("Realm [" + super.name() + "] roles [" + rolesString + "] for principal=[" + principal + "].");
+                    LOGGER.debug(
+                        () -> new ParameterizedMessage(
+                            "Realm [{}] roles [{}] for principal=[{}].",
+                            super.name(),
+                            String.join(",", user.roles()),
+                            principal
+                        )
+                    );
                     if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                             final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();

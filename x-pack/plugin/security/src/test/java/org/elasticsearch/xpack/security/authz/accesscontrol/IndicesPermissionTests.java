@@ -448,7 +448,7 @@ public class IndicesPermissionTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         builder.put(ds);
         for (IndexMetadata index : backingIndices) {
@@ -509,7 +509,7 @@ public class IndicesPermissionTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             "test_write2",
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         metadata.put(ds);
         for (IndexMetadata index : backingIndices) {

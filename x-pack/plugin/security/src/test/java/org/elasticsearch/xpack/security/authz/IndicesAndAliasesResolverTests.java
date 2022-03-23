@@ -204,12 +204,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex1, true)
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
-            .put(
-                newInstance(
-                    dataStreamName,
-                    List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())
-                )
-            )
+            .put(newInstance(dataStreamName, List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
             .put(newInstance(otherDataStreamName, List.of(dataStreamIndex3.getIndex())))
             .put(indexBuilder(securityIndexName).settings(settings))
             .build();

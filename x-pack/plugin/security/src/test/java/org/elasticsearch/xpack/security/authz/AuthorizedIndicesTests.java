@@ -258,7 +258,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     "adatastream1",
-                        List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
+                    List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
                 )
             )
             .build();
@@ -330,7 +330,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     "adatastream1",
-                        List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
+                    List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
                 )
             )
             .build();

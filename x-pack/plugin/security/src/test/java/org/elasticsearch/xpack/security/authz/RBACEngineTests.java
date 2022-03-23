@@ -1413,7 +1413,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, List.of());
         lookup.put(ds.getName(), iads);
@@ -1455,7 +1455,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, List.of());
         lookup.put(ds.getName(), iads);

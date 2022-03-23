@@ -656,7 +656,7 @@ public class SecuritySystemIndices {
 
                                     defineRealmDomain(builder, "realm_domain");
 
-                                    builder.startObject("authentication").field("type", "object").field("enabled", "false").endObject();
+                                    builder.startObject("authentication").field("type", "binary").endObject();
                                 }
                                 builder.endObject();
                             }

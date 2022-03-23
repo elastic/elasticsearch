@@ -10,13 +10,8 @@ package org.elasticsearch.repositories.hdfs;
 import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
 import org.apache.hadoop.security.KerberosInfo;
 import org.apache.hadoop.security.SecurityUtil;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.PrefixLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -45,11 +40,6 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")
     private static Void evilHadoopInit() {
-        DeprecationLogger logger;
-//        PrefixLogger prefixLogger;
-        Logger log = LogManager.getLogger("he");
-        Logger myprefix = Loggers.getLogger(log, "myprefix");
-//        myprefix
         // hack: on Windows, Shell's clinit has a similar problem that on unix,
         // but here we can workaround it for now by setting hadoop home
         // on unix: we still want to set this to something we control, because

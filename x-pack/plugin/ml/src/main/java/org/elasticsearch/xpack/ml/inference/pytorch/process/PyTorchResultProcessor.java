@@ -87,7 +87,7 @@ public class PyTorchResultProcessor {
         pendingResults.remove(requestId);
     }
 
-    public void process(NativePyTorchProcess process) {
+    public void process(PyTorchProcess process) {
         try {
             Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {

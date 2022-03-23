@@ -43,7 +43,12 @@ public class ReleaseNotesIndexGenerator {
         versionsSet.stream().map(v -> v.isSnapshot() ? v.withoutQualifier() : v).forEach(versions::add);
 
         final List<String> includeVersions = versions.stream()
-            .map(v -> v.hasQualifier() ? v.toString() : v.major() + "." + v.minor())
+            .map(
+                // We didn't split up the notes for 8.0
+                version -> version.isBefore(QualifiedVersion.of("8.1.0")) && version.hasQualifier() == false
+                    ? version.major() + "." + version.minor()
+                    : version.toString()
+            )
             .distinct()
             .collect(Collectors.toList());
 

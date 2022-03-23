@@ -120,6 +120,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.fasterxml.jackson.core.JsonFactory',
+    'com.fasterxml.jackson.core.JsonGenerator',
     'com.github.luben.zstd.Zstd',
     'com.google.gson.stream.JsonReader',
     'com.google.gson.stream.JsonToken',

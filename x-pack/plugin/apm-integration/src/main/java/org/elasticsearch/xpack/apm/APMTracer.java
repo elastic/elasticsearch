@@ -20,7 +20,6 @@ import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.resources.Resource;
-import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.data.SpanData;
@@ -50,7 +49,6 @@ import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -269,8 +267,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
             }
 
-//            spanBuilder.setAttribute(SemanticAttributes.DB_SYSTEM, "elasticsearch");
-//            spanBuilder.setAttribute(SemanticAttributes.DB_NAME, clusterService.getNodeName());
+            // spanBuilder.setAttribute(SemanticAttributes.DB_SYSTEM, "elasticsearch");
+            // spanBuilder.setAttribute(SemanticAttributes.DB_NAME, clusterService.getNodeName());
 
             // this will duplicate the "resource attributes" that are defined globally
             // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
@@ -371,11 +369,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (span != null) {
             span.end();
         }
-        // TODO: geoip-downloader[c] isn't getting stopped?
-        // LOGGER.warn(
-        // "Active spans after stopped trace: {}",
-        // spans.values().stream().map(Tuple::v1).map(span -> ((ReadWriteSpan) span).getName()).toList()
-        // );
     }
 
     @Override
@@ -488,10 +481,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         j = spanStr.indexOf(",", i);
         String spanName = spanStr.substring(i + 5, j);
 
-//            LOGGER.warn("BADGER: {}", span);
-
         if (CACHE.add(spanId)) {
-            LOGGER.warn("BADGER: __{} [label=\"{}\"]", spanId, spanName);
+            Map<String, String> attrs = new HashMap<>();
+            attrs.put("label", spanName);
+            if (spanName.startsWith("internal:")) {
+                attrs.put("style", "filled");
+                attrs.put("fillcolor", "pink");
+            }
+            final String attrsString = attrs.entrySet()
+                .stream()
+                .map(each -> each.getKey() + "=\"" + each.getValue() + "\"")
+                .collect(Collectors.joining(","));
+            LOGGER.warn("BADGER: __{} [{}]", spanId, attrsString);
         }
 
         if (parentSpanId != null) {

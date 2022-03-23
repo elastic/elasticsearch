@@ -852,15 +852,16 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         ParsedDocument doc = defaultMapper.parse(source(b -> {
             b.startArray("objects");
-            b.startObject().field("subfield", "sub").endObject();
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
             b.endArray();
-            b.startArray("objects");
-            b.startObject().field("unmapped", "unmapped").endObject();
+            b.startArray("unmapped");
+            b.startObject().field("subfield", "unmapped").endObject();
             b.endArray();
         }));
 
         assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("unmapped.subfield"), arrayWithSize(0));
         assertNull(doc.dynamicMappingsUpdate());
     }
 

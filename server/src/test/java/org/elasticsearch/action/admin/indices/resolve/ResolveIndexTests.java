@@ -274,8 +274,8 @@ public class ResolveIndexTests extends ESTestCase {
             Object[] dataStreamInfo = findInfo(dataStreams, expectedDataStreams[k]);
             assertThat(dataStreamInfo, notNullValue());
             assertThat(resolvedDataStream.getName(), equalTo((String) dataStreamInfo[0]));
-            assertThat(resolvedDataStream.getTimestampField(), equalTo((String) dataStreamInfo[1]));
-            int numBackingIndices = (int) dataStreamInfo[2];
+            assertThat(resolvedDataStream.getTimestampField(), equalTo("@timestamp"));
+            int numBackingIndices = (int) dataStreamInfo[1];
             List<String> expectedBackingIndices = new ArrayList<>();
             for (int m = 1; m <= numBackingIndices; m++) {
                 expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m, epochMillis));
@@ -363,7 +363,7 @@ public class ResolveIndexTests extends ESTestCase {
     private Object[] findBackingIndexInfo(Object[][] dataStreamSource, String indexName) {
         for (Object[] info : dataStreamSource) {
             String dataStreamName = (String) info[0];
-            int generations = (int) info[2];
+            int generations = (int) info[1];
             for (int k = 1; k <= generations; k++) {
                 if (DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis).equals(indexName)) {
                     return new Object[] {

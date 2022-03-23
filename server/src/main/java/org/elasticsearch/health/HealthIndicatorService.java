@@ -39,8 +39,10 @@ public interface HealthIndicatorService {
         HealthIndicatorDetails details,
         Collection<HealthIndicatorImpact> impacts
     ) {
-        List<HealthIndicatorImpact> impactsList =
-            impacts.stream().sorted(Comparator.comparingInt(HealthIndicatorImpact::severity)).limit(3).collect(Collectors.toList());
+        List<HealthIndicatorImpact> impactsList = impacts.stream()
+            .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
+            .limit(3)
+            .collect(Collectors.toList());
         return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList);
     }
 }

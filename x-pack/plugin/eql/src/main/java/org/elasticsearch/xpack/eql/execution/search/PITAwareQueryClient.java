@@ -27,8 +27,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
-import java.util.function.Function;
-
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
@@ -44,7 +42,7 @@ import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 // search and multi-search hence the code repetition
 public class PITAwareQueryClient extends BasicQueryClient {
 
-    private String pitId;
+    private PointInTimeBuilder pit;
     private final TimeValue keepAlive;
 
     public PITAwareQueryClient(EqlSession eqlSession) {
@@ -55,7 +53,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     @Override
     protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
         // no pitId, ask for one
-        if (pitId == null) {
+        if (pit == null) {
             openPIT(listener, () -> searchWithPIT(search, listener));
         } else {
             searchWithPIT(search, listener);
@@ -64,14 +62,13 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private void searchWithPIT(SearchRequest request, ActionListener<SearchResponse> listener) {
         makeRequestPITCompatible(request);
-        // get the pid on each response
-        super.search(request, pitListener(SearchResponse::pointInTimeId, listener));
+        super.search(request, pitListener(listener));
     }
 
     @Override
     protected void search(MultiSearchRequest search, ActionListener<MultiSearchResponse> listener) {
         // no pitId, ask for one
-        if (pitId == null) {
+        if (pit == null) {
             openPIT(listener, () -> searchWithPIT(search, listener));
         } else {
             searchWithPIT(search, listener);
@@ -82,57 +79,40 @@ public class PITAwareQueryClient extends BasicQueryClient {
         for (SearchRequest request : search.requests()) {
             makeRequestPITCompatible(request);
         }
-
         // get the pid on each request
-        super.search(search, pitListener(r -> {
-            // get pid
-            for (MultiSearchResponse.Item item : r.getResponses()) {
-                // pick the first non-failing response
-                if (item.isFailure() == false) {
-                    return item.getResponse().pointInTimeId();
-                }
-            }
-            // no results or successful responses, preserve the current pid
-            return pitId;
-        }, listener));
+        super.search(search, pitListener(listener));
     }
 
     private void makeRequestPITCompatible(SearchRequest request) {
         SearchSourceBuilder source = request.source();
-        // don't increase the keep alive
-        source.pointInTimeBuilder(new PointInTimeBuilder(pitId));
         // move the indices from the search request to a index filter - see #63132
         String[] indices = request.indices();
-        if (CollectionUtils.isEmpty(indices) == false) {
+        if (indices != this.indices && indices != pit.getActualIndices() && CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
             QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
             RuntimeUtils.addFilter(indexQuery, source);
         }
+        // don't increase the keep alive
+        source.pointInTimeBuilder(pit);
+        request.indices(pit.getActualIndices());
     }
 
-    // listener handing the extraction of new PIT and closing in case of exceptions
-    private <Response> ActionListener<Response> pitListener(Function<Response, String> pitIdExtractor, ActionListener<Response> listener) {
-        return wrap(r -> {
-            // get pid
-            pitId = pitIdExtractor.apply(r);
-            listener.onResponse(r);
-        },
-            // always close PIT in case of exceptions
-            e -> {
-                listener.onFailure(e);
-                if (pitId != null && cfg.isCancelled() == false) {
-                    // ignore any success/failure to avoid obfuscating the response
-                    close(wrap(b -> {}, ex -> {}));
-                }
+    // listener that closes PIT in case of exceptions
+    private <Response> ActionListener<Response> pitListener(ActionListener<Response> listener) {
+        return listener.delegateResponse((innerListener, e) -> {
+            innerListener.onFailure(e);
+            if (pit != null && cfg.isCancelled() == false) {
+                // ignore any success/failure to avoid obfuscating the response
+                close(wrap(b -> {}, ex -> {}));
             }
-        );
+        });
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
             .keepAlive(keepAlive);
         client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
-            pitId = r.getPointInTimeId();
+            pit = new PointInTimeBuilder(r.getPointInTimeId());
             runnable.run();
         }, listener::onFailure));
     }
@@ -141,9 +121,9 @@ public class PITAwareQueryClient extends BasicQueryClient {
     public void close(ActionListener<Boolean> listener) {
         client.execute(
             ClosePointInTimeAction.INSTANCE,
-            new ClosePointInTimeRequest(pitId),
+            new ClosePointInTimeRequest(pit.getEncodedId()),
             map(listener, ClosePointInTimeResponse::isSucceeded)
         );
-        pitId = null;
+        pit = null;
     }
 }

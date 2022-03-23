@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -99,16 +98,23 @@ public final class SearchContextId {
         }
     }
 
-    public String[] getActualIndices() {
+    public static String[] getActualIndices(String id) {
+        final ByteBuffer byteBuffer;
+        try {
+            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
+        }
         final Set<String> indices = new HashSet<>();
-        for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
-            final String indexName = entry.getKey().getIndexName();
-            final String clusterAlias = entry.getValue().getClusterAlias();
-            if (Strings.isEmpty(clusterAlias)) {
-                indices.add(indexName);
-            } else {
-                indices.add(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName);
+        try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
+            in.setVersion(Version.readVersion(in));
+            final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
+            for (Map.Entry<ShardId, SearchContextIdForNode> e : shards.entrySet()) {
+                String index = RemoteClusterAware.buildRemoteIndexName(e.getValue().getClusterAlias(), e.getKey().getIndexName());
+                indices.add(index);
             }
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
         }
         return indices.toArray(new String[0]);
     }

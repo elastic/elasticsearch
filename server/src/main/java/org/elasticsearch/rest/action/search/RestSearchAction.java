@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
@@ -370,8 +369,7 @@ public class RestSearchAction extends BaseRestHandler {
             indicesOptions.ignoreThrottled()
         );
         request.indicesOptions(stricterIndicesOptions);
-        final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
-        request.indices(searchContextId.getActualIndices());
+        request.indices(request.pointInTimeBuilder().getActualIndices());
     }
 
     /**

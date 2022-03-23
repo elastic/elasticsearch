@@ -8,13 +8,20 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -23,7 +30,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -32,6 +41,8 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,6 +52,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -49,6 +61,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -58,6 +71,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomTimeValue;
@@ -105,7 +119,11 @@ public class RandomSearchRequestGenerator {
             searchRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         }
         if (randomBoolean()) {
-            searchRequest.source(randomSearchSourceBuilder.get());
+            SearchSourceBuilder source = randomSearchSourceBuilder.get();
+            searchRequest.source(source);
+            if (source.pointInTimeBuilder() != null) {
+                searchRequest.indices(source.pointInTimeBuilder().getActualIndices());
+            }
         }
         return searchRequest;
     }
@@ -376,15 +394,68 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
-            if (randomBoolean()) {
-                pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
-            }
-            builder.pointInTimeBuilder(pit);
+            builder.pointInTimeBuilder(randomPointInTimeBuilder());
         }
         if (randomBoolean()) {
             builder.runtimeMappings(randomRuntimeMappings.get());
         }
         return builder;
+    }
+
+    public static PointInTimeBuilder randomPointInTimeBuilder() {
+        final int numResults = randomIntBetween(1, 10);
+        final List<SearchPhaseResult> queryResults = new ArrayList<>(numResults);
+        for (int i = 0; i < numResults; i++) {
+            SearchShardTarget searchShardTarget = new SearchShardTarget(
+                "node_" + randomIntBetween(1, 5),
+                new ShardId("index_" + randomIntBetween(1, 5), "n/a", randomIntBetween(0, 5)),
+                randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null
+            );
+            ShardSearchContextId shardSearchContextId = new ShardSearchContextId(
+                ESTestCase.randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomBoolean() ? randomAlphaOfLength(10) : null
+            );
+            queryResults.add(new SearchPhaseResult() {
+                @Override
+                public SearchShardTarget getSearchShardTarget() {
+                    return searchShardTarget;
+                }
+
+                @Override
+                public ShardSearchContextId getContextId() {
+                    return shardSearchContextId;
+                }
+            });
+        }
+        final Version version = VersionUtils.randomVersion(ESTestCase.random());
+        Map<String, AliasFilter> aliasFilters = new HashMap<>();
+        for (SearchPhaseResult result : queryResults) {
+            if (randomBoolean()) {
+                final QueryBuilder queryBuilder;
+                if (randomBoolean()) {
+                    queryBuilder = new TermQueryBuilder(ESTestCase.randomAlphaOfLength(10), ESTestCase.randomAlphaOfLength(10));
+                } else if (randomBoolean()) {
+                    queryBuilder = new MatchAllQueryBuilder();
+                } else {
+                    queryBuilder = new IdsQueryBuilder().addIds(ESTestCase.randomAlphaOfLength(10));
+                }
+                final AliasFilter aliasFilter;
+                if (randomBoolean()) {
+                    aliasFilter = new AliasFilter(queryBuilder);
+                } else if (randomBoolean()) {
+                    aliasFilter = new AliasFilter(queryBuilder, "alias-" + between(1, 10));
+                } else {
+                    aliasFilter = AliasFilter.EMPTY;
+                }
+                aliasFilters.put(result.getSearchShardTarget().getShardId().getIndex().getUUID(), aliasFilter);
+            }
+        }
+        final String pitId = SearchContextId.encode(queryResults, aliasFilters, version);
+        PointInTimeBuilder pit = new PointInTimeBuilder(pitId);
+        if (randomBoolean()) {
+            pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
+        }
+        return pit;
     }
 }

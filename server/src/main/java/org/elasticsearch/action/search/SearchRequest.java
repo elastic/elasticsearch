@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -363,9 +364,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = source.aggregations().validate(validationException);
             }
         }
-        if (pointInTimeBuilder() != null) {
+        PointInTimeBuilder pointInTime = pointInTimeBuilder();
+        if (pointInTime != null) {
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
+            }
+            if (indices != pointInTime.getActualIndices()
+                && (Sets.newHashSet(indices).equals(Sets.newHashSet(pointInTime.getActualIndices())) == false)) {
+                validationException = addValidationError(
+                    "[indices] don't match the actual indices of the point in time",
+                    validationException
+                );
             }
         } else if (source != null && source.sorts() != null) {
             for (SortBuilder<?> sortBuilder : source.sorts()) {
@@ -393,7 +402,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException
             );
         }
-        if (pointInTimeBuilder() != null && waitForCheckpoints.isEmpty() == false) {
+        if (pointInTime != null && waitForCheckpoints.isEmpty() == false) {
             validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
 
         }

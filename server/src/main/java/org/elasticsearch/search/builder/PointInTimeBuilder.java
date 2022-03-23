@@ -51,6 +51,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
 
     private final String encodedId;
     private transient SearchContextId searchContextId; // lazily decoded from the encodedId
+    private transient String[] actualIndices;
     private TimeValue keepAlive;
 
     public PointInTimeBuilder(String pitID) {
@@ -124,6 +125,16 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
     @Nullable
     public TimeValue getKeepAlive() {
         return keepAlive;
+    }
+
+    /**
+     * Returns the actual indices from the point-in-time
+     */
+    public String[] getActualIndices() {
+        if (actualIndices == null) {
+            actualIndices = SearchContextId.getActualIndices(encodedId);
+        }
+        return actualIndices;
     }
 
     @Override

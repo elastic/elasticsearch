@@ -474,7 +474,8 @@ class ClientTransformIndexer extends TransformIndexer {
         String name = namedSearchRequest.v1();
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
-        if (searchRequest.indices().length == 0) {
+        final String[] indices = searchRequest.indices();
+        if (indices.length == 0) {
             logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, searchRequest);
             listener.onResponse(null);
             return;
@@ -482,22 +483,16 @@ class ClientTransformIndexer extends TransformIndexer {
         logger.trace("searchRequest: [{}]", searchRequest);
 
         PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
-
+        if (pit != null) {
+            searchRequest.indices(pit.getActualIndices());
+        }
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
             searchRequest,
-            ActionListener.wrap(response -> {
-                // did the pit change?
-                if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId().equals(pit.getEncodedId())) == false) {
-                    namedPits.put(name, new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
-                    logger.trace("point in time handle has changed; request [{}]", name);
-                }
-
-                listener.onResponse(response);
-            }, e -> {
+            ActionListener.wrap(listener::onResponse, e -> {
                 // check if the error has been caused by a missing search context, which could be a timed out pit
                 // re-try this search without pit, if it fails again the normal failure handler is called, if it
                 // succeeds a new pit gets created at the next run
@@ -513,6 +508,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     namedPits.remove(name);
                     searchRequest.source().pointInTimeBuilder(null);
+                    searchRequest.indices(indices);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
@@ -532,6 +528,7 @@ class ClientTransformIndexer extends TransformIndexer {
                      */
                     namedPits.remove(name);
                     searchRequest.source().pointInTimeBuilder(null);
+                    searchRequest.indices(indices);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,

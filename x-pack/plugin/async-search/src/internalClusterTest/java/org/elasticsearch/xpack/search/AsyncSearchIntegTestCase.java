@@ -251,7 +251,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));
             }
             source.pointInTimeBuilder(pit);
-            request = new SubmitAsyncSearchRequest(source);
+            request = new SubmitAsyncSearchRequest(source, pit.getActualIndices());
         } else {
             pitId = null;
             request = new SubmitAsyncSearchRequest(source, indexName);

@@ -424,7 +424,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         private volatile Set<String> existingRepositories;
         private volatile SearchResponse searchResponse;
         private volatile Instant expirationTime;
-        private volatile String pointIntTimeId;
+        private volatile PointInTimeBuilder pointInTime;
         private volatile Object[] searchAfter;
 
         PeriodicMaintenanceTask(TimeValue keepAlive, int batchSize) {
@@ -437,14 +437,14 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             assert assertGenericThread();
             try {
                 ensureOpen();
-                if (pointIntTimeId == null) {
+                if (pointInTime == null) {
                     final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(SNAPSHOT_BLOB_CACHE_INDEX);
                     openRequest.keepAlive(keepAlive);
                     clientWithOrigin.execute(OpenPointInTimeAction.INSTANCE, openRequest, new ActionListener<OpenPointInTimeResponse>() {
                         @Override
                         public void onResponse(OpenPointInTimeResponse response) {
                             logger.trace("periodic maintenance task initialized with point-in-time id [{}]", response.getPointInTimeId());
-                            PeriodicMaintenanceTask.this.pointIntTimeId = response.getPointInTimeId();
+                            PeriodicMaintenanceTask.this.pointInTime = new PointInTimeBuilder(response.getPointInTimeId());
                             executeNext(PeriodicMaintenanceTask.this);
                         }
 
@@ -460,8 +460,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     return;
                 }
 
-                final String pitId = pointIntTimeId;
-                assert Strings.hasLength(pitId);
+                final PointInTimeBuilder pointInTime = this.pointInTime;
 
                 if (searchResponse == null) {
                     final SearchSourceBuilder searchSource = new SearchSourceBuilder();
@@ -476,11 +475,11 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     } else {
                         searchSource.trackTotalHits(true);
                     }
-                    final PointInTimeBuilder pointInTime = new PointInTimeBuilder(pitId);
                     pointInTime.setKeepAlive(keepAlive);
                     searchSource.pointInTimeBuilder(pointInTime);
                     final SearchRequest searchRequest = new SearchRequest();
                     searchRequest.source(searchSource);
+                    // set the indices to the point-in-time
                     clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {
@@ -658,7 +657,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             };
             boolean waitForRelease = false;
             try {
-                final String pitId = pointIntTimeId;
+                final String pitId = pointInTime != null ? pointInTime.getEncodedId() : null;
                 if (Strings.hasLength(pitId)) {
                     final ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId);
                     clientWithOrigin.execute(

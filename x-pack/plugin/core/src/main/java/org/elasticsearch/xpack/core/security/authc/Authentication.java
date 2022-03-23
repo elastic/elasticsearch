@@ -72,6 +72,9 @@ public class Authentication implements ToXContentObject {
     private final AuthenticationType type;
     private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
+    private Subject authenticatingSubject;
+    private Subject effectiveSubject;
+
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
     }
@@ -109,10 +112,44 @@ public class Authentication implements ToXContentObject {
         this.assertDomainAssignment();
     }
 
+    /**
+     * Get the {@link Subject} that performs the actual authentication. This normally means it provides a credentials.
+     */
+    public Subject getAuthenticatingSubject() {
+        initializeSubjects();
+        return authenticatingSubject;
+    }
+
+    /**
+     * Get the {@link Subject} that the authentication effectively represents. It may not be the authenticating subject
+     * because the authentication subject can run-as another subject.
+     */
+    public Subject getEffectiveSubject() {
+        initializeSubjects();
+        return effectiveSubject;
+    }
+
+    /**
+     * Whether the authentication contains a subject run-as another subject. That is, the authentication subject
+     * is different from the effective subject.
+     */
+    public boolean isRunAs() {
+        initializeSubjects();
+        return authenticatingSubject != effectiveSubject;
+    }
+
+    /**
+     * Use {@code getEffectiveSubject().getUser()} instead.
+     */
+    @Deprecated
     public User getUser() {
         return user;
     }
 
+    /**
+     * Use {@code getAuthenticatingSubject().getRealm()} instead.
+     */
+    @Deprecated
     public RealmRef getAuthenticatedBy() {
         return authenticatedBy;
     }
@@ -124,7 +161,10 @@ public class Authentication implements ToXContentObject {
     /**
      * Get the realm where the effective user comes from.
      * The effective user is the es-security-runas-user if present or the authenticated user.
+     *
+     * Use {@code getEffectiveSubject().getRealm()} instead.
      */
+    @Deprecated
     public RealmRef getSourceRealm() {
         return lookedUpBy == null ? authenticatedBy : lookedUpBy;
     }
@@ -231,19 +271,18 @@ public class Authentication implements ToXContentObject {
 
     /**
      * Whether the authenticating user is an API key, including a simple API key or a token created by an API key.
-     * @return
      */
     public boolean isAuthenticatedAsApiKey() {
-        final boolean result = AuthenticationField.API_KEY_REALM_TYPE.equals(getAuthenticatedBy().getType());
-        assert false == result || AuthenticationField.API_KEY_REALM_NAME.equals(getAuthenticatedBy().getName());
-        return result;
+        initializeSubjects();
+        return authenticatingSubject.getType() == Subject.Type.API_KEY;
     }
 
-    public boolean isAuthenticatedAnonymously() {
+    // TODO: this is not entirely accurate if anonymous user can create a token
+    private boolean isAuthenticatedAnonymously() {
         return AuthenticationType.ANONYMOUS.equals(getAuthenticationType());
     }
 
-    public boolean isAuthenticatedInternally() {
+    private boolean isAuthenticatedInternally() {
         return AuthenticationType.INTERNAL.equals(getAuthenticationType());
     }
 
@@ -251,10 +290,8 @@ public class Authentication implements ToXContentObject {
      * Authenticate with a service account and no run-as
      */
     public boolean isServiceAccount() {
-        final boolean result = ServiceAccountSettings.REALM_TYPE.equals(getSourceRealm().getType());
-        assert false == result || ServiceAccountSettings.REALM_NAME.equals(getSourceRealm().getName())
-            : "service account realm name mismatch";
-        return result;
+        initializeSubjects();
+        return effectiveSubject.getType() == Subject.Type.SERVICE_ACCOUNT;
     }
 
     /**
@@ -262,9 +299,8 @@ public class Authentication implements ToXContentObject {
      * or a token created by the API key.
      */
     public boolean isApiKey() {
-        final boolean result = AuthenticationField.API_KEY_REALM_TYPE.equals(getSourceRealm().getType());
-        assert false == result || AuthenticationField.API_KEY_REALM_NAME.equals(getSourceRealm().getName()) : "api key realm name mismatch";
-        return result;
+        initializeSubjects();
+        return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
     /**
@@ -321,10 +357,8 @@ public class Authentication implements ToXContentObject {
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
             : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
                 + EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
-        final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(this);
-        final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(resourceCreatorAuthentication);
-        final Subject mySubject = myAuthContext.getEffectiveSubject();
-        final Subject creatorSubject = creatorAuthContext.getEffectiveSubject();
+        final Subject mySubject = getEffectiveSubject();
+        final Subject creatorSubject = resourceCreatorAuthentication.getEffectiveSubject();
         return mySubject.canAccessResourcesOf(creatorSubject);
     }
 
@@ -406,6 +440,21 @@ public class Authentication implements ToXContentObject {
                 builder.field("api_key", Map.of("id", apiKeyId));
             } else {
                 builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
+            }
+        }
+    }
+
+    private void initializeSubjects() {
+        if (authenticatingSubject == null) {
+            if (user.isRunAs()) {
+                authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
+                // The lookup user for run-as currently don't have authentication metadata associated with them because
+                // lookupUser only returns the User object. The lookup user for authorization delegation does have
+                // authentication metadata, but the realm does not expose this difference between authenticatingUser and
+                // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
+                effectiveSubject = new Subject(user, lookedUpBy, version, Map.of());
+            } else {
+                authenticatingSubject = effectiveSubject = new Subject(user, authenticatedBy, version, metadata);
             }
         }
     }
@@ -757,6 +806,7 @@ public class Authentication implements ToXContentObject {
         }
     }
 
+    // TODO: Rename to AuthenticationMethod
     public enum AuthenticationType {
         REALM,
         API_KEY,

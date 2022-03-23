@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
@@ -54,7 +53,7 @@ public class ApiKeyGenerator {
             apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
         }, listener::onFailure);
 
-        final Subject effectiveSubject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
 
         // Retain current behaviour that User of an API key authentication has no roles
         if (effectiveSubject.getType() == Subject.Type.API_KEY) {

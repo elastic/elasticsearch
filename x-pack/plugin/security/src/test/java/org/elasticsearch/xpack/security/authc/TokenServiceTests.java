@@ -108,6 +108,7 @@ import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryInte
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -633,7 +634,7 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getVersion().onOrAfter(TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+        if (authentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
             return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
         } else {
             return new RefreshTokenStatus(

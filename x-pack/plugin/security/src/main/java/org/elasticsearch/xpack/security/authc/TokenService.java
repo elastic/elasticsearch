@@ -1831,7 +1831,7 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client");
                 if (userToken.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
-                    builder.field("authentication", originatingClientAuth.encode());
+                    builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getVersion()).encode());
                 } else {
                     builder.field("user", originatingClientAuth.getUser().principal())
                         .field("realm", originatingClientAuth.getAuthenticatedBy().getName());

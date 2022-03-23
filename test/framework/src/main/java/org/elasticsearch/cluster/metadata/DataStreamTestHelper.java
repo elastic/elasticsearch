@@ -85,12 +85,7 @@ public final class DataStreamTestHelper {
         return newInstance(name, indices, indices.size(), null);
     }
 
-    public static DataStream newInstance(
-        String name,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata
-    ) {
+    public static DataStream newInstance(String name, List<Index> indices, long generation, Map<String, Object> metadata) {
         return newInstance(name, indices, generation, metadata, false);
     }
 
@@ -102,7 +97,7 @@ public final class DataStreamTestHelper {
         boolean replicated
     ) {
         var timestampField = new DataStream.TimestampField("@timestamp");
-        return new DataStream(name,timestampField , indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, timestampField, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(

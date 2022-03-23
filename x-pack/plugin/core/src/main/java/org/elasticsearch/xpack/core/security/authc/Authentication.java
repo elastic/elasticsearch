@@ -154,6 +154,11 @@ public class Authentication implements ToXContentObject {
         return authenticatedBy;
     }
 
+    /**
+     * The use case for this method is largely trying to tell whether there is a run-as user
+     * and can be replaced by {@code isRunAs}
+     */
+    @Deprecated
     public RealmRef getLookedUpBy() {
         return lookedUpBy;
     }

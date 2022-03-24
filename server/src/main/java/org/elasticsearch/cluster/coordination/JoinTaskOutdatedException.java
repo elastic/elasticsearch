@@ -9,13 +9,20 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * Is thrown when a join requests arrives with outdated term
  */
 public class JoinTaskOutdatedException extends ElasticsearchException {
 
-    public JoinTaskOutdatedException(String msg, Object... args) {
-        super(msg, args);
+    public JoinTaskOutdatedException(String msg) {
+        super(msg);
+    }
+
+    public JoinTaskOutdatedException(StreamInput in) throws IOException {
+        super(in);
     }
 }

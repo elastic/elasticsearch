@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
@@ -172,15 +173,23 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 
         Set<RoleDescriptor> rolesUsingDfsFeature = roles.get(true);
+        String licenseStatusDescription = licenseState.statusDescription();
         logger.warn(
             "Roles [{}] were skipped during user role resolution because they rely on licensed feature [{}] "
                 + "not supported by your current license [{}]. "
-                + "This means you will no longer be able to carry out actions that require these roles."
+                + "Actions that require these roles will fail. "
                 + "Upgrade license to [{}] or above, or renew if it's expired to re-enable them.",
             rolesUsingDfsFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
             DOCUMENT_LEVEL_SECURITY_FEATURE,
-            licenseState.statusDescription(),
+            licenseStatusDescription,
             DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
+        );
+
+        HeaderWarning.addWarning(
+            "Roles [{}] were skipped during user role resolution because they rely on licensed feature [{}] "
+                + "not supported by your current license [{}]. See logs for details.",
+            DOCUMENT_LEVEL_SECURITY_FEATURE,
+            licenseStatusDescription
         );
 
         return roles.get(false);

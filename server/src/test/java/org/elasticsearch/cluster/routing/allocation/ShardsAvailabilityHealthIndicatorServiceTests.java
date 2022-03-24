@@ -8,8 +8,10 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -19,6 +21,8 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
@@ -48,7 +52,6 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -185,7 +188,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 index("yellow-index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
                 index("yellow-index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
             ),
-            List.of()
+            List.of(),
+            Map.of("red-index", 3, "yellow-index-1", 5, "yellow-index-2", 8)
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -197,18 +201,42 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             result.impacts().get(0),
             new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
         );
+        // yellow-index-2 has the higher priority so it ought to be listed first:
         assertThat(
             result.impacts().get(1),
-            oneOf(
-                new HealthIndicatorImpact(
-                    3,
-                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-1, "
-                        + "yellow-index-2]."
-                ),
+            equalTo(
                 new HealthIndicatorImpact(
                     3,
                     "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
                         + "yellow-index-1]."
+                )
+            )
+        );
+    }
+
+    public void testSortByIndexPriority() {
+        var lowPriority = randomIntBetween(1, 5);
+        var highPriority = randomIntBetween(6, 20);
+        var clusterState = createClusterStateWith(
+            List.of(
+                index("index-3", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
+            ),
+            List.of(),
+            Map.of("index-3", lowPriority, "index-1", lowPriority, "index-2", highPriority)
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate();
+        // index-2 has the higher priority so it ought to be listed first, followed by index-1 then index-3 which have the same priority:
+        assertThat(
+            result.impacts().get(0),
+            equalTo(
+                new HealthIndicatorImpact(
+                    3,
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
+                        + "index-1, index-3]."
                 )
             )
         );
@@ -372,6 +400,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {
+        return createClusterStateWith(indexes, nodeShutdowns, null);
+    }
+
+    private static ClusterState createClusterStateWith(
+        List<IndexRoutingTable> indexes,
+        List<NodeShutdown> nodeShutdowns,
+        Map<String, Integer> indexNameToPriorityMap
+    ) {
         var builder = RoutingTable.builder();
         for (IndexRoutingTable index : indexes) {
             builder.add(index);
@@ -393,10 +429,27 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     )
                 )
         );
-
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (indexNameToPriorityMap != null) {
+            ImmutableOpenMap.Builder<String, IndexMetadata> indicesBuilder = ImmutableOpenMap.builder();
+            for (Map.Entry<String, Integer> indexNameToPriority : indexNameToPriorityMap.entrySet()) {
+                String indexName = indexNameToPriority.getKey();
+                IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
+                Settings settings = Settings.builder()
+                    .put(IndexMetadata.SETTING_PRIORITY, indexNameToPriority.getValue())
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .build();
+                indexMetadataBuilder.settings(settings);
+                indicesBuilder.put(indexName, indexMetadataBuilder.build());
+            }
+            metadataBuilder.indices(indicesBuilder.build());
+        }
+        metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata);
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(builder.build())
-            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+            .metadata(metadataBuilder.build())
             .build();
     }
 

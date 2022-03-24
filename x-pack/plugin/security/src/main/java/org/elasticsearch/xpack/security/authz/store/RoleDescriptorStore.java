@@ -143,7 +143,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
             if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
                 && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = filterRolesNotUsingDfsFeature(roleDescriptors);
+                effectiveDescriptors = filterRolesNotUsingLicensedFeatures(roleDescriptors);
             } else {
                 effectiveDescriptors = roleDescriptors;
             }
@@ -168,11 +168,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, listener::onFailure));
     }
 
-    private Set<RoleDescriptor> filterRolesNotUsingDfsFeature(Set<RoleDescriptor> roleDescriptors) {
+    private Set<RoleDescriptor> filterRolesNotUsingLicensedFeatures(Set<RoleDescriptor> roleDescriptors) {
         Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 
-        Set<RoleDescriptor> rolesUsingDfsFeature = roles.get(true);
+        Set<RoleDescriptor> rolesUsingFeature = roles.get(true);
         String licenseStatusDescription = licenseState.statusDescription();
         String headerWarning = "Some user roles are disabled since they require feature [{}] not supported by your license [{}].";
         logger.warn(
@@ -182,7 +182,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 + "Upgrade license to [{}] or above, or renew if it's expired to re-enable them.",
             DOCUMENT_LEVEL_SECURITY_FEATURE,
             licenseStatusDescription,
-            rolesUsingDfsFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
+            rolesUsingFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
             DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
         );
         HeaderWarning.addWarning(headerWarning, DOCUMENT_LEVEL_SECURITY_FEATURE, licenseStatusDescription);

@@ -156,7 +156,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
         /*
-         * Wrap with a ConstantScoreQuery to enables a few more rewrite
+         * Wrapping with a ConstantScoreQuery enables a few more rewrite
          * rules as of Lucene 9.2.
          * It'd be *wonderful* if Lucene could do fancy optimizations
          * when merging queries like combining ranges but it doesn't at

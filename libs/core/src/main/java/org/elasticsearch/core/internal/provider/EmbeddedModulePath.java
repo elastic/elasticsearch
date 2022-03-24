@@ -16,8 +16,6 @@ import java.io.UncheckedIOException;
 import java.lang.module.FindException;
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor;
-import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -53,7 +51,7 @@ final class EmbeddedModulePath {
 
     private static final String MRJAR_VERSION_PREFIX = "META-INF/versions/";
 
-    private static boolean hasRootModuleInfo(Path path) {
+    static boolean hasRootModuleInfo(Path path) {
         Path mi = path.resolve(MODULE_INFO);
         if (Files.exists(mi)) {
             return true;
@@ -61,19 +59,33 @@ final class EmbeddedModulePath {
         return false;
     }
 
-    static ModuleDescriptor readModuleInfo(Path path) {
-        try (var is = Files.newInputStream(path)) {
-            return ModuleDescriptor.read(is);
+    static Set<String> explodedPackages(Path dir) {
+        String separator = dir.getFileSystem().getSeparator();
+        try {
+            var fs = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))
+                .map(path -> dir.relativize(path))
+                .map(path -> toPackageName(path, separator))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            return fs;
+        } catch (IOException x) {
+            throw new UncheckedIOException(x);
+        }
+    }
+
+    static ModuleDescriptor readModuleInfo(Path miPath, Path pkgsRoot) {
+        try (var is = Files.newInputStream(miPath)) {
+            return ModuleDescriptor.read(is, () -> explodedPackages(pkgsRoot));
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
     }
 
-    static Optional<ModuleDescriptor> getModuleInfoVersioned(Path path) {
+    static Optional<ModuleDescriptor> getModuleInfoVersioned(Path rootPath) {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-            Path mi = path.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
+            Path mi = rootPath.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
             if (Files.exists(mi)) {
-                return Optional.of(readModuleInfo(mi));
+                return Optional.of(readModuleInfo(mi, rootPath));
             }
         }
         return Optional.empty();
@@ -86,30 +98,44 @@ final class EmbeddedModulePath {
      */
     static ModuleDescriptor descriptorFor(Path path) {
         Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
-
         if (vmd.isPresent()) {
             var md = vmd.get();
             // todo: perform scan and verification
             return md;
         } else if (hasRootModuleInfo(path)) {
-            if (System.getProperty("os.name").startsWith("Windows")) {
-                // This is a loathsome workaround for JDK-8282444, which affects Windows only
-                var md = readModuleInfo(path.resolve(MODULE_INFO));
-                // todo: perform scan and verification
-                return md;
-            } else {
-                // just use the JDK's built-in module finder
-                Set<ModuleReference> mrefs = ModuleFinder.of(path).findAll();
-                if (mrefs.size() == 1) {
-                    return mrefs.iterator().next().descriptor();
-                } else {
-                    throw new FindException("more than one module found at path: %s, mods: %s.".formatted(path, mrefs));
-                }
-            }
+            var md = readModuleInfo(path.resolve(MODULE_INFO), path);
+            // todo: perform scan and verification
+            return md;
         } else {
             return descriptorForAutomatic(path);
         }
     }
+
+    // static ModuleDescriptor descriptorFor2(Path path) {
+    // Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
+    // if (vmd.isPresent()) {
+    // var md = vmd.get();
+    // // todo: perform scan and verification
+    // return md;
+    // } else if (hasRootModuleInfo(path)) {
+    // //if (System.getProperty("os.name").startsWith("Windows")) {
+    // // This is a loathsome workaround for JDK-8282444, which affects Windows only
+    // var md = readModuleInfo(path.resolve(MODULE_INFO), path);
+    // // todo: perform scan and verification
+    // return md;
+    // } else {
+    // // just use the JDK's built-in module finder
+    // Set<ModuleReference> mrefs = ModuleFinder.of(path).findAll();
+    // if (mrefs.size() == 1) {
+    // return mrefs.iterator().next().descriptor();
+    // } else {
+    // throw new FindException("more than one module found at path: %s, mods: %s.".formatted(path, mrefs));
+    // }
+    // }
+    // } else {
+    // return descriptorForAutomatic(path);
+    // }
+    // }
 
     record ScanResult(Set<String> classFiles, Set<String> serviceFiles) {}
 
@@ -134,7 +160,7 @@ final class EmbeddedModulePath {
         // scan the names of the entries in the exploded JAR
         var scan = scan(path);
 
-        // all packages are exported and open
+        // all packages are exported and open, since the auto-module bit has been set
         builder.packages(
             scan.classFiles().stream().map(EmbeddedModulePath::toPackageName).flatMap(Optional::stream).collect(Collectors.toSet())
         );
@@ -204,6 +230,26 @@ final class EmbeddedModulePath {
             return map;
         } catch (IOException e) {
             throw new FindException(e);
+        }
+    }
+
+    private static Optional<String> toPackageName(Path file, String separator) {
+        Path parent = file.getParent();
+        if (parent == null) {
+            String name = file.toString();
+            if (name.endsWith(".class") && name.equals(MODULE_INFO) == false) {
+                String msg = name + " found in top-level directory" + " (unnamed package not allowed in module)";
+                throw new InvalidModuleDescriptorException(msg);
+            }
+            return Optional.empty();
+        }
+
+        String pn = parent.toString().replace(separator, ".");
+        if (isPackageName(pn)) {
+            return Optional.of(pn);
+        } else {
+            // not a valid package name
+            return Optional.empty();
         }
     }
 
@@ -301,13 +347,15 @@ final class EmbeddedModulePath {
 
     static String moduleNameFromManifestOrNull(Path path) {
         Path mp = path.resolve(MANIFEST_PATH);
-        try (InputStream is = Files.newInputStream(mp)) {
-            if (is != null) {
-                Manifest manifest = new Manifest(is);
-                return manifest.getMainAttributes().getValue(AUTOMATIC_MODULE_NAME);
+        if (Files.exists((mp))) {
+            try (InputStream is = Files.newInputStream(mp)) {
+                if (is != null) {
+                    Manifest manifest = new Manifest(is);
+                    return manifest.getMainAttributes().getValue(AUTOMATIC_MODULE_NAME);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
         return null;
     }

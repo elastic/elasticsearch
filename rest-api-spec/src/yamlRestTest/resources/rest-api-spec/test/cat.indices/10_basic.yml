@@ -234,7 +234,7 @@
 
   - do:
       indices.create:
-        index: boo
+        index: foo
         body:
           settings:
             number_of_shards: "1"
@@ -264,7 +264,7 @@
 
   - do:
       cat.indices:
-        index: b*
+        index: b*,foo
         h: [status, index]
         s: [status, index]
 
@@ -272,19 +272,19 @@
       $body: |
             /^ close \s+ bar\n
                open \s+ baz\n
-               open \s+ boo\n
+               open \s+ foo\n
             $/
 
   - do:
       cat.indices:
-        index: b*
+        index: b*,foo
         h: [status, index]
         s: [status, "index:desc"]
 
   - match:
       $body: |
             /^ close \s+ bar\n
-               open \s+ boo\n
+               open \s+ foo\n
                open \s+ baz\n
             $/
 

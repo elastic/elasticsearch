@@ -1,0 +1,5 @@
+pr: 85326
+summary: "Fix: LDAP/AD realms missing bind password fails node"
+area: Authentication
+type: bug
+issues: []

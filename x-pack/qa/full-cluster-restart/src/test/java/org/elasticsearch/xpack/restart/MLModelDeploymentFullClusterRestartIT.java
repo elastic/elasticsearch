@@ -30,9 +30,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MLTrainedModelFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
-    // See PyTorchModelIT
+    // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp"
             + "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA"
@@ -80,7 +80,7 @@ public class MLTrainedModelFullClusterRestartIT extends AbstractFullClusterResta
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        assumeTrue("NLP models added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        assumeTrue("NLP model deployments added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
 
         String modelId = "trained-model-full-cluster-restart";
 

@@ -8,15 +8,10 @@
 
 package org.elasticsearch.transport.netty5;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.api.Buffer;
-import io.netty.buffer.api.adaptor.ByteBufAdaptor;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerAdapter;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.Promise;
-
+import io.netty5.buffer.ByteBuf;
+import io.netty5.buffer.api.Buffer;
+import io.netty5.channel.ChannelHandlerAdapter;
+import io.netty5.channel.ChannelHandlerContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;

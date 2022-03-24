@@ -15,12 +15,6 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
-repositories {
-  maven {
-    url = 'https://oss.sonatype.org/content/repositories/snapshots/'
-  }
-}
-
 esplugin {
   description 'Netty 5 based transport implementation'
   classname 'org.elasticsearch.transport.netty5.Netty5Plugin'
@@ -34,17 +28,17 @@ configurations {
   }
 }
 
-def netty5Version = '5.0.0.Final-SNAPSHOT'
+def netty5Version = '5.0.0.Alpha1'
 
 dependencies {
   // network stack
-  api "io.netty:netty-buffer:${netty5Version}"
-  api "io.netty:netty-codec:${netty5Version}"
-  api "io.netty:netty-codec-http:${netty5Version}"
-  api "io.netty:netty-common:${netty5Version}"
-  api "io.netty:netty-handler:${netty5Version}"
-  api "io.netty:netty-resolver:${netty5Version}"
-  api "io.netty:netty-transport:${netty5Version}"
+  api "io.netty:netty5-buffer:${netty5Version}"
+  api "io.netty:netty5-codec:${netty5Version}"
+  api "io.netty:netty5-codec-http:${netty5Version}"
+  api "io.netty:netty5-common:${netty5Version}"
+  api "io.netty:netty5-handler:${netty5Version}"
+  api "io.netty:netty5-resolver:${netty5Version}"
+  api "io.netty:netty5-transport:${netty5Version}"
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'transport-netty4'
   }

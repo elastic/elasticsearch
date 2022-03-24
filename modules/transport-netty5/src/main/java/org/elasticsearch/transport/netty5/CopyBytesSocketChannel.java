@@ -30,6 +30,7 @@ import io.netty.channel.EventLoop;
 import io.netty.channel.RecvBufferAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
+import io.netty5.channel.ChannelOutboundBuffer;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 

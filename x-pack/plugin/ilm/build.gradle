@@ -20,9 +20,3 @@ dependencies {
 }
 
 addQaCheckDependencies()
-
-tasks.named("test").configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
-  }
-}

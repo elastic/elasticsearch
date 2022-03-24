@@ -25,7 +25,6 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'false'
-  requiresFeature 'es.rollup_v2_feature_flag_enabled', Version.fromString("8.0.0")
 }
 
 if (BuildParams.inFipsJvm){

@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rollup.RollupV2;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +55,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        RollupV2.isEnabled() ? RollupILMAction.NAME : null,
+        RollupILMAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
@@ -68,7 +67,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
-        ForceMergeAction.NAME
+        ForceMergeAction.NAME,
+        RollupILMAction.NAME
     );
     public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
@@ -78,7 +78,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         AllocateAction.NAME,
         MigrateAction.NAME,
         FreezeAction.NAME,
-        RollupV2.isEnabled() ? RollupILMAction.NAME : null
+        RollupILMAction.NAME
     ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);

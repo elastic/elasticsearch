@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;

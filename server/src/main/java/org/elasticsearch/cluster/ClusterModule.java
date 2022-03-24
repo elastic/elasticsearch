@@ -337,6 +337,10 @@ public class ClusterModule extends AbstractModule {
         return Objects.requireNonNull(allocatorSupplier.get(), "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
+    public AllocationDeciders getAllocationDeciders() {
+        return allocationDeciders;
+    }
+
     public AllocationService getAllocationService() {
         return allocationService;
     }

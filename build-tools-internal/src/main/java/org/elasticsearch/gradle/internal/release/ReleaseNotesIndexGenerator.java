@@ -29,6 +29,7 @@ import static java.util.Comparator.reverseOrder;
  */
 public class ReleaseNotesIndexGenerator {
 
+    // Some versions where never released or were pulled. They shouldn't be listed.
     private static Set<QualifiedVersion> EXCLUDED_VERSIONS = Set.of(
         QualifiedVersion.of("7.0.1"),
         QualifiedVersion.of("7.13.3"),

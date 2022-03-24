@@ -179,7 +179,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
-            this.sortFmt = sortAndFormats == null ? new DocValueFormat[]{DocValueFormat.RAW} : sortAndFormats.formats;
+            this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
 
             MaxScoreCollector maxScoreCollector;

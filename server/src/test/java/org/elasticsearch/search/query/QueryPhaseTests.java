@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -692,7 +692,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
-            searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
@@ -843,8 +842,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     // assert score docs are in order and their number is as expected
     private void assertSortResults(TopDocs topDocs, long totalNumDocs, boolean isDoubleSort) {
-        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation);
-        assertThat(topDocs.totalHits.value, lessThan(totalNumDocs)); // we collected less docs than total number
+        assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation);
+        assertThat(topDocs.totalHits.value, lessThanOrEqualTo(totalNumDocs)); // we collected less docs or equal than total number
         long cur1, cur2;
         long prev1 = Long.MIN_VALUE;
         long prev2 = Long.MIN_VALUE;

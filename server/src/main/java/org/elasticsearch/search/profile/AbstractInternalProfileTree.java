@@ -53,6 +53,12 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
 
         boolean stackEmpty = stack.isEmpty();
 
+        // If the query is already added, we return the corresponding profile
+        // breakdown instead of create a new one.
+        if (this.elements.contains(query) && token < this.breakdowns.size()) {
+            return this.breakdowns.get(token);
+        }
+
         // If the stack is empty, we are a new root query
         if (stackEmpty) {
 

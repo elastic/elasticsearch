@@ -11,7 +11,7 @@ Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 * Feature migration refuses to run if all features requiring upgrade have
   encountered errors (issue: {es-issue}83917[#83917])
 * Migrating system indices fails for tasks with `mapper_parsing_exception`
-  (issue: {es-isue}83779[#83779])
+  (issue: {es-issue}83779[#83779])
 
 These issues will impact any subsequent upgrade to 8.x, and are fixed in
 7.17.1. We strongly recommend that all users upgrade to a later patch

@@ -50,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -464,5 +466,72 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
+    }
+
+    public void testGetStepMultithreaded() throws Exception {
+        Client client = mock(Client.class);
+        Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
+
+        LifecyclePolicy policy = LifecyclePolicyTests.randomTimeseriesLifecyclePolicyWithAllPhases("policy");
+        String phaseName = randomFrom(policy.getPhases().keySet());
+        Phase phase = policy.getPhases().get(phaseName);
+
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.builder()
+            .setPhaseDefinition(Strings.toString(new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong())))
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.version.created", Version.CURRENT)
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
+                    .build()
+            )
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())
+            .build();
+
+        SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
+        metas.put("policy", new LifecyclePolicyMetadata(policy, Collections.emptyMap(), 1, randomNonNegativeLong()));
+        IndexLifecycleMetadata meta = new IndexLifecycleMetadata(metas, OperationMode.RUNNING);
+
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(REGISTRY, client, null);
+        registry.update(meta);
+
+        // test a variety of getStep calls with random actions and steps
+        for (int i = 0; i < scaledRandomIntBetween(100, 1000); i++) {
+            LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
+            Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
+            Step actualStep = registry.getStep(indexMetadata, step.getKey());
+            assertThat(actualStep.getKey(), equalTo(step.getKey()));
+        }
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean done = new AtomicBoolean(false);
+
+        // now, in another thread, update the registry repeatedly as fast as possible.
+        // updating the registry has the side effect of clearing the cache.
+        new Thread(() -> {
+            latch.countDown(); // signal that we're starting
+            while (done.get() == false) {
+                registry.update(meta);
+            }
+        }).start();
+
+        try {
+            latch.await(); // wait until the other thread started
+
+            // and, while the cache is being repeatedly cleared,
+            // test a variety of getStep calls with random actions and steps
+            for (int i = 0; i < scaledRandomIntBetween(100, 1000); i++) {
+                LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
+                Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
+                Step actualStep = registry.getStep(indexMetadata, step.getKey());
+                assertThat(actualStep.getKey(), equalTo(step.getKey()));
+            }
+        } finally {
+            // tell the other thread we're finished
+            done.set(true);
+        }
     }
 }

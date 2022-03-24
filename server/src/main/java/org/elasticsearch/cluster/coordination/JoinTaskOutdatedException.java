@@ -1,0 +1,21 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.cluster.coordination;
+
+import org.elasticsearch.ElasticsearchException;
+
+/**
+ * Is thrown when a join requests arrives with outdated term
+ */
+public class JoinTaskOutdatedException extends ElasticsearchException {
+
+    public JoinTaskOutdatedException(String msg, Object... args) {
+        super(msg, args);
+    }
+}

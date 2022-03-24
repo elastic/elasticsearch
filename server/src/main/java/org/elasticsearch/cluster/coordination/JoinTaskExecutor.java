@@ -55,7 +55,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         assert joinTaskContexts.isEmpty() == false : "Expected to have non empty join tasks list";
 
         var term = joinTaskContexts.stream().mapToLong(t -> t.getTask().term()).max().getAsLong();
-        joinTaskContexts = joinTaskContexts.stream().filter(t -> t.getTask().term() == term).toList();
+
+        var split = joinTaskContexts.stream().collect(Collectors.partitioningBy(t -> t.getTask().term() == term));
+        for (TaskContext<JoinTask> outdated : split.get(false)) {
+            outdated.onFailure(new JoinTaskOutdatedException("Join task term [{}] is outdated", term));
+        }
+
+        joinTaskContexts = split.get(true);// process up-to-date tasks
 
         if (currentState.term() > term) {
             logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);

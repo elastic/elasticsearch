@@ -370,7 +370,8 @@ public class PolicyStepsRegistry {
             cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
             // assert that the cache works as expected -- that is, if we put something into the cache,
             // we should get back the same thing if we were to invoke getStep again with the same arguments
-            assert s == getCachedStep(indexMetadata, stepKey) : "policy step registry cache failed sanity check";
+            Step found = getCachedStep(indexMetadata, stepKey);
+            assert s == found : "policy step registry cache failed sanity check (expected [" + s + "], found [" + found + "])";
         }
         return s;
     }

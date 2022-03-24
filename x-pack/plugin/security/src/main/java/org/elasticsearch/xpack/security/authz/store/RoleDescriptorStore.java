@@ -174,23 +174,18 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
         Set<RoleDescriptor> rolesUsingDfsFeature = roles.get(true);
         String licenseStatusDescription = licenseState.statusDescription();
+        String headerWarning = "Some user roles are disabled since they require feature [{}] not supported by your license [{}].";
         logger.warn(
-            "Roles [{}] were skipped during user role resolution because they rely on licensed feature [{}] "
-                + "not supported by your current license [{}]. "
+            headerWarning
+                + "Disabled roles: [{}]. "
                 + "Actions that require these roles will fail. "
                 + "Upgrade license to [{}] or above, or renew if it's expired to re-enable them.",
-            rolesUsingDfsFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
             DOCUMENT_LEVEL_SECURITY_FEATURE,
             licenseStatusDescription,
+            rolesUsingDfsFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
             DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
         );
-
-        HeaderWarning.addWarning(
-            "Roles [{}] were skipped during user role resolution because they rely on licensed feature [{}] "
-                + "not supported by your current license [{}]. See logs for details.",
-            DOCUMENT_LEVEL_SECURITY_FEATURE,
-            licenseStatusDescription
-        );
+        HeaderWarning.addWarning(headerWarning, DOCUMENT_LEVEL_SECURITY_FEATURE, licenseStatusDescription);
 
         return roles.get(false);
     }

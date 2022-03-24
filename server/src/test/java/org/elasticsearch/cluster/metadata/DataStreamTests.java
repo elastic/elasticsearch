@@ -487,7 +487,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
-                postSnapshotIndices,
+            postSnapshotIndices,
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
             preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
             preSnapshotDataStream.isHidden(),
@@ -529,7 +529,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
-                indicesToAdd,
+            indicesToAdd,
             preSnapshotDataStream.getGeneration(),
             preSnapshotDataStream.getMetadata(),
             preSnapshotDataStream.isHidden(),

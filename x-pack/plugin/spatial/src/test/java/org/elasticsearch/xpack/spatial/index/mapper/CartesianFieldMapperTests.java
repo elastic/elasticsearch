@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -49,10 +50,43 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
 
     protected abstract String getFieldName();
 
+    protected abstract void assertXYPointField(IndexableField field, float x, float y);
+
+    protected abstract void assertGeoJSONParseException(MapperParsingException e, String missingField);
+
     public void testWKT() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6)")));
-        assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
+        assertXYPointField(doc.rootDoc().getField(FIELD_NAME), 2000.1f, 305.6f);
+    }
+
+    public void testGeoJSONMissingCoordinates() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("type", "Point").endObject()))
+        );
+        assertGeoJSONParseException(e, "coordinates");
+    }
+
+    public void testGeoJSONMissingType() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0 };
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("coordinates", coords).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("Required [type]"));
+    }
+
+    public void testGeoJSON() throws IOException {
+        double[] coords = new double[] { 2000.1, 305.6 };
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("coordinates", coords).field("type", "Point").endObject())
+        );
+        assertXYPointField(doc.rootDoc().getField(FIELD_NAME), 2000.1f, 305.6f);
     }
 
     public void testInvalidPointValuesIgnored() throws IOException {
@@ -136,7 +170,7 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testZValue() throws IOException {
+    public void testZValueWKT() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("ignore_z_value", true);
@@ -154,6 +188,32 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> mapper2.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
+        assertThat(e.getRootCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
+    }
+
+    public void testZValueGeoJSON() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("ignore_z_value", true);
+        }));
+
+        double[] coords = { 2000.1, 305.6, 34567.33 };
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("type", "Point").field("coordinates", coords).endObject())
+        );
+
+        assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
+
+        DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("ignore_z_value", false);
+        }));
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper2.parse(source(b -> b.startObject(FIELD_NAME).field("type", "Point").field("coordinates", coords).endObject()))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
         assertThat(e.getRootCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));

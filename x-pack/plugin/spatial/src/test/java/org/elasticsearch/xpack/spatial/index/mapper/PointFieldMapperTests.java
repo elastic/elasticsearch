@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,8 +21,10 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -28,6 +33,19 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected String getFieldName() {
         return "point";
+    }
+
+    @Override
+    protected void assertXYPointField(IndexableField field, float x, float y) {
+        // Unfortunately XYPointField and parent classes like IndexableField do not define equals, so we use toString
+        assertThat(field.toString(), is(new XYPointField(FIELD_NAME, 2000.1f, 305.6f).toString()));
+    }
+
+    /** The GeoJSON parser used by 'point' and 'geo_point' mimic the required fields of the GeoJSON parser */
+    @Override
+    protected void assertGeoJSONParseException(MapperParsingException e, String missingField) {
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("Required [" + missingField + "]"));
     }
 
     @Override
@@ -233,6 +251,17 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.endObject();
         }));
         assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+    }
+
+    public void testGeoJSONInvalidType() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0 };
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("coordinates", coords).field("type", "Polygon").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("[type] for point can only be 'Point'"));
     }
 
     @Override

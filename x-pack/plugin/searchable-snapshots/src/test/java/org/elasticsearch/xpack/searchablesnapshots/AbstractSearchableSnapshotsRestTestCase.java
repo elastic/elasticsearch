@@ -129,21 +129,19 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build(),
-            """
-                    "properties": {
-                        "field": {
-                            "type": "integer"
-                        },
-                        "text": {
-                            "type": "text",
-                            "fields": {
-                                "raw": {
-                                    "type": "keyword"
-                                }
-                            }
-                        }
-                    }
-                """
+            "        \"properties\": { "
+                + "        \"field\": {"
+                + "            \"type\": \"integer\""
+                + "        },"
+                + "            \"text\": {"
+                + "               \"type\": \"text\","
+                + "                \"fields\": {"
+                + "                    \"raw\": {"
+                + "                        \"type\": \"keyword\""
+                + "                    }"
+                + "                }"
+                + "            }"
+                + "        }"
         );
         ensureGreen(indexName);
 
@@ -152,7 +150,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final CountDownLatch indexingLatch = new CountDownLatch(indexingThreads);
         final AtomicLong remainingDocs = new AtomicLong(numDocs);
         for (int i = 0; i < indexingThreads; i++) {
-            var thread = new Thread(() -> {
+            Thread thread = new Thread(() -> {
                 try {
                     do {
                         final StringBuilder bulkBody = new StringBuilder();
@@ -160,10 +158,15 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
                         long n;
                         while ((n = remainingDocs.decrementAndGet()) >= 0) {
-                            bulkBody.append(String.format(Locale.ROOT, """
-                                    {"index": {"_id":"%d"} }
-                                    {"field": %d, "text": "Document number %d"}
-                                """, n, n, n));
+                            bulkBody.append(
+                                String.format(
+                                    Locale.ROOT,
+                                    "{\"index\": {\"_id\":\"%d\"} }\n" + "{\"field\": %d, \"text\": \"Document number %d\"}\n",
+                                    n,
+                                    n,
+                                    n
+                                )
+                            );
                             bulkSize += 1;
                             if (bulkSize >= 500) {
                                 break;

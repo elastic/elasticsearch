@@ -92,17 +92,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         if (bindDn == null) {
             bindCredentials = new SimpleBindRequest();
         } else {
-            if (bindPassword == null) {
-                throw new IllegalArgumentException(
-                    "When ["
-                        + RealmSettings.getFullSettingKey(config, BIND_DN)
-                        + "] is set you must also specify ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                        + "] or ["
-                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
-                        + "]"
-                );
-            }
+            checkBindPasswordSet(config, bindPassword);
             bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
         }
 
@@ -237,4 +227,17 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         return connectionPool;
     }
 
+    private void checkBindPasswordSet(RealmConfig config, byte[] bindPassword) {
+        if (bindPassword == null) {
+            throw new IllegalArgumentException(
+                "When ["
+                    + RealmSettings.getFullSettingKey(config, BIND_DN)
+                    + "] is set you must also specify ["
+                    + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                    + "]"
+            );
+        }
+    }
 }

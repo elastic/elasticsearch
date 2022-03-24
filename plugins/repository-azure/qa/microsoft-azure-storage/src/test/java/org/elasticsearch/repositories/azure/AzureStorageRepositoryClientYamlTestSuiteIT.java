@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85311")
 public class AzureStorageRepositoryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public AzureStorageRepositoryClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

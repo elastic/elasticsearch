@@ -9,14 +9,13 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
@@ -54,11 +53,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, ignoredValues) -> List.of();
+                return new ValueFetcherSource.Constant(List.of());
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new ValueFetcherSource.DocValuesOnly(context, this, format);
         }
     }
 

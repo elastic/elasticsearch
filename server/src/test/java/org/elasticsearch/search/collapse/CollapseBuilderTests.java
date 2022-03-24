@@ -21,7 +21,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -218,7 +218,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 

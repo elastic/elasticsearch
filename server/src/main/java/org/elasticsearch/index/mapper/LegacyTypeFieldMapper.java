@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Field mapper to access the legacy _type that existed in Elasticsearch 5
@@ -86,8 +87,8 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.Constant(List.of(NAME));
         }
     }
 

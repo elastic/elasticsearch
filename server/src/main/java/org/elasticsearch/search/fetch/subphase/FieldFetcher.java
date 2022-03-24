@@ -95,7 +95,7 @@ public class FieldFetcher {
                 if (nestedParentPath == null) {
                     ValueFetcher valueFetcher;
                     try {
-                        valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                        valueFetcher = ft.valueFetcher(context, fieldAndFormat.format).preferStored();
                     } catch (IllegalArgumentException e) {
                         StringBuilder error = new StringBuilder("error fetching [").append(field).append(']');
                         if (isWildcardPattern) {

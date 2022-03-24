@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -257,14 +258,19 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new ArraySourceValueFetcher(name(), context) {
+            return new ValueFetcherSource.SourceOrDocValues(context, this, null) {
                 @Override
-                protected Object parseSourceValue(Object value) {
-                    return value;
+                protected ValueFetcher forceSource() {
+                    return new ArraySourceValueFetcher(name(), context) {
+                        @Override
+                        protected Object parseSourceValue(Object value) {
+                            return value;
+                        }
+                    };
                 }
             };
         }

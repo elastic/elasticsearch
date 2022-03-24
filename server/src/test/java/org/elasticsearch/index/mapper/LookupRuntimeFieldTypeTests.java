@@ -58,7 +58,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
         MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
-        ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
+        ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null).preferStored();
         DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
         assertNotNull(doc);
         assertThat(doc.getName(), equalTo("foo_lookup_field"));
@@ -114,7 +114,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
         MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
-        ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
+        ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null).preferStored();
         DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
         assertNull(doc);
     }

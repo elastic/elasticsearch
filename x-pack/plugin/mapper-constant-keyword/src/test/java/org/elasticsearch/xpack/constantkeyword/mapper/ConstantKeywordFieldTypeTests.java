@@ -109,7 +109,7 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchValue() throws Exception {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", null);
-        ValueFetcher fetcher = fieldType.valueFetcher(null, null);
+        ValueFetcher fetcher = randomValueFetcher(fieldType.valueFetcher(null, null));
 
         SourceLookup missingValueLookup = new SourceLookup();
         SourceLookup nullValueLookup = new SourceLookup();
@@ -120,7 +120,7 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         assertTrue(fetcher.fetchValues(nullValueLookup, ignoredValues).isEmpty());
 
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
-        fetcher = valued.valueFetcher(null, null);
+        fetcher = randomValueFetcher(valued.valueFetcher(null, null));
 
         assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, ignoredValues));
         assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, ignoredValues));

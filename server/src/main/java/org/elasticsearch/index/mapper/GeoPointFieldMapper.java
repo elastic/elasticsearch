@@ -319,7 +319,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }

@@ -103,8 +103,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.DocValuesOnly(context, this, format);
         }
 
         @Override

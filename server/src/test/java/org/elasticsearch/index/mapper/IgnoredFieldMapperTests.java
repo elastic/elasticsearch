@@ -54,7 +54,7 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
-                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null).preferStored();
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);

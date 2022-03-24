@@ -10,6 +10,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, SearchExecutionContext context) {
+    static ValueFetcherSource valueFetcher(FieldValues<?> fieldValues, SearchExecutionContext context) {
         return valueFetcher(fieldValues, v -> v, context);
     }
 
@@ -48,24 +49,43 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, Function<Object, Object> formatter, SearchExecutionContext context) {
-        return new ValueFetcher() {
-            LeafReaderContext ctx;
-
+    static ValueFetcherSource valueFetcher(FieldValues<?> fieldValues, Function<Object, Object> formatter, SearchExecutionContext context) {
+        return new ValueFetcherSource() {
             @Override
-            public void setNextReader(LeafReaderContext context) {
-                this.ctx = context;
+            public ValueFetcher preferStored() {
+                return fromFieldValues();
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
-                List<Object> values = new ArrayList<>();
-                try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
-                } catch (Exception e) {
-                    ignoredValues.addAll(values);
-                }
-                return values;
+            public ValueFetcher preferStoredOrEmpty() {
+                return fromFieldValues();
+            }
+
+            @Override
+            public ValueFetcher forceDocValues() {
+                throw new UnsupportedOperationException("we have no way to force the fields from loading from doc values");
+            }
+
+            private ValueFetcher fromFieldValues() {
+                return new ValueFetcher() {
+                    LeafReaderContext ctx;
+
+                    @Override
+                    public void setNextReader(LeafReaderContext context) {
+                        this.ctx = context;
+                    }
+
+                    @Override
+                    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+                        List<Object> values = new ArrayList<>();
+                        try {
+                            fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
+                        } catch (Exception e) {
+                            ignoredValues.addAll(values);
+                        }
+                        return values;
+                    }
+                };
             }
         };
     }
@@ -77,28 +97,47 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static <T> ValueFetcher valueListFetcher(
+    static <T> ValueFetcherSource valueListFetcher(
         FieldValues<T> fieldValues,
         Function<List<T>, List<Object>> formatter,
         SearchExecutionContext context
     ) {
-        return new ValueFetcher() {
-            LeafReaderContext ctx;
-
+        return new ValueFetcherSource() {
             @Override
-            public void setNextReader(LeafReaderContext context) {
-                this.ctx = context;
+            public ValueFetcher preferStored() {
+                return fromFieldValues();
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
-                List<T> values = new ArrayList<>();
-                try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));
-                } catch (Exception e) {
-                    ignoredValues.addAll(values);
-                }
-                return formatter.apply(values);
+            public ValueFetcher preferStoredOrEmpty() {
+                return fromFieldValues();
+            }
+
+            @Override
+            public ValueFetcher forceDocValues() {
+                throw new UnsupportedOperationException("we have no way to force the fields from loading from doc values");
+            }
+
+            private ValueFetcher fromFieldValues() {
+                return new ValueFetcher() {
+                    LeafReaderContext ctx;
+
+                    @Override
+                    public void setNextReader(LeafReaderContext context) {
+                        this.ctx = context;
+                    }
+
+                    @Override
+                    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+                        List<T> values = new ArrayList<>();
+                        try {
+                            fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));
+                        } catch (Exception e) {
+                            ignoredValues.addAll(values);
+                        }
+                        return formatter.apply(values);
+                    }
+                };
             }
         };
     }

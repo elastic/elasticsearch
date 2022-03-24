@@ -186,7 +186,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+    public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "cannot be executed against lookup field ["
@@ -196,7 +196,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
                     + "] is set to [false]."
             );
         }
-        return new LookupFieldValueFetcher(context);
+        return new LookupFieldValueFetcherSource(context);
     }
 
     @Override
@@ -209,16 +209,39 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is a lookup field.");
     }
 
-    private class LookupFieldValueFetcher implements ValueFetcher {
-        private final ValueFetcher inputFieldValueFetcher;
+    private class LookupFieldValueFetcherSource implements ValueFetcherSource {
+        private final ValueFetcherSource source;
 
-        LookupFieldValueFetcher(SearchExecutionContext context) {
-            final MappedFieldType inputFieldType = context.getFieldType(inputField);
+        private LookupFieldValueFetcherSource(SearchExecutionContext context) {
+            MappedFieldType inputFieldType = context.getFieldType(inputField);
             // do not allow unmapped field
             if (inputFieldType == null) {
                 throw new QueryShardException(context, "No field mapping can be found for the field with name [{}]", inputField);
             }
-            this.inputFieldValueFetcher = inputFieldType.valueFetcher(context, null);
+            source = inputFieldType.valueFetcher(context, null);
+        }
+
+        @Override
+        public ValueFetcher preferStored() {
+            return new LookupFieldValueFetcher(source.preferStored());
+        }
+
+        @Override
+        public ValueFetcher preferStoredOrEmpty() {
+            return new LookupFieldValueFetcher(source.preferStoredOrEmpty());
+        }
+
+        @Override
+        public ValueFetcher forceDocValues() {
+            return new LookupFieldValueFetcher(source.forceDocValues());
+        }
+    }
+
+    private class LookupFieldValueFetcher implements ValueFetcher {
+        private final ValueFetcher inputFieldValueFetcher;
+
+        LookupFieldValueFetcher(ValueFetcher inputFieldValueFetcher) {
+            this.inputFieldValueFetcher = inputFieldValueFetcher;
         }
 
         @Override

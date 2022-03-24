@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -247,8 +248,13 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOnly(context) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return SourceValueFetcher.identity(name(), context, format);
+                }
+            };
         }
 
         Query percolateQuery(

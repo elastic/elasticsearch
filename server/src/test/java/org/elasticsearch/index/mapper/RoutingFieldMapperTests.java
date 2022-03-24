@@ -72,7 +72,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 RoutingFieldMapper.RoutingFieldType ft = (RoutingFieldMapper.RoutingFieldType) mapperService.fieldType("_routing");
-                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null).preferStored();
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);

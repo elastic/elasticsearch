@@ -457,7 +457,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
@@ -465,20 +465,19 @@ public final class DateFieldMapper extends FieldMapper {
             if (scriptValues != null) {
                 return FieldValues.valueFetcher(scriptValues, v -> format((long) v, formatter), context);
             }
-            if (context.isSourceEnabled()) {
-                return new SourceValueFetcher(name(), context, nullValue) {
-                    @Override
-                    public String parseSourceValue(Object value) {
-                        String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
-                        // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
-                        return format(parse(date), formatter);
-                    }
-                };
-            }
-            if (hasDocValues()) {
-                return docValueFetcher(context, format);
-            }
-            throw errorForValueFetcherWithoutSourceOrDocValues(context);
+            return new ValueFetcherSource.SourceOrDocValues(context, this, format) {
+                @Override
+                protected SourceValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValue) {
+                        @Override
+                        public String parseSourceValue(Object value) {
+                            String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                            // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
+                            return format(parse(date), formatter);
+                        }
+                    };
+                }
+            };
         }
 
         private String format(long timestamp, DateFormatter formatter) {

@@ -78,7 +78,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
-                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null).preferStored();
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);

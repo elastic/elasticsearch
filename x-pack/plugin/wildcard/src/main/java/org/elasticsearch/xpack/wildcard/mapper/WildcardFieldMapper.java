@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -843,26 +844,26 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            if (context.isSourceEnabled()) {
-                return new SourceValueFetcher(name(), context, nullValue) {
-                    @Override
-                    protected String parseSourceValue(Object value) {
-                        String keywordValue = value.toString();
-                        if (keywordValue.length() > ignoreAbove) {
-                            return null;
+            return new ValueFetcherSource.SourceOrDocValues(context, this, null) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValue) {
+                        @Override
+                        protected String parseSourceValue(Object value) {
+                            String keywordValue = value.toString();
+                            if (keywordValue.length() > ignoreAbove) {
+                                return null;
+                            }
+                            return keywordValue;
                         }
-                        return keywordValue;
-                    }
-                };
-            }
-            assert hasDocValues();
-            return docValueFetcher(context, format);
+                    };
+                }
+            };
         }
-
     }
 
     private final int ignoreAbove;

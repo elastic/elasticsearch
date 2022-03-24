@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -301,30 +302,30 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            if (context.isSourceEnabled()) {
-                return new SourceValueFetcher(name(), context, nullValueFormatted) {
-                    @Override
-                    protected Object parseSourceValue(Object value) {
-                        if (value.equals("")) {
-                            return nullValueFormatted;
+            return new ValueFetcherSource.SourceOrDocValues(context, this, null) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValueFormatted) {
+                        @Override
+                        protected Object parseSourceValue(Object value) {
+                            if (value.equals("")) {
+                                return nullValueFormatted;
+                            }
+                            long ulValue = parseUnsignedLong(value);
+                            if (ulValue >= 0) {
+                                return ulValue;
+                            } else {
+                                return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
+                            }
                         }
-                        long ulValue = parseUnsignedLong(value);
-                        if (ulValue >= 0) {
-                            return ulValue;
-                        } else {
-                            return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
-                        }
-                    }
-                };
-            }
-            if (hasDocValues()) {
-                return docValueFetcher(context, format);
-            }
-            throw errorForValueFetcherWithoutSourceOrDocValues(context);
+                    };
+
+                }
+            };
         }
 
         @Override

@@ -232,32 +232,36 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            DateFormatter defaultFormatter = dateTimeFormatter();
-            DateFormatter formatter = format != null
-                ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
-                : defaultFormatter;
-
-            return new SourceValueFetcher(name(), context) {
-
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOrDocValues(context, this, format) {
                 @Override
-                @SuppressWarnings("unchecked")
-                protected Object parseSourceValue(Object value) {
-                    RangeType rangeType = rangeType();
-                    if ((value instanceof Map) == false) {
-                        assert rangeType == RangeType.IP;
-                        Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
-                        return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
-                    }
+                protected ValueFetcher forceSource() {
+                    DateFormatter defaultFormatter = dateTimeFormatter();
+                    DateFormatter formatter = format != null
+                        ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+                        : defaultFormatter;
 
-                    Map<String, Object> range = (Map<String, Object>) value;
-                    Map<String, Object> parsedRange = new HashMap<>();
-                    for (Map.Entry<String, Object> entry : range.entrySet()) {
-                        Object parsedValue = rangeType.parseValue(entry.getValue(), coerce, dateMathParser);
-                        Object formattedValue = rangeType.formatValue(parsedValue, formatter);
-                        parsedRange.put(entry.getKey(), formattedValue);
-                    }
-                    return parsedRange;
+                    return new SourceValueFetcher(name(), context) {
+                        @Override
+                        @SuppressWarnings("unchecked")
+                        protected Object parseSourceValue(Object value) {
+                            RangeType rangeType = rangeType();
+                            if ((value instanceof Map) == false) {
+                                assert rangeType == RangeType.IP;
+                                Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                                return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                            }
+
+                            Map<String, Object> range = (Map<String, Object>) value;
+                            Map<String, Object> parsedRange = new HashMap<>();
+                            for (Map.Entry<String, Object> entry : range.entrySet()) {
+                                Object parsedValue = rangeType.parseValue(entry.getValue(), coerce, dateMathParser);
+                                Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                                parsedRange.put(entry.getKey(), formattedValue);
+                            }
+                            return parsedRange;
+                        }
+                    };
                 }
             };
         }

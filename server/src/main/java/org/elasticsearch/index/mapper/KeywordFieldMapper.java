@@ -643,30 +643,29 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            if (context.isSourceEnabled()) {
-                return new SourceValueFetcher(name(), context, nullValue) {
-                    @Override
-                    protected String parseSourceValue(Object value) {
-                        String keywordValue = value.toString();
-                        if (keywordValue.length() > ignoreAbove) {
-                            return null;
-                        }
+            return new ValueFetcherSource.SourceOrDocValues(context, this, null) {
+                @Override
+                protected SourceValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValue) {
+                        @Override
+                        protected String parseSourceValue(Object value) {
+                            String keywordValue = value.toString();
+                            if (keywordValue.length() > ignoreAbove) {
+                                return null;
+                            }
 
-                        return normalizeValue(normalizer(), name(), keywordValue);
-                    }
-                };
-            }
-            if (hasDocValues()) {
-                return docValueFetcher(context, format);
-            }
-            throw errorForValueFetcherWithoutSourceOrDocValues(context);
+                            return normalizeValue(normalizer(), name(), keywordValue);
+                        }
+                    };
+                }
+            };
         }
 
         @Override

@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -146,7 +146,7 @@ public class SliceBuilderTests extends ESTestCase {
         ) {
 
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 

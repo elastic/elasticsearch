@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.murmur3.Murmur3DocValueField;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -96,8 +97,13 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOnly(context) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return SourceValueFetcher.toString(name(), context, format);
+                }
+            };
         }
 
         @Override

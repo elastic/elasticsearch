@@ -102,26 +102,7 @@ public abstract class MappedFieldType {
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
-    public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
-
-    /**
-     * The error to use when attempting to a field that supports fetching from {@code _source} or doc
-     * values but neither an enabled.
-     */
-    protected final IllegalArgumentException errorForValueFetcherWithoutSourceOrDocValues(SearchExecutionContext context) {
-        return new IllegalArgumentException(
-            "Unable to retrieve values because _source is disabled in the mappings for index ["
-                + context.index().getName()
-                + "] and the field doesn't have doc values"
-        );
-    }
-
-    /**
-     * Create a helper class to fetch field values from doc values.
-     */
-    public final ValueFetcher docValueFetcher(SearchExecutionContext context, @Nullable String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
-    }
+    public abstract ValueFetcherSource valueFetcher(SearchExecutionContext context, @Nullable String format);
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();

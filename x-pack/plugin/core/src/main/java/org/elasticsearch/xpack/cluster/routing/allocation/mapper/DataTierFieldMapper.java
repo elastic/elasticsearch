@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
@@ -72,13 +72,13 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
             String tierPreference = getTierPreference(context);
-            return tierPreference == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(tierPreference);
+            return new ValueFetcherSource.Constant(tierPreference == null ? List.of() : List.of(tierPreference));
         }
 
         /**

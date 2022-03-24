@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
@@ -132,12 +133,13 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (context.isSourceEnabled()) {
-                return SourceValueFetcher.toString(name(), context, format);
-            }
-            assert hasDocValues();
-            return docValueFetcher(context, format);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOrDocValues(context, this, format) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return SourceValueFetcher.toString(name(), context, format);
+                }
+            };
         }
 
         @Override

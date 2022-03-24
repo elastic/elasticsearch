@@ -58,19 +58,24 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
+            return new ValueFetcherSource.SourceOrDocValues(context, this, format) {
                 @Override
-                protected Object parseSourceValue(Object value) {
-                    if ("".equals(value)) {
-                        return DEFAULT_VALUE;
-                    } else {
-                        return NumberFieldMapper.NumberType.INTEGER.parse(value, false);
-                    }
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
+                        @Override
+                        protected Object parseSourceValue(Object value) {
+                            if ("".equals(value)) {
+                                return DEFAULT_VALUE;
+                            } else {
+                                return NumberFieldMapper.NumberType.INTEGER.parse(value, false);
+                            }
+                        }
+                    };
                 }
             };
         }

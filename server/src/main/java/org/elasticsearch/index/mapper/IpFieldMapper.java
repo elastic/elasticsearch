@@ -241,31 +241,30 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (scriptValues != null) {
                 return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress) v), context);
             }
-            if (context.isSourceEnabled()) {
-                return new SourceValueFetcher(name(), context, nullValue) {
-                    @Override
-                    protected Object parseSourceValue(Object value) {
-                        InetAddress address;
-                        if (value instanceof InetAddress) {
-                            address = (InetAddress) value;
-                        } else {
-                            address = InetAddresses.forString(value.toString());
+            return new ValueFetcherSource.SourceOrDocValues(context, this, null) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValue) {
+                        @Override
+                        protected Object parseSourceValue(Object value) {
+                            InetAddress address;
+                            if (value instanceof InetAddress) {
+                                address = (InetAddress) value;
+                            } else {
+                                address = InetAddresses.forString(value.toString());
+                            }
+                            return InetAddresses.toAddrString(address);
                         }
-                        return InetAddresses.toAddrString(address);
-                    }
-                };
-            }
-            if (hasDocValues()) {
-                return docValueFetcher(context, format);
-            }
-            throw errorForValueFetcherWithoutSourceOrDocValues(context);
+                    };
+                }
+            };
         }
 
         @Override

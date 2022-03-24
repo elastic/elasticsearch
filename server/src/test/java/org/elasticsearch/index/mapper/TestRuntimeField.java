@@ -60,7 +60,7 @@ public final class TestRuntimeField implements RuntimeField {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
 

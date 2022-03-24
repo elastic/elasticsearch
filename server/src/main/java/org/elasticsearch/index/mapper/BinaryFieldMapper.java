@@ -92,8 +92,13 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOrDocValues(context, this, format) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return SourceValueFetcher.identity(name(), context, format);
+                }
+            };
         }
 
         @Override

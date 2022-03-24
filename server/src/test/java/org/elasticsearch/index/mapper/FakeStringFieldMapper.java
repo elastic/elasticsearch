@@ -69,8 +69,13 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOnly(context) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return SourceValueFetcher.toString(name(), context, format);
+                }
+            };
         }
     }
 

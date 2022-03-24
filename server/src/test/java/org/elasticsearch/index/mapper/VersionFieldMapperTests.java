@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.FieldTypeTestCase.randomValueFetcher;
 import static org.hamcrest.Matchers.containsString;
 
 public class VersionFieldMapperTests extends MapperServiceTestCase {
@@ -52,7 +53,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             VersionFieldMapper.VersionFieldType ft = (VersionFieldMapper.VersionFieldType) mapperService.fieldType("_version");
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
-            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            ValueFetcher valueFetcher = randomValueFetcher(ft.valueFetcher(searchExecutionContext, null));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);

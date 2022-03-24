@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -90,19 +91,24 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new ValueFetcherSource.SourceOnly(context) {  // Doc values are broken for fetching
                 @Override
-                protected String parseSourceValue(Object value) {
-                    String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
-                        return null;
-                    }
-                    return keywordValue;
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValue) {
+                        @Override
+                        protected String parseSourceValue(Object value) {
+                            String keywordValue = value.toString();
+                            if (keywordValue.length() > ignoreAbove) {
+                                return null;
+                            }
+                            return keywordValue;
+                        }
+                    };
                 }
             };
         }

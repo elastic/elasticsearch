@@ -186,30 +186,29 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            if (context.isSourceEnabled()) {
-                return new SourceValueFetcher(name(), context, nullValue) {
-                    @Override
-                    protected Boolean parseSourceValue(Object value) {
-                        if (value instanceof Boolean) {
-                            return (Boolean) value;
-                        } else {
-                            String textValue = value.toString();
-                            return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+            return new ValueFetcherSource.SourceOrDocValues(context, this, null) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context, nullValue) {
+                        @Override
+                        protected Boolean parseSourceValue(Object value) {
+                            if (value instanceof Boolean) {
+                                return (Boolean) value;
+                            } else {
+                                String textValue = value.toString();
+                                return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                            }
                         }
-                    }
-                };
-            }
-            if (hasDocValues()) {
-                return docValueFetcher(context, format);
-            }
-            throw errorForValueFetcherWithoutSourceOrDocValues(context);
+                    };
+                }
+            };
         }
 
         @Override

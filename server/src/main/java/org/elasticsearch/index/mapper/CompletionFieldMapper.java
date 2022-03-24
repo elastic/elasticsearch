@@ -320,19 +320,23 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-
-            return new ArraySourceValueFetcher(name(), context) {
+            return new ValueFetcherSource.SourceOnly(context) {
                 @Override
-                protected List<?> parseSourceValue(Object value) {
-                    if (value instanceof List) {
-                        return (List<?>) value;
-                    } else {
-                        return List.of(value);
-                    }
+                protected ValueFetcher forceSource() {
+                    return new ArraySourceValueFetcher(name(), context) {
+                        @Override
+                        protected List<?> parseSourceValue(Object value) {
+                            if (value instanceof List) {
+                                return (List<?>) value;
+                            } else {
+                                return List.of(value);
+                            }
+                        }
+                    };
                 }
             };
         }

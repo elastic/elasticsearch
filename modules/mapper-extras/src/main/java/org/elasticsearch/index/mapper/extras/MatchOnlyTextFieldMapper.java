@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -156,8 +157,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.SourceOnly(context) {
+                @Override
+                protected ValueFetcher forceSource() {
+                    return SourceValueFetcher.toString(name(), context, format);
+                }
+            };
         }
 
         private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
@@ -169,7 +175,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 );
             }
             SourceLookup sourceLookup = searchExecutionContext.lookup().source();
-            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null).preferStored();
             return context -> {
                 valueFetcher.setNextReader(context);
                 return docID -> {

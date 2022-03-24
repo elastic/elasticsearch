@@ -71,8 +71,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.StoredOnly(context, this);
         }
 
         @Override

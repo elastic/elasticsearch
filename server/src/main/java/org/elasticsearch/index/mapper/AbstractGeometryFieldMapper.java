@@ -113,14 +113,19 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         protected abstract Function<List<T>, List<Object>> getFormatter(String format);
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(name(), context) {
+            return new ValueFetcherSource.SourceOnly(context) {
                 @Override
-                protected Object parseSourceValue(Object value) {
-                    final List<T> values = new ArrayList<>();
-                    geometryParser.fetchFromSource(value, values::add);
-                    return formatter.apply(values);
+                protected ValueFetcher forceSource() {
+                    return new ArraySourceValueFetcher(name(), context) {
+                        @Override
+                        protected Object parseSourceValue(Object value) {
+                            final List<T> values = new ArrayList<>();
+                            geometryParser.fetchFromSource(value, values::add);
+                            return formatter.apply(values);
+                        }
+                    };
                 }
             };
         }

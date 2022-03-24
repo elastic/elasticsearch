@@ -593,16 +593,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
-        ValueFetcher docValueFetcher = ft.docValueFetcher(searchExecutionContext, format);
-        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ValueFetcherSource fetcherSource = ft.valueFetcher(searchExecutionContext, format);
+        ValueFetcher docValueFetcher = fetcherSource.forceDocValues();
+        ValueFetcher preferSource = fetcherSource.preferStored();
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
             SourceLookup sourceLookup = new SourceLookup();
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
-            nativeFetcher.setNextReader(ir.leaves().get(0));
+            preferSource.setNextReader(ir.leaves().get(0));
             List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, new ArrayList<>());
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, new ArrayList<>());
+            List<Object> fromNative = preferSource.fetchValues(sourceLookup, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside

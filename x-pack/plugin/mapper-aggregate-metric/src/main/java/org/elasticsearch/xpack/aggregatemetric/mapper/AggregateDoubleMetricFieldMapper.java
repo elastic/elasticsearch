@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetcherSource;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
@@ -493,17 +494,21 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-
-            return new SourceValueFetcher(name(), context) {
+            return new ValueFetcherSource.SourceOnly(context) {
                 @Override
-                @SuppressWarnings("unchecked")
-                protected Object parseSourceValue(Object value) {
-                    Map<String, Double> metrics = (Map<String, Double>) value;
-                    return metrics.get(defaultMetric.name());
+                protected ValueFetcher forceSource() {
+                    return new SourceValueFetcher(name(), context) {
+                        @Override
+                        @SuppressWarnings("unchecked")
+                        protected Object parseSourceValue(Object value) {
+                            Map<String, Double> metrics = (Map<String, Double>) value;
+                            return metrics.get(defaultMetric.name());
+                        }
+                    };
                 }
             };
         }

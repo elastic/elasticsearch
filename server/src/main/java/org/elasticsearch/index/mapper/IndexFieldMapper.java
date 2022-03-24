@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.Collections;
 import java.util.List;
@@ -77,16 +76,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new ValueFetcher() {
-
-                private final List<Object> indexName = List.of(context.getFullyQualifiedIndex().getName());
-
-                @Override
-                public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
-                    return indexName;
-                }
-            };
+        public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcherSource.Constant(List.of(context.getFullyQualifiedIndex().getName()));
         }
     }
 

@@ -124,19 +124,19 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     }
 
     public static class Request extends ActionRequest {
-        private final boolean includeDetails;
+        private final boolean computeDetails;
         private final String componentName;
         private final String indicatorName;
 
         public Request(boolean includeDetails) {
-            this.includeDetails = includeDetails;
+            this.computeDetails = includeDetails;
             this.componentName = null;
             this.indicatorName = null;
         }
 
         public Request(String componentName, String indicatorName) {
             assert componentName != null;
-            includeDetails = true;
+            computeDetails = true;
             this.componentName = componentName;
             this.indicatorName = indicatorName;
         }
@@ -169,7 +169,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             listener.onResponse(
                 new Response(
                     clusterService.getClusterName(),
-                    healthService.getHealth(request.componentName, request.indicatorName, request.includeDetails),
+                    healthService.getHealth(request.componentName, request.indicatorName, request.computeDetails),
                     request.componentName == null && request.indicatorName == null
                 )
             );

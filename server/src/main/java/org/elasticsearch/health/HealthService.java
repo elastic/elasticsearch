@@ -30,12 +30,12 @@ public class HealthService {
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
-    public List<HealthComponentResult> getHealth(String componentName, String indicatorName, boolean includeDetails) {
+    public List<HealthComponentResult> getHealth(String componentName, String indicatorName, boolean computeDetails) {
         return List.copyOf(
             healthIndicatorServices.stream()
                 .filter(service -> componentName == null || service.component().equals(componentName))
                 .filter(service -> indicatorName == null || service.name().equals(indicatorName))
-                .map(service -> service.calculate(includeDetails))
+                .map(service -> service.calculate(computeDetails))
                 .collect(
                     groupingBy(
                         HealthIndicatorResult::component,

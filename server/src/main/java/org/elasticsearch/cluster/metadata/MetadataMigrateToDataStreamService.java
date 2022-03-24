@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.createDataStream;
 
@@ -150,7 +149,7 @@ public class MetadataMigrateToDataStreamService {
             .stream()
             .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
             .map(x -> finalCurrentState.metadata().index(x))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);

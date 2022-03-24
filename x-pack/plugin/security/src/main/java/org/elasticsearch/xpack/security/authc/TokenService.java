@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.Security;
@@ -138,7 +139,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -216,6 +216,7 @@ public final class TokenService {
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
+    static final Version VERSION_CLIENT_AUTH_FOR_REFRESH = Version.V_8_2_0;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -738,7 +739,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             } else {
@@ -751,7 +752,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             }
@@ -762,21 +763,37 @@ public final class TokenService {
      * Invalidates a collection of access_token and refresh_token that were retrieved by
      * {@link TokenService#invalidateActiveTokensForRealmAndUser}
      *
-     * @param userTokens The user tokens for which access and refresh tokens should be invalidated
+     * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    private void invalidateAllTokens(Collection<UserToken> userTokens, ActionListener<TokensInvalidationResult> listener) {
+    private void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
         maybeStartTokenRemover();
+
         // Invalidate the refresh tokens first so that they cannot be used to get new
         // access tokens while we invalidate the access tokens we currently know about
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        indexInvalidation(
-            userTokens,
-            backoff,
-            "refresh_token",
-            null,
-            ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
-        );
+
+        final List<UserToken> userTokens = new ArrayList<>();
+        final List<UserToken> tokensWithRefresh = new ArrayList<>();
+
+        tokenTuples.forEach(t -> {
+            userTokens.add(t.v1());
+            if (t.v2() != null) {
+                tokensWithRefresh.add(t.v1());
+            }
+        });
+
+        if (false == tokensWithRefresh.isEmpty()) {
+            indexInvalidation(
+                tokensWithRefresh,
+                backoff,
+                "refresh_token",
+                null,
+                ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
+            );
+        } else {
+            indexInvalidation(userTokens, backoff, "access_token", null, listener);
+        }
     }
 
     /**
@@ -1514,23 +1531,38 @@ public final class TokenService {
         RefreshTokenStatus refreshToken,
         Authentication clientAuthentication
     ) {
-        if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
-            logger.warn(
-                "Token was originally created by [{}] but [{}] attempted to refresh it",
-                refreshToken.getAssociatedUser(),
-                clientAuthentication.getUser().principal()
-            );
-            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
-            logger.warn(
-                "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                refreshToken.getAssociatedUser(),
-                refreshToken.getAssociatedRealm(),
-                clientAuthentication.getAuthenticatedBy().getName()
-            );
-            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+        if (refreshToken.getAssociatedAuthentication() != null) {
+            // this is the newer method to validate that the client refreshing the token indeed owns the token
+            if (clientAuthentication.canAccessResourcesOf(refreshToken.getAssociatedAuthentication())) {
+                return Optional.empty();
+            } else {
+                logger.warn(
+                    "Token was originally created by [{}] but [{}] attempted to refresh it",
+                    refreshToken.getAssociatedAuthentication(),
+                    clientAuthentication
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            }
         } else {
-            return Optional.empty();
+            // falback to the previous method
+            if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
+                logger.warn(
+                    "Token was originally created by [{}] but [{}] attempted to refresh it",
+                    refreshToken.getAssociatedUser(),
+                    clientAuthentication.getUser().principal()
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+                logger.warn(
+                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                    refreshToken.getAssociatedUser(),
+                    refreshToken.getAssociatedRealm(),
+                    clientAuthentication.getAuthenticatedBy().getName()
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            } else {
+                return Optional.empty();
+            }
         }
     }
 
@@ -1797,23 +1829,26 @@ public final class TokenService {
                     .field("invalidated", false)
                     .field("refreshed", false)
                     .startObject("client")
-                    .field("type", "unassociated_client")
-                    .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
-                if (originatingClientAuth.getSourceRealm().getDomain() != null) {
-                    builder.field("realm_domain", originatingClientAuth.getSourceRealm().getDomain());
+                    .field("type", "unassociated_client");
+                if (userToken.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+                    builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getVersion()).encode());
+                } else {
+                    builder.field("user", originatingClientAuth.getUser().principal())
+                        .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                    if (originatingClientAuth.getAuthenticatedBy().getDomain() != null) {
+                        builder.field("realm_domain", originatingClientAuth.getAuthenticatedBy().getDomain());
+                    }
                 }
                 builder.endObject().endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName());
+                .field("realm", userToken.getAuthentication().getSourceRealm().getName());
             if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
                 builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
             }
-            builder.endObject();
-            builder.endObject();
+            builder.endObject().endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when constructing a JSON document.", e);
@@ -1855,7 +1890,8 @@ public final class TokenService {
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
         @SuppressWarnings("unchecked")
-        final String hashedRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+        final Map<String, Object> refreshTokenMap = (Map<String, Object>) source.get("refresh_token");
+        final String hashedRefreshToken = refreshTokenMap != null ? (String) refreshTokenMap.get("token") : null;
         @SuppressWarnings("unchecked")
         final Map<String, Object> userTokenSource = (Map<String, Object>) ((Map<String, Object>) source.get("access_token")).get(
             "user_token"
@@ -2549,13 +2585,6 @@ public final class TokenService {
         this.keyCache.activeKeyCache.keyCache.invalidateAll();
     }
 
-    /**
-     * Package private for testing
-     */
-    KeyAndCache getActiveKeyCache() {
-        return this.keyCache.activeKeyCache;
-    }
-
     static final class KeyAndCache implements Closeable {
         private final KeyAndTimestamp keyAndTimestamp;
         private final Cache<BytesKey, SecretKey> keyCache;
@@ -2645,6 +2674,8 @@ public final class TokenService {
         private final boolean invalidated;
         private final String associatedUser;
         private final String associatedRealm;
+        @Nullable
+        private final Authentication associatedAuthentication;
         private final boolean refreshed;
         @Nullable
         private final Instant refreshInstant;
@@ -2659,6 +2690,29 @@ public final class TokenService {
         // pkg-private for testing
         RefreshTokenStatus(
             boolean invalidated,
+            Authentication associatedAuthentication,
+            boolean refreshed,
+            Instant refreshInstant,
+            String supersedingTokens,
+            String iv,
+            String salt
+        ) {
+            assert associatedAuthentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            this.invalidated = invalidated;
+            // not used, filled-in for consistency's sake
+            this.associatedUser = associatedAuthentication.getUser().principal();
+            this.associatedRealm = associatedAuthentication.getAuthenticatedBy().getName();
+            this.associatedAuthentication = associatedAuthentication;
+            this.refreshed = refreshed;
+            this.refreshInstant = refreshInstant;
+            this.supersedingTokens = supersedingTokens;
+            this.iv = iv;
+            this.salt = salt;
+        }
+
+        @Deprecated
+        RefreshTokenStatus(
+            boolean invalidated,
             String associatedUser,
             String associatedRealm,
             boolean refreshed,
@@ -2670,6 +2724,7 @@ public final class TokenService {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
+            this.associatedAuthentication = null;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;
             this.supersedingTokens = supersedingTokens;
@@ -2687,6 +2742,10 @@ public final class TokenService {
 
         String getAssociatedRealm() {
             return associatedRealm;
+        }
+
+        Authentication getAssociatedAuthentication() {
+            return associatedAuthentication;
         }
 
         boolean isRefreshed() {
@@ -2731,14 +2790,6 @@ public final class TokenService {
             if (clientInfo == null) {
                 throw new IllegalStateException("token document is missing the \"client\" field");
             }
-            if (false == clientInfo.containsKey("user")) {
-                throw new IllegalStateException("token document is missing the \"client.user\" field");
-            }
-            final String associatedUser = (String) clientInfo.get("user");
-            if (false == clientInfo.containsKey("realm")) {
-                throw new IllegalStateException("token document is missing the \"client.realm\" field");
-            }
-            final String associatedRealm = (String) clientInfo.get("realm");
             final Boolean refreshed = (Boolean) refreshTokenSource.get("refreshed");
             if (refreshed == null) {
                 throw new IllegalStateException("token document is missing the \"refreshed\" field");
@@ -2748,16 +2799,55 @@ public final class TokenService {
             final String supersedingTokens = (String) refreshTokenSource.get("superseding.encrypted_tokens");
             final String iv = (String) refreshTokenSource.get("superseding.encryption_iv");
             final String salt = (String) refreshTokenSource.get("superseding.encryption_salt");
-            return new RefreshTokenStatus(
-                invalidated,
-                associatedUser,
-                associatedRealm,
-                refreshed,
-                refreshInstant,
-                supersedingTokens,
-                iv,
-                salt
-            );
+            if (clientInfo.containsKey("authentication")) {
+                // newer refresh token that contains the full authentication of the client that created it
+                final Authentication associatedAuthentication;
+                try {
+                    associatedAuthentication = AuthenticationContextSerializer.decode((String) clientInfo.get("authentication"));
+                } catch (IOException e) {
+                    throw new IllegalStateException("invalid client authentication for refresh", e);
+                }
+                if (clientInfo.containsKey("user") || clientInfo.containsKey("realm")) {
+                    throw new IllegalStateException("user and/or associated realm must not be present when associated authentication is");
+                }
+                return new RefreshTokenStatus(
+                    invalidated,
+                    associatedAuthentication,
+                    refreshed,
+                    refreshInstant,
+                    supersedingTokens,
+                    iv,
+                    salt
+                );
+            } else {
+                final String associatedUser;
+                final String associatedRealm;
+                // the previous way that only recorded selected fields of the creator client's authentication
+                if (false == clientInfo.containsKey("user")) {
+                    throw new IllegalStateException(
+                        "token document must contain the \"client.user\" field if the associated "
+                            + "\"authentication\" field does not exist"
+                    );
+                }
+                associatedUser = (String) clientInfo.get("user");
+                if (false == clientInfo.containsKey("realm")) {
+                    throw new IllegalStateException(
+                        "token document must contain the \"client.realm\" field if the associated "
+                            + "\"authentication\" field does not exist"
+                    );
+                }
+                associatedRealm = (String) clientInfo.get("realm");
+                return new RefreshTokenStatus(
+                    invalidated,
+                    associatedUser,
+                    associatedRealm,
+                    refreshed,
+                    refreshInstant,
+                    supersedingTokens,
+                    iv,
+                    salt
+                );
+            }
         }
     }
 

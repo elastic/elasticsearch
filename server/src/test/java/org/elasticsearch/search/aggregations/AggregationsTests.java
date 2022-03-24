@@ -47,7 +47,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroidTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
@@ -57,6 +56,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
 import org.elasticsearch.search.aggregations.metrics.MaxTests;
+import org.elasticsearch.search.aggregations.metrics.MinTests;
 import org.elasticsearch.search.aggregations.metrics.SumTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
@@ -102,7 +102,7 @@ public class AggregationsTests extends ESTestCase {
         new InternalHDRPercentilesTests(),
         new InternalHDRPercentilesRanksTests(),
         new InternalPercentilesBucketTests(),
-        new InternalMinTests(),
+        new MinTests(),
         new MaxTests(),
         new InternalAvgTests(),
         new InternalWeightedAvgTests(),

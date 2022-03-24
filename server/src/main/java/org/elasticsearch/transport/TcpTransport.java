@@ -79,7 +79,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
@@ -424,7 +423,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         return local.stream()
             .flatMap(address -> Arrays.stream(defaultPortRange()).limit(LIMIT_LOCAL_PORTS_COUNT).mapToObj(port -> address + ":" + port))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     protected void bindServer(ProfileSettings profileSettings) {

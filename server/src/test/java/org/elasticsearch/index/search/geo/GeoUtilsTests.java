@@ -590,6 +590,100 @@ public class GeoUtilsTests extends ESTestCase {
         }
     }
 
+    public void testParseGeoPointCoordinateNoType() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0 };
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", coords).endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("field [type] missing"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointTypeNoCoordinates() throws IOException {
+        XContentBuilder json = jsonBuilder().startObject().field("type", "Point").endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("field [coordinates] missing"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointTypeWrongValue() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0 };
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", coords).field("type", "LineString").endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("GeoJSON 'type' for geo_point can only be 'Point'"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointTypeWrongType() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0 };
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", coords).field("type", false).endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("GeoJSON 'type' must be a string"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointCoordinatesWrongType() throws IOException {
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", false).field("type", "Point").endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("GeoJSON 'coordinates' must be an array"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointCoordinatesTooShort() throws IOException {
+        double[] coords = new double[] { 0.0 };
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", coords).field("type", "Point").endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("GeoJSON 'coordinates' must contain at least two values"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointCoordinatesTooLong() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0, 0.0 };
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", coords).field("type", "Point").endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), containsString("found Z value [0.0] but [ignore_z_value] parameter is [false]"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseGeoPointCoordinatesWayTooLong() throws IOException {
+        double[] coords = new double[] { 0.0, 0.0, 0.0, 0.0 };
+        XContentBuilder json = jsonBuilder().startObject().field("coordinates", coords).field("type", "Point").endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertThat(e.getMessage(), is("[geo_point] field type does not accept > 3 dimensions"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
+        }
+    }
+
     public void testParseGeoPointExtraField() throws IOException {
         double lat = 0.0;
         double lon = 0.0;
@@ -597,7 +691,7 @@ public class GeoUtilsTests extends ESTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
     }
 
@@ -609,7 +703,7 @@ public class GeoUtilsTests extends ESTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), containsString("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), containsString("fields matching more than one point format found"));
         }
     }
 

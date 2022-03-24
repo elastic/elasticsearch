@@ -1758,7 +1758,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     if (binary) {
                         builder.value(mmd.source().compressed());
                     } else {
-                        builder.map(XContentHelper.convertToMap(mmd.source().uncompressed(), true).v2());
+                        mmd.source().copyTo(builder);
                     }
                 }
                 builder.endArray();

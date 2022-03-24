@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 /**
  * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
@@ -23,7 +23,7 @@ import java.util.List;
  * @param affectedResources Optional list of "things" that this action should be taken on (e.g. shards, indices, or policies).
  * @param helpURL Optional evergreen url to a help document
  */
-public record UserAction(String id, String message, @Nullable List<String> affectedResources, @Nullable String helpURL)
+public record UserAction(String id, String message, @Nullable Collection<String> affectedResources, @Nullable String helpURL)
     implements
         ToXContentObject {
 

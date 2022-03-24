@@ -17,23 +17,13 @@ Other versions:
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-
-[discrete]
-[[notable_release_highlight_number_1]]
-=== Notable release highlight number 1
-Notable release body number 1
-
-[discrete]
-[[notable_release_highlight_number_2]]
-=== Notable release highlight number 2
-Notable release body number 2
-
+// [discrete]
+// === Heading
+//
+// Description.
 // end::notable-highlights[]
 
-
-[discrete]
-[[notable_release_highlight_number_3]]
-=== Notable release highlight number 3
-Notable release body number 3
 

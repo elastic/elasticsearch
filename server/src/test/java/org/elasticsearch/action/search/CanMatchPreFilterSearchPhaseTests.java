@@ -62,7 +62,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
@@ -513,14 +512,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             queryBuilder,
             (updatedSearchShardIterators, requests) -> {
-                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream()
-                    .filter(SearchShardIterator::skip)
-                    .collect(Collectors.toList());
+                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
                 ;
 
                 List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
-                    .collect(Collectors.toList());
+                    .toList();
                 ;
 
                 int regularIndexShardCount = (int) updatedSearchShardIterators.stream()

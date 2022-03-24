@@ -55,7 +55,6 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
-import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -324,56 +323,9 @@ public class Authentication implements ToXContentObject {
                 + EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
         final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(this);
         final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(resourceCreatorAuthentication);
-        if (API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
-            && API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType())) {
-            final boolean sameKeyId = myAuthContext.getEffectiveSubject()
-                .getMetadata()
-                .get(AuthenticationField.API_KEY_ID_KEY)
-                .equals(creatorAuthContext.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            assert false == sameKeyId
-                || myAuthContext.getEffectiveSubject()
-                    .getUser()
-                    .principal()
-                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())
-                : "The same API key ID cannot be attributed to two different usernames";
-            return sameKeyId;
-        } else if ((API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
-            && false == API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType()))
-            || (false == API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
-                && API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType()))) {
-                    // an API Key cannot access resources created by non-API Keys or vice-versa
-                    return false;
-                } else {
-                    if (false == myAuthContext.getEffectiveSubject()
-                        .getUser()
-                        .principal()
-                        .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())) {
-                        return false;
-                    }
-                    final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
-                    final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
-                    if (null == myAuthRealm.getDomain()) {
-                        // the authentication accessing the resource is for a user from a realm not part of any domain
-                        return equivalentRealms(
-                            myAuthRealm.getName(),
-                            myAuthRealm.getType(),
-                            creatorAuthRealm.getName(),
-                            creatorAuthRealm.getType()
-                        );
-                    } else {
-                        for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
-                            if (equivalentRealms(
-                                domainRealm.getName(),
-                                domainRealm.getType(),
-                                creatorAuthRealm.getName(),
-                                creatorAuthRealm.getType()
-                            )) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    }
-                }
+        final Subject mySubject = myAuthContext.getEffectiveSubject();
+        final Subject creatorSubject = creatorAuthContext.getEffectiveSubject();
+        return mySubject.canAccessResourcesOf(creatorSubject);
     }
 
     @Override
@@ -792,7 +744,7 @@ public class Authentication implements ToXContentObject {
         }
     }
 
-    private static boolean equivalentRealms(String name1, String type1, String name2, String type2) {
+    static boolean equivalentRealms(String name1, String type1, String name2, String type2) {
         if (false == type1.equals(type2)) {
             return false;
         }

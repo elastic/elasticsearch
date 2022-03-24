@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -504,7 +503,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             final String pattern = prefix + "pattern";
             putAutoFollowPatterns(pattern, new String[] { prefix + "*" });
             return pattern;
-        }).collect(toUnmodifiableList());
+        }).toList();
 
         // pick up some random pattern to pause
         final List<String> pausedAutoFollowerPatterns = randomSubsetOf(randomIntBetween(1, 3), autoFollowPatterns);

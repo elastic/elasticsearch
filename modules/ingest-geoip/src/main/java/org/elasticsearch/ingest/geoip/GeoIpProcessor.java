@@ -326,7 +326,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         if (response == null) {
             return Map.of();
         }
-        Integer asn = response.getAutonomousSystemNumber();
+        Long asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
 

@@ -112,3 +112,68 @@ teardown:
         uid: no_such_profile_uid
 
   - length: { $body: 0 }
+
+
+---
+"Test enable disable user profile":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - set: { uid: profile_uid }
+
+  # enabled right after activation
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_true: "$profile.enabled"
+
+  # disable the profile
+  - do:
+      security.disable_user_profile:
+        uid: "$profile_uid"
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_false: "$profile.enabled"
+
+  # enable again
+  - do:
+      security.enable_user_profile:
+        uid: "$profile_uid"
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_true: "$profile.enabled"
+
+---
+"Test search user profile":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - set: { uid: profile_uid }
+
+  - do:
+      security.search_user_profiles:
+        body: >
+          {
+            "name": "joe",
+            "size": 5
+          }
+
+  - length: { profiles: 1 }
+  - match: { "profiles.0.uid": "$profile_uid" }

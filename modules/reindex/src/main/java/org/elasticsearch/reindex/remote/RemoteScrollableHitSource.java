@@ -22,12 +22,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
+import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
@@ -50,7 +50,7 @@ import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PA
 
 public class RemoteScrollableHitSource extends ScrollableHitSource {
     private final RestClient client;
-    private final BytesReference query;
+    private final RemoteInfo remote;
     private final SearchRequest searchRequest;
     Version remoteVersion;
 
@@ -62,11 +62,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         Consumer<AsyncResponse> onResponse,
         Consumer<Exception> fail,
         RestClient client,
-        BytesReference query,
+        RemoteInfo remoteInfo,
         SearchRequest searchRequest
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
-        this.query = query;
+        this.remote = remoteInfo;
         this.searchRequest = searchRequest;
         this.client = client;
     }
@@ -76,7 +76,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
             remoteVersion = version;
             execute(
-                RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
+                RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
                 RESPONSE_PARSER,
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r))
             );
@@ -145,6 +145,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             try {
                 client.close();
                 logger.debug("Shut down remote connection");
+                remote.close();
             } catch (IOException e) {
                 logger.error("Failed to shutdown the remote connection", e);
             } finally {

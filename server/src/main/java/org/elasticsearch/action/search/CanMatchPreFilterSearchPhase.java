@@ -580,7 +580,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             .boxed()
             .sorted(shardComparator(shardsIts, minAndMaxes, order))
             .map(shardsIts::get)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {

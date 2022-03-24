@@ -38,7 +38,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -50,13 +49,14 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class ResolveIndexTests extends ESTestCase {
 
     private final Object[][] indices = new Object[][] {
-        // name, isClosed, isHidden, isFrozen, dataStream, aliases
-        { "logs-pgsql-prod-20200101", false, false, true, null, new String[] { "logs-pgsql-prod" } },
-        { "logs-pgsql-prod-20200102", false, false, true, null, new String[] { "logs-pgsql-prod", "one-off-alias" } },
-        { "logs-pgsql-prod-20200103", false, false, false, null, new String[] { "logs-pgsql-prod" } },
-        { "logs-pgsql-test-20200101", true, false, false, null, new String[] { "logs-pgsql-test" } },
-        { "logs-pgsql-test-20200102", false, false, false, null, new String[] { "logs-pgsql-test" } },
-        { "logs-pgsql-test-20200103", false, false, false, null, new String[] { "logs-pgsql-test" } } };
+        // name, isClosed, isHidden, isSystem, isFrozen, dataStream, aliases
+        { "logs-pgsql-prod-20200101", false, false, false, true, null, new String[] { "logs-pgsql-prod" } },
+        { "logs-pgsql-prod-20200102", false, false, false, true, null, new String[] { "logs-pgsql-prod", "one-off-alias" } },
+        { "logs-pgsql-prod-20200103", false, false, false, false, null, new String[] { "logs-pgsql-prod" } },
+        { "logs-pgsql-test-20200101", true, false, false, false, null, new String[] { "logs-pgsql-test" } },
+        { "logs-pgsql-test-20200102", false, false, false, false, null, new String[] { "logs-pgsql-test" } },
+        { "logs-pgsql-test-20200103", false, false, false, false, null, new String[] { "logs-pgsql-test" } },
+        { ".test-system-index", false, false, true, false, null, new String[] {} } };
 
     private final Object[][] dataStreams = new Object[][] {
         // name, timestampField, numBackingIndices
@@ -87,6 +87,7 @@ public class ResolveIndexTests extends ESTestCase {
 
         validateIndices(
             indices,
+            ".test-system-index",
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
@@ -115,6 +116,7 @@ public class ResolveIndexTests extends ESTestCase {
             ".ds-logs-mysql-prod-" + dateString + "-000004",
             ".ds-logs-mysql-test-" + dateString + "-000001",
             ".ds-logs-mysql-test-" + dateString + "-000002",
+            ".test-system-index",
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
@@ -172,7 +174,7 @@ public class ResolveIndexTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = "my-data-stream";
         String[] names = { "not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis) };
-        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
+        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).toList();
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
@@ -180,7 +182,7 @@ public class ResolveIndexTests extends ESTestCase {
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).toList()
         );
         builder.put(ds);
 
@@ -211,8 +213,8 @@ public class ResolveIndexTests extends ESTestCase {
         String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
         Object[][] indices = new Object[][] {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
-            { "logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY },
-            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY } };
+            { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY },
+            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY } };
         Metadata metadata = buildMetadata(new Object[][] {}, indices);
 
         String requestedIndex = "<logs-pgsql-prod-{now/d}>";
@@ -238,9 +240,9 @@ public class ResolveIndexTests extends ESTestCase {
             }
             assertThat(indexInfo, notNullValue());
             assertThat(resolvedIndex.getName(), equalTo((String) indexInfo[0]));
-            assertThat(resolvedIndex.getAliases(), is(((String[]) indexInfo[5])));
+            assertThat(resolvedIndex.getAliases(), is(((String[]) indexInfo[6])));
             assertThat(resolvedIndex.getAttributes(), is(flagsToAttributes(indexInfo)));
-            assertThat(resolvedIndex.getDataStream(), equalTo((String) indexInfo[4]));
+            assertThat(resolvedIndex.getDataStream(), equalTo((String) indexInfo[5]));
         }
     }
 
@@ -249,7 +251,7 @@ public class ResolveIndexTests extends ESTestCase {
 
         Map<String, Set<String>> aliasToIndicesMap = new HashMap<>();
         for (Object[] indexInfo : indices) {
-            String[] aliases = (String[]) indexInfo[5];
+            String[] aliases = (String[]) indexInfo[6];
             for (String alias : aliases) {
                 Set<String> indicesSet = aliasToIndicesMap.get(alias);
                 if (indicesSet == null) {
@@ -306,18 +308,19 @@ public class ResolveIndexTests extends ESTestCase {
             DataStream ds = DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField(timestampField),
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+                backingIndices.stream().map(IndexMetadata::getIndex).toList()
             );
             builder.put(ds);
         }
 
         for (Object[] indexInfo : indices) {
             String indexName = (String) indexInfo[0];
-            String[] aliases = (String[]) indexInfo[5];
+            String[] aliases = (String[]) indexInfo[6];
             boolean closed = (boolean) indexInfo[1];
             boolean hidden = (boolean) indexInfo[2];
-            boolean frozen = (boolean) indexInfo[3];
-            allIndices.add(createIndexMetadata(indexName, aliases, closed, hidden, frozen));
+            boolean system = (boolean) indexInfo[3];
+            boolean frozen = (boolean) indexInfo[4];
+            allIndices.add(createIndexMetadata(indexName, aliases, closed, hidden, system, frozen));
         }
 
         for (IndexMetadata index : allIndices) {
@@ -327,7 +330,14 @@ public class ResolveIndexTests extends ESTestCase {
         return builder.build();
     }
 
-    private static IndexMetadata createIndexMetadata(String name, String[] aliases, boolean closed, boolean hidden, boolean frozen) {
+    private static IndexMetadata createIndexMetadata(
+        String name,
+        String[] aliases,
+        boolean closed,
+        boolean hidden,
+        boolean system,
+        boolean frozen
+    ) {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.hidden", hidden)
@@ -336,6 +346,7 @@ public class ResolveIndexTests extends ESTestCase {
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)
             .settings(settingsBuilder)
             .state(closed ? IndexMetadata.State.CLOSE : IndexMetadata.State.OPEN)
+            .system(system)
             .numberOfShards(1)
             .numberOfReplicas(1);
 
@@ -347,7 +358,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden) {
-        return createIndexMetadata(name, Strings.EMPTY_ARRAY, false, true, false);
+        return createIndexMetadata(name, Strings.EMPTY_ARRAY, false, true, false, false);
     }
 
     private static Object[] findInfo(Object[][] indexSource, String indexName) {
@@ -370,6 +381,7 @@ public class ResolveIndexTests extends ESTestCase {
                         false,
                         true,
                         false,
+                        false,
                         dataStreamName,
                         Strings.EMPTY_ARRAY };
                 }
@@ -385,6 +397,9 @@ public class ResolveIndexTests extends ESTestCase {
             attributes.add("hidden");
         }
         if ((boolean) indexInfo[3]) {
+            attributes.add("system");
+        }
+        if ((boolean) indexInfo[4]) {
             attributes.add("frozen");
         }
         attributes.sort(String::compareTo);

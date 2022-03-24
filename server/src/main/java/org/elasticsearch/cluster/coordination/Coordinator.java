@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -66,6 +67,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -79,6 +81,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -113,6 +116,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
+
+    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
@@ -225,12 +230,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
         );
-        this.publicationHandler = new PublicationTransportHandler(
-            transportService,
-            namedWriteableRegistry,
-            this::handlePublishRequest,
-            this::handleApplyCommit
+        transportService.registerRequestHandler(
+            COMMIT_STATE_ACTION_NAME,
+            Names.CLUSTER_COORDINATION,
+            false,
+            false,
+            ApplyCommitRequest::new,
+            (request, channel, task) -> handleApplyCommit(
+                request,
+                new ChannelActionListener<>(channel, COMMIT_STATE_ACTION_NAME, request).map(r -> Empty.INSTANCE)
+            )
         );
+        this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry, this::handlePublishRequest);
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(
             settings,
@@ -274,8 +285,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             settings,
             getStateForMasterService(),
             peerFinder.getLastResolvedAddresses(),
-            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                .collect(Collectors.toList()),
+            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
             electionStrategy,
             nodeHealthService.getHealth()
@@ -558,21 +568,52 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(connectionReference -> {
-            boolean retainConnection = false;
-            try {
-                validateJoinRequest(
-                    joinRequest,
-                    ActionListener.runBefore(joinListener, () -> Releasables.close(connectionReference))
-                        .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
-                );
-                retainConnection = true;
-            } finally {
-                if (retainConnection == false) {
-                    Releasables.close(connectionReference);
+        transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable response) {
+                boolean retainConnection = false;
+                try {
+                    validateJoinRequest(
+                        joinRequest,
+                        ActionListener.runBefore(joinListener, () -> Releasables.close(response))
+                            .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
+                    );
+                    retainConnection = true;
+                } catch (Exception e) {
+                    joinListener.onFailure(e);
+                } finally {
+                    if (retainConnection == false) {
+                        Releasables.close(response);
+                    }
                 }
             }
-        }, joinListener::onFailure));
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(
+                    Message.createParameterizedMessage(
+                        "received join request from [{}] but could not connect back to the joining node",
+                        joinRequest.getSourceNode()
+                    ),
+                    e
+                );
+
+                joinListener.onFailure(
+                    // NodeDisconnectedException mainly to suppress uninteresting stack trace
+                    new NodeDisconnectedException(
+                        joinRequest.getSourceNode(),
+                        String.format(
+                            Locale.ROOT,
+                            "failure when opening connection back from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            joinRequest.getSourceNode().descriptionWithoutAttributes()
+                        ),
+                        JoinHelper.JOIN_ACTION_NAME,
+                        e
+                    )
+                );
+            }
+        });
     }
 
     private void validateJoinRequest(JoinRequest joinRequest, ActionListener<Void> validateListener) {
@@ -637,7 +678,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     () -> Message.createParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode),
                     e
                 );
-                listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
+                listener.onFailure(
+                    new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "failure when sending a join validation request from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            discoveryNode.descriptionWithoutAttributes()
+                        ),
+                        e
+                    )
+                );
             }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
@@ -657,7 +708,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     ),
                     e
                 );
-                listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
+                listener.onFailure(
+                    new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "failure when sending a join ping request from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            discoveryNode.descriptionWithoutAttributes()
+                        ),
+                        e
+                    )
+                );
             }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
@@ -1045,7 +1106,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);
 
-            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).toList()) == false) {
                 logger.debug(
                     "skip setting initial configuration as not enough nodes discovered to form a quorum in the "
                         + "initial configuration [knownNodes={}, {}]",
@@ -1702,7 +1763,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                                         futureVoteCollection
                                                     );
                                                 })
-                                                .collect(Collectors.toList());
+                                                .toList();
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
                                                 attemptReconfiguration = false;
@@ -1797,13 +1858,25 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
         }
 
+        private static final TransportRequestOptions COMMIT_STATE_REQUEST_OPTIONS = TransportRequestOptions.of(
+            null,
+            TransportRequestOptions.Type.STATE
+        );
+
         @Override
         protected void sendApplyCommit(
             DiscoveryNode destination,
             ApplyCommitRequest applyCommit,
             ActionListener<Empty> responseActionListener
         ) {
-            publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
+            assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            transportService.sendRequest(
+                destination,
+                COMMIT_STATE_ACTION_NAME,
+                applyCommit,
+                COMMIT_STATE_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
+            );
         }
     }
 }

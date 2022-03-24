@@ -67,19 +67,24 @@ import static java.util.jar.Attributes.Name.MULTI_RELEASE;
  */
 public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
-    private final List<String> prefixes;
-    private final ClassLoader parent;
-    private final Map<String, CodeSource> prefixToCodeBase;
-
     private static final String IMPL_PREFIX = "IMPL-JARS/";
     private static final String JAR_LISTING_FILE = "/LISTING.TXT";
+
+    /** Ordered list of prefixes to use when loading classes and resources. */
+    private final List<String> prefixes;
+
+    /** A map of prefix to codebase, used to determine the code source when defining classes. */
+    private final Map<String, CodeSource> prefixToCodeBase;
+
+    /** The loader used to find the class bytes. */
+    private final ClassLoader parent;
 
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
         return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
     }
 
     private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
-        super(parent);
+        super(null);
         this.prefixes = prefixToCodeBase.keySet().stream().toList();
         this.prefixToCodeBase = prefixToCodeBase;
         this.parent = parent;
@@ -132,7 +137,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                 throw new UncheckedIOException(e);
             }
         }
-        return super.findClass(name);
+        return parent.loadClass(name);
     }
 
     @Override
@@ -142,7 +147,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         if (url != null) {
             return url;
         }
-        return super.findResource(name);
+        return parent.getResource(name);
     }
 
     @Override
@@ -153,7 +158,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         for (int i = 0; i < size; i++) {
             tmp[i] = parent.getResources(prefixes.get(i) + "/" + name);
         }
-        tmp[size] = super.findResources(name);
+        tmp[size] = parent.getResources(name);
         return new CompoundEnumeration<>(tmp);
     }
 
@@ -175,8 +180,21 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return moduleFinder;
     }
 
+    static String basePrefix(String prefix) {
+        int idx = prefix.indexOf(MRJAR_VERSION_PREFIX);
+        if (idx == -1) {
+            return prefix;
+        }
+        return prefix.substring(0, idx - 1);   // drop the leading / TODO: fix this
+    }
+
     private Path[] modulePath() throws IOException {
-        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet().stream().map(pfx -> path.resolve(pfx)).toArray(Path[]::new);
+        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet()
+            .stream()
+            .map(EmbeddedImplClassLoader::basePrefix)
+            .distinct()
+            .map(pfx -> path.resolve(pfx))
+            .toArray(Path[]::new);
         URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
         if (rootURI.getScheme().equals("file")) {
             return entries.apply(Path.of(rootURI));

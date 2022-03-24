@@ -278,11 +278,11 @@ public final class TimestampFormatFinder {
         ),
         // The Kibana export format
         new CandidateTimestampFormat(
-            example -> Collections.singletonList("MMM dd, yyyy @ HH:mm:ss.SSS"),
-            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
+            example -> Collections.singletonList("MMM d, yyyy @ HH:mm:ss.SSS"),
+            "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
             "\\b%{MONTH} %{MONTHDAY}, %{YEAR} @ %{HOUR}:%{MINUTE}:%{SECOND}\\b",
             CUSTOM_TIMESTAMP_GROK_NAME,
-            "    11  1111   11 11 11 111",
+            Arrays.asList("    11  1111   11 11 11 111", "    1  1111   11 11 11 111"),
             0,
             0
         )
@@ -475,9 +475,10 @@ public final class TimestampFormatFinder {
         // Additionally it has the full 9 digits of fractional second precision, to avoid the possibility of truncating the fraction.
         String generatedTimestamp = javaTimeFormatter.withZone(ZoneOffset.ofHoursMinutesSeconds(5, 45, 0))
             .format(Instant.ofEpochMilli(981173106123L).plusNanos(456789L));
+        BitSet numberPosBitSet = stringToNumberPosBitSet(generatedTimestamp);
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS) {
 
-            TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
+            TimestampMatch match = checkCandidate(candidate, generatedTimestamp, numberPosBitSet, true, timeoutChecker);
             if (match != null) {
                 return new CandidateTimestampFormat(example -> {
 
@@ -522,20 +523,27 @@ public final class TimestampFormatFinder {
         boolean requireFullMatch,
         TimeoutChecker timeoutChecker
     ) {
+        Tuple<Integer, Integer> boundsForCandidate = findBoundsForCandidate(candidate, numberPosBitSet);
         if (requireFullMatch) {
-            Map<String, Object> captures = timeoutChecker.grokCaptures(
-                candidate.strictFullMatchGrok,
-                text,
-                "timestamp format determination"
-            );
-            if (captures != null) {
-                return new TimestampMatch(candidate, "", text, "");
+            // Even though the "strict" Grok pattern should only match text that can be parsed using
+            // the corresponding time format, the built in Grok patterns are not as strict as they
+            // could be. Therefore, enforce that the bit pattern also matches, as this will rule out
+            // problems like the %{MONTHDAY} Grok pattern matching both single and double digit days
+            // while the date format only matches double digit days.
+            if (boundsForCandidate.v1() == 0) {
+                Map<String, Object> captures = timeoutChecker.grokCaptures(
+                    candidate.strictFullMatchGrok,
+                    text,
+                    "timestamp format determination"
+                );
+                if (captures != null) {
+                    return new TimestampMatch(candidate, "", text, "");
+                }
             }
         } else {
             // Since a search in a long string that has sections that nearly match will be very slow, it's
             // worth doing an initial sanity check to see if the relative positions of digits necessary to
-            // get a match exist first
-            Tuple<Integer, Integer> boundsForCandidate = findBoundsForCandidate(candidate, numberPosBitSet);
+            // get a match exist first.
             if (boundsForCandidate.v1() >= 0) {
                 assert boundsForCandidate.v2() > boundsForCandidate.v1();
                 String matchIn = text.substring(boundsForCandidate.v1(), Math.min(boundsForCandidate.v2(), text.length()));
@@ -582,7 +590,7 @@ public final class TimestampFormatFinder {
      */
     public void addSample(String text) {
 
-        BitSet numberPosBitSet = requireFullMatch ? null : stringToNumberPosBitSet(text);
+        BitSet numberPosBitSet = stringToNumberPosBitSet(text);
 
         for (CandidateTimestampFormat candidate : orderedCandidateFormats) {
 

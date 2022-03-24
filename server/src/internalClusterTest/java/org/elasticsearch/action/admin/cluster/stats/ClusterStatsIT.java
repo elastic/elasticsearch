@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -96,10 +95,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
             }
             Settings settings = Settings.builder()
-                .putList(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
-                )
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList())
                 .build();
             internalCluster().startNode(settings);
             total++;

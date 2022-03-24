@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 
@@ -140,7 +139,7 @@ public class SystemIndexManager implements ClusterStateListener {
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     enum UpgradeStatus {

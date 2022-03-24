@@ -87,7 +87,7 @@ public abstract class Publication {
         return publicationTargets.stream()
             .filter(PublicationTarget::isSuccessfullyCompleted)
             .map(PublicationTarget::getDiscoveryNode)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public boolean isCommitted() {
@@ -377,6 +377,18 @@ public abstract class Publication {
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
+        }
+
+        private Exception getRootCause(Exception e) {
+            if (e instanceof final TransportException transportException) {
+                if (transportException.getRootCause()instanceof final Exception rootCause) {
+                    return rootCause;
+                } else {
+                    assert false : e;
+                    logger.error(Message.createParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), e);
+                }
+            }
+            return e;
         }
 
         private class ApplyCommitResponseHandler implements ActionListener<TransportResponse.Empty> {

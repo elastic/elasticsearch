@@ -43,7 +43,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -152,12 +152,12 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final String type;
         private final NumericType numericType;
-        private final ToScriptField<SortedNumericDocValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-        Resolution(String type, NumericType numericType, ToScriptField<SortedNumericDocValues> toScriptField) {
+        Resolution(String type, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
             this.type = type;
             this.numericType = numericType;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         public String type() {
@@ -168,8 +168,8 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        ToScriptField<SortedNumericDocValues> getDefaultToScriptField() {
-            return toScriptField;
+        ToScriptFieldFactory<SortedNumericDocValues> getDefaultToScriptFieldFactory() {
+            return toScriptFieldFactory;
         }
 
         /**
@@ -707,7 +707,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptField());
+            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptFieldFactory());
         }
 
         @Override

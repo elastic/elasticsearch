@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
@@ -144,7 +143,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                 .stream()
                 .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
                 .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
-                .collect(Collectors.toList());
+                .toList();
             if (aliases.isEmpty() == false) {
                 result.put(requestedDataStream, aliases);
             }

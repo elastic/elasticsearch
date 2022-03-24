@@ -391,13 +391,26 @@ public final class GrokPatternCreator {
         addIntermediateRegex(overallGrokPatternBuilder, snippets);
     }
 
-    public static void addIntermediateRegex(StringBuilder patternBuilder, Collection<String> snippets) {
+    /**
+     * Create a regular expression that matches all of a supplied collection of strings. The regular expression is chosen
+     * such that it explicitly matches the punctuation and whitespace that's common to all the strings, but uses wildcards
+     * to match other characters.
+     * @param patternBuilder The intermediate regular expression will be appended to this string builder.
+     * @param snippets The portions of all the sampled messages that the generated regular expression must match.
+     * @return The highest count of a particular explicit character in the generated pattern that is followed by a wildcard.
+     *         This value gives an indication about the complexity of matching the returned pattern against a string that
+     *         nearly matches but not quite.
+     */
+    public static int addIntermediateRegex(StringBuilder patternBuilder, Collection<String> snippets) {
         if (snippets.isEmpty()) {
-            return;
+            return 0;
         }
 
         List<String> others = new ArrayList<>(snippets);
         String driver = others.remove(others.size() - 1);
+
+        char lastPunctOrSpace = '\0';
+        List<Character> charsPrecedingWildcard = new ArrayList<>();
 
         boolean wildcardRequiredIfNonMatchFound = true;
         for (int i = 0; i < driver.length(); ++i) {
@@ -406,6 +419,7 @@ public final class GrokPatternCreator {
             if (punctuationOrSpaceNeedsEscaping != null && others.stream().allMatch(other -> other.indexOf(ch) >= 0)) {
                 if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(other -> other.indexOf(ch) > 0)) {
                     patternBuilder.append(".*?");
+                    charsPrecedingWildcard.add(lastPunctOrSpace);
                 }
                 if (punctuationOrSpaceNeedsEscaping) {
                     patternBuilder.append('\\');
@@ -413,8 +427,10 @@ public final class GrokPatternCreator {
                 patternBuilder.append(ch);
                 wildcardRequiredIfNonMatchFound = true;
                 others = others.stream().map(other -> other.substring(other.indexOf(ch) + 1)).collect(Collectors.toList());
+                lastPunctOrSpace = ch;
             } else if (wildcardRequiredIfNonMatchFound) {
                 patternBuilder.append(".*?");
+                charsPrecedingWildcard.add(lastPunctOrSpace);
                 wildcardRequiredIfNonMatchFound = false;
             }
         }
@@ -422,6 +438,33 @@ public final class GrokPatternCreator {
         if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(s -> s.isEmpty() == false)) {
             patternBuilder.append(".*?");
         }
+
+        return longestRun(charsPrecedingWildcard);
+    }
+
+    /**
+     * @return The length of the longest subsequence of identical values in {@code sequence}.
+     */
+    static int longestRun(List<?> sequence) {
+        if (sequence.size() <= 1) {
+            return sequence.size();
+        }
+        int maxSoFar = 0;
+        int thisCount = 1;
+        for (int index = 1; index < sequence.size(); ++index) {
+            if (sequence.get(index).equals(sequence.get(index - 1))) {
+                ++thisCount;
+            } else {
+                maxSoFar = Math.max(maxSoFar, thisCount);
+                // The next run cannot be longer if we're nearer the end than the max so far
+                if (maxSoFar >= sequence.size() - index) {
+                    return maxSoFar;
+                }
+                thisCount = 1;
+            }
+        }
+        maxSoFar = Math.max(maxSoFar, thisCount);
+        return maxSoFar;
     }
 
     private void finalizeGrokPattern(Collection<String> snippets) {

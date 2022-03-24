@@ -553,7 +553,7 @@ public abstract class AbstractScopedSettings {
                 msgPrefix = "unknown secure setting";
             }
             String msg = msgPrefix + " [" + key + "]";
-            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
+            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).toList();
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
             } else {

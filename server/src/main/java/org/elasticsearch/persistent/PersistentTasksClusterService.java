@@ -37,6 +37,7 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -344,7 +345,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         final List<DiscoveryNode> candidateNodes = currentState.nodes()
             .stream()
             .filter(dn -> isNodeShuttingDown(currentState, dn.getId()) == false)
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(ArrayList::new));
         // Task assignment should not rely on node order
         Randomness.shuffle(candidateNodes);
 

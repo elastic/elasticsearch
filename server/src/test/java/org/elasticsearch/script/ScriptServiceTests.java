@@ -407,10 +407,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private ScriptContextStats getByContext(ScriptStats stats, String context) {
-        List<ScriptContextStats> maybeContextStats = stats.getContextStats()
-            .stream()
-            .filter(c -> c.getContext().equals(context))
-            .collect(Collectors.toList());
+        List<ScriptContextStats> maybeContextStats = stats.getContextStats().stream().filter(c -> c.getContext().equals(context)).toList();
         assertEquals(1, maybeContextStats.size());
         return maybeContextStats.get(0);
     }

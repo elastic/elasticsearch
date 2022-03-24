@@ -140,7 +140,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             if (failureCount < 10) {
                 logger.trace("concurrent connect/disconnect for [{}] ([{}] failures), will try again", node, failureCount);
                 connection.addRemovedListener(
-                    listener.delegateFailure(
+                    delegate.delegateFailure(
                         (retryDelegate, ignored) -> connectToNodeOrRetry(
                             node,
                             connectionProfile,
@@ -153,7 +153,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             } else {
                 // A run of bad luck this long is probably not bad luck after all: something's broken, just give up.
                 logger.warn("failed to connect to [{}] after [{}] attempts, giving up", node.descriptionWithoutAttributes(), failureCount);
-                listener.onFailure(
+                delegate.onFailure(
                     new ConnectTransportException(
                         node,
                         "concurrently connecting and disconnecting even after [" + failureCount + "] attempts"

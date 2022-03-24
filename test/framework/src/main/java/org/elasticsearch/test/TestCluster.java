@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -31,6 +29,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
 
@@ -147,12 +146,12 @@ public abstract class TestCluster implements Closeable {
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
+                    ArrayList<String> concreteIndices = new ArrayList<>();
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (concreteIndices.isEmpty() == false) {
-                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(new String[0])));
                     }
                 }
             }

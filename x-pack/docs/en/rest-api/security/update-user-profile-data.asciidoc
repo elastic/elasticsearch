@@ -1,12 +1,11 @@
 [role="xpack"]
 [[security-api-update-user-profile-data]]
 === Update user profile data API
-
-beta::[]
-
 ++++
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
+
+beta::[]
 
 Updates specific data for the user profile that's associated with the specified
 unique ID.
@@ -14,7 +13,7 @@ unique ID.
 [[security-api-update-user-profile-data-request]]
 ==== {api-request-title}
 
-`POST /_security/profile/_data/<uid>`
+`POST /_security/profile/<uid>/_data`
 
 [[security-api-update-user-profile-data-prereqs]]
 ==== {api-prereq-title}
@@ -69,7 +68,7 @@ top-level keys cannot begin with an underscore (`_`) or contain a period (`.`).
 Non-searchable data that you want to associate with the user profile.
 This field supports a nested data structure. Within the `data` object, top-level
 keys cannot begin with an underscore (`_`) or contain a period (`.`)
-The `data` object is not searchable, but can be retrieved with the 
+The `data` object is not searchable, but can be retrieved with the
 <<security-api-get-user-profile,Get user profile API>>.
 
 *Indicates that the setting is required in some, but not all situations.
@@ -91,12 +90,12 @@ indicating that the request is acknowledged:
 [[security-api-update-user-profile-data-example]]
 ==== {api-examples-title}
 
-The following request updates a profile document for a `uid` matching 
+The following request updates a profile document for a `uid` matching
 `u_kd2JMqwUQwSCCOxMv7M1vw`:
 
 [source,console]
 ----
-POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
   "access": {
     "app1": {
@@ -116,7 +115,7 @@ You can update the profile data to replace some keys and add new keys:
 
 [source,console]
 ----
-POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
   "access": {
     "app1": {

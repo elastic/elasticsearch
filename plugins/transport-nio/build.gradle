@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The nio transport.'
-  classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
+  classname 'org.elasticsearch.plugin.transport.nio/org.elasticsearch.transport.nio.NioTransportPlugin'
 }
 
 dependencies {
@@ -26,6 +26,10 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
 }
 
 tasks.named("dependencyLicenses").configure {

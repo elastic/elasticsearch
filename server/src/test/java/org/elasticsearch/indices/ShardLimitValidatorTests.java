@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
@@ -170,13 +169,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public Index[] getIndices(ClusterState state) {
-        return state.metadata()
-            .indices()
-            .values()
-            .stream()
-            .map(IndexMetadata::getIndex)
-            .collect(Collectors.toList())
-            .toArray(Index.EMPTY_ARRAY);
+        return state.metadata().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
     }
 
     private ClusterState createClusterStateForReplicaUpdate(int nodesInCluster, int shardsPerNode, String group) {

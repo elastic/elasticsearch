@@ -127,7 +127,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         private final int index;
         private final Engine.GetResult engineResult;
         private final long lookupTimeInNanos;
-        boolean closed = false;
 
         Lookup(int index, Engine.GetResult engineResult, long lookupTimeInNanos) {
             this.index = index;
@@ -137,10 +136,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         @Override
         public void close() {
-            if (closed == false) {
-                closed = true;
-                engineResult.close();
-            }
+            engineResult.close();
         }
     }
 
@@ -153,9 +149,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // perform all engine gets
             final Function<Engine.Get, Engine.GetResult> getFromEngine = indexShard.getFromEngine(requests.length > 1);
             for (int i = 0; i < numRequests; i++) {
-                final GetAndFetchContext request = requests[i];
-                final long now = System.nanoTime();
                 try {
+                    final long now = System.nanoTime();
+                    final GetAndFetchContext request = requests[i];
                     final Engine.GetResult engineResult = getFromEngine.apply(request.engineGet());
                     if (engineResult.exists()) {
                         lookups.add(new Lookup(i, engineResult, System.nanoTime() - now));
@@ -164,17 +160,20 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         resultOrFailures[i] = new GetResultOrFailure(notExist(request.id()));
                         missingMetric.inc(System.nanoTime() - now);
                     }
-                } catch (RuntimeException e) {
+                } catch (Exception e) {
                     resultOrFailures[i] = new GetResultOrFailure(e);
                 }
             }
             // load stored fields
             // TODO: Use sequential stored field reader when possible
             for (Lookup lookup : lookups) {
-                final long now = System.nanoTime();
-                final GetAndFetchContext request = requests[lookup.index];
-                final FetchSourceContext fetchSourceContext = normalizeFetchSourceContent(request.fetchSourceContext(), request.gFields());
                 try (lookup) {
+                    final long now = System.nanoTime();
+                    final GetAndFetchContext request = requests[lookup.index];
+                    final FetchSourceContext fetchSourceContext = normalizeFetchSourceContent(
+                        request.fetchSourceContext(),
+                        request.gFields()
+                    );
                     final GetResult getResult = innerGetLoadFromStoredFields(
                         request.id(),
                         request.gFields(),
@@ -188,7 +187,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     } else {
                         missingMetric.inc(tookTime);
                     }
-                } catch (RuntimeException e) {
+                } catch (Exception e) {
                     resultOrFailures[lookup.index] = new GetResultOrFailure(e);
                 }
             }

@@ -32,7 +32,6 @@ import java.io.IOException;
  * <p>Note that any operation that returns NO_OUTPUT must return the same singleton object from
  * {@link #getNoOutput}.
  *
- * @lucene.experimental
  */
 public abstract class Outputs<T> {
 

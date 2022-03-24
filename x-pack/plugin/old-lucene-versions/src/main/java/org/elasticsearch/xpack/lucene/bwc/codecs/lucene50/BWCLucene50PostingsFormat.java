@@ -330,8 +330,6 @@ import java.io.IOException;
  *             current position.
  *       </ul>
  * </dl>
- *
- * @lucene.experimental
  */
 public class BWCLucene50PostingsFormat extends PostingsFormat {
 
@@ -407,8 +405,6 @@ public class BWCLucene50PostingsFormat extends PostingsFormat {
     /**
      * Holds all state required for {@link Lucene50PostingsReader} to produce a {@link
      * org.apache.lucene.index.PostingsEnum} without re-seeking the terms dict.
-     *
-     * @lucene.internal
      */
     public static final class IntBlockTermState extends BlockTermState {
         /** file pointer to the start of the doc ids enumeration, in {@link #DOC_EXTENSION} file */

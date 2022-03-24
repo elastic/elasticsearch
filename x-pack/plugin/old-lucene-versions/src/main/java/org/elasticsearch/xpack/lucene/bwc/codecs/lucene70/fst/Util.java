@@ -39,7 +39,6 @@ import java.util.TreeSet;
 /**
  * Static helper methods.
  *
- * @lucene.experimental
  */
 public final class Util {
     private Util() {}
@@ -98,7 +97,6 @@ public final class Util {
     /**
      * Represents a path in TopNSearcher.
      *
-     * @lucene.experimental
      */
     public static class FSTPath<T> {
         /** Holds the last arc appended to this path */

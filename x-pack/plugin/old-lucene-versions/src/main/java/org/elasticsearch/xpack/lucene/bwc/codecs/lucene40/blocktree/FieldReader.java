@@ -35,8 +35,6 @@ import java.io.IOException;
 
 /**
  * BlockTree's implementation of {@link Terms}.
- *
- * @lucene.internal
  */
 public final class FieldReader extends Terms {
 

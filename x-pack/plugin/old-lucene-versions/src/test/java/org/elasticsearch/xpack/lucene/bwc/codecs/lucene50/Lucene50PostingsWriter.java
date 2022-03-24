@@ -59,7 +59,6 @@ import static org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.ForUtil.MAX_ENC
  * Postings list for each term will be stored separately.
  *
  * @see Lucene50SkipWriter for details about skipping setting and postings layout.
- * @lucene.experimental
  */
 public final class Lucene50PostingsWriter extends PushPostingsWriterBase {
 

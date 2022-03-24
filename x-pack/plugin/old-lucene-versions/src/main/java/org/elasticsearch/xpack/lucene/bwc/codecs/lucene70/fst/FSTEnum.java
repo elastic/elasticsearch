@@ -27,8 +27,6 @@ import java.io.IOException;
 
 /**
  * Can next() and advance() through the terms in an FST
- *
- * @lucene.experimental
  */
 abstract class FSTEnum<T> {
     protected final FST<T> fst;

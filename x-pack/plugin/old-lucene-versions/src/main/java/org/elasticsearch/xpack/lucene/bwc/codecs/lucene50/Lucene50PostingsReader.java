@@ -54,8 +54,6 @@ import static org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.ForUtil.MAX_ENC
 
 /**
  * Concrete class that reads docId(maybe frq,pos,offset,payloads) list with postings format.
- *
- * @lucene.experimental
  */
 public final class Lucene50PostingsReader extends PostingsReaderBase {
 

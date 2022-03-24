@@ -28,7 +28,6 @@ import java.io.IOException;
 /**
  * Provides storage of finite state machine (FST), using byte array or byte store allocated on heap.
  *
- * @lucene.experimental
  */
 public final class OnHeapFSTStore implements FSTStore {
 

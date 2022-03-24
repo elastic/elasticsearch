@@ -30,7 +30,6 @@ import java.io.IOException;
  * Provides off heap storage of finite state machine (FST), using underlying index input instead of
  * byte store on heap
  *
- * @lucene.experimental
  */
 public final class OffHeapFSTStore implements FSTStore {
 

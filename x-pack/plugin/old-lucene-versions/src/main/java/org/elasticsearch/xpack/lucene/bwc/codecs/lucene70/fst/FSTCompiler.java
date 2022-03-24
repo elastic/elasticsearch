@@ -44,7 +44,6 @@ import java.io.IOException;
  * <p>FSTs larger than 2.1GB are now possible (as of Lucene 4.2). FSTs containing more than 2.1B
  * nodes are also now possible, however they cannot be packed.
  *
- * @lucene.experimental
  */
 public class FSTCompiler<T> {
 

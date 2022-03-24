@@ -198,7 +198,6 @@ import java.util.Objects;
  * </ul>
  *
  * @see Lucene40BlockTreeTermsReader
- * @lucene.experimental
  */
 public final class Lucene40BlockTreeTermsWriter extends FieldsConsumer {
 

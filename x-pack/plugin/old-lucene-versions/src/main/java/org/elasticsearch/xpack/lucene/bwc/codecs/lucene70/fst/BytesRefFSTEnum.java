@@ -26,8 +26,6 @@ import java.io.IOException;
 
 /**
  * Enumerates all input (BytesRef) + output pairs in an FST.
- *
- * @lucene.experimental
  */
 public final class BytesRefFSTEnum<T> extends FSTEnum<T> {
     private final BytesRef current = new BytesRef(10);

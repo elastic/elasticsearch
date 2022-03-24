@@ -64,7 +64,6 @@ import java.util.Map;
  *
  * <p>See {@code BlockTreeTermsWriter}.
  *
- * @lucene.experimental
  */
 public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
 

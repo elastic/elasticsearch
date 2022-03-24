@@ -60,7 +60,6 @@ import java.nio.file.Path;
  *
  * <p>See the {@link org.apache.lucene.util.fst package documentation} for some simple examples.
  *
- * @lucene.experimental
  */
 public final class FST<T> implements Accountable {
 

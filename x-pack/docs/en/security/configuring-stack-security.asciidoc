@@ -24,6 +24,33 @@ environment.
 * https://www.elastic.co/downloads/kibana[Download] and unpack
 the `kibana` package distribution for your environment.
 
+[NOTE]
+====
+From 8.0, `Kibana` can be auto-configured using an enrollment token from ES. However, in any of the cases noted down below this process won’t start automatically:
+Cases where TLS auto-configuration doesn't happen
+Environment related
+*	When the `data dir` exists and is not empty. This is a strong indication that this is not the first time that the node starts and the autoconfiguration won’t run in this case.
+*	When `elasticsearch.yml` doesn't exist, or when it is not possible to read it. This is also an indication that you are running as a different user and you are not a high privileged user.
+*	 `kibana.yml` contains the following: Elasticsearch hostname (`elasticsearch.hosts`) and Elasticsearch credentials (`elasticsearch.serviceAccountToken`, `elasticsearch.username`, or `elasticsearch.password`).
+*	When we can't read elasticsearch.keystore for the same reasons as above.
+*	If the configuration directory is made read only by the admin therefore it is not writeable. the user starting is not the user that installed elasticsearch.
+Configuration related
+*	If `xpack.security.autoconfiguration.enabled` is set to false. 
+*	When `xpack.security.enabled` is set ( independent of its value ). This signifies that you want to configure security features yourself.
+*	When any `xpack.security.transport.ssl.` or `xpack.security.http.ssl.` settings are set. This also signifies that you want to configure TLS by yourself.
+*	When any of the discovery (`discovery.type`, `discovery.seed_hosts` ) or initial master nodes (`cluster.initial_master_nodes`) settings are set. 
+*	If the current node cannot become a master node ( i.e. node.roles is configured with other values ). There are two exceptions to this:
+   ..	When `discovery.type: single-node`
+   ..	When `cluster.initial_master_nodes` exists but contains only the name of the current node.
+*	If the current node cannot have a copy of the security index ( i.e. only has role that can't contain data )
+Cases where initial elastic password generation wont occur
+* In all of the cases mentioned above.
+*	When `bootstrap.password` is set in the `elasticsearch.keystore`.
+*	When `autoconfiguration.password_hash` is set in the `elasticsearch.keystore`. 
+*	Cases where an enrollment token for nodes is not generated 
+*	When `elasticsearch` is only bound to localhost.
+====
+
 [discrete]
 [[stack-start-with-security]]
 === Start {es} and enroll {kib} with security enabled

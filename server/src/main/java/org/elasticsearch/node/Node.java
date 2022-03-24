@@ -56,6 +56,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -907,7 +908,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            HealthService healthService = createHealthService(clusterService);
+            HealthService healthService = createHealthService(clusterService, clusterModule);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1041,11 +1042,15 @@ public class Node implements Closeable {
         }
     }
 
-    private HealthService createHealthService(ClusterService clusterService) {
+    private HealthService createHealthService(ClusterService clusterService, ClusterModule clusterModule) {
         var serverHealthIndicatorServices = List.of(
             new InstanceHasMasterHealthIndicatorService(clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(clusterService)
+            new ShardsAvailabilityHealthIndicatorService(
+                clusterService,
+                clusterModule.getAllocationService(),
+                clusterModule.getAllocationDeciders()
+            )
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

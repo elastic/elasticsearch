@@ -347,6 +347,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new ShardsAvailabilityHealthIndicatorService(clusterService);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService, null, null); // TODO FIX HERE
     }
 }

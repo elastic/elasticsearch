@@ -68,21 +68,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String NAME = "shards_availability";
 
     private final ClusterService clusterService;
-    private final ShardsLimitAllocationDecider shardsLimitAllocationDecider;
-    private final EnableAllocationDecider enableAllocationDecider;
-    private final FilterAllocationDecider filterAllocationDecider;
-    private final DataTierAllocationDecider dataTierAllocationDecider;
+    private final AllocationService allocationService;
+    private final AllocationDeciders allocationDeciders;
 
-    public ShardsAvailabilityHealthIndicatorService(ClusterService clusterService) {
+    public ShardsAvailabilityHealthIndicatorService(
+        ClusterService clusterService,
+        AllocationService allocationService,
+        AllocationDeciders allocationDeciders
+    ) {
         this.clusterService = clusterService;
-        this.shardsLimitAllocationDecider = new ShardsLimitAllocationDecider(
-            clusterService.getSettings(),
-            clusterService.getClusterSettings()
-        );
-        this.enableAllocationDecider = new EnableAllocationDecider(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.filterAllocationDecider = new FilterAllocationDecider(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.dataTierAllocationDecider = DataTierAllocationDecider.INSTANCE;
-
+        this.allocationService = allocationService;
+        this.allocationDeciders = allocationDeciders;
     }
 
     @Override

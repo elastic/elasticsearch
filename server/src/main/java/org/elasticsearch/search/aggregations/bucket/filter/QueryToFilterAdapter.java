@@ -49,7 +49,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
         // Wrapping with a ConstantScoreQuery enables a few more rewrite
-        // rules as of Lucene 8.2
+        // rules as of Lucene 9.2
         query = searcher.rewrite(new ConstantScoreQuery(query));
         if (query instanceof ConstantScoreQuery) {
             /*
@@ -157,7 +157,7 @@ public class QueryToFilterAdapter<Q extends Query> {
     QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
         /*
          * Wrap with a ConstantScoreQuery to enables a few more rewrite
-         * rules as of Lucene 8.2.
+         * rules as of Lucene 9.2.
          * It'd be *wonderful* if Lucene could do fancy optimizations
          * when merging queries like combining ranges but it doesn't at
          * the moment. Admittedly, we have a much more limited problem.

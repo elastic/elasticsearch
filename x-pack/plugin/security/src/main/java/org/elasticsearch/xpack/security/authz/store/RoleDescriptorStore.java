@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -40,7 +41,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class RoleDescriptorStore implements RoleReferenceResolver {
@@ -142,9 +142,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
             if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
                 && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = roleDescriptors.stream()
-                    .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
-                    .collect(Collectors.toSet());
+                effectiveDescriptors = filterRolesNotUsingDfsFeature(roleDescriptors);
             } else {
                 effectiveDescriptors = roleDescriptors;
             }
@@ -167,6 +165,25 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             }
             listener.onResponse(finalResult);
         }, listener::onFailure));
+    }
+
+    private Set<RoleDescriptor> filterRolesNotUsingDfsFeature(Set<RoleDescriptor> roleDescriptors) {
+        Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
+            .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
+
+        Set<RoleDescriptor> rolesUsingDfsFeature = roles.get(true);
+        logger.warn(
+            "Roles [{}] were skipped during user role resolution because they rely on licensed feature [{}] "
+                + "not supported by your current license [{}]. "
+                + "This means you will no longer be able to carry out actions that require these roles."
+                + "Upgrade license to [{}] or above, or renew if it's expired to re-enable them.",
+            rolesUsingDfsFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
+            DOCUMENT_LEVEL_SECURITY_FEATURE,
+            licenseState.statusDescription(),
+            DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
+        );
+
+        return roles.get(false);
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {

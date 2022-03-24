@@ -120,10 +120,10 @@ final class Security {
     }
 
     private static Stream<URL> parseModulePath() {
-        ModuleLayer layer = Security.class.getModule().getLayer();
-        return Stream.concat(Stream.of(layer), layer.parents().stream())
-            .map(ModuleLayer::configuration)
-            .flatMap(cf -> cf.modules().stream())
+        return ModuleLayer.boot()
+            .configuration()
+            .modules()
+            .stream()
             .map(ResolvedModule::reference)
             .map(ModuleReference::location)
             .flatMap(Optional::stream)

@@ -207,8 +207,7 @@ public class EvilLoggerTests extends ESTestCase {
                 deprecationEvents.get(0),
                 DeprecationLogger.CRITICAL,
                 "org.elasticsearch.common.logging.DeprecationLogger.lambda\\$doPrivilegedLog\\$0",
-                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
+                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release."
             );
         }
     }

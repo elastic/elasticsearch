@@ -48,17 +48,6 @@ public class AuthenticationContext {
         return effectiveSubject;
     }
 
-    public Authentication toAuthentication() {
-        return new Authentication(
-            effectiveSubject.getUser(),
-            authenticatingSubject.getRealm(),
-            effectiveSubject.getRealm(),
-            version,
-            type,
-            authenticatingSubject.getMetadata()
-        );
-    }
-
     public static AuthenticationContext fromAuthentication(Authentication authentication) {
         final Builder builder = new Builder(authentication.getVersion());
         builder.authenticationType(authentication.getAuthenticationType());

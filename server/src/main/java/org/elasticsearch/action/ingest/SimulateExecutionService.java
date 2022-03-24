@@ -67,23 +67,23 @@ class SimulateExecutionService {
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
             final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>(
-                new SimulateDocumentBaseResult[request.getDocuments().size()]
+                new SimulateDocumentBaseResult[request.documents().size()]
             );
 
-            if (request.getDocuments().isEmpty()) {
-                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
+            if (request.documents().isEmpty()) {
+                l.onResponse(new SimulatePipelineResponse(request.pipeline().getId(), request.verbose(), responses));
                 return;
             }
 
             int iter = 0;
-            for (IngestDocument ingestDocument : request.getDocuments()) {
+            for (IngestDocument ingestDocument : request.documents()) {
                 final int index = iter;
-                executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
+                executeDocument(request.pipeline(), ingestDocument, request.verbose(), (response, e) -> {
                     if (response != null) {
                         responses.set(index, response);
                     }
-                    if (counter.incrementAndGet() == request.getDocuments().size()) {
-                        l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
+                    if (counter.incrementAndGet() == request.documents().size()) {
+                        l.onResponse(new SimulatePipelineResponse(request.pipeline().getId(), request.verbose(), responses));
                     }
                 });
                 iter++;

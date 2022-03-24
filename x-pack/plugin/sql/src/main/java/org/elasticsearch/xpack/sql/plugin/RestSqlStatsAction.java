@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -21,7 +22,11 @@ public class RestSqlStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, Protocol.SQL_STATS_REST_ENDPOINT));
+        return List.of(
+            Route.builder(GET, Protocol.SQL_STATS_REST_ENDPOINT)
+                .replaces(GET, Protocol.SQL_STATS_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override

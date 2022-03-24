@@ -627,7 +627,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         // Now that we have a bunch of tasks that need to be assigned, let's
         // mark half the nodes as shut down and make sure they do not have any
         // tasks assigned
-        Collection<DiscoveryNode> allNodes = clusterState.nodes().getAllNodes();
+        Collection<DiscoveryNode> allNodes = clusterState.nodes();
         Map<String, SingleNodeShutdownMetadata> shutdownMetadataMap = new HashMap<>();
         allNodes.stream()
             .limit(Math.floorDiv(allNodes.size(), 2))
@@ -698,7 +698,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             t1.start();
             // Make sure we have at least one reassign check before we count down the latch
             assertBusy(
-                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any())
+                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any())
             );
             t2.start();
         } finally {
@@ -709,7 +709,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
         // And one from the line above once the other threads have joined
-        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
+        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any()));
         verifyNoMoreInteractions(recheckTestClusterService);
     }
 
@@ -733,13 +733,13 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 await.await();
             }
             if (testFailureNextTime.compareAndSet(true, false)) {
-                task.onFailure("testing failure", new RuntimeException("foo"));
+                task.onFailure(new RuntimeException("foo"));
             } else {
                 state.set(after);
-                task.clusterStateProcessed("test", before, after);
+                task.clusterStateProcessed(before, after);
             }
             return null;
-        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
 
         return recheckTestClusterService;
     }
@@ -814,10 +814,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             return NO_NODE_FOUND;
         }
         return Optional.ofNullable(randomFrom(nodes)).map(node -> new Assignment(node.getId(), "test assignment")).orElse(NO_NODE_FOUND);
-    }
-
-    private Assignment randomNodeAssignment(DiscoveryNodes nodes) {
-        return randomNodeAssignment(nodes.getAllNodes());
     }
 
     private String dumpEvent(ClusterChangedEvent event) {

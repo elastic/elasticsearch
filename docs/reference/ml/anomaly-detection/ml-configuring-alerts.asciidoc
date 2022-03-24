@@ -330,7 +330,7 @@ formatting is based on the {kib} settings.
 The peak number of bytes of memory ever used by the model.
 ====
 
-==== _Data delay has occured_
+==== _Data delay has occurred_
 
 `context.message`::
 A preconstructed message for the rule.

@@ -18,6 +18,7 @@ import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest.Storag
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -25,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -367,7 +367,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
         assertNotNull("Nodes info is null", nodes);
-        final Map<String, Version> nodesVersions = new HashMap<>(nodes.size());
+        final Map<String, Version> nodesVersions = Maps.newMapWithExpectedSize(nodes.size());
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             nodesVersions.put(node.getKey(), Version.fromString((String) extractValue((Map<?, ?>) node.getValue(), "version")));
         }

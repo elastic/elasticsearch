@@ -28,11 +28,11 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -44,15 +44,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetadataIndexAliasesServiceTests extends ESTestCase {
-    private final AliasValidator aliasValidator = new AliasValidator();
     private final MetadataDeleteIndexService deleteIndexService = mock(MetadataDeleteIndexService.class);
-    private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(
-        null,
-        null,
-        aliasValidator,
-        deleteIndexService,
-        xContentRegistry()
-    );
+    private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(null, null, deleteIndexService, xContentRegistry());
 
     public MetadataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetadataDeleteIndexService does its job
@@ -84,6 +77,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metadata().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
+        assertThat(after.metadata().aliasedIndices("test"), contains(after.metadata().index(index).getIndex()));
 
         // Remove the alias from it while adding another one
         before = after;
@@ -92,17 +86,21 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             Arrays.asList(new AliasAction.Remove(index, "test", null), new AliasAction.Add(index, "test_2", null, null, null, null, null))
         );
         assertNull(after.metadata().getIndicesLookup().get("test"));
+        assertThat(after.metadata().aliasedIndices("test"), empty());
         alias = after.metadata().getIndicesLookup().get("test_2");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metadata().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
+        assertThat(after.metadata().aliasedIndices("test_2"), contains(after.metadata().index(index).getIndex()));
 
         // Now just remove on its own
         before = after;
         after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
         assertNull(after.metadata().getIndicesLookup().get("test"));
+        assertThat(after.metadata().aliasedIndices("test"), empty());
         assertNull(after.metadata().getIndicesLookup().get("test_2"));
+        assertThat(after.metadata().aliasedIndices("test_2"), empty());
         assertAliasesVersionIncreased(index, before, after);
     }
 
@@ -585,11 +583,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
-            )
+            .metadata(Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, singletonList(indexMetadata.getIndex()))))
             .build();
 
         IllegalArgumentException exception = expectThrows(

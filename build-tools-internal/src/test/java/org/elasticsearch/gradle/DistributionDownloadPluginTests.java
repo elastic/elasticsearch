@@ -132,10 +132,10 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
             String configName = projectName(platform.toString(), true);
             configName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
             ElasticsearchDistributionType archiveType = ElasticsearchDistributionTypes.ARCHIVE;
-            checkBwc("minor", configName, BWC_MINOR_VERSION.elasticsearch, archiveType, platform, BWC_MINOR);
-            checkBwc("staged", configName, BWC_STAGED_VERSION.elasticsearch, archiveType, platform, BWC_STAGED);
-            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION.elasticsearch, archiveType, platform, BWC_BUGFIX);
-            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION.elasticsearch, archiveType, platform, BWC_MAINTENANCE);
+            checkBwc("minor", configName, BWC_MINOR_VERSION.elasticsearch(), archiveType, platform, BWC_MINOR);
+            checkBwc("staged", configName, BWC_STAGED_VERSION.elasticsearch(), archiveType, platform, BWC_STAGED);
+            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION.elasticsearch(), archiveType, platform, BWC_BUGFIX);
+            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION.elasticsearch(), archiveType, platform, BWC_MAINTENANCE);
         }
     }
 

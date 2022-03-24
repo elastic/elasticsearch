@@ -23,11 +23,12 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 /**
  * A NLP processor that returns a single double[] output from the model. Assumes that only one tensor is returned via inference
  **/
-public class TextEmbeddingProcessor implements NlpTask.Processor {
+public class TextEmbeddingProcessor extends NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
 
     TextEmbeddingProcessor(NlpTokenizer tokenizer, TextEmbeddingConfig config) {
+        super(tokenizer);
         this.requestBuilder = tokenizer.requestBuilder();
     }
 

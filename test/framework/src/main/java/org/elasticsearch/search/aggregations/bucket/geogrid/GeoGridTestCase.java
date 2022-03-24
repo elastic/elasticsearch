@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -52,18 +53,29 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final int precision = randomPrecision();
-        int size = randomNumberOfBuckets();
-        List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final int size = randomNumberOfBuckets();
+        final List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final List<Long> seen = new ArrayList<>(size);
+        int finalSize = 0;
         for (int i = 0; i < size; i++) {
             double latitude = randomDoubleBetween(-90.0, 90.0, false);
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
 
             long hashAsLong = longEncode(longitude, latitude, precision);
-            buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            if (seen.contains(hashAsLong) == false) { // make sure we don't add twice the same bucket
+                buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+                seen.add(hashAsLong);
+                finalSize++;
+            }
         }
-        return createInternalGeoGrid(name, size, buckets, metadata);
+        return createInternalGeoGrid(name, finalSize, buckets, metadata);
     }
 
     @Override
@@ -128,7 +140,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             case 2 -> size = size + between(1, 10);
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

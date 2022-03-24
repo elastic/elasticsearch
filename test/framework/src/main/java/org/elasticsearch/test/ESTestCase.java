@@ -32,11 +32,11 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.TestRuleMarkFailure;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.TestRuleMarkFailure;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
@@ -59,6 +59,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -81,6 +83,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -93,7 +96,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -123,7 +126,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -282,13 +284,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             .filter(unsupportedTZIdsPredicate.negate())
             .filter(unsupportedZoneIdsPredicate.negate())
             .sorted()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
-        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds()
-            .stream()
-            .filter(unsupportedZoneIdsPredicate.negate())
-            .sorted()
-            .collect(Collectors.toUnmodifiableList());
+        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")
@@ -492,8 +490,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
             String warningMessage = String.format(
                 Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be "
-                    + "removed in a future release! See the breaking changes documentation for the next major version.",
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
                 setting.getKey()
             );
             return new DeprecationWarning(
@@ -954,7 +951,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
         final int size = randomIntBetween(minMapSize, maxMapSize);
-        Map<K, V> list = new HashMap<>(size);
+        Map<K, V> list = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
@@ -1248,11 +1245,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static String getTestTransportType() {
-        return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
+        return Netty4Plugin.NETTY_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return MockNioTransportPlugin.class;
+        return Netty4Plugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
@@ -1505,7 +1502,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(
-        ClusterModule.getNamedXWriteables()
+        CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
     );
 
     /**
@@ -1727,4 +1724,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
+
+    /**
+     * Call method at the beginning of a test to disable its execution
+     * until a given Lucene version is released and integrated into Elasticsearch
+     * @param luceneVersionWithFix the lucene release to wait for
+     * @param message an additional message or link with information on the fix
+     */
+    protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
+        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
+        assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
+        fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
 }

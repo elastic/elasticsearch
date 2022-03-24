@@ -12,11 +12,16 @@ import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -41,9 +46,10 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
-        // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
-        // maybe as part of https://github.com/elastic/elasticsearch/pull/76879
-        ServerUtils.disableSecurityFeatures(installation);
+        // TODO Modify tests below to work with security when BWC version is after 8.0.0
+        if (Version.fromString(bwcDistribution.baseVersion).onOrAfter(Version.V_8_0_0)) {
+            possiblyRemoveSecurityConfiguration(installation);
+        }
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -84,22 +90,24 @@ public class PackageUpgradeTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79950")
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading
             installation = Packages.forceUpgradePackage(sh, distribution);
         } else {
             installation = Packages.upgradePackage(sh, distribution);
-            verifySecurityNotAutoConfigured(installation);
         }
+        // We add this so that we don't trigger the SecurityImplicitBehaviorBootstrapCheck in 8
+        if (Version.fromString(bwcDistribution.baseVersion).before(Version.V_8_0_0)
+            && Version.fromString(distribution.baseVersion).onOrAfter(Version.V_8_0_0)) {
+            ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.enabled", "false");
+        }
+
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
-        // Upgrade overwrites the configuration file because we run with --force-confnew so we need to disable security again
-        ServerUtils.disableSecurityFeatures(installation);
+        verifySecurityNotAutoConfigured(installation);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }
@@ -111,5 +119,23 @@ public class PackageUpgradeTests extends PackagingTestCase {
         assertThat(response2, containsString("World"));
         String response3 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
         assertThat(response3, containsString("Darkness"));
+    }
+
+    private void possiblyRemoveSecurityConfiguration(Installation es) throws IOException {
+        ServerUtils.disableSecurityFeatures(es);
+        if (Files.exists(es.config("certs"))) {
+            FileUtils.rm(es.config("certs"));
+        }
+        // remove security auto-configuration entries, in case bwc was > 8, since we disable security
+        for (String entry : List.of(
+            "xpack.security.transport.ssl.keystore.secure_password",
+            "xpack.security.transport.ssl.truststore.secure_password",
+            "xpack.security.http.ssl.keystore.secure_password",
+            "autoconfiguration.password_hash"
+        )) {
+            if (es.executables().keystoreTool.run("list").stdout().contains(entry)) {
+                es.executables().keystoreTool.run("remove " + entry);
+            }
+        }
     }
 }

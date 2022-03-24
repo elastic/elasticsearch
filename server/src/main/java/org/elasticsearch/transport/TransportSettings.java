@@ -246,6 +246,8 @@ public final class TransportSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    // only used in tests: RST connections when closing to avoid actively closing sockets to end up in time_wait in tests
+    public static final Setting<Boolean> RST_ON_CLOSE = boolSetting("transport.rst_on_close", false, Setting.Property.NodeScope);
 
     private TransportSettings() {}
 }

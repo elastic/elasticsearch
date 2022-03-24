@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -511,7 +512,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
     public void testWriteMap() throws IOException {
         final int size = randomIntBetween(0, 100);
-        final Map<String, String> expected = new HashMap<>(randomIntBetween(0, 100));
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
@@ -559,7 +560,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
-        final Map<String, List<String>> expected = new HashMap<>(size);
+        final Map<String, List<String>> expected = Maps.newMapWithExpectedSize(size);
 
         for (int i = 0; i < size; ++i) {
             int listSize = randomIntBetween(0, 5);
@@ -597,6 +598,23 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         in.close();
         out.close();
+    }
+
+    public void testWriteMapAsList() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; ++i) {
+            final String value = randomAlphaOfLength(5);
+            expected.put("key_" + value, value);
+        }
+
+        final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.writeMapValues(expected, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final Map<String, String> loaded = in.readMapValues(StreamInput::readString, value -> "key_" + value);
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+        assertThat(expected, equalTo(loaded));
     }
 
     private abstract static class BaseNamedWriteable implements NamedWriteable {
@@ -709,8 +727,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
         reverseMap.putAll(map);
 
-        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        List<String> reverseMapKeys = reverseMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).toList();
+        List<String> reverseMapKeys = reverseMap.entrySet().stream().map(Map.Entry::getKey).toList();
 
         assertNotEquals(mapKeys, reverseMapKeys);
 

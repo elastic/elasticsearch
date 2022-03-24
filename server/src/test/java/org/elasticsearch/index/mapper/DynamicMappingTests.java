@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -330,8 +333,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = mapper.parse(source(b -> {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {
                 b.startObject("bar").field("baz", "foo").endObject();
@@ -340,6 +343,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("""
             {"foo":{"properties":{"bar":{"properties":{"baz":{"type":"text\""""));
     }
@@ -794,5 +798,26 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 }
               }
             }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    // test for https://github.com/elastic/elasticsearch/issues/65333
+    public void testDottedFieldDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("myfield").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("myfield", "value1");
+            b.array("something.myfield", "value2", "value3");
+        }));
+
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        for (IndexableField field : doc.rootDoc().getFields("myfield")) {
+            assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
+        }
+        // dynamic is false, so `something.myfield` should be ignored entirely. It used to be merged with myfield by mistake.
+        assertThat(doc.rootDoc().getFields("something.myfield"), arrayWithSize(0));
+
+        assertNull(doc.dynamicMappingsUpdate());
     }
 }

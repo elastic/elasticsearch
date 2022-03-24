@@ -108,7 +108,10 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         } else if (value.getClass() == String.class || (missingBucket && fieldType == null)) {
             // the value might be not string if this field is missing in this shard but present in other shards
             // and doesn't have a string type
-            afterValue = format.parseBytesRef(value.toString());
+            afterValue = format.parseBytesRef(value);
+        } else if (value.getClass() == BytesRef.class) {
+            // The value may be a bytes reference (eg an encoded tsid field)
+            afterValue = (BytesRef) value;
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }

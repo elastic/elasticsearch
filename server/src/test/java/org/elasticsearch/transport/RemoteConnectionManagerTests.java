@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -35,7 +36,10 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         transport = mock(Transport.class);
-        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", new ClusterConnectionManager(Settings.EMPTY, transport));
+        remoteConnectionManager = new RemoteConnectionManager(
+            "remote-cluster",
+            new ClusterConnectionManager(Settings.EMPTY, transport, new ThreadContext(Settings.EMPTY))
+        );
     }
 
     @SuppressWarnings("unchecked")

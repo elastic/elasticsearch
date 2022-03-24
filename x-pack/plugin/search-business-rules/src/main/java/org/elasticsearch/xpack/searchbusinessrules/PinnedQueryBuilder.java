@@ -396,4 +396,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             && Objects.equals(organicQuery, other.organicQuery)
             && boost == other.boost;
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_4_0;
+    }
 }

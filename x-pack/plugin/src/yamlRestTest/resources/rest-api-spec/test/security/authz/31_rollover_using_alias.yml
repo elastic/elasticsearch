@@ -72,7 +72,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 1
+        id: "1"
         index: write_manage_alias
         body: >
           {
@@ -82,7 +82,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 2
+        id: "2"
         index: write_manage_alias
         body: >
           {
@@ -120,7 +120,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 3
+        id: "3"
         index: write_manage_alias
         body: >
           {

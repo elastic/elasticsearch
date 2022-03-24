@@ -217,14 +217,14 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         testGeoIpDatabasesDownload();
-        long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastCheck();
+        long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
-        assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastCheck()));
+        assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck()));
         testGeoIpDatabasesDownload();
     }
 
@@ -247,8 +247,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
                     GeoIpTaskState.Metadata metadata = state.get(id);
                     BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
-                        .filter(new RangeQueryBuilder("chunk").from(metadata.getFirstChunk()).to(metadata.getLastChunk(), true));
-                    int size = metadata.getLastChunk() - metadata.getFirstChunk() + 1;
+                        .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
+                    int size = metadata.lastChunk() - metadata.firstChunk() + 1;
                     SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
                         .setSize(size)
                         .setQuery(queryBuilder)
@@ -268,7 +268,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
                     TarInputStream.TarEntry entry;
                     while ((entry = stream.getNextEntry()) != null) {
-                        if (entry.getName().endsWith(".mmdb")) {
+                        if (entry.name().endsWith(".mmdb")) {
                             break;
                         }
                     }

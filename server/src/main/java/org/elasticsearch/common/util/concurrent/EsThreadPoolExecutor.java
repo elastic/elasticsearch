@@ -8,9 +8,13 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +24,8 @@ import java.util.stream.Stream;
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+
+    private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
     private final ThreadContext contextHolder;
 
@@ -50,7 +56,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        XRejectedExecutionHandler handler,
+        RejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
@@ -60,22 +66,25 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        command = wrapRunnable(command);
+        final var wrappedCommand = wrapRunnable(command);
         try {
-            super.execute(command);
+            super.execute(wrappedCommand);
         } catch (EsRejectedExecutionException ex) {
-            if (command instanceof AbstractRunnable) {
-                // If we are an abstract runnable we can handle the rejection
-                // directly and don't need to rethrow it.
+            if (wrappedCommand instanceof AbstractRunnable abstractRunnable) {
                 try {
-                    ((AbstractRunnable) command).onRejection(ex);
+                    abstractRunnable.onRejection(ex);
                 } finally {
-                    ((AbstractRunnable) command).onAfter();
-
+                    abstractRunnable.onAfter();
                 }
             } else {
                 throw ex;
             }
+        } catch (Exception ex) {
+            if (command instanceof AbstractRunnable) {
+                assert false : ex;
+                logger.error(new ParameterizedMessage("execution of [{}] failed", wrappedCommand), ex);
+            }
+            throw ex;
         }
     }
 

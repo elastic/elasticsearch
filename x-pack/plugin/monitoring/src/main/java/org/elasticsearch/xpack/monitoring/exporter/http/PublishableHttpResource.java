@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
@@ -26,7 +27,6 @@ import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -107,7 +107,7 @@ public abstract class PublishableHttpResource extends HttpResource {
         super(resourceOwnerName, dirty);
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
-            final Map<String, String> parameters = new HashMap<>(baseParameters.size() + 1);
+            final Map<String, String> parameters = Maps.newMapWithExpectedSize(baseParameters.size() + 1);
 
             parameters.putAll(baseParameters);
             parameters.put("master_timeout", masterTimeout.toString());

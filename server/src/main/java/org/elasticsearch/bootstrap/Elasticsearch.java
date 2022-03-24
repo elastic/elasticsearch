@@ -131,7 +131,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             final String versionOutput = String.format(
                 Locale.ROOT,
                 "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                Build.CURRENT.getQualifiedVersion(),
+                Build.CURRENT.qualifiedVersion(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.hash(),

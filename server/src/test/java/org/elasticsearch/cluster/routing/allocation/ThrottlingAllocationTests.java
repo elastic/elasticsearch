@@ -328,7 +328,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertTrue(foundThrottledMessage);
         // even though it is throttled, move command still forces allocation
 
-        clusterState = commandsResult.getClusterState();
+        clusterState = commandsResult.clusterState();
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));

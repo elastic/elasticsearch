@@ -14,8 +14,11 @@ import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
@@ -167,14 +170,14 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
     }
 
-    public void testRegionCanBeSet() {
+    public void testRegionCanBeSet() throws IOException {
         final String region = randomAlphaOfLength(5);
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.region", region).build()
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
-        try (S3Service s3Service = new S3Service()) {
+        try (S3Service s3Service = new S3Service(Mockito.mock(Environment.class))) {
             AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
             assertThat(other.getSignerRegionOverride(), is(region));
         }

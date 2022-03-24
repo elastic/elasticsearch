@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,7 +26,11 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT));
+        return List.of(
+            Route.builder(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT)
+                .replaces(POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -120,8 +120,8 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
 
     public void testRectangle() throws IOException {
         int z = randomIntBetween(3, 10);
-        int x = randomIntBetween(1, (1 << z) - 2);
-        int y = randomIntBetween(1, (1 << z) - 2);
+        int x = randomIntBetween(2, (1 << z) - 1);
+        int y = randomIntBetween(2, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
         SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         {

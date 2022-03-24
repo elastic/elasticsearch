@@ -21,6 +21,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -192,7 +193,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private Counts(final List<NodeInfo> nodeInfos) {
             // TODO: do we need to report zeros?
-            final Map<String, Integer> roles = new HashMap<>(DiscoveryNodeRole.roles().size() + 1);
+            final Map<String, Integer> roles = Maps.newMapWithExpectedSize(DiscoveryNodeRole.roles().size() + 1);
             roles.put(COORDINATING_ONLY, 0);
             for (final DiscoveryNodeRole role : DiscoveryNodeRole.roles()) {
                 roles.put(role.roleName(), 0);

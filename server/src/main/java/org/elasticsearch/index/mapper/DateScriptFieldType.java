@@ -53,24 +53,27 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             "format",
             true,
             RuntimeField.initializerNotSupported(),
-            null
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
-                b.field(n, v);
+            null,
+            (b, n, v) -> {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                    b.field(n, v);
+                }
             }
-        }, Object::toString).acceptsNull();
+        ).acceptsNull();
 
         private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
             "locale",
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            RuntimeField.initializerNotSupported()
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(Locale.ROOT)) {
-                b.field(n, v.toString());
-            }
-        }, Object::toString).acceptsNull();
+            RuntimeField.initializerNotSupported(),
+            (b, n, v) -> {
+                if (v != null && false == v.equals(Locale.ROOT)) {
+                    b.field(n, v.toString());
+                }
+            },
+            Object::toString
+        ).acceptsNull();
 
         Builder(String name) {
             super(name, DateFieldScript.CONTEXT);
@@ -158,7 +161,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptField());
+        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
     }
 
     @Override

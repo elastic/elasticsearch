@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -29,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
@@ -67,6 +67,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             // and the raw format for the other types
             return DocValueFormat.RAW;
         }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -207,7 +212,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             }
             case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
@@ -238,7 +243,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             .sorted(getKeyComparator())
             .distinct()
             .limit(reduced.getSize())
-            .collect(Collectors.toList());
+            .toList();
 
         assertThat(reduced.getBuckets().size(), lessThanOrEqualTo(size));
         assertThat(reduced.getBuckets().size(), equalTo(expectedKeys.size()));
@@ -402,7 +407,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable<?>[] values) {
-        List<DocValueFormat> formats = IntStream.range(0, fields.size()).mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());
+        List<DocValueFormat> formats = IntStream.range(0, fields.size()).mapToObj(i -> DocValueFormat.RAW).toList();
         return new InternalComposite.ArrayMap(fields, formats, values);
     }
 }

@@ -8,14 +8,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -27,6 +29,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggregationTestCase<InternalVariableWidthHistogram> {
 
@@ -40,6 +44,11 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         format = randomNumericDocValueFormat();
         emptyBucktInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(InternalAggregations.EMPTY);
         this.numBuckets = 3;
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     private InternalVariableWidthHistogram createEmptyTestInstance() {
@@ -114,7 +123,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             case 2 -> {
                 emptyBucketInfo = null;
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
@@ -154,9 +163,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -208,9 +218,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -298,9 +309,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -354,9 +366,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -415,9 +428,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();

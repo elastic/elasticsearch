@@ -17,7 +17,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -48,6 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
+import static org.mockito.Mockito.mock;
 
 public class InternalTopMetricsTests extends InternalAggregationTestCase<InternalTopMetrics> {
     /**
@@ -67,6 +70,16 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalTopMetrics sampled, InternalTopMetrics reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getTopMetrics(), equalTo(reduced.getTopMetrics()));
     }
 
     public void testEmptyIsNotMapped() {
@@ -388,23 +401,26 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected List<InternalTopMetrics> randomResultsToReduce(String name, int count) {
+    protected BuilderAndToReduce<InternalTopMetrics> randomResultsToReduce(String name, int size) {
         InternalTopMetrics prototype = createTestInstance();
-        return randomList(
-            count,
-            count,
-            () -> new InternalTopMetrics(
-                prototype.getName(),
-                prototype.getSortOrder(),
-                prototype.getMetricNames(),
-                prototype.getSize(),
-                randomTopMetrics(
-                    InternalAggregationTestCase::randomNumericDocValueFormat,
-                    between(0, prototype.getSize()),
-                    prototype.getMetricNames().size(),
-                    InternalTopMetricsTests::randomSortValue
-                ),
-                prototype.getMetadata()
+        return new BuilderAndToReduce<>(
+            mock(AggregationBuilder.class),
+            randomList(
+                size,
+                size,
+                () -> new InternalTopMetrics(
+                    prototype.getName(),
+                    prototype.getSortOrder(),
+                    prototype.getMetricNames(),
+                    prototype.getSize(),
+                    randomTopMetrics(
+                        InternalAggregationTestCase::randomNumericDocValueFormat,
+                        between(0, prototype.getSize()),
+                        prototype.getMetricNames().size(),
+                        InternalTopMetricsTests::randomSortValue
+                    ),
+                    prototype.getMetadata()
+                )
             )
         );
     }

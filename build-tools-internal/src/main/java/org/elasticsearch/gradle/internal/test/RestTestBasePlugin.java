@@ -16,14 +16,19 @@ import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
-import org.jetbrains.annotations.Nullable;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
 public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
@@ -76,10 +81,21 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
+
+        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(t ->
+        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+        project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+            if (GradleUtils.isModuleProject(project.getPath())) {
+                var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
+                t.getClusters().forEach(c -> c.module(bundle));
+            } else {
+                var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+                t.getClusters().forEach(c -> c.plugin(bundle));
+            }
+        }));
     }
 
-    @Nullable
     private String systemProperty(String propName) {
-        return providerFactory.systemProperty(propName).forUseAtConfigurationTime().getOrNull();
+        return providerFactory.systemProperty(propName).getOrNull();
     }
 }

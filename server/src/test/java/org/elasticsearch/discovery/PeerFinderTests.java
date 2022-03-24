@@ -29,6 +29,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
@@ -210,7 +211,13 @@ public class PeerFinderTests extends ESTestCase {
 
         localNode = newDiscoveryNode("local-node");
 
-        ConnectionManager innerConnectionManager = new ClusterConnectionManager(settings, capturingTransport);
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+
+        final ConnectionManager innerConnectionManager = new ClusterConnectionManager(
+            settings,
+            capturingTransport,
+            threadPool.getThreadContext()
+        );
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(innerConnectionManager);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> {
             final boolean isConnected = connectedNodes.contains(discoveryNode);
@@ -222,7 +229,7 @@ public class PeerFinderTests extends ESTestCase {
         transportService = new TransportService(
             settings,
             capturingTransport,
-            deterministicTaskQueue.getThreadPool(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
@@ -548,7 +555,7 @@ public class PeerFinderTests extends ESTestCase {
 
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, is(1));
-        final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request;
+        final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request();
         assertThat(peersRequest.getKnownPeers(), contains(otherNode));
     }
 
@@ -785,10 +792,10 @@ public class PeerFinderTests extends ESTestCase {
 
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "connection failed",
+                    "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
-                    "address [" + otherNode.getAddress() + "]* connection failed: cannot connect to*"
+                    "address [" + otherNode.getAddress() + "]* discovery result: cannot connect to*"
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {
@@ -809,7 +816,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     @TestLogging(reason = "testing logging at DEBUG level", value = "org.elasticsearch.discovery:DEBUG")
-    public void testLogsStackTraceInConnectionFailedMessages() throws IllegalAccessException {
+    public void testLogsStackTraceInDiscoveryResultMessages() throws IllegalAccessException {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
 
         providedAddresses.add(otherNode.getAddress());
@@ -825,10 +832,10 @@ public class PeerFinderTests extends ESTestCase {
             Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "connection failed",
+                    "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.DEBUG,
-                    "address [" + otherNode.getAddress() + "]* connection failed*"
+                    "address [" + otherNode.getAddress() + "]* discovery result*"
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {
@@ -843,10 +850,10 @@ public class PeerFinderTests extends ESTestCase {
 
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "connection failed",
+                    "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
-                    "address [" + otherNode.getAddress() + "]* connection failed*"
+                    "address [" + otherNode.getAddress() + "]* discovery result*"
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {
@@ -892,18 +899,17 @@ public class PeerFinderTests extends ESTestCase {
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
-            assertThat(capturedRequest.action, is(REQUEST_PEERS_ACTION_NAME));
-            assertThat(capturedRequest.request, instanceOf(PeersRequest.class));
-            final PeersRequest peersRequest = (PeersRequest) capturedRequest.request;
+            assertThat(capturedRequest.action(), is(REQUEST_PEERS_ACTION_NAME));
+            assertThat(capturedRequest.request(), instanceOf(PeersRequest.class));
+            final PeersRequest peersRequest = (PeersRequest) capturedRequest.request();
             assertThat(peersRequest.getSourceNode(), is(localNode));
-            capturingTransport.handleResponse(capturedRequests[0].requestId, responseFactory.apply(capturedRequest.node));
+            capturingTransport.handleResponse(capturedRequests[0].requestId(), responseFactory.apply(capturedRequest.node()));
         }
     }
 
     private void assertFoundPeers(DiscoveryNode... expectedNodesArray) {
         final Set<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray).collect(Collectors.toSet());
-        final List<DiscoveryNode> actualNodesList = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)
-            .collect(Collectors.toList());
+        final List<DiscoveryNode> actualNodesList = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).toList();
         final HashSet<DiscoveryNode> actualNodesSet = new HashSet<>(actualNodesList);
         assertThat(actualNodesSet, equalTo(expectedNodes));
         assertTrue("no duplicates in " + actualNodesList, actualNodesSet.size() == actualNodesList.size());

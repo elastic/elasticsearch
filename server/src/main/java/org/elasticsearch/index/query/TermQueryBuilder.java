@@ -224,4 +224,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         return super.doEquals(other) && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

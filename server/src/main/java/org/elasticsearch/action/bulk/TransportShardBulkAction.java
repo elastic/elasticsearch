@@ -240,7 +240,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     e,
                                     primary,
                                     docWriteRequest.opType() == DocWriteRequest.OpType.DELETE,
-                                    docWriteRequest.version()
+                                    docWriteRequest.version(),
+                                    docWriteRequest.id()
                                 ),
                                 context,
                                 null
@@ -296,7 +297,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
-                final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version());
+                final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version(), updateRequest.id());
                 context.setRequestToExecute(updateRequest);
                 context.markOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
@@ -307,9 +308,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 context.markAsCompleted(context.getExecutionResult());
                 return true;
             }
-            DocWriteRequest<?> translated = updateResult.action();
-            translated.process();
-            context.setRequestToExecute(translated);
+            context.setRequestToExecute(updateResult.action());
         } else {
             context.setRequestToExecute(context.getCurrent());
             updateResult = null;
@@ -361,7 +360,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     );
             } catch (Exception e) {
                 logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
-                onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
+                assert result.getId() != null;
+                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                 return true;
             }
 
@@ -385,7 +385,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
+                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
                     itemDoneListener.onResponse(null);
@@ -398,8 +398,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return true;
     }
 
-    private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version) {
-        return isDelete ? primary.getFailedDeleteResult(e, version) : primary.getFailedIndexResult(e, version);
+    private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
+        assert id != null;
+        return isDelete ? primary.getFailedDeleteResult(e, version, id) : primary.getFailedIndexResult(e, version, id);
     }
 
     private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult) {

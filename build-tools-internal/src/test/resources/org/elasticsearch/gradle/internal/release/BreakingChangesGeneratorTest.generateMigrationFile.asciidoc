@@ -1,0 +1,140 @@
+[[migrating-8.4]]
+== Migrating to 8.4
+++++
+<titleabbrev>8.4</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 8.4.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming::[8.4.0-SNAPSHOT]
+
+
+[discrete]
+[[breaking-changes-8.4]]
+=== Breaking changes
+
+The following changes in {es} 8.4 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 8.4, review these changes and take the described steps
+to mitigate the impact.
+
+// NOTE: The notable-breaking-changes tagged regions are re-used in the
+// Installation and Upgrade Guide
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_84_api_changes]]
+==== API changes
+
+[[breaking_change_number_1]]
+.Breaking change number 1
+[%collapsible]
+====
+*Details* +
+Breaking change details 1
+
+*Impact* +
+Breaking change impact description 1
+====
+
+[discrete]
+[[breaking_84_cluster_and_node_setting_changes]]
+==== Cluster and node setting changes
+
+[[breaking_change_number_2]]
+.Breaking change number 2
+[%collapsible]
+====
+*Details* +
+Breaking change details 2
+
+*Impact* +
+Breaking change impact description 2
+====
+
+[[breaking_change_number_4]]
+.Breaking change number 4
+[%collapsible]
+====
+*Details* +
+Breaking change details 4
+
+*Impact* +
+Breaking change impact description 4
+====
+// end::notable-breaking-changes[]
+
+[discrete]
+[[breaking_84_transform_changes]]
+==== Transform changes
+
+[[breaking_change_number_3]]
+.Breaking change number 3
+[%collapsible]
+====
+*Details* +
+Breaking change details 3
+
+*Impact* +
+Breaking change impact description 3
+====
+
+
+[discrete]
+[[deprecated-8.4]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 8.4
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 8.4.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
+[[deprecations_84_cluster_and_node_setting]]
+==== Cluster and node setting deprecations
+
+[[deprecation_change_number_5]]
+.Deprecation change number 5
+[%collapsible]
+====
+*Details* +
+Deprecation change details 5
+
+*Impact* +
+Deprecation change impact description 5
+====
+
+[[deprecation_change_number_6]]
+.Deprecation change number 6
+[%collapsible]
+====
+*Details* +
+Deprecation change details 6
+
+*Impact* +
+Deprecation change impact description 6
+====
+// end::notable-breaking-changes[]
+
+[discrete]
+[[deprecations_84_cluster_and_node_setting]]
+==== Cluster and node setting deprecations
+
+[[deprecation_change_number_7]]
+.Deprecation change number 7
+[%collapsible]
+====
+*Details* +
+Deprecation change details 7
+
+*Impact* +
+Deprecation change impact description 7
+====
+

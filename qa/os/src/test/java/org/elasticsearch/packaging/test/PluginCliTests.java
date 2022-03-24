@@ -112,7 +112,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     public void test24JavaOpts() throws Exception {
         sh.getEnv().put("ES_JAVA_OPTS", "-XX:+PrintFlagsFinal");
-        assertWithExamplePlugin(installResult -> assertThat(installResult.stdout, containsString("MaxHeapSize")));
+        assertWithExamplePlugin(installResult -> assertThat(installResult.stdout(), containsString("MaxHeapSize")));
     }
 
     public void test25Umask() throws Exception {
@@ -129,7 +129,7 @@ public class PluginCliTests extends PackagingTestCase {
 
         Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
         assertThat(result.isSuccess(), is(false));
-        assertThat(result.stderr, containsString("Plugins config [" + pluginsConfig + "] exists"));
+        assertThat(result.stderr(), containsString("Plugins config [" + pluginsConfig + "] exists"));
     }
 
     /**
@@ -141,7 +141,7 @@ public class PluginCliTests extends PackagingTestCase {
 
         Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
         assertThat(result.isSuccess(), is(false));
-        assertThat(result.stderr, containsString("Plugins config [" + pluginsConfig + "] exists"));
+        assertThat(result.stderr(), containsString("Plugins config [" + pluginsConfig + "] exists"));
     }
 
     /**
@@ -168,14 +168,14 @@ public class PluginCliTests extends PackagingTestCase {
      */
     public void test40InstallOfModularizedPluginsSucceedsButDoesNothing() {
         for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
-            String stderr = installation.executables().pluginTool.run("install " + pluginId).stderr;
+            String stderr = installation.executables().pluginTool.run("install " + pluginId).stderr();
             assertThat(
                 "Expected plugin installed to warn about migrated plugins",
                 stderr,
                 containsString("[" + pluginId + "] is no longer a plugin")
             );
 
-            String pluginList = installation.executables().pluginTool.run("list").stdout;
+            String pluginList = installation.executables().pluginTool.run("list").stdout();
             assertThat(pluginId + " should not appear in the plugin list", pluginList, not(containsString(pluginId)));
         }
     }
@@ -185,11 +185,11 @@ public class PluginCliTests extends PackagingTestCase {
      * succeeds, but does nothing.
      */
     public void test41RemovalOfModularizedPluginsSucceedsButDoesNothing() {
-        String pluginList = installation.executables().pluginTool.run("list").stdout;
+        String pluginList = installation.executables().pluginTool.run("list").stdout();
         assertThat("Expected no plugins to be installed", pluginList.trim(), is(emptyString()));
 
         for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
-            String stderr = installation.executables().pluginTool.run("remove " + pluginId).stderr;
+            String stderr = installation.executables().pluginTool.run("remove " + pluginId).stderr();
             assertThat(
                 "Expected plugin installer to warn about migrated plugins",
                 stderr,

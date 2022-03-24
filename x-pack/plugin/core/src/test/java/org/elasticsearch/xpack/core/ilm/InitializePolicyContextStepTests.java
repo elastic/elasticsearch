@@ -10,11 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InitializePolicyContextStepTests extends AbstractStepTestCase<InitializePolicyContextStep> {
@@ -88,6 +89,6 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
     }
 
     private long getIndexLifecycleDate(Index index, ClusterState clusterState) {
-        return LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index)).getLifecycleDate();
+        return clusterState.getMetadata().index(index).getLifecycleExecutionState().lifecycleDate();
     }
 }

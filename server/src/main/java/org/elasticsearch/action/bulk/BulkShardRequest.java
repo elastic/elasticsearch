@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
 
@@ -175,7 +174,11 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
+        long sum = SHALLOW_SIZE;
+        for (BulkItemRequest item : items) {
+            sum += item.ramBytesUsed();
+        }
+        return sum;
     }
 
     @Override

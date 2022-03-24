@@ -12,6 +12,7 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -36,7 +37,7 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
         BlockingQueue<Runnable> workQueue,
         Function<Runnable, WrappedRunnable> runnableWrapper,
         ThreadFactory threadFactory,
-        XRejectedExecutionHandler handler,
+        RejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);

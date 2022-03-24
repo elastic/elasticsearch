@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -17,11 +18,15 @@ import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -51,6 +56,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
+    private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
@@ -59,6 +65,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
     private final Provider<File> runtimeJava;
+    private final Function<Version, Boolean> isReleasedVersion;
     private int nodeIndex = 0;
 
     public ElasticsearchCluster(
@@ -69,8 +76,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
-        Provider<File> runtimeJava
+        Provider<File> runtimeJava,
+        Function<Version, Boolean> isReleasedVersion
     ) {
         this.path = path;
         this.clusterName = clusterName;
@@ -79,8 +88,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.workingDirBase = workingDirBase;
         this.runtimeJava = runtimeJava;
+        this.isReleasedVersion = isReleasedVersion;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
@@ -92,8 +103,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 fileSystemOperations,
                 archiveOperations,
                 execOperations,
+                fileOperations,
                 workingDirBase,
-                runtimeJava
+                runtimeJava,
+                isReleasedVersion
             )
         );
 
@@ -124,8 +137,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     fileSystemOperations,
                     archiveOperations,
                     execOperations,
+                    fileOperations,
                     workingDirBase,
-                    runtimeJava
+                    runtimeJava,
+                    isReleasedVersion
                 )
             );
         }
@@ -178,12 +193,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void plugin(TaskProvider<Zip> plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
     public void plugin(String pluginProjectPath) {
         nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(TaskProvider<Sync> module) {
         nodes.all(each -> each.module(module));
     }
 
@@ -393,6 +418,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void rolesFile(File rolesYml) {
         nodes.all(node -> node.rolesFile(rolesYml));
+    }
+
+    @Override
+    public void requiresFeature(String feature, Version from) {
+        nodes.all(node -> node.requiresFeature(feature, from));
+    }
+
+    @Override
+    public void requiresFeature(String feature, Version from, Version until) {
+        nodes.all(node -> node.requiresFeature(feature, from, until));
     }
 
     private void writeUnicastHostsFiles() {

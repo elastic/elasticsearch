@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -25,6 +27,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
@@ -95,7 +97,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
 
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
 
@@ -171,8 +173,14 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         }
                     }
                 }
-            }
+            },
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     /**
@@ -202,7 +210,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .values()
             .stream()
             .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
-            .collect(Collectors.toList());
+            .toList();
         // check license level for searchable snapshots
         if (phasesWithSearchableSnapshotActions.isEmpty() == false
             && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
@@ -237,7 +245,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .values()
             .stream()
             .filter(phase -> phase.getActions().containsKey(WaitForSnapshotAction.NAME))
-            .collect(Collectors.toList());
+            .toList();
         // make sure any referenced snapshot lifecycle policies exist
         for (Phase phase : phasesWithWaitForSnapshotActions) {
             WaitForSnapshotAction action = (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME);

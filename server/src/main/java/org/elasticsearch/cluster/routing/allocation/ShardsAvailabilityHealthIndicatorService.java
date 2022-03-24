@@ -240,7 +240,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
-                    "Data redundancy is affected on %d %s [%s]. Fault tolerance and search scalability are reduced.",
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on %d %s [%s].",
                     indicesWithUnavailableReplicasOnly.size(),
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(indicesWithUnavailableReplicasOnly)

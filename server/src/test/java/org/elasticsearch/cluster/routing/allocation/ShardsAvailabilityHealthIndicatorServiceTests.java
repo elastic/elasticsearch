@@ -112,8 +112,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             3,
-                            "Data redundancy is affected on 1 index [yellow-index]. Fault tolerance and search scalability are "
-                                + "reduced."
+                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index]."
                         )
                     )
                 )
@@ -203,13 +202,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             oneOf(
                 new HealthIndicatorImpact(
                     3,
-                    "Data redundancy is affected on 2 indices [yellow-index-1, yellow-index-2]. Fault tolerance and "
-                        + "search scalability are reduced."
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-1, yellow-index-2]."
                 ),
                 new HealthIndicatorImpact(
                     3,
-                    "Data redundancy is affected on 2 indices [yellow-index-2, yellow-index-1]. Fault tolerance and "
-                        + "search scalability are reduced."
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, yellow-index-1]."
                 )
             )
         );
@@ -284,8 +281,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             3,
-                            "Data redundancy is affected on 1 index [restarting-index]. Fault tolerance and search scalability are "
-                                + "reduced."
+                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [restarting-index]."
                         )
                     )
                 )

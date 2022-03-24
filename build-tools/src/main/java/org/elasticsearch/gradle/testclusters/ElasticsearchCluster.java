@@ -24,6 +24,9 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -190,12 +193,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void plugin(TaskProvider<Zip> plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
     public void plugin(String pluginProjectPath) {
         nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(TaskProvider<Sync> module) {
         nodes.all(each -> each.module(module));
     }
 

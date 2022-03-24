@@ -77,7 +77,11 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File file(String path) {
-        File newFile = new File(testProjectDir.root, path)
+        return file(testProjectDir.root, path)
+    }
+
+    File file(File parent, String path) {
+        File newFile = new File(parent, path)
         newFile.getParentFile().mkdirs()
         newFile
     }
@@ -99,7 +103,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-        File buildScript = buildFile,
+        List<String> extraPlugins = [],
         String bugfix = "7.15.2",
         String bugfixLucene = "8.9.0",
         String staged = "7.16.0",
@@ -107,8 +111,9 @@ abstract class AbstractGradleFuncTest extends Specification {
         String minor = "8.0.0",
         String minorLucene = "9.0.0"
     ) {
-        buildScript << """plugins {
+        buildFile << """plugins {
           id 'elasticsearch.global-build-info'
+          ${extraPlugins.collect {p -> "id '$p'" }.join('\n')}
         }
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams

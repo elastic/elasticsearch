@@ -13,7 +13,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.elasticsearch.core.Tuple;
 
 import java.util.Locale;
 
@@ -46,20 +45,23 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        Tuple<String, String> nodeAndClusterId = nodeAndClusterId();
-        if (nodeAndClusterId != null) {
-            String nodeId = nodeAndClusterId.v1();
-            String clusterUUID = nodeAndClusterId.v2();
-            toAppendTo.append(formatIds(nodeId, clusterUUID));
+        String nodeId = ServerSupportImpl.INSTANCE.nodeId();
+        String clusterId = ServerSupportImpl.INSTANCE.clusterId();
+
+        if(nodeId != null) {
+            toAppendTo.append(formatFields("node.id", nodeId));
         }
+        if(clusterId != null) {
+            if(nodeId != null) {
+                toAppendTo.append(", ");
+            }
+            toAppendTo.append(formatFields("cluster.uuid", clusterId));
+        }
+
         // nodeId/clusterUuid not received yet, not appending
     }
-
-    private String formatIds(String nodeId, String clusterUUID) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
+    private String formatFields(String fieldName, String value) {
+        return String.format(Locale.ROOT, "\""+fieldName+"\": \"%s\"", fieldName, value);
     }
 
-    private static Tuple<String, String> nodeAndClusterId() {
-        return ServerSupportImpl.INSTANCE.nodeAndClusterId();
-    }
 }

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.elasticsearch.core.Tuple;
 
 /**
  * Pattern converter to format the cluster_id variable into JSON fields <code>cluster.id</code>.
@@ -40,15 +39,11 @@ public final class ClusterIdConverter extends LogEventPatternConverter {
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        Tuple<String, String> nodeAndClusterId = nodeAndClusterId();
+        String nodeAndClusterId = ServerSupportImpl.INSTANCE.clusterId();
         if (nodeAndClusterId != null) {
-            toAppendTo.append(nodeAndClusterId.v2());
+            toAppendTo.append(nodeAndClusterId);
         }
         // nodeId/clusterUuid not received yet, not appending
-    }
-
-    private static Tuple<String, String> nodeAndClusterId() {
-        return ServerSupportImpl.INSTANCE.nodeAndClusterId();
     }
 
 }

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.logging.internal.spi;
 
-import org.elasticsearch.core.Tuple;
 
 public interface ServerSupport {
 
     /** Return a tuple, where the first element is the node name, and second is the cluster Id (in string form). */
-    Tuple<String, String> nodeAndClusterId();
+    String nodeId();
+    String clusterId();
 
     // Header Warning support
     void addHeaderWarning(String message, Object... params);

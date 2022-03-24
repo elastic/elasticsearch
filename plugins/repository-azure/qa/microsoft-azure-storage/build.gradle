@@ -83,3 +83,7 @@ integTestCluster {
 task azureThirdPartyTest {
   dependsOn integTest
 }
+
+integTestRunner {
+    systemProperty 'tests.rest.blacklist', 'repository_azure/10_repository/*'
+}

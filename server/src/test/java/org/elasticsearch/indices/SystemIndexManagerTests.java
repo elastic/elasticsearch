@@ -100,6 +100,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setIndexFormat(6)
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -135,6 +136,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".foo-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setIndexFormat(6)
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -143,6 +145,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setIndexFormat(6)
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();

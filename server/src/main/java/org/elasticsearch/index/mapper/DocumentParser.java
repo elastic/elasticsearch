@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.DotExpandingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -90,13 +89,19 @@ public final class DocumentParser {
         return new ParsedDocument(
             context.version(),
             context.seqID(),
-            context.sourceToParse().id(),
+            context.id(),
             source.routing(),
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             createDynamicUpdate(context)
-        );
+        ) {
+            @Override
+            public String documentDescription() {
+                IdFieldMapper idMapper = (IdFieldMapper) mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
+                return idMapper.documentDescription(this);
+            }
+        };
     }
 
     private static void internalParseDocument(
@@ -339,7 +344,8 @@ public final class DocumentParser {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

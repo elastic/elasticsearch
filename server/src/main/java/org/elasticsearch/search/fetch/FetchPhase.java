@@ -216,7 +216,7 @@ public class FetchPhase {
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
             if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
-                context.fetchSourceContext(new FetchSourceContext(true));
+                context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
             return new FieldsVisitor(loadSource);
@@ -229,7 +229,7 @@ public class FetchPhase {
                     FetchSourceContext fetchSourceContext = context.hasFetchSourceContext()
                         ? context.fetchSourceContext()
                         : FetchSourceContext.FETCH_SOURCE;
-                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+                    context.fetchSourceContext(FetchSourceContext.of(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();

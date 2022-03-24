@@ -53,7 +53,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -181,7 +180,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                         new SnapshotInfo(
                             snapshot,
-                            shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                            shardGenerations.indices().stream().map(IndexId::getName).toList(),
                             Collections.emptyList(),
                             Collections.emptyList(),
                             null,

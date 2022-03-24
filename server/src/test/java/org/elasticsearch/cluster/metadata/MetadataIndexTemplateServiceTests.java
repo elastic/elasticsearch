@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -38,6 +36,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,7 +53,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
@@ -268,14 +266,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", randomBoolean())
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("foo-2", "foo-1")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", randomBoolean())
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("bar")
         );
         assertThat(MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", randomBoolean()), empty());
@@ -300,14 +298,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", true)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-2", "foo-1")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", true)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("bar")
         );
         assertThat(MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", true), empty());
@@ -315,7 +313,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "sneaky1", true)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("sneaky-hidden")
         );
 
@@ -324,28 +322,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-2", "foo-1", "global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("bar", "global")
         );
         assertThat(
-            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", false)
-                .stream()
-                .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", false).stream().map(IndexTemplateMetadata::name).toList(),
             contains("global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "sneaky1", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("global", "sneaky-hidden")
         );
 
@@ -354,28 +349,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", null)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-2", "foo-1", "global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", null)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("bar", "global")
         );
         assertThat(
-            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", null)
-                .stream()
-                .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", null).stream().map(IndexTemplateMetadata::name).toList(),
             contains("global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "sneaky1", null)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("sneaky-hidden")
         );
     }
@@ -389,7 +381,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-1")
         );
     }
@@ -432,7 +424,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            JsonParseException.class,
+            XContentParseException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2)
         );
 
@@ -1144,7 +1136,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 fail("failed to parse mappings: " + m.string());
                 return null;
             }
-        }).collect(Collectors.toList());
+        }).toList();
 
         // The order of mappings should be:
         // - ct_low
@@ -1200,7 +1192,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 fail("failed to parse mappings: " + m.string());
                 return null;
             }
-        }).collect(Collectors.toList());
+        }).toList();
         assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
         assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
         assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field3", Map.of("type", "integer"))))));
@@ -1248,7 +1240,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
 
             assertThat(
                 parsedMappings.get(0),
@@ -1282,7 +1274,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
 
             assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1305,7 +1297,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
 
             assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1356,7 +1348,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             assertThat(
                 parsedMappings.get(0),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
@@ -1405,7 +1397,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             assertThat(
                 parsedMappings.get(0),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
@@ -1766,7 +1758,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "unreferenced",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
@@ -1804,7 +1795,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )
@@ -1928,7 +1918,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "unreferenced",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
@@ -1966,7 +1955,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )

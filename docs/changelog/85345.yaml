@@ -2,4 +2,5 @@ pr: 85345
 summary: Avoid wrapping searchers multiple times in multi gets
 area: Search
 type: enhancement
-issues: []
+issues:
+ - 85069

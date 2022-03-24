@@ -18,6 +18,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -33,10 +34,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -72,46 +77,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext
     ) {
-        return get(id, gFields, realtime, version, versionType, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, fetchSourceContext);
+        return get(new Engine.Get(realtime, realtime, id).version(version).versionType(versionType), gFields, fetchSourceContext);
     }
 
-    private GetResult get(
-        String id,
-        String[] gFields,
-        boolean realtime,
-        long version,
-        VersionType versionType,
-        long ifSeqNo,
-        long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
-    ) {
-        currentMetric.inc();
-        try {
-            long now = System.nanoTime();
-            GetResult getResult = innerGet(id, gFields, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, fetchSourceContext);
-
-            if (getResult.isExists()) {
-                existsMetric.inc(System.nanoTime() - now);
-            } else {
-                missingMetric.inc(System.nanoTime() - now);
-            }
-            return getResult;
-        } finally {
-            currentMetric.dec();
-        }
+    private GetResult get(Engine.Get engineGet, String[] gFields, FetchSourceContext fetchSourceContext) {
+        final GetAndFetchContext[] requests = new GetAndFetchContext[] { new GetAndFetchContext(engineGet, gFields, fetchSourceContext) };
+        final GetResultOrFailure[] resultOrFailures = multiGet(requests);
+        assert resultOrFailures.length == 1 && resultOrFailures[0] != null : resultOrFailures;
+        return resultOrFailures[0].getResultOrThrow();
     }
 
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) {
-        return get(
-            id,
-            new String[] { RoutingFieldMapper.NAME },
-            true,
-            Versions.MATCH_ANY,
-            VersionType.INTERNAL,
-            ifSeqNo,
-            ifPrimaryTerm,
-            FetchSourceContext.FETCH_SOURCE
-        );
+        Engine.Get engineGet = new Engine.Get(true, true, id).version(Versions.MATCH_ANY)
+            .versionType(VersionType.INTERNAL)
+            .setIfSeqNo(ifSeqNo)
+            .setIfPrimaryTerm(ifPrimaryTerm);
+        return get(engineGet, new String[] { RoutingFieldMapper.NAME }, FetchSourceContext.FETCH_SOURCE);
     }
 
     /**
@@ -142,6 +123,86 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
+    private static class Lookup implements Releasable {
+        private final int index;
+        private final Engine.GetResult engineResult;
+        private final long lookupTimeInNanos;
+        boolean closed = false;
+
+        Lookup(int index, Engine.GetResult engineResult, long lookupTimeInNanos) {
+            this.index = index;
+            this.engineResult = engineResult;
+            this.lookupTimeInNanos = lookupTimeInNanos;
+        }
+
+        @Override
+        public void close() {
+            if (closed == false) {
+                closed = true;
+                engineResult.close();
+            }
+        }
+    }
+
+    public GetResultOrFailure[] multiGet(GetAndFetchContext[] requests) {
+        final int numRequests = requests.length;
+        final List<Lookup> lookups = new ArrayList<>(numRequests);
+        final GetResultOrFailure[] resultOrFailures = new GetResultOrFailure[numRequests];
+        currentMetric.inc(numRequests);
+        try {
+            // perform all engine gets
+            final Function<Engine.Get, Engine.GetResult> getFromEngine = indexShard.getFromEngine(requests.length > 1);
+            for (int i = 0; i < numRequests; i++) {
+                final GetAndFetchContext request = requests[i];
+                final long now = System.nanoTime();
+                try {
+                    final Engine.GetResult engineResult = getFromEngine.apply(request.engineGet());
+                    if (engineResult.exists()) {
+                        lookups.add(new Lookup(i, engineResult, System.nanoTime() - now));
+                    } else {
+                        engineResult.close();
+                        resultOrFailures[i] = new GetResultOrFailure(notExist(request.id()));
+                        missingMetric.inc(System.nanoTime() - now);
+                    }
+                } catch (RuntimeException e) {
+                    resultOrFailures[i] = new GetResultOrFailure(e);
+                }
+            }
+            // load stored fields
+            // TODO: Use sequential stored field reader when possible
+            for (Lookup lookup : lookups) {
+                final long now = System.nanoTime();
+                final GetAndFetchContext request = requests[lookup.index];
+                final FetchSourceContext fetchSourceContext = normalizeFetchSourceContent(request.fetchSourceContext(), request.gFields());
+                try (lookup) {
+                    final GetResult getResult = innerGetLoadFromStoredFields(
+                        request.id(),
+                        request.gFields(),
+                        fetchSourceContext,
+                        lookup.engineResult
+                    );
+                    resultOrFailures[lookup.index] = new GetResultOrFailure(getResult);
+                    final long tookTime = lookup.lookupTimeInNanos + System.nanoTime() - now;
+                    if (getResult.isExists()) {
+                        existsMetric.inc(tookTime);
+                    } else {
+                        missingMetric.inc(tookTime);
+                    }
+                } catch (RuntimeException e) {
+                    resultOrFailures[lookup.index] = new GetResultOrFailure(e);
+                }
+            }
+        } finally {
+            currentMetric.dec(numRequests);
+        }
+        assert Arrays.stream(resultOrFailures).allMatch(Objects::nonNull) : "some slots are unset";
+        return resultOrFailures;
+    }
+
+    private GetResult notExist(String id) {
+        return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
+    }
+
     /**
      * decides what needs to be done based on the request input and always returns a valid non-null FetchSourceContext
      */
@@ -158,40 +219,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
-    }
-
-    private GetResult innerGet(
-        String id,
-        String[] gFields,
-        boolean realtime,
-        long version,
-        VersionType versionType,
-        long ifSeqNo,
-        long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
-    ) {
-        fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-
-        Engine.GetResult get = indexShard.get(
-            new Engine.Get(realtime, realtime, id).version(version)
-                .versionType(versionType)
-                .setIfSeqNo(ifSeqNo)
-                .setIfPrimaryTerm(ifPrimaryTerm)
-        );
-        if (get.exists() == false) {
-            get.close();
-        }
-
-        if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
-        }
-
-        try {
-            // break between having loaded it from translog (so we only have _source), and having a document to load
-            return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get);
-        } finally {
-            get.close();
-        }
     }
 
     private GetResult innerGetLoadFromStoredFields(

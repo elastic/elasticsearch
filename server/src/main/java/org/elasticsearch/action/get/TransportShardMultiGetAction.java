@@ -9,6 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,7 +22,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.get.GetAndFetchContext;
+import org.elasticsearch.index.get.GetResultOrFailure;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -112,22 +115,31 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
 
         MultiGetShardResponse response = new MultiGetShardResponse();
-        for (int i = 0; i < request.locations.size(); i++) {
+        final int numRequests = request.locations.size();
+        final GetAndFetchContext[] getAndFetchContexts = new GetAndFetchContext[numRequests];
+        for (int i = 0; i < numRequests; i++) {
             MultiGetRequest.Item item = request.items.get(i);
-            try {
-                GetResult getResult = indexShard.getService()
-                    .get(item.id(), item.storedFields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext());
-                response.add(request.locations.get(i), new GetResponse(getResult));
-            } catch (RuntimeException e) {
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
+            Engine.Get engineGet = new Engine.Get(request.realtime(), request.realtime(), item.id()).version(item.version())
+                .versionType(item.versionType());
+            getAndFetchContexts[i] = new GetAndFetchContext(engineGet, item.storedFields(), item.fetchSourceContext());
+        }
+        final GetResultOrFailure[] resultOrFailures = indexShard.getService().multiGet(getAndFetchContexts);
+        for (int i = 0; i < resultOrFailures.length; i++) {
+            final GetResultOrFailure result = resultOrFailures[i];
+            if (result.getResult() != null) {
+                response.add(request.locations.get(i), new GetResponse(result.getResult()));
+            } else {
+                final Exception failure = result.getFailure();
+                assert failure != null;
+                final String id = getAndFetchContexts[i].id();
+                if (TransportActions.isShardNotAvailableException(failure)) {
+                    throw ExceptionsHelper.convertToRuntime(failure);
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
-                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, id), failure);
+                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), id, failure));
                 }
             }
         }
-
         return response;
     }
 

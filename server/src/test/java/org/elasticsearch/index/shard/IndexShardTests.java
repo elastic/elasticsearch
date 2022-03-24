@@ -63,6 +63,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -123,6 +124,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -184,6 +186,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -1680,7 +1683,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
+        try (Engine.GetResult ignored = shard.getFromEngine(randomBoolean()).apply(new Engine.Get(true, false, "test"))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
         }
         indexDoc(shard, "_doc", "test");
@@ -1704,7 +1707,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
         final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
+        try (Engine.GetResult ignored = shard.getFromEngine(randomBoolean()).apply(new Engine.Get(true, false, "test"))) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
@@ -2583,7 +2586,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        try (Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1"))) {
+        try (Engine.GetResult getResult = shard.getFromEngine(randomBoolean()).apply(new Engine.Get(false, false, "1"))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
         }
@@ -2615,13 +2618,135 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
         }
-        try (Engine.GetResult getResult = newShard.get(new Engine.Get(false, false, "1"))) {
+        try (Engine.GetResult getResult = newShard.getFromEngine(randomBoolean()).apply(new Engine.Get(false, false, "1"))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
             assertTrue(getResult.searcher().getIndexReader() instanceof FieldMaskingReader);
         }
 
         closeShards(newShard);
+    }
+
+    public void testCacheReaderWrapper() throws Exception {
+        IndexShard shard = newStartedShard(true);
+        Consumer<Engine.Searcher> verifyRedSearcher = searcher -> {
+            assertThat(searcher.source(), startsWith("wrapped-red"));
+            try {
+                TopDocs topDocs = searcher.search(new TermQuery(new Term("foo", "red")), 10);
+                assertThat(topDocs.totalHits.value, equalTo(1L));
+                topDocs = searcher.search(new TermQuery(new Term("foo", "blue")), 10);
+                assertThat(topDocs.totalHits.value, equalTo(0L));
+                topDocs = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
+                assertThat(topDocs.totalHits.value, equalTo(0L));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+        Consumer<Engine.Searcher> verifyBlueSearcher = searcher -> {
+            assertThat(searcher.source(), startsWith("wrapped-blue"));
+            try {
+                TopDocs topDocs = searcher.search(new TermQuery(new Term("foo", "red")), 10);
+                assertThat(topDocs.totalHits.value, equalTo(0L));
+                topDocs = searcher.search(new TermQuery(new Term("foo", "blue")), 10);
+                assertThat(topDocs.totalHits.value, equalTo(1L));
+                topDocs = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
+                assertThat(topDocs.totalHits.value, equalTo(0L));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+
+        final AtomicInteger wrappedTimes = new AtomicInteger();
+        final Function<DirectoryReader, DirectoryReader> readerWrapper = reader -> {
+            try {
+                wrappedTimes.incrementAndGet();
+                return new FieldMaskingReader("foobar", reader);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+        final CacheableSearcherWrapper cacheWrapper = new CacheableSearcherWrapper(
+            searcher -> new Engine.Searcher(
+                "wrapped-" + searcher.source(),
+                readerWrapper.apply(searcher.getDirectoryReader()),
+                searcher.getSimilarity(),
+                searcher.getQueryCache(),
+                searcher.getQueryCachingPolicy(),
+                searcher
+            )
+        );
+        Engine engine = getEngineFromShard(shard);
+        indexDoc(shard, "_doc", "0", "{\"foo\" : \"red\"}");
+        indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
+        shard.refresh("test");
+        Engine.SearcherSupplier redSupplier = engine.acquireSearcherSupplier(cacheWrapper);
+        deleteDoc(shard, "0");
+        indexDoc(shard, "_doc", "2", "{\"foo\" : \"blue\"}");
+        shard.refresh("test");
+        if (randomBoolean() || true) {
+            int iterations = iterations(1, 10);
+            for (int i = 0; i < iterations; i++) {
+                try (Engine.Searcher redSearcher = redSupplier.acquireSearcher("red")) {
+                    assertThat(wrappedTimes.get(), equalTo(i + 1));
+                    assertThat(cacheWrapper.cacheSize(), equalTo(1));
+                    verifyRedSearcher.accept(redSearcher);
+                }
+            }
+            assertThat(wrappedTimes.get(), equalTo(iterations));
+            assertThat(cacheWrapper.cacheSize(), equalTo(0));
+            wrappedTimes.set(0);
+        }
+        Engine.SearcherSupplier blueSupplier = engine.acquireSearcherSupplier(cacheWrapper);
+        assertThat(wrappedTimes.get(), equalTo(0));
+        assertThat(cacheWrapper.cacheSize(), equalTo(0));
+
+        Engine.Searcher red1 = redSupplier.acquireSearcher("red_1");
+        assertThat(wrappedTimes.get(), equalTo(1));
+        assertThat(cacheWrapper.cacheSize(), equalTo(1));
+        verifyRedSearcher.accept(red1);
+
+        Engine.Searcher red2 = redSupplier.acquireSearcher("red_2");
+        assertThat(wrappedTimes.get(), equalTo(1));
+        assertThat(cacheWrapper.cacheSize(), equalTo(1));
+        verifyRedSearcher.accept(red2);
+
+        Engine.Searcher blue1 = blueSupplier.acquireSearcher("blue_1");
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(2));
+        verifyBlueSearcher.accept(blue1);
+
+        Engine.Searcher blue2 = blueSupplier.acquireSearcher("blue_2");
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(2));
+        verifyBlueSearcher.accept(blue2);
+
+        blue2.close();
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(2));
+
+        red1.close();
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(2));
+
+        red2.close();
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(1));
+
+        Engine.Searcher blue3 = blueSupplier.acquireSearcher("blue_3");
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(1));
+        verifyBlueSearcher.accept(blue3);
+
+        blue1.close();
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(1));
+
+        blue3.close();
+        assertThat(wrappedTimes.get(), equalTo(2));
+        assertThat(cacheWrapper.cacheSize(), equalTo(0));
+
+        IOUtils.close(redSupplier, blueSupplier);
+        closeShards(shard);
     }
 
     public void testReaderWrapperWorksWithGlobalOrdinals() throws IOException {
@@ -4291,7 +4416,8 @@ public class IndexShardTests extends IndexShardTestCase {
         Engine.IndexResult indexResult = indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(new Engine.Get(true, true, "0"));
+        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.getFromEngine(randomBoolean())
+            .apply(new Engine.Get(true, true, "0"));
         assertTrue(getResult.exists());
         getResult.close();
 

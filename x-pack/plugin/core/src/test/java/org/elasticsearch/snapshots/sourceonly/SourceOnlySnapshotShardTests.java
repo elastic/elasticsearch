@@ -375,7 +375,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         assertEquals(restoredShard.docStats().getCount(), shard.docStats().getCount());
         EngineException engineException = expectThrows(
             EngineException.class,
-            () -> restoredShard.get(new Engine.Get(false, false, Integer.toString(0)))
+            () -> restoredShard.getFromEngine(randomBoolean()).apply(new Engine.Get(false, false, Integer.toString(0)))
         );
         assertEquals(engineException.getCause().getMessage(), "_source only indices can't be searched or filtered");
         SeqNoStats seqNoStats = restoredShard.seqNoStats();
@@ -409,8 +409,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
         for (int i = 0; i < numInitialDocs; i++) {
             Engine.Get get = new Engine.Get(false, false, Integer.toString(i));
-            Engine.GetResult original = shard.get(get);
-            Engine.GetResult restored = targetShard.get(get);
+            Engine.GetResult original = shard.getFromEngine(randomBoolean()).apply(get);
+            Engine.GetResult restored = targetShard.getFromEngine(randomBoolean()).apply(get);
             assertEquals(original.exists(), restored.exists());
 
             if (original.exists()) {

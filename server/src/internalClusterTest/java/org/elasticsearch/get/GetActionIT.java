@@ -8,44 +8,67 @@
 
 package org.elasticsearch.get;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -60,12 +83,23 @@ public class GetActionIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class, SearcherWrapperPlugin.class);
     }
 
+    static CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper = null;
+
+    @Before
+    public void resetReaderWrapper() {
+        readerWrapper = null;
+    }
+
     public static class SearcherWrapperPlugin extends Plugin {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
-            if (randomBoolean()) {
-                indexModule.setReaderWrapper(indexService -> EngineTestCase.randomReaderWrapper());
+            CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = readerWrapper;
+            if (wrapper == null && randomBoolean()) {
+                wrapper = EngineTestCase.randomReaderWrapper();
+            }
+            if (wrapper != null) {
+                indexModule.setReaderWrapper(indexService -> readerWrapper);
             }
         }
     }
@@ -524,6 +558,203 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
+    }
+
+    private static class ExcludeStoredFieldsDirectoryReader extends FilterDirectoryReader {
+        private final String excludedField;
+
+        ExcludeStoredFieldsDirectoryReader(DirectoryReader in, String excludedField) throws IOException {
+            super(in, excludeStoreFieldsWrapper(excludedField));
+            this.excludedField = excludedField;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new ExcludeStoredFieldsDirectoryReader(in, excludedField);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
+        static StoredFieldVisitor excludeFieldVisitor(StoredFieldVisitor visitor, String excludedField) {
+            return new FilterStoredFieldVisitor(visitor) {
+                @Override
+                public Status needsField(FieldInfo fieldInfo) throws IOException {
+                    Status status = visitor.needsField(fieldInfo);
+                    if (status == Status.YES && fieldInfo.name.equals(excludedField)) {
+                        return Status.NO;
+                    } else {
+                        return status;
+                    }
+                }
+            };
+        }
+
+        static SubReaderWrapper excludeStoreFieldsWrapper(String excludedField) {
+            return new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FilterLeafReader(reader) {
+                        @Override
+                        public CacheHelper getCoreCacheHelper() {
+                            return reader.getCoreCacheHelper();
+                        }
+
+                        @Override
+                        public CacheHelper getReaderCacheHelper() {
+                            return reader.getReaderCacheHelper();
+                        }
+
+                        @Override
+                        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                            super.document(docID, excludeFieldVisitor(visitor, excludedField));
+                        }
+                    };
+                }
+            };
+        }
+    }
+
+    public void testMultiGetCacheWrappingSearcher() throws Exception {
+        final AtomicInteger wrappedTimes = new AtomicInteger();
+        readerWrapper = reader -> {
+            wrappedTimes.incrementAndGet();
+            return new ExcludeStoredFieldsDirectoryReader(reader, "bar");
+        };
+        assertAcked(
+            prepareCreate("test").setMapping("foo", "type=keyword,store=true", "bar", "type=keyword,store=true")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.refresh_interval", -1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.rebalance.enable", "none")
+                )
+        );
+        ensureGreen();
+        int numDocs = randomIntBetween(1, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId("doc_" + i).setSource("foo", "value_" + i, "bar", "value_" + i).get();
+        }
+        client().admin().indices().prepareRefresh("test").get();
+        BiConsumer<Boolean, Boolean> executeMultiGet = (includeMissing, includeConflict) -> {
+            List<MultiGetRequest.Item> items = new ArrayList<>();
+            List<String> existIds = randomSubsetOf(between(1, numDocs), IntStream.range(0, numDocs).mapToObj(n -> "doc_" + n).toList());
+            for (String id : existIds) {
+                items.add(
+                    new MultiGetRequest.Item("test", id).storedFields("foo", "bar")
+                        .fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
+                );
+            }
+            if (includeMissing && randomBoolean()) {
+                List<String> missingIds = randomSubsetOf(IntStream.range(0, between(1, 10)).mapToObj(n -> "missing_" + n).toList());
+                for (String id : missingIds) {
+                    MultiGetRequest.Item item = new MultiGetRequest.Item("test", id).storedFields("foo", "bar");
+                    items.add(item);
+                }
+            }
+            if (includeConflict && randomBoolean()) {
+                List<String> conflictIds = randomSubsetOf(
+                    between(1, numDocs),
+                    IntStream.range(0, numDocs).mapToObj(n -> "doc_" + n).toList()
+                );
+                for (String id : conflictIds) {
+                    MultiGetRequest.Item item = new MultiGetRequest.Item("test", id);
+                    item.storedFields("foo", "bar").fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+                    item.version(between(100, 1000));
+                    item.versionType(VersionType.EXTERNAL);
+                    items.add(item);
+                }
+            }
+            Randomness.shuffle(items);
+            MultiGetRequest mget = new MultiGetRequest().realtime(randomBoolean()).refresh(randomBoolean());
+            items.forEach(mget::add);
+            MultiGetItemResponse[] responses = client().multiGet(mget).actionGet().getResponses();
+            assertThat(responses, arrayWithSize(items.size()));
+            for (int i = 0; i < items.size(); i++) {
+                MultiGetRequest.Item item = items.get(i);
+                MultiGetItemResponse resp = responses[i];
+                assertThat(resp.getId(), equalTo(item.id()));
+                if (item.id().startsWith("missing")) {
+                    assertNull(resp.getFailure());
+                    assertNotNull(resp.getResponse());
+                    assertFalse(resp.getResponse().isExists());
+                } else if (item.version() != Versions.MATCH_ANY) {
+                    assertNotNull(resp.getFailure());
+                    assertNull(resp.getResponse());
+                    assertThat(resp.getFailure().getMessage(), containsString("[" + item.id() + "]: version conflict"));
+                } else {
+                    assertNull(resp.getFailure());
+                    assertNotNull(resp.getResponse());
+                    assertTrue(resp.getResponse().isExists());
+                    String fooValue = item.id().replace("doc_", "value_");
+                    assertThat(resp.getResponse().getField("foo"), equalTo(new DocumentField("foo", List.of(fooValue))));
+                    assertNull(resp.getResponse().getField("bar"));
+                }
+            }
+        };
+        // single MGET
+        {
+            assertThat(wrappedTimes.get(), equalTo(0));
+            executeMultiGet.accept(false, false);
+            assertThat(wrappedTimes.get(), equalTo(1));
+        }
+
+        // concurrent MGETs without ongoing indexing
+        {
+            wrappedTimes.set(0);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Thread[] threads = new Thread[between(1, 4)];
+            for (int i = 0; i < threads.length; i++) {
+                threads[i] = new Thread(() -> {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    executeMultiGet.accept(false, false);
+                });
+                threads[i].start();
+            }
+            latch.countDown();
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertThat(wrappedTimes.get(), equalTo(threads.length));
+        }
+        // concurrent MGETs with ongoing indexing
+        {
+            wrappedTimes.set(0);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Thread[] threads = new Thread[between(1, 4)];
+            for (int i = 0; i < threads.length; i++) {
+                threads[i] = new Thread(() -> {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    executeMultiGet.accept(true, true);
+                });
+                threads[i].start();
+            }
+            latch.countDown();
+            int totalDocs = 0;
+            while (totalDocs < 50) {
+                int moreDocs = randomIntBetween(1, 10);
+                for (int i = 0; i < moreDocs; i++) {
+                    client().prepareIndex("test").setId("more_doc_" + i).setSource("foo", "value_" + i, "bar", "value_" + i).get();
+                }
+                client().admin().indices().prepareRefresh("test").get();
+                totalDocs += moreDocs;
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertThat(wrappedTimes.get(), greaterThanOrEqualTo(threads.length));
+        }
     }
 
     public void testGetFieldsNonLeafField() throws Exception {

@@ -1189,13 +1189,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    public Engine.GetResult get(Engine.Get get) {
+    /**
+     * Returns a function performing gets at the engine-level. This function must be created and used by a single thread.
+     * @param multiGets if true, then wrapped searchers can be cached to avoid wrapping the same searcher multiple times.
+     */
+    public Function<Engine.Get, Engine.GetResult> getFromEngine(boolean multiGets) {
         readAllowed();
-        MappingLookup mappingLookup = mapperService.mappingLookup();
-        if (mappingLookup.hasMappings() == false) {
-            return GetResult.NOT_EXISTS;
+        final Function<Engine.Searcher, Engine.Searcher> searcherWrapper;
+        if (multiGets) {
+            searcherWrapper = new CacheableSearcherWrapper(this::wrapSearcher);
+        } else {
+            searcherWrapper = this::wrapSearcher;
         }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+        return get -> {
+            MappingLookup mappingLookup = mapperService.mappingLookup();
+            if (mappingLookup.hasMappings() == false) {
+                return GetResult.NOT_EXISTS;
+            }
+            return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
+        };
     }
 
     /**

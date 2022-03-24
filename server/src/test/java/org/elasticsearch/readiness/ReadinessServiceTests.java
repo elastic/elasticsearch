@@ -150,7 +150,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     public void testSocketAddress() throws UnknownHostException {
         InetSocketAddress socketAddress = readinessService.socketAddress(InetAddress.getByName("localhost"), 123);
         assertEquals(123, socketAddress.getPort());
-        assertEquals("localhost", socketAddress.getHostName());
+        assertEquals("localhost", socketAddress.getHostString());
     }
 
     public void testEnabled() {

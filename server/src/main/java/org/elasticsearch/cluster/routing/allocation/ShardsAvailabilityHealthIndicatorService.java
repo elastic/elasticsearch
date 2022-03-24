@@ -230,6 +230,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 );
                 impacts.add(new HealthIndicatorImpact(1, impactDescription));
             }
+            /* It is possible that we're working with an intermediate cluster state, and that for an index we have no primary but a replica
+             * that is reported as unavailable. That replica is likely being promoted to primary. The only impact that matters at this point is
+             * the one above, which has already been reported for this index
+             */
             Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
             indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
             if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {

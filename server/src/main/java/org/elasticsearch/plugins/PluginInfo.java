@@ -173,7 +173,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         final String esVersionString = propsMap.remove("elasticsearch.version");
-        if (esVersionString == null) {
+        if (esVersionString == null || Strings.hasLength(esVersionString) == false) {
             throw new IllegalArgumentException("property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
         final Version esVersion = Version.fromString(esVersionString);

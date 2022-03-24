@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -146,11 +147,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
      */
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
-        QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        final String pattern = "v" + v.major() + ".*";
-        Set<QualifiedVersion> versions = gitWrapper.listVersions(pattern).collect(toSet());
-        versions.add(v);
-        return versions;
+        QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
+        final String pattern = "v" + qualifiedVersion.major() + ".*";
+        // We may be generating notes for a minor version prior to the latest minor, so we need to filter out versions that are too new.
+        return Stream.concat(gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)), Stream.of(qualifiedVersion))
+            .collect(toSet());
     }
 
     /**

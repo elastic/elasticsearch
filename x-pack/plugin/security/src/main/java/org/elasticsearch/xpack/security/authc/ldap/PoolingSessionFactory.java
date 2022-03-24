@@ -72,7 +72,15 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
 
         final byte[] bindPassword;
         if (config.hasSetting(LEGACY_BIND_PASSWORD)) {
-            checkSingleBindPasswordVariantSet(config);
+            if (config.hasSetting(SECURE_BIND_PASSWORD)) {
+                throw new IllegalArgumentException(
+                    "You cannot specify both ["
+                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                        + "] and ["
+                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                        + "]"
+                );
+            }
             bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
         } else if (config.hasSetting(SECURE_BIND_PASSWORD)) {
             bindPassword = CharArrays.toUtf8Bytes(config.getSetting(SECURE_BIND_PASSWORD).getChars());
@@ -83,7 +91,17 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         if (bindDn == null) {
             bindCredentials = new SimpleBindRequest();
         } else {
-            checkBindPasswordSet(config, bindPassword);
+            if (bindPassword == null) {
+                throw new IllegalArgumentException(
+                    "When ["
+                        + RealmSettings.getFullSettingKey(config, BIND_DN)
+                        + "] is set you must also specify ["
+                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                        + "] or ["
+                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                        + "]"
+                );
+            }
             bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
         }
 
@@ -218,29 +236,4 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         return connectionPool;
     }
 
-    private void checkSingleBindPasswordVariantSet(RealmConfig config) {
-        if (config.hasSetting(SECURE_BIND_PASSWORD)) {
-            throw new IllegalArgumentException(
-                "You cannot specify both ["
-                    + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                    + "] and ["
-                    + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
-                    + "]"
-            );
-        }
-    }
-
-    private void checkBindPasswordSet(RealmConfig config, byte[] bindPassword) {
-        if (bindPassword == null) {
-            throw new IllegalArgumentException(
-                "When ["
-                    + RealmSettings.getFullSettingKey(config, BIND_DN)
-                    + "] is set you must also specify ["
-                    + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                    + "] or ["
-                    + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
-                    + "]"
-            );
-        }
-    }
 }

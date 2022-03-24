@@ -104,8 +104,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     private static final String UID_OID = "urn:oid:0.9.2342.19200300.100.1.1";
     public static final String SPECIAL_ATTRIBUTE_LOG_MESSAGE =
         "SAML assertion [*] has attribute with * [*] which clashes with a special attribute name. "
-            + "Attributes with a name clash cannot be mapped. "
-            + "Change attribute * to not clash with any of [*].";
+            + "Attributes with a name clash may prevent authentication or interfere will role mapping. "
+            + "Change your IdP configuration to use a different attribute *"
+            + " that will not clash with any of [*]";
 
     private SamlAuthenticator authenticator;
 

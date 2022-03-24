@@ -72,18 +72,17 @@ public class OldMappingsIT extends ESRestTestCase {
             .resolve(RandomizedTest.getContext().getTargetClass().getName())
             .toString();
 
-        String indexName = "filebeat5";
         String repoName = "old_mappings_repo";
         String snapshotName = "snap";
-        List<String> indices = Arrays.asList(indexName, "bla");
+        List<String> indices = Arrays.asList("filebeat", "winlogbeat");
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
 
-            assertOK(oldEs.performRequest(createIndex(indexName, "filebeat.json")));
-            assertOK(oldEs.performRequest(createIndex("bla", "bla.txt")));
+            assertOK(oldEs.performRequest(createIndex("filebeat", "filebeat.json")));
+            assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
 
-            Request doc1 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "1");
+            Request doc1 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
             XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -96,7 +95,7 @@ public class OldMappingsIT extends ESRestTestCase {
             doc1.setJsonEntity(Strings.toString(bodyDoc1));
             assertOK(oldEs.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "2");
+            Request doc2 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "2");
             doc2.addParameter("refresh", "true");
             XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -152,8 +151,18 @@ public class OldMappingsIT extends ESRestTestCase {
         return createIndex;
     }
 
+    public void testMappingOk() throws IOException {
+        Request mappingRequest = new Request("GET", "/" + "filebeat" + "/_mapping");
+        Map<String, Object> mapping = entityAsMap(client().performRequest(mappingRequest));
+        assertNotNull(XContentMapValues.extractValue(mapping, "filebeat", "mappings", "properties", "apache2"));
+
+        mappingRequest = new Request("GET", "/" + "winlogbeat" + "/_mapping");
+        mapping = entityAsMap(client().performRequest(mappingRequest));
+        assertNotNull(XContentMapValues.extractValue(mapping, "winlogbeat", "mappings", "properties", "message"));
+    }
+
     public void testSearchKeyword() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat5" + "/_search");
+        Request search = new Request("POST", "/" + "filebeat" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -171,7 +180,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchOnPlaceHolderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat5" + "/_search");
+        Request search = new Request("POST", "/" + "filebeat" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -191,7 +200,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testAggregationOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat5" + "/_search");
+        Request search = new Request("POST", "/" + "filebeat" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("aggs")

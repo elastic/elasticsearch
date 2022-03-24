@@ -6,18 +6,18 @@
  */
 
 module org.elasticsearch.xpack.plugin.core {
-    requires org.elasticsearch.server;
+    requires org.elasticsearch.cli;
     requires org.elasticsearch.core;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.ssl.config;
     requires org.elasticsearch.xcontent;
-    requires org.apache.lucene.core;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.logging.log4j;
-    requires org.elasticsearch.ssl.config;
+    requires org.apache.lucene.core;
     requires org.apache.lucene.join;
-    requires org.elasticsearch.cli;
 
     exports org.elasticsearch.xpack.cluster.action;
     exports org.elasticsearch.xpack.cluster.routing.allocation;

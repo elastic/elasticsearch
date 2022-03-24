@@ -1152,10 +1152,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.mapping = mappings.apply(
                 ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
             ).get(MapperService.SINGLE_MAPPING_NAME);
-            builder.aliases.putAll(aliases.apply(part.aliases));
-            builder.customMetadata.putAll(customData.apply(part.customData));
+            builder.aliases.putAllFromMap(aliases.apply(part.aliases));
+            builder.customMetadata.putAllFromMap(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll((Map<Integer, Set<String>>) inSyncAllocationIds.apply(part.inSyncAllocationIds));
-            builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
+            builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
             return builder.build();
@@ -1758,7 +1758,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     if (binary) {
                         builder.value(mmd.source().compressed());
                     } else {
-                        builder.map(XContentHelper.convertToMap(mmd.source().uncompressed(), true).v2());
+                        mmd.source().copyTo(builder);
                     }
                 }
                 builder.endArray();

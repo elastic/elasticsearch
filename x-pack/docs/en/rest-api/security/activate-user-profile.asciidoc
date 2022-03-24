@@ -1,12 +1,11 @@
 [role="xpack"]
 [[security-api-activiate-user-profile]]
 === Activate user profile API
-
-beta::[]
-
 ++++
 <titleabbrev>Activate user profile</titleabbrev>
 ++++
+
+beta::[]
 
 Creates or updates a user profile on behalf of another user.
 
@@ -31,7 +30,7 @@ When updating a profile document, the API enables the document if it was
 disabled. Any updates do not change existing content for either the `access` or
 `data` fields.
 
-This API is intended only for use by applications (such as {kib}) that need to 
+This API is intended only for use by applications (such as {kib}) that need to
 create or update profiles for end users.
 
 IMPORTANT: The calling application must have either an `access_token`, or a

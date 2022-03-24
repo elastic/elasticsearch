@@ -108,6 +108,16 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                     // If the event indicates there were nodes added/removed, this method only looks at the current state and has
                     // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
                     // it may get re-allocated to that node when another node is added/removed...
+
+                    // As this produces a cluster state update task, we are certain that if the persistent
+                    // task framework results in assigning some ML tasks on that same cluster state change
+                    // we do not end up over-allocating a node. Both this service and the persistant task service
+                    // will produce a cluster state update but the one that gets applied first wins. The other
+                    // update will be rejected and we will retry to assign getting a correct update on available memory
+                    // on each node.
+                    // Also, note that as this service is a returned as a component of the ML plugin,
+                    // and components are created before persistent task executors, we will try to allocate
+                    // trained models before we try to assign ML persistent tasks.
                     return addRemoveAllocationNodes(currentState);
                 }
 

@@ -100,7 +100,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             logger.debug(
                 () -> new ParameterizedMessage(
                     "Trusting certificate [{}] [{}] with common-names [{}]",
-                    certificate.getSubjectDN(),
+                    certificate.getSubjectX500Principal(),
                     certificate.getSerialNumber().toString(16),
                     names
                 )
@@ -108,13 +108,13 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         } else {
             logger.info(
                 "Rejecting certificate [{}] [{}] with common-names [{}]",
-                certificate.getSubjectDN(),
+                certificate.getSubjectX500Principal(),
                 certificate.getSerialNumber().toString(16),
                 names
             );
             throw new CertificateException(
                 "Certificate for "
-                    + certificate.getSubjectDN()
+                    + certificate.getSubjectX500Principal()
                     + " with common-names "
                     + names
                     + " does not match the trusted names "
@@ -176,18 +176,23 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
                 return cn;
             } else {
-                logger.debug("Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]", certificate.getSubjectDN(), seq, id);
+                logger.debug(
+                    "Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]",
+                    certificate.getSubjectX500Principal(),
+                    seq,
+                    id
+                );
                 return null;
             }
         } catch (IOException e) {
-            logger.warn("Failed to read 'otherName' from certificate [{}]", certificate.getSubjectDN());
+            logger.warn("Failed to read 'otherName' from certificate [{}]", certificate.getSubjectX500Principal());
             return null;
         }
     }
 
     private Collection<List<?>> getSubjectAlternativeNames(X509Certificate certificate) throws CertificateParsingException {
         final Collection<List<?>> sans = certificate.getSubjectAlternativeNames();
-        logger.trace("Certificate [{}] has subject alternative names [{}]", certificate.getSubjectDN(), sans);
+        logger.trace("Certificate [{}] has subject alternative names [{}]", certificate.getSubjectX500Principal(), sans);
         return sans == null ? Collections.emptyList() : sans;
     }
 }

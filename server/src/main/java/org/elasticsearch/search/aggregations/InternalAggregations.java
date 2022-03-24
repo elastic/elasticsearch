@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,7 +81,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     /**
      * Get value to use when sorting by a descendant of the aggregation containing this.
      */
-    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         InternalAggregation aggregation = get(head.name());
         if (aggregation == null) {
             throw new IllegalArgumentException("Cannot find aggregation named [" + head.name() + "]");
@@ -109,7 +110,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
                 .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
 
             for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
@@ -169,6 +170,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * @return the finalized aggregations
      */
     public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
-        return internalAggregations;
+        return from(
+            internalAggregations.aggregations.stream()
+                .map(agg -> ((InternalAggregation) agg).finalizeSampling(samplingContext))
+                .collect(Collectors.toList())
+        );
     }
 }

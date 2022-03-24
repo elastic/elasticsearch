@@ -131,13 +131,13 @@ public class MultiGetRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 FetchSourceContext fetchSourceContext;
                 if (randomBoolean()) {
-                    fetchSourceContext = new FetchSourceContext(
+                    fetchSourceContext = FetchSourceContext.of(
                         true,
                         generateRandomStringArray(16, 8, false),
                         generateRandomStringArray(5, 4, false)
                     );
                 } else {
-                    fetchSourceContext = new FetchSourceContext(false);
+                    fetchSourceContext = FetchSourceContext.DO_NOT_FETCH_SOURCE;
                 }
                 item.fetchSourceContext(fetchSourceContext);
             }

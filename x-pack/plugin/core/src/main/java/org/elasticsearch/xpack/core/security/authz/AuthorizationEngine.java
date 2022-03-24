@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -349,7 +348,7 @@ public interface AuthorizationEngine {
          * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
          */
         @Nullable
-        public String getFailureContext() {
+        public String getFailureContext(RestrictedIndices restrictedIndices) {
             return null;
         }
 
@@ -383,19 +382,35 @@ public interface AuthorizationEngine {
         }
 
         @Override
-        public String getFailureContext() {
+        public String getFailureContext(RestrictedIndices restrictedIndices) {
             if (isGranted()) {
                 return null;
             } else {
-                return getFailureDescription(indicesAccessControl.getDeniedIndices());
+                return getFailureDescription(indicesAccessControl.getDeniedIndices(), restrictedIndices);
             }
         }
 
-        public static String getFailureDescription(Collection<?> deniedIndices) {
+        public static String getFailureDescription(Collection<String> deniedIndices, RestrictedIndices restrictedNames) {
             if (deniedIndices.isEmpty()) {
                 return null;
             }
-            return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
+            final StringBuilder regularIndices = new StringBuilder();
+            final StringBuilder restrictedIndices = new StringBuilder();
+            for (String index : deniedIndices) {
+                final StringBuilder builder = restrictedNames.isRestricted(index) ? restrictedIndices : regularIndices;
+                if (builder.isEmpty() == false) {
+                    builder.append(',');
+                }
+                builder.append(index);
+            }
+            StringBuilder message = new StringBuilder();
+            if (regularIndices.isEmpty() == false) {
+                message.append("on indices [").append(regularIndices).append(']');
+            }
+            if (restrictedIndices.isEmpty() == false) {
+                message.append(message.length() == 0 ? "on" : " and").append(" restricted indices [").append(restrictedIndices).append(']');
+            }
+            return message.toString();
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

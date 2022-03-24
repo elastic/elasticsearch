@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
@@ -1013,7 +1012,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         // Get search shards
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards("test").get();
-        List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).collect(Collectors.toList());
+        List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).toList();
 
         // request termvectors of artificial document from each shard
         int sumTotalTermFreq = 0;

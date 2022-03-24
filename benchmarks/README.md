@@ -7,7 +7,7 @@ This directory contains the microbenchmark suite of Elasticsearch. It relies on 
 We do not want to microbenchmark everything but the kitchen sink and should typically rely on our
 [macrobenchmarks](https://elasticsearch-benchmarks.elastic.co/) with
 [Rally](http://github.com/elastic/rally). Microbenchmarks are intended to spot performance regressions in performance-critical components.
-The microbenchmark suite is also handy for ad-hoc microbenchmarks but please remove them again before merging your PR.
+The microbenchmark suite is also handy for ad-hoc microbenchmarks, but please remove them again before merging your PR.
 
 ## Getting Started
 
@@ -34,8 +34,8 @@ You can set benchmark parameters with `-p`:
 gradlew -p benchmarks/ run --args 'RoundingBenchmark.round -prounder=es -prange="2000-10-01 to 2000-11-01" -pzone=America/New_York -pinterval=10d -pcount=1000000'
 ```
 
-The benchmark code defines default values for the parameters so if
-you leave out any out JMH will run with each default value, one after
+The benchmark code defines default values for the parameters, so if
+you leave any out JMH will run with each default value, one after
 the other. This will run with `interval` set to `calendar year` then
 `calendar hour` then `10d` then `5d` then `1h`:
 ```
@@ -64,8 +64,8 @@ To get realistic results, you should exercise care when running benchmarks. Here
 * Fix the CPU frequency to avoid Turbo Boost from kicking in and skewing your results. On Linux you can use `cpufreq-set` and the
   `performance` CPU governor.
 * Vary the problem input size with `@Param`.
-* Use the integrated profilers in JMH to dig deeper if benchmark results to not match your hypotheses:
-    * Add `-prof gc` to the options to check whether the garbage collector runs during a microbenchmarks and skews
+* Use the integrated profilers in JMH to dig deeper if benchmark results do not match your hypotheses:
+    * Add `-prof gc` to the options to check whether the garbage collector runs during a microbenchmark and skews
    your results. If so, try to force a GC between runs (`-gc true`) but watch out for the caveats.
     * Add `-prof perf` or `-prof perfasm` (both only available on Linux, see Disassembling below) to see hotspots.
     * Add `-prof async` to see hotspots.
@@ -75,7 +75,7 @@ To get realistic results, you should exercise care when running benchmarks. Here
 
 * Blindly believe the numbers that your microbenchmark produces but verify them by measuring e.g. with `-prof perfasm`.
 * Run more threads than your number of CPU cores (in case you run multi-threaded microbenchmarks).
-* Look only at the `Score` column and ignore `Error`. Instead take countermeasures to keep `Error` low / variance explainable.
+* Look only at the `Score` column and ignore `Error`. Instead, take countermeasures to keep `Error` low / variance explainable.
 
 ## Disassembling
 
@@ -102,13 +102,13 @@ If you want to disassemble a single method do something like this:
 gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*.yourMethodName -XX:PrintAssemblyOptions=intel"
 ```
 
-If you want `perf` to find the hot methods for you then do add `-prof perfasm`.
+If you want `perf` to find the hot methods for you, then do add `-prof perfasm`.
 
 ## Async Profiler
 
 Note: Linux and Mac only. Sorry Windows.
 
-IMPORTANT: The 2.0 version of the profiler doesn't seem to be with compatible
+IMPORTANT: The 2.0 version of the profiler doesn't seem to be compatible
 with JMH as of 2021-04-30.
 
 The async profiler is neat because it does not suffer from the safepoint
@@ -128,8 +128,8 @@ and run `prof async` like so:
 gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/tmp/async-profiler-1.8.3-linux-x64/build/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
 ```
 
-If you are on mac this'll warn you that you downloaded the shared library from
+If you are on Mac, this'll warn you that you downloaded the shared library from
 the internet. You'll need to go to settings and allow it to run.
 
 The profiler tells you it'll be more accurate if you install debug symbols
-with the JVM. I didn't and the results looked pretty good to me. (2021-02-01)
+with the JVM. I didn't, and the results looked pretty good to me. (2021-02-01)

@@ -29,9 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -161,7 +159,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int k = 1; k <= numBackingIndices; k++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
         DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
@@ -180,7 +178,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int k = 1; k <= numBackingIndices; k++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         final Index indexToRemove = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
 
@@ -199,7 +197,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int k = 1; k <= numBackingIndices; k++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -237,7 +235,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                 .build();
             builder.put(im, false);
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
         builder.put(original);
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
@@ -285,8 +283,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                 .build();
             builder.put(im, false);
         }
-        DataStream ds1 = DataStreamTestHelper.newInstance(dsName1, createTimestampField("@timestamp"), indices1);
-        DataStream ds2 = DataStreamTestHelper.newInstance(dsName2, createTimestampField("@timestamp"), indices2);
+        DataStream ds1 = DataStreamTestHelper.newInstance(dsName1, indices1);
+        DataStream ds2 = DataStreamTestHelper.newInstance(dsName2, indices2);
         builder.put(ds1);
         builder.put(ds2);
 
@@ -326,7 +324,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                 .build();
             builder.put(im, false);
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
         builder.put(original);
         Index indexToAdd = randomFrom(indices.toArray(Index.EMPTY_ARRAY));
 
@@ -359,7 +357,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                 .build();
             builder.put(im, false);
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
         builder.put(original);
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
@@ -415,7 +413,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int i = 1; i <= numBackingIndices; i++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         DataStream updated = original.replaceBackingIndex(indices.get(indexToReplace), newBackingIndex);
@@ -440,7 +438,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int i = 1; i <= numBackingIndices; i++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         Index standaloneIndex = new Index("index-foo", UUIDs.randomBase64UUID(random()));
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
@@ -457,7 +455,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
         int generation = randomBoolean() ? numBackingIndices : numBackingIndices + randomIntBetween(1, 5);
-        DataStream original = newInstance(dataStreamName, createTimestampField("@timestamp"), indices, generation, null);
+        DataStream original = newInstance(dataStreamName, indices, generation, null);
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         IllegalArgumentException e = expectThrows(
@@ -503,7 +501,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
-            preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+            preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()
         );
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
@@ -545,9 +543,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.getIndexMode()
         );
 
-        assertNull(
-            postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()))
-        );
+        assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
     }
 
     public void testSelectTimeSeriesWriteIndex() {

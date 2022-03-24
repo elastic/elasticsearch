@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 
@@ -140,7 +139,7 @@ public class SystemIndexManager implements ClusterStateListener {
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     enum UpgradeStatus {
@@ -311,12 +310,9 @@ public class SystemIndexManager implements ClusterStateListener {
                 return Version.V_EMPTY;
             }
             return Version.fromString(versionString);
-        } catch (ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException | IllegalArgumentException e) {
             logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
-            throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
-        } catch (IllegalArgumentException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
-            throw e;
+            return Version.V_EMPTY;
         }
     }
 

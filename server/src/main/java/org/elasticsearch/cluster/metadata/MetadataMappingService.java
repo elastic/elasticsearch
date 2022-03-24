@@ -24,7 +24,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -73,8 +72,13 @@ public class MetadataMappingService {
         }
 
         @Override
-        public void onAllNodesAcked(@Nullable Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(e == null));
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.of(false));
         }
 
         @Override
@@ -108,17 +112,7 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        taskContext.success(new ActionListener<>() {
-                            @Override
-                            public void onResponse(ClusterState clusterState) {
-                                // listener is notified at the end of acking
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                task.onFailure(e);
-                            }
-                        }, task);
+                        taskContext.success(task);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }

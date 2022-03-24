@@ -27,6 +27,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -43,6 +44,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
+import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -212,12 +215,42 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         Exception ex = expectThrows(IllegalArgumentException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
         assertEquals(
-            ex.getMessage(),
             "When [%s] is set you must also specify [%s] or [%s]".formatted(
                 getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
                 getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD),
                 getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+            ),
+            ex.getMessage()
+        );
+    }
+
+    public void testConstructorThrowsIfBothLegacyAndSecureBindPasswordSet() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";
+
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userSearchBase, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), "legacy-pass")
+            .setSecureSettings(
+                newSecureSettings(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD), "secure-pass")
             )
+            .build();
+        RealmConfig config = new RealmConfig(
+            REALM_IDENTIFIER,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
+
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
+        assertEquals(
+            "You cannot specify both [%s] and [%s]".formatted(
+                RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD),
+                RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+            ),
+            ex.getMessage()
         );
     }
 

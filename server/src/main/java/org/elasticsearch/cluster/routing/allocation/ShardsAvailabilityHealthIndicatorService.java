@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,7 +18,6 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -31,15 +31,16 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,6 +67,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private static final Logger LOGGER = LogManager.getLogger(ShardsAvailabilityHealthIndicatorService.class);
 
     public static final String NAME = "shards_availability";
+
+    private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -107,7 +110,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return new HealthIndicatorResult(name(), component(), status.getStatus(), status.getSummary(), status.getDetails());
+        return new HealthIndicatorResult(name(), component(), status.getStatus(), status.getSummary(), status.getDetails(), status.getUserActions());
     }
 
     private static final String ACTION_SHARD_LIMIT_ID = "increase_shard_limit";
@@ -150,15 +153,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        maybeGetDiagnosis(routing, state)
-                            .ifPresent(action -> diagnoses.computeIfAbsent(action, (k) -> new ArrayList<>()).add(routing));
+                        diagnoseUnassigned(this, routing, state);
                     }
-                    LOGGER.info("Found unassigned info: " + routing.unassignedInfo());
                 }
                 case INITIALIZING -> initializing++;
                 case STARTED -> started++;
                 case RELOCATING -> relocating++;
             }
+        }
+
+        public void addUserAction(String id, ShardRouting routing) {
+            diagnoses.computeIfAbsent(id, (k) -> new ArrayList<>()).add(routing);
         }
     }
 
@@ -180,78 +185,106 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return routing.primary() && routing.active() == false && getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW;
     }
 
-    private Optional<String> maybeGetDiagnosis(ShardRouting routing, ClusterState state) {
-        IndexMetadata index = state.metadata().index(routing.index());
-        if (index == null) {
-            // TODO: routing without index? Ever possible? Probably shouldn't just blow up
-            return Optional.empty();
-        } else {
-            return isShardsLimitHit(routing, index, state)
-                .or(() -> isAllocationDisabled(routing, index, state))
-                .or(() -> isDataTierFilterConflict(routing, index, state));
+    private void diagnoseUnassigned(ShardAllocationCounts shardAllocationCounts, ShardRouting shardRouting, ClusterState state) {
+        switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
+            case NO_VALID_SHARD_COPY:
+                if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
+                    shardAllocationCounts.addUserAction(ACTION_RESTORE_FROM_SNAPSHOT_ID, shardRouting);
+                }
+                break;
+            case DECIDERS_NO:
+                diagnoseDeciders(shardAllocationCounts, shardRouting, state);
+                break;
+            default:
+                break;
         }
     }
 
-    private Optional<String> isShardsLimitHit(ShardRouting routing, IndexMetadata indexMetadata, ClusterState state) {
-        if (UnassignedInfo.AllocationStatus.DECIDERS_NO == routing.unassignedInfo().getLastAllocationStatus()) {
-            List<String> tierPreference = indexMetadata.getTierPreference();
-            if (tierPreference.size() > 0) {
-                AllocationDeciders allocationDeciders = new AllocationDeciders(
-                    List.of(shardsLimitAllocationDecider, dataTierAllocationDecider)
-                );
-                RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, System.nanoTime());
-                Optional<RoutingNode> possibleHomes = state.getRoutingNodes().stream()
-                    .filter(node -> allocationDeciders.canAllocate(routing, node, allocation).type() != Decision.Type.NO)
-                    .findAny();
-                if (possibleHomes.isEmpty()) {
-                    return Optional.of(ACTION_SHARD_LIMIT_ID);
+    private void diagnoseDeciders(ShardAllocationCounts shardAllocationCounts, ShardRouting shardRouting, ClusterState state) {
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+        allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+        ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
+        AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
+        if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {
+            List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
+            IndexMetadata index = state.metadata().index(shardRouting.index());
+            if (index != null) {
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace("Working with decisions: [{}]", nodeAllocationResults.stream()
+                        .map(n -> n.getCanAllocateDecision().getDecisions().stream()
+                            .map(d -> d.label() + ": " + d.type())
+                            .collect(Collectors.toList()))
+                        .collect(Collectors.toList()));
                 }
+                checkAllNodesAtShardsLimit(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+                checkIsAllocationDisabled(shardAllocationCounts, shardRouting, nodeAllocationResults);
+                checkDataTierConflictsWithFilters(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
             }
         }
-        return Optional.empty();
     }
 
-    private Optional<String> isAllocationDisabled(ShardRouting routing, IndexMetadata indexMetadata, ClusterState state) {
-        if (UnassignedInfo.AllocationStatus.DECIDERS_NO == routing.unassignedInfo().getLastAllocationStatus()) {
-            List<String> tierPreference = indexMetadata.getTierPreference();
-            if (tierPreference.size() > 0) {
-                AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(enableAllocationDecider));
-                RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, System.nanoTime());
-                Optional<RoutingNode> possibleHomes = state.getRoutingNodes().stream()
-                    .filter(node -> allocationDeciders.canAllocate(routing, node, allocation).type() != Decision.Type.NO)
-                    .findAny();
-                if (possibleHomes.isEmpty()) {
-                    return Optional.of(ACTION_ENABLE_ALLOCATIONS_ID);
-                }
+    private static Predicate<NodeAllocationResult> nodeHasDeciderResult(String deciderName, Decision.Type outcome) {
+        return (nodeResult) -> nodeResult.getCanAllocateDecision().getDecisions().stream()
+            .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
+    }
+
+    private void checkAllNodesAtShardsLimit(
+        ShardAllocationCounts shardAllocationCounts,
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        if (indexMetadata.getTierPreference().size() > 0) {
+            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+                .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .filter(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.YES))
+                .findAny();
+            if (possibleHome.isEmpty()) {
+                shardAllocationCounts.addUserAction(ACTION_SHARD_LIMIT_ID, shardRouting);
             }
         }
-        return Optional.empty();
     }
 
-    private Optional<String> isDataTierFilterConflict(ShardRouting routing, IndexMetadata indexMetadata, ClusterState state) {
-        if (UnassignedInfo.AllocationStatus.DECIDERS_NO == routing.unassignedInfo().getLastAllocationStatus()) {
-            List<String> tierPreference = indexMetadata.getTierPreference();
-            if (tierPreference.size() > 0) {
-                AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(filterAllocationDecider, dataTierAllocationDecider));
-                RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, System.nanoTime());
-                Optional<RoutingNode> possibleHome = state.getRoutingNodes().stream()
-                    .filter(node -> Decision.Type.YES == allocationDeciders.canAllocate(routing, node, allocation).type())
-                    .findAny();
-                if (possibleHome.isEmpty()) {
-                    // Todo: Check if the shard is part of an index that can be migrated to data tiers
-                    return Optional.of(ACTION_MIGRATE_TIERS_ID);
-                }
+    private void checkIsAllocationDisabled(
+        ShardAllocationCounts shardAllocationCounts,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        LOGGER.trace("Checking allocation disabled");
+        Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+            .filter(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.YES))
+            .findAny();
+        if (possibleHome.isEmpty()) {
+            LOGGER.trace("Allocation disabled on all nodes, adding user action");
+            shardAllocationCounts.addUserAction(ACTION_ENABLE_ALLOCATIONS_ID, shardRouting);
+        }
+    }
+
+    private void checkDataTierConflictsWithFilters(
+        ShardAllocationCounts shardAllocationCounts,
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        LOGGER.trace("Checking tier/filter setting agreement");
+        if (indexMetadata.getTierPreference().size() > 0) {
+            LOGGER.trace("Tiers configured for index");
+            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+                .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .filter(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.YES))
+                .findAny();
+            if (possibleHome.isEmpty()) {
+                LOGGER.trace("Tier and filter settings conflict, adding user action");
+                // TODO: Check if shard is part of an index that can be migrated to data tiers?
+                shardAllocationCounts.addUserAction(ACTION_MIGRATE_TIERS_ID, shardRouting);
             }
         }
-        return Optional.empty();
-    }
-
-    private Optional<String> isNodeLeftDataLoss(ShardRouting routing, IndexMetadata indexMetadata, ClusterState state) {
-        if (UnassignedInfo.Reason.NODE_LEFT == routing.unassignedInfo().getReason() &&
-            UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY == routing.unassignedInfo().getLastAllocationStatus()) {
-            return Optional.of(ACTION_RESTORE_FROM_SNAPSHOT_ID);
-        }
-        return Optional.empty();
     }
 
     private class ShardAllocationStatus {
@@ -352,7 +385,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 .collect(Collectors.toList());
         }
 
-        private UserAction createUserAction(String id, Collection<String> indices) {
+        private UserAction createUserAction(String id, Set<String> indices) {
             return switch (id) {
                 case ACTION_SHARD_LIMIT_ID ->
                     new UserAction(ACTION_SHARD_LIMIT_ID, ACTION_SHARD_LIMIT_MESSAGE, indices, ACTION_SHARD_LIMIT_URL);

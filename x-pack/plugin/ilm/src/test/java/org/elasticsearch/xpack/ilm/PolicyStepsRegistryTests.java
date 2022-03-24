@@ -511,12 +511,13 @@ public class PolicyStepsRegistryTests extends ESTestCase {
 
         // now, in another thread, update the registry repeatedly as fast as possible.
         // updating the registry has the side effect of clearing the cache.
-        new Thread(() -> {
+        Thread t = new Thread(() -> {
             latch.countDown(); // signal that we're starting
             while (done.get() == false) {
                 registry.update(meta);
             }
-        }).start();
+        });
+        t.start();
 
         try {
             latch.await(); // wait until the other thread started
@@ -530,8 +531,9 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 assertThat(actualStep.getKey(), equalTo(step.getKey()));
             }
         } finally {
-            // tell the other thread we're finished
+            // tell the other thread we're finished and wait for it to die
             done.set(true);
+            t.join(1000);
         }
     }
 }

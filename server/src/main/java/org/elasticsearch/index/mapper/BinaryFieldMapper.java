@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
@@ -28,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -194,13 +194,13 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static class CustomBinaryDocValuesField extends CustomDocValuesField {
 
-        private final ObjectArrayList<byte[]> bytesList;
+        private final ArrayList<byte[]> bytesList;
 
         private int totalSize = 0;
 
         public CustomBinaryDocValuesField(String name, byte[] bytes) {
             super(name);
-            bytesList = new ObjectArrayList<>();
+            bytesList = new ArrayList<>();
             add(bytes);
         }
 

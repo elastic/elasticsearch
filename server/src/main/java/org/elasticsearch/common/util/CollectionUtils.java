@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
@@ -67,7 +66,8 @@ public class CollectionUtils {
         return new RotatedList<>(list, d);
     }
 
-    public static void sortAndDedup(final ObjectArrayList<byte[]> array) {
+    // this method is meant to be sort and deduplicate "in situ" (no additional memory)
+    public static void sortAndDedup(final ArrayList<byte[]> array) {
         int len = array.size();
         if (len > 1) {
             sort(array);
@@ -77,11 +77,11 @@ public class CollectionUtils {
                     array.set(uniqueCount++, array.get(i));
                 }
             }
-            array.elementsCount = uniqueCount;
+            array.subList(uniqueCount, array.size()).clear();
         }
     }
 
-    public static void sort(final ObjectArrayList<byte[]> array) {
+    public static void sort(final List<byte[]> array) {
         new IntroSorter() {
 
             byte[] pivot;

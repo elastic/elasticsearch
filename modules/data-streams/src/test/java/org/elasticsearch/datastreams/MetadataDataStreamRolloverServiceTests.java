@@ -235,7 +235,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         String dataStreamName = "logs-my-app";
         final DataStream dataStream = new DataStream(
             dataStreamName,
-                List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,
             false,

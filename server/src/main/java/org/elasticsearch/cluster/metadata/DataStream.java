@@ -569,7 +569,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public DataStream(StreamInput in) throws IOException {
         this(
             in.readString(),
-            in.readList(Index::new),
+            readIndices(in),
             in.readVLong(),
             in.readMap(),
             in.readBoolean(),
@@ -579,6 +579,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
         );
     }
+
+    static List<Index> readIndices(StreamInput in) throws IOException {
+        in.readString(); // timestamp field, which is always @timestamp
+        return in.readList(Index::new);
+    }
+
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(DataStream::new, in);

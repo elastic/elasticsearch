@@ -210,7 +210,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
 
-        expectThrows(IllegalArgumentException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
+        assertEquals(
+            ex.getMessage(),
+            "When [%s] is set you must also specify [%s] or [%s]".formatted(
+                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
+                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD),
+                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+            )
+        );
     }
 
     public void testUserSearchBaseScopePassesWithCorrectBaseDN() throws Exception {

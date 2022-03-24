@@ -81,7 +81,7 @@ public class CollectionUtils {
         }
     }
 
-    public static void sort(final List<byte[]> array) {
+    public static void sort(final ArrayList<byte[]> array) {
         new IntroSorter() {
 
             byte[] pivot;

@@ -72,17 +72,8 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
 
         final byte[] bindPassword;
         if (config.hasSetting(LEGACY_BIND_PASSWORD)) {
-            if (config.hasSetting(SECURE_BIND_PASSWORD)) {
-                throw new IllegalArgumentException(
-                    "You cannot specify both ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                        + "] and ["
-                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
-                        + "]"
-                );
-            } else {
-                bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
-            }
+            checkSingleBindPasswordVariantSet(config);
+            bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
         } else if (config.hasSetting(SECURE_BIND_PASSWORD)) {
             bindPassword = CharArrays.toUtf8Bytes(config.getSetting(SECURE_BIND_PASSWORD).getChars());
         } else {
@@ -225,6 +216,18 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
      */
     LDAPConnectionPool getConnectionPool() {
         return connectionPool;
+    }
+
+    private void checkSingleBindPasswordVariantSet(RealmConfig config) {
+        if (config.hasSetting(SECURE_BIND_PASSWORD)) {
+            throw new IllegalArgumentException(
+                "You cannot specify both ["
+                    + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                    + "] and ["
+                    + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                    + "]"
+            );
+        }
     }
 
     private void checkBindPasswordSet(RealmConfig config, byte[] bindPassword) {

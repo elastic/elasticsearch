@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;

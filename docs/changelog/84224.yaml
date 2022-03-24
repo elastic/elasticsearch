@@ -1,5 +1,5 @@
 pr: 84224
-summary: Restart ES after keystore upgrade in postinst
+summary: Restart ES after keystore upgrade in `postinst`
 area: Packaging
 type: bug
 issues:

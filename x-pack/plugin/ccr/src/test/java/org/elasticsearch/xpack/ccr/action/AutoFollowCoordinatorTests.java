@@ -2288,8 +2288,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
-            List.of(indexMetadata.getIndex()),
+                List.of(indexMetadata.getIndex()),
             1,
             null,
             false,

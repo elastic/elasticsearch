@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -80,7 +79,6 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .collect(Collectors.toList());
         return new DataStream(
             name,
-            new TimestampField("@timestamp"),
             backingIndices,
             backingIndices.size(),
             Map.of(),
@@ -96,7 +94,6 @@ public class TransportPutFollowActionTests extends ESTestCase {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
         return new DataStream(
             name,
-            new TimestampField("@timestamp"),
             backingIndices,
             generation,
             Map.of(),

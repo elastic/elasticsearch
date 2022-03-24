@@ -88,7 +88,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -120,13 +119,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.StandardProtocolFamily;
 import java.net.UnknownHostException;
-import java.nio.channels.SocketChannel;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1741,49 +1735,5 @@ public abstract class ESTestCase extends LuceneTestCase {
         final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
-    }
-
-    protected void tcpReadinessProbeTrue(ReadinessService readinessService) throws Exception {
-        tcpReadinessProbeTrue(readinessService.boundAddress().publishAddress().getPort());
-    }
-
-    // extracted because suppress forbidden checks have issues with lambdas
-    @SuppressForbidden(reason = "Intentional socket open")
-    private void channelConnect(SocketChannel channel, InetSocketAddress socketAddress) throws IOException {
-        channel.connect(socketAddress);
-    }
-
-    @SuppressForbidden(reason = "Intentional socket open")
-    protected void tcpReadinessProbeTrue(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
-
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    channelConnect(channel, socketAddress);
-                    // if we succeeded to connect the server is ready
-                } catch (IOException e) {
-                    fail("Shouldn't reach here");
-                }
-                return null;
-            });
-        }
-    }
-
-    protected void tcpReadinessProbeFalse(ReadinessService readinessService) throws Exception {
-        tcpReadinessProbeFalse(readinessService.boundAddress().publishAddress().getPort());
-    }
-
-    @SuppressForbidden(reason = "Intentional socket open")
-    protected void tcpReadinessProbeFalse(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
-
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                String message = expectThrows(IOException.class, () -> channelConnect(channel, socketAddress)).getMessage();
-                assertEquals("Connection refused", message);
-                return null;
-            });
-        }
     }
 }

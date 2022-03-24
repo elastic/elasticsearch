@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodeShutdownIT extends ESRestTestCase {
+public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientProbe {
 
     public void testRestartCRUD() throws Exception {
         checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);

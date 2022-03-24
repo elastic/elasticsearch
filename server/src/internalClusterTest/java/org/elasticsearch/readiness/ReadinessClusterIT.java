@@ -13,6 +13,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.readiness.ReadinessClientProbe;
 
 import java.util.List;
 
@@ -22,7 +23,7 @@ import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class ReadinessClusterIT extends ESIntegTestCase {
+public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClientProbe {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

@@ -88,35 +88,37 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         return new BoundTransportAddress(new TransportAddress[] { publishAddress }, publishAddress);
     }
 
+    // package private for testing
+    InetSocketAddress socketAddress(InetAddress host, int portNumber) {
+        // If we have previously bound to a specific port, we always rebind to the same one.
+        var socketAddress = boundSocket.get();
+        if (socketAddress == null) {
+            socketAddress = new InetSocketAddress(host, portNumber);
+        }
+
+        return socketAddress;
+    }
+
+    // package private for testing
     ServerSocketChannel setupSocket() {
-        assert PORT.get(environment.settings()) >= 0;
         InetAddress localhost = InetAddress.getLoopbackAddress();
         int portNumber = PORT.get(environment.settings());
+        assert portNumber >= 0;
 
         try {
             serverChannel = ServerSocketChannel.open();
 
-            // If we have previously bound to a specific port, we always rebind to the same one.
-            if (boundSocket.get() != null) {
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    try {
-                        serverChannel.bind(boundSocket.get());
-                    } catch (IOException e) {
-                        throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
-                    }
-                    return null;
-                });
-            } else {
-                InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    try {
-                        serverChannel.bind(socketAddress);
-                    } catch (IOException e) {
-                        throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
-                    }
-                    return null;
-                });
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                try {
+                    serverChannel.bind(socketAddress(localhost, portNumber));
+                } catch (IOException e) {
+                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
+                }
+                return null;
+            });
 
+            // First time bounding the socket, we notify any listeners
+            if (boundSocket.get() == null) {
                 boundSocket.set((InetSocketAddress) serverChannel.getLocalAddress());
 
                 // Address bound event is only sent on first bind.

@@ -29,19 +29,22 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
-public class ReadinessServiceTests extends ESTestCase {
+public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
     private ReadinessService readinessService;
     private ThreadPool threadpool;
@@ -96,7 +99,7 @@ public class ReadinessServiceTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadpool
         );
-        env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 9400).build());
+        env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 
         httpTransport = new FakeHttpTransport();
         readinessService = new ReadinessService(clusterService, env);
@@ -142,6 +145,12 @@ public class ReadinessServiceTests extends ESTestCase {
         try (ServerSocketChannel channel = readinessService.setupSocket()) {
             assertTrue(channel.isOpen());
         }
+    }
+
+    public void testSocketAddress() throws UnknownHostException {
+        InetSocketAddress socketAddress = readinessService.socketAddress(InetAddress.getByName("localhost"), 123);
+        assertEquals(123, socketAddress.getPort());
+        assertEquals("localhost", socketAddress.getHostName());
     }
 
     public void testEnabled() {

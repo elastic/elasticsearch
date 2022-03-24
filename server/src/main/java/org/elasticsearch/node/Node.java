@@ -1257,13 +1257,13 @@ public class Node implements Closeable {
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
-            writePortsFile(environment, "transport", transport.boundAddress());
+            writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
-            writePortsFile(environment, "http", http.boundAddress());
+            writePortsFile("http", http.boundAddress());
 
             if (ReadinessService.enabled(environment)) {
                 ReadinessService readiness = injector.getInstance(ReadinessService.class);
-                readiness.addBoundAddressListener(address -> writePortsFile(environment, "readiness", address));
+                readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
             }
         }
 
@@ -1460,7 +1460,7 @@ public class Node implements Closeable {
     /**
      * Writes a file to the logs dir containing the ports for the given transport type
      */
-    public static void writePortsFile(Environment environment, String type, BoundTransportAddress boundAddress) {
+    private void writePortsFile(String type, BoundTransportAddress boundAddress) {
         Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
             for (TransportAddress address : boundAddress.boundAddresses()) {

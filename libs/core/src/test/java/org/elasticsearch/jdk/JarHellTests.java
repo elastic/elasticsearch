@@ -29,6 +29,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class JarHellTests extends ESTestCase {
 
@@ -159,18 +160,8 @@ public class JarHellTests extends ESTestCase {
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
-        try {
-            JarHell.checkJarHell(jars, logger::debug);
-            fail("did not get expected exception");
-        } catch (IllegalStateException e) {
-            assertTrue(
-                e.getMessage()
-                    .equals(
-                        "version string must be a sequence of nonnegative decimal integers separated "
-                            + "by \".\"'s and may have leading zeros but was bogus"
-                    )
-            );
-        }
+        var e = expectThrows(IllegalArgumentException.class, () -> JarHell.checkJarHell(jars, logger::debug));
+        assertThat(e.getMessage(), equalTo("Invalid version string: 'bogus'"));
     }
 
     public void testRequiredJDKVersionIsOK() throws Exception {

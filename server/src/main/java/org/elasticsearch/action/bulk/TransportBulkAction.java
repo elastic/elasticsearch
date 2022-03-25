@@ -45,8 +45,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -91,8 +89,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
-    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
-
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
@@ -100,9 +96,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
-    private final ThreadLocalBytesRecycler bytesRecycler;
 
     @Inject
     public TransportBulkAction(
@@ -114,8 +110,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices,
-        ThreadLocalBytesRecycler bytesRecycler
+        SystemIndices systemIndices
     ) {
         this(
             threadPool,
@@ -127,7 +122,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            bytesRecycler,
             System::nanoTime
         );
     }
@@ -142,7 +136,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        ThreadLocalBytesRecycler bytesRecycler,
         LongSupplier relativeTimeProvider
     ) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
@@ -156,7 +149,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
-        this.bytesRecycler = bytesRecycler;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -573,7 +565,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             String nodeId = clusterService.localNode().getId();
-            RequestMemory requestMemory = bulkRequest.requestMemory();
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
@@ -588,64 +579,43 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-
-                final Releasable toRelease;
-                if (requestMemory.needToReleaseNetworkMemory()) {
-                    RecyclerBytesStreamOutput streamOutput = bytesRecycler.get();
-                    toRelease = RequestMemory.copyBytesToNewReference(streamOutput, bulkShardRequest);
-                } else {
-                    toRelease = Releasable.NO_OP;
-                }
-                boolean success = false;
-                try {
-                    client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(BulkShardResponse bulkShardResponse) {
-                            for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                                // we may have no response if item failed
-                                if (bulkItemResponse.getResponse() != null) {
-                                    bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
-                                }
-                                responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkShardResponse) {
+                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                            // we may have no response if item failed
+                            if (bulkItemResponse.getResponse() != null) {
+                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
                             }
-                            toRelease.close();
-                            if (counter.decrementAndGet() == 0) {
-                                finishHim();
-                            }
+                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // create failures for all relevant requests
-                            for (BulkItemRequest request : requests) {
-                                final String indexName = request.index();
-                                DocWriteRequest<?> docWriteRequest = request.request();
-                                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                                responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
-                            }
-                            toRelease.close();
-                            if (counter.decrementAndGet() == 0) {
-                                finishHim();
-                            }
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
                         }
-
-                        private void finishHim() {
-                            listener.onResponse(
-                                new BulkResponse(
-                                    responses.toArray(new BulkItemResponse[responses.length()]),
-                                    buildTookInMillis(startTimeNanos)
-                                )
-                            );
-                        }
-                    });
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        toRelease.close();
                     }
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // create failures for all relevant requests
+                        for (BulkItemRequest request : requests) {
+                            final String indexName = request.index();
+                            DocWriteRequest<?> docWriteRequest = request.request();
+                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                        }
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
+                    }
+
+                    private void finishHim() {
+                        listener.onResponse(
+                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+                        );
+                    }
+                });
             }
-            bulkRequest = null;
+            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
         private boolean handleBlockExceptions(ClusterState state) {

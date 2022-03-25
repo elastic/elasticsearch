@@ -12,13 +12,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RequestMemory {
@@ -45,42 +40,6 @@ public class RequestMemory {
     public void releaseNetworkMemory() {
         if (needToReleaseNetworkMemory.compareAndSet(true, false)) {
             networkMemory.close();
-        }
-    }
-
-    public static ReleasableBytesReference copyBytesToNewReference(
-        RecyclerBytesStreamOutput streamOutput,
-        BulkShardRequest bulkShardRequest
-    ) {
-        ReleasableBytesReference bytesReference = null;
-        boolean success = false;
-        try {
-            for (BulkItemRequest item : bulkShardRequest.items()) {
-                DocWriteRequest<?> request = item.request();
-                if (request instanceof IndexRequest) {
-                    ((IndexRequest) request).source().writeTo(streamOutput);
-                } else if (request instanceof UpdateRequest) {
-                    UpdateRequest updateRequest = (UpdateRequest) request;
-                    if (updateRequest.upsertRequest() != null) {
-                        updateRequest.upsertRequest().source().writeTo(streamOutput);
-                    }
-                    if (updateRequest.doc() != null) {
-                        updateRequest.doc().source().writeTo(streamOutput);
-                    }
-                }
-            }
-            bytesReference = streamOutput.retainBytesAndTruncateStream();
-            updateRequests(bytesReference, bulkShardRequest);
-            success = true;
-            return bytesReference;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            if (success == false) {
-                streamOutput.reset();
-                Releasables.close(bytesReference);
-            }
-
         }
     }
 

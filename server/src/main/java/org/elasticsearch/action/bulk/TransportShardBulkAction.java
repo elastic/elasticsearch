@@ -35,12 +35,9 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
@@ -82,7 +79,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
-    private final ThreadLocalBytesRecycler bytesRecycler;
 
     @Inject
     public TransportShardBulkAction(
@@ -96,8 +92,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices,
-        ThreadLocalBytesRecycler bytesRecycler
+        SystemIndices systemIndices
     ) {
         super(
             settings,
@@ -117,7 +112,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.bytesRecycler = bytesRecycler;
     }
 
     @Override
@@ -162,11 +156,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected Releasable copyMemoryFromRequest(BulkShardRequest request, Releasable limitsReleasable) {
         if (request.bytesFromNetwork()) {
-            RecyclerBytesStreamOutput bytesStream = bytesRecycler.get();
-            ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream, request);
-            request.releaseNetworkBytes();
             request.incRef();
-            return () -> Releasables.close(bytesReference, limitsReleasable, request::decRef);
+            return () -> Releasables.close(limitsReleasable, request::decRef);
         } else {
             return limitsReleasable;
         }
@@ -542,11 +533,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected Releasable copyMemoryFromReplicaRequest(BulkShardRequest request, Releasable limitsReleasable) {
         if (request.bytesFromNetwork()) {
-            RecyclerBytesStreamOutput bytesStream = bytesRecycler.get();
-            ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream, request);
-            request.releaseNetworkBytes();
             request.incRef();
-            return () -> Releasables.close(bytesReference, limitsReleasable, request::decRef);
+            return () -> Releasables.close(limitsReleasable, request::decRef);
         } else {
             return limitsReleasable;
         }

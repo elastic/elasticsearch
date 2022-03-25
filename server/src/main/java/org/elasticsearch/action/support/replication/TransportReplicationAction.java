@@ -328,10 +328,10 @@ public abstract class TransportReplicationAction<
 
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable limitsReleasable = checkOperationLimits(request);
-        Releasable releasable = copyMemoryFromRequest(request, limitsReleasable);
+        request.incRef();
         ActionListener<Response> listener = ActionListener.runBefore(
             new ChannelActionListener<>(channel, actionName, request),
-            releasable::close
+            () -> Releasables.close(request::decRef, limitsReleasable)
         );
         runReroutePhase(task, request, listener, false);
     }
@@ -346,10 +346,10 @@ public abstract class TransportReplicationAction<
             request.sentFromLocalReroute(),
             request.localRerouteInitiatedByNodeClient()
         );
-        Releasable releasable = copyMemoryFromRequest(request.getRequest(), limitsReleasable);
+        request.incRef();
         ActionListener<Response> listener = ActionListener.runBefore(
             new ChannelActionListener<>(channel, transportPrimaryAction, request),
-            releasable::close
+            () -> Releasables.close(request::decRef, limitsReleasable)
         );
 
         try {
@@ -611,11 +611,11 @@ public abstract class TransportReplicationAction<
         final Task task
     ) {
         Releasable limitsReleasable = checkReplicaLimits(replicaRequest.getRequest());
-        Releasable releasable = copyMemoryFromReplicaRequest(replicaRequest.getRequest(), limitsReleasable);
+        replicaRequest.incRef();
 
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(
             new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
-            releasable::close
+            () -> Releasables.close(replicaRequest::decRef, limitsReleasable)
         );
 
         try {

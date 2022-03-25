@@ -35,7 +35,6 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private final BulkItemRequest[] items;
 
     // Local, not serialized
-    private final boolean bytesFromNetwork;
     private final Resources resources = new Resources();
 
     public BulkShardRequest(StreamInput in) throws IOException {
@@ -52,13 +51,11 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
                 resources.release();
             }
         }
-        bytesFromNetwork = true;
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
-        this.bytesFromNetwork = false;
         setRefreshPolicy(refreshPolicy);
     }
 
@@ -165,7 +162,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     }
 
     public boolean bytesFromNetwork() {
-        return bytesFromNetwork;
+        return true;
     }
 
     public void releaseNetworkBytes() {

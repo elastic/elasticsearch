@@ -40,8 +40,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexingPressure;
@@ -151,16 +149,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
         }), listener, threadPool, executor(primary));
-    }
-
-    @Override
-    protected Releasable copyMemoryFromRequest(BulkShardRequest request, Releasable limitsReleasable) {
-        if (request.bytesFromNetwork()) {
-            request.incRef();
-            return () -> Releasables.close(limitsReleasable, request::decRef);
-        } else {
-            return limitsReleasable;
-        }
     }
 
     @Override
@@ -528,16 +516,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
-    }
-
-    @Override
-    protected Releasable copyMemoryFromReplicaRequest(BulkShardRequest request, Releasable limitsReleasable) {
-        if (request.bytesFromNetwork()) {
-            request.incRef();
-            return () -> Releasables.close(limitsReleasable, request::decRef);
-        } else {
-            return limitsReleasable;
-        }
     }
 
     @Override

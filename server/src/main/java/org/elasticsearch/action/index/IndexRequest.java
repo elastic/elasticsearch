@@ -83,6 +83,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
+    private Map<String, Object> sourceAsMap;
 
     private OpType opType = OpType.INDEX;
 
@@ -346,7 +347,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false, contentType).v2();
+        if (sourceAsMap == null) {
+            sourceAsMap = XContentHelper.convertToMap(source, false, contentType).v2();
+        }
+        return sourceAsMap;
+    }
+
+    public Map<String, Object> getSourceAsMapOrNull() {
+        return sourceAsMap;
     }
 
     /**
@@ -363,11 +371,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
+    @SuppressWarnings("unchecked")
     public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
-            return source(builder);
+            IndexRequest indexRequest = source(builder);
+            this.sourceAsMap = (Map<String, Object>) source;
+            return indexRequest;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -439,6 +450,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest source(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
+        this.sourceAsMap = null;
         return this;
     }
 

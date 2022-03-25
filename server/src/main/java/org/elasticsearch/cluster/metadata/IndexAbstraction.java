@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -21,12 +22,14 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -380,27 +383,11 @@ public interface IndexAbstraction {
             }
 
             Instant timestamp;
-            final var formatter = TIMESTAMP_FORMATTER;
-            XContent xContent = request.getContentType().xContent();
-            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                switch (parser.nextToken()) {
-                    case VALUE_STRING -> timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
-                    case VALUE_NUMBER -> timestamp = Instant.ofEpochMilli(parser.longValue());
-                    default -> throw new ParsingException(
-                        parser.getTokenLocation(),
-                        String.format(
-                            Locale.ROOT,
-                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                            XContentParser.Token.VALUE_STRING,
-                            XContentParser.Token.VALUE_NUMBER,
-                            parser.currentToken()
-                        )
-                    );
-                }
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            Map<String, Object> sourceMap = request.getSourceAsMapOrNull();
+            if (sourceMap != null) {
+                timestamp = getTimeStampFromSourceMap(sourceMap);
+            } else {
+                timestamp = getTimestampFromParser(request.source(), request.getContentType());
             }
             timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
@@ -427,6 +414,52 @@ public interface IndexAbstraction {
                 );
             }
             return result;
+        }
+
+        static Instant getTimeStampFromSourceMap(Map<String, Object> sourceMap) {
+            assert sourceMap != null;
+            Object timestamp = sourceMap.get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            if (timestamp == null) {
+                throw new IllegalArgumentException(
+                    "Error extracting data stream timestamp field: [" + TimestampField.FIXED_TIMESTAMP_FIELD + "] not found"
+                );
+            }
+            try {
+                if (timestamp instanceof Long lTimestamp) {
+                    return Instant.ofEpochMilli(lTimestamp);
+                } else if (timestamp instanceof String sTimestamp) {
+                    return DateFormatters.from(TIMESTAMP_FORMATTER.parse(sTimestamp), TIMESTAMP_FORMATTER.locale()).toInstant();
+                } else {
+                    throw new IllegalArgumentException("timestamp [" + timestamp + "] type [" + timestamp.getClass() + "] error");
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            }
+        }
+
+        static Instant getTimestampFromParser(BytesReference source, XContentType xContentType) {
+            XContent xContent = xContentType.xContent();
+            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, source.streamInput())) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                return switch (parser.nextToken()) {
+                    case VALUE_STRING -> DateFormatters.from(TIMESTAMP_FORMATTER.parse(parser.text()), TIMESTAMP_FORMATTER.locale())
+                        .toInstant();
+                    case VALUE_NUMBER -> Instant.ofEpochMilli(parser.longValue());
+                    default -> throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                            XContentParser.Token.VALUE_STRING,
+                            XContentParser.Token.VALUE_NUMBER,
+                            parser.currentToken()
+                        )
+                    );
+                };
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            }
         }
 
         @Override

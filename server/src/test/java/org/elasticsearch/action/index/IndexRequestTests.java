@@ -403,7 +403,28 @@ public class IndexRequestTests extends ESTestCase {
             // no @timestamp field
             IndexRequest request = new IndexRequest(tsdbDataStream);
             request.opType(DocWriteRequest.OpType.CREATE);
-            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            if (randomBoolean()) {
+                request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            } else {
+                request.source("{\"@timestamp\": \"" + randomAlphaOfLength(5) + "\"}", XContentType.JSON);
+            }
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(e.getMessage(), containsString("Error extracting data stream timestamp field"));
+        }
+
+        {
+            // timestamp field type error
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            String value = randomAlphaOfLength(5);
+            if (randomBoolean()) {
+                request.source(Map.of("@timestamp", value), XContentType.JSON);
+            } else {
+                request.source("{\"@timestamp\": \"" + value + "\"}", XContentType.JSON);
+            }
             var e = expectThrows(
                 IllegalArgumentException.class,
                 () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
@@ -411,11 +432,28 @@ public class IndexRequestTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "Error extracting data stream timestamp field: "
-                        + "Failed to parse object: expecting token of type [START_OBJECT] but found [null]"
+                    "Error extracting data stream timestamp field: failed to parse date field ["
+                        + value
+                        + "] with format [strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis]"
                 )
             );
         }
+    }
+
+    public void testSourceMap() {
+        IndexRequest indexRequest = new IndexRequest();
+        Map<String, ?> source = Map.of("foo", "boo");
+        indexRequest.source(source);
+        assertNotNull(indexRequest.getSourceAsMapOrNull());
+
+        // same reference
+        assertTrue(source == indexRequest.sourceAsMap());
+
+        indexRequest.source("{\"foo\":\"bar\"}", XContentType.JSON);
+        assertNull(indexRequest.getSourceAsMapOrNull());
+
+        // not the same reference
+        assertFalse(source == indexRequest.sourceAsMap());
     }
 
     static String renderSource(String sourceTemplate, Instant instant) {

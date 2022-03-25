@@ -62,9 +62,15 @@ public class ParallelDetector {
             } else if (isMac(project.getProviders())) {
                 // Ask macOS to count physical CPUs for us
                 ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+                // On Apple silicon, we only want to use the performance cores
+                String query = project.getProviders().systemProperty("os.arch").getOrElse("").equals("aarch64")
+                    ? "hw.perflevel0.physicalcpu"
+                    : "hw.physicalcpu";
+
                 project.exec(spec -> {
                     spec.setExecutable("sysctl");
-                    spec.args("-n", "hw.physicalcpu");
+                    spec.args("-n", query);
                     spec.setStandardOutput(stdout);
                 });
 

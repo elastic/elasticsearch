@@ -69,12 +69,12 @@ public class ParallelDetector {
                 });
 
                 _defaultParallel = Integer.parseInt(stdout.toString().trim());
+            } else {
+                _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
             }
-
-            _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
         }
 
-        return _defaultParallel;
+        return Math.min(_defaultParallel, project.getGradle().getStartParameter().getMaxWorkerCount());
     }
 
     private static boolean isMac(ProviderFactory providers) {

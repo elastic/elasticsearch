@@ -237,13 +237,7 @@ public class JarHell {
         Version version = Version.parse(targetVersion);
         if (Runtime.version().compareTo(version) < 0) {
             throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "%s requires Java %s:, your system: %s",
-                    resource,
-                    targetVersion,
-                    Runtime.version().toString()
-                )
+                String.format(Locale.ROOT, "%s requires Java %s:, your system: %s", resource, targetVersion, Runtime.version().toString())
             );
         }
     }

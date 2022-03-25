@@ -98,10 +98,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {
-        assumeTrue(
-            "setting default keepalive options not supported on this platform",
-            (IOUtils.LINUX || IOUtils.MAC_OS_X)
-        );
+        assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
             MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY);

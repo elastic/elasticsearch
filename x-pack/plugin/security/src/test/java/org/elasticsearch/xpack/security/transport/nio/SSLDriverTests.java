@@ -30,7 +30,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
@@ -228,10 +227,7 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     public void testCloseDuringHandshakeJDK11() throws Exception {
-        assumeTrue(
-            "this tests ssl engine for JDK11",
-            inFipsJvm() == false
-        );
+        assumeTrue("this tests ssl engine for JDK11", inFipsJvm() == false);
         SSLContext sslContext = getSSLContext();
         SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
         SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);

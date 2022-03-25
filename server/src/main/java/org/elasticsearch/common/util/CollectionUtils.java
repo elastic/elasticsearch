@@ -58,7 +58,7 @@ public class CollectionUtils {
 
         ListIterator<T> uniqueItr = list.listIterator();
         ListIterator<T> existingItr = list.listIterator();
-        T uniqueValue = uniqueItr.next(); // get first element to compare with/
+        T uniqueValue = uniqueItr.next(); // get first element to compare with
         existingItr.next(); // advance the existing iterator to the second element, where we will begin comparing
         do {
             T existingValue = existingItr.next();

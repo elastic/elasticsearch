@@ -44,18 +44,22 @@ public class CollectionUtils {
         return array == null || array.length == 0;
     }
 
-    public static <T> void unique(List<T> list, Comparator<T> cmp) {
+    /**
+     * Eliminate duplicates from a list.
+     *
+     * @param list A sorted list, which will be modified in place.
+     * @param cmp A comparator the list is already sorted by.
+     */
+    public static <T> void uniquify(List<T> list, Comparator<T> cmp) {
         if (list.size() <= 1) {
             return;
         }
 
         int prevNdx = 0;
-        T prevValue = list.get(0);
         for (int i = 1; i < list.size(); ++i) {
             T nextValue = list.get(i);
-            if (cmp.compare(nextValue, prevValue) != 0 && prevNdx++ != i) {
+            if (cmp.compare(nextValue, list.get(prevNdx)) != 0 && ++prevNdx != i) {
                 list.set(prevNdx, nextValue);
-                prevValue = nextValue;
             }
         }
         ++prevNdx;

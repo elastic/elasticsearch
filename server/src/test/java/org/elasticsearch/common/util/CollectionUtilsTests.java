@@ -64,22 +64,22 @@ public class CollectionUtilsTests extends ESTestCase {
         }
     }
 
-    private <T> void assertUnique(List<T> list, Comparator<T> cmp, int size) {
+    private <T> void assertUniquify(List<T> list, Comparator<T> cmp, int size) {
         List<T> listCopy = new ArrayList<>(list);
-        CollectionUtils.unique(listCopy, cmp);
+        CollectionUtils.uniquify(listCopy, cmp);
         for (int i = 0; i < listCopy.size() - 1; ++i) {
             assertThat(cmp.compare(listCopy.get(i), listCopy.get(i + 1)), lessThan(0));
         }
         assertThat(listCopy.size(), equalTo(size));
     }
 
-    public void testUnique() {
-        assertUnique(List.<Integer>of(), Comparator.naturalOrder(), 0);
-        assertUnique(List.of(1), Comparator.naturalOrder(), 1);
-        assertUnique(List.of(1, 2, 3), Comparator.naturalOrder(), 3);
-        assertUnique(List.of(1, 1, 1), Comparator.naturalOrder(), 1);
-        assertUnique(List.of(1, 2, 2, 3), Comparator.naturalOrder(), 3);
-        assertUnique(List.of(1, 2, 2, 2), Comparator.naturalOrder(), 2);
+    public void testUniquify() {
+        assertUniquify(List.<Integer>of(), Comparator.naturalOrder(), 0);
+        assertUniquify(List.of(1), Comparator.naturalOrder(), 1);
+        assertUniquify(List.of(1, 2, 3), Comparator.naturalOrder(), 3);
+        assertUniquify(List.of(1, 1, 1), Comparator.naturalOrder(), 1);
+        assertUniquify(List.of(1, 2, 2, 3), Comparator.naturalOrder(), 3);
+        assertUniquify(List.of(1, 2, 2, 2), Comparator.naturalOrder(), 2);
     }
 
     public void testSortAndDedupByteRefArray() {

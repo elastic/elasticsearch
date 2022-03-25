@@ -175,7 +175,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
     exports org.elasticsearch.common.inject;
-    exports org.elasticsearch.common.inject.assistedinject;
     exports org.elasticsearch.common.inject.binder;
     exports org.elasticsearch.common.inject.internal;
     exports org.elasticsearch.common.inject.matcher;

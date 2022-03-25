@@ -357,7 +357,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
         String level = params.param("level", "cluster");
-        boolean outputIndices = "indices".equals(level) || "shards".equals(level);
+        boolean outputIndices = INDICES.equals(level) || "shards".equals(level);
 
         if (outputIndices) {
             builder.startObject(INDICES);

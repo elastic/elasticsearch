@@ -181,7 +181,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (javaVersionString == null) {
             throw new IllegalArgumentException("property [java.version] is missing for plugin [" + name + "]");
         }
-        JarHell.checkVersionFormat(javaVersionString);
+        JarHell.checkJavaVersion("plugin " + name, javaVersionString);
 
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;

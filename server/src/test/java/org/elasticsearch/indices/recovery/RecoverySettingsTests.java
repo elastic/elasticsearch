@@ -16,7 +16,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -32,7 +31,6 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.JAVA_VERSION_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING;
@@ -309,7 +307,6 @@ public class RecoverySettingsTests extends ESTestCase {
         assertThat(
             "Data nodes with only cold/frozen data roles have a default 40mb rate limit on Java version prior to 14",
             nodeRecoverySettings().withRoles(randomFrom(Set.of("data_cold"), Set.of("data_frozen"), Set.of("data_cold", "data_frozen")))
-                .withJavaVersion(randomFrom("8", "9", "11"))
                 .withRandomMemory()
                 .build()
                 .getMaxBytesPerSec(),
@@ -319,13 +316,11 @@ public class RecoverySettingsTests extends ESTestCase {
 
     public void testDefaultMaxBytesPerSecOnColdOrFrozenNode() {
         final Set<String> dataRoles = randomFrom(Set.of("data_cold"), Set.of("data_frozen"), Set.of("data_cold", "data_frozen"));
-        final String recentVersion = JavaVersion.current().compareTo(JavaVersion.parse("14")) < 0 ? "14" : null;
         {
             assertThat(
                 "Dedicated cold/frozen data nodes with <= 4GB of RAM have a default 40mb rate limit",
                 nodeRecoverySettings().withRoles(dataRoles)
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(1L, ByteSizeUnit.GB.toBytes(4L))))
-                    .withJavaVersion(recentVersion)
                     .build()
                     .getMaxBytesPerSec(),
                 equalTo(new ByteSizeValue(40, ByteSizeUnit.MB))
@@ -336,7 +331,6 @@ public class RecoverySettingsTests extends ESTestCase {
                 "Dedicated cold/frozen data nodes with 4GB < RAM <= 8GB have a default 60mb rate limit",
                 nodeRecoverySettings().withRoles(dataRoles)
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(4L) + 1L, ByteSizeUnit.GB.toBytes(8L))))
-                    .withJavaVersion(recentVersion)
                     .build()
                     .getMaxBytesPerSec(),
                 equalTo(new ByteSizeValue(60, ByteSizeUnit.MB))
@@ -347,7 +341,6 @@ public class RecoverySettingsTests extends ESTestCase {
                 "Dedicated cold/frozen data nodes with 8GB < RAM <= 16GB have a default 90mb rate limit",
                 nodeRecoverySettings().withRoles(dataRoles)
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(8L) + 1L, ByteSizeUnit.GB.toBytes(16L))))
-                    .withJavaVersion(recentVersion)
                     .build()
                     .getMaxBytesPerSec(),
                 equalTo(new ByteSizeValue(90, ByteSizeUnit.MB))
@@ -358,7 +351,6 @@ public class RecoverySettingsTests extends ESTestCase {
                 "Dedicated cold/frozen data nodes with 16GB < RAM <= 32GB have a default 90mb rate limit",
                 nodeRecoverySettings().withRoles(dataRoles)
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(16L) + 1L, ByteSizeUnit.GB.toBytes(32L))))
-                    .withJavaVersion(recentVersion)
                     .build()
                     .getMaxBytesPerSec(),
                 equalTo(new ByteSizeValue(125, ByteSizeUnit.MB))
@@ -369,7 +361,6 @@ public class RecoverySettingsTests extends ESTestCase {
                 "Dedicated cold/frozen data nodes with RAM > 32GB have a default 250mb rate limit",
                 nodeRecoverySettings().withRoles(dataRoles)
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(32L) + 1L, ByteSizeUnit.TB.toBytes(4L))))
-                    .withJavaVersion(recentVersion)
                     .build()
                     .getMaxBytesPerSec(),
                 equalTo(new ByteSizeValue(250, ByteSizeUnit.MB))
@@ -382,7 +373,6 @@ public class RecoverySettingsTests extends ESTestCase {
         assertThat(
             "Dedicated cold/frozen data nodes should use the defined rate limit when set",
             nodeRecoverySettings().withRoles(randomFrom(Set.of("data_cold"), Set.of("data_frozen"), Set.of("data_cold", "data_frozen")))
-                .withJavaVersion(JavaVersion.current().compareTo(JavaVersion.parse("14")) < 0 ? "14" : null)
                 .withMemory(ByteSizeValue.ofBytes(randomLongBetween(1L, ByteSizeUnit.TB.toBytes(4L))))
                 .withIndicesRecoveryMaxBytesPerSec(random)
                 .build()
@@ -425,7 +415,6 @@ public class RecoverySettingsTests extends ESTestCase {
 
         private Set<String> roles;
         private ByteSizeValue physicalMemory;
-        private @Nullable String javaVersion;
         private @Nullable ByteSizeValue networkBandwidth;
         private @Nullable ByteSizeValue diskReadBandwidth;
         private @Nullable ByteSizeValue diskWriteBandwidth;
@@ -450,11 +439,6 @@ public class RecoverySettingsTests extends ESTestCase {
 
         NodeRecoverySettings withRandomMemory() {
             return withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(1L), ByteSizeUnit.TB.toBytes(4L))));
-        }
-
-        NodeRecoverySettings withJavaVersion(String javaVersion) {
-            this.javaVersion = javaVersion;
-            return this;
         }
 
         NodeRecoverySettings withIndicesRecoveryMaxBytesPerSec(ByteSizeValue indicesRecoveryMaxBytesPerSec) {
@@ -508,9 +492,6 @@ public class RecoverySettingsTests extends ESTestCase {
             settings.put(TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.getKey(), Objects.requireNonNull(physicalMemory));
             if (roles.isEmpty() == false) {
                 settings.putList(NODE_ROLES_SETTING.getKey(), new ArrayList<>(roles));
-            }
-            if (javaVersion != null) {
-                settings.put(JAVA_VERSION_OVERRIDING_TEST_SETTING.getKey(), javaVersion);
             }
             if (indicesRecoveryMaxBytesPerSec != null) {
                 settings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), indicesRecoveryMaxBytesPerSec);

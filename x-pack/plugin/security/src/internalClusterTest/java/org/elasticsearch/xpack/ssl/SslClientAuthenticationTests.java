@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -30,13 +29,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
 import java.util.HashSet;
 import java.util.List;
-
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -89,7 +85,7 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
             // Due to the TLSv1.3 bug with session resumption when client authentication is not
             // used, we need to set the protocols since we disabled client auth for transport
             // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
-            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
+            .putList("xpack.security.transport.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.REQUIRED)
             .build();
@@ -160,20 +156,5 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
             read = is.read(internalBuffer);
         }
         return baos.toByteArray();
-    }
-
-    /**
-     * TLSv1.3 when running in a JDK prior to 11.0.3 has a race condition when multiple simultaneous connections are established. See
-     * JDK-8213202. This issue is not triggered when using client authentication, which we do by default for transport connections.
-     * However if client authentication is turned off and TLSv1.3 is used on the affected JVMs then we will hit this issue.
-     */
-    private static List<String> getProtocols() {
-        JavaVersion full = AccessController.doPrivileged(
-            (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
-        );
-        if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
-            return List.of("TLSv1.2");
-        }
-        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

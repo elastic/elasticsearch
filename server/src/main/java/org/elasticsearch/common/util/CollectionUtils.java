@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -55,18 +56,20 @@ public class CollectionUtils {
             return;
         }
 
-        int prevNdx = 0;
-        for (int i = 1; i < list.size(); ++i) {
-            T nextValue = list.get(i);
-            if (cmp.compare(nextValue, list.get(prevNdx)) != 0 && ++prevNdx != i) {
-                list.set(prevNdx, nextValue);
+        ListIterator<T> uniqueItr = list.listIterator();
+        ListIterator<T> existingItr = list.listIterator();
+        T uniqueValue = uniqueItr.next(); // get first element to compare with/
+        existingItr.next(); // advance the existing iterator to the second element, where we will begin comparing
+        do {
+            T existingValue = existingItr.next();
+            if (cmp.compare(existingValue, uniqueValue) != 0 && (uniqueValue = uniqueItr.next()) != existingValue) {
+                uniqueItr.set(existingValue);
             }
-        }
-        ++prevNdx;
-        if (prevNdx != list.size()) {
-            // lop off the rest of the list
-            list.subList(prevNdx, list.size()).clear();
-        }
+        } while (existingItr.hasNext());
+
+        // Lop off the rest of the list. Note with LinkedList this requires advancing back to this index,
+        // but Java provides no way to efficiently remove from the end of a non random-access list.
+        list.subList(uniqueItr.nextIndex(), list.size()).clear();
     }
 
     /**

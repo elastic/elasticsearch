@@ -21,10 +21,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
@@ -65,12 +68,13 @@ public class CollectionUtilsTests extends ESTestCase {
     }
 
     private <T> void assertUniquify(List<T> list, Comparator<T> cmp, int size) {
-        List<T> listCopy = new ArrayList<>(list);
-        CollectionUtils.uniquify(listCopy, cmp);
-        for (int i = 0; i < listCopy.size() - 1; ++i) {
-            assertThat(cmp.compare(listCopy.get(i), listCopy.get(i + 1)), lessThan(0));
+        for (List<T> listCopy : List.of(new ArrayList<T>(list), new LinkedList<T>(list))) {
+            CollectionUtils.uniquify(listCopy, cmp);
+            for (int i = 0; i < listCopy.size() - 1; ++i) {
+                assertThat(cmp.compare(listCopy.get(i), listCopy.get(i + 1)), lessThan(0));
+            }
+            assertThat(listCopy.size(), equalTo(size));
         }
-        assertThat(listCopy.size(), equalTo(size));
     }
 
     public void testUniquify() {

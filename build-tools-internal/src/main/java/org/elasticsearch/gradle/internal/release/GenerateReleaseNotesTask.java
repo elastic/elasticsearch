@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -82,7 +83,9 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     @TaskAction
     public void executeTask() throws IOException {
-        if (needsGitTags(VersionProperties.getElasticsearch())) {
+        final String currentVersion = VersionProperties.getElasticsearch();
+
+        if (needsGitTags(currentVersion)) {
             findAndUpdateUpstreamRemote(gitWrapper);
         }
 
@@ -90,7 +93,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFilesByVersion(
             gitWrapper,
-            VersionProperties.getElasticsearch(),
+            currentVersion,
             this.changelogs.getFiles()
         );
 
@@ -103,7 +106,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             changelogsByVersion.put(version, entriesForVersion);
         });
 
-        final Set<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
+        final Set<QualifiedVersion> versions = getVersions(gitWrapper, currentVersion);
 
         LOGGER.info("Updating release notes index...");
         ReleaseNotesIndexGenerator.update(
@@ -113,10 +116,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         );
 
         LOGGER.info("Generating release notes...");
+        final QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
         ReleaseNotesGenerator.update(
             this.releaseNotesTemplate.get().getAsFile(),
             this.releaseNotesFile.get().getAsFile(),
-            changelogsByVersion
+            qualifiedVersion,
+            changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
         );
 
         LOGGER.info("Generating release highlights...");
@@ -142,11 +147,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
      */
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
-        QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        final String pattern = "v" + v.major() + ".*";
-        Set<QualifiedVersion> versions = gitWrapper.listVersions(pattern).collect(toSet());
-        versions.add(v);
-        return versions;
+        QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
+        final String pattern = "v" + qualifiedVersion.major() + ".*";
+        // We may be generating notes for a minor version prior to the latest minor, so we need to filter out versions that are too new.
+        return Stream.concat(gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)), Stream.of(qualifiedVersion))
+            .collect(toSet());
     }
 
     /**
@@ -179,7 +184,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
-            .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
+            .filter(
+                each -> each.isBefore(currentVersion)
+                    && (currentVersion.isSnapshot() || (currentVersion.hasQualifier() == each.hasQualifier()))
+            )
             .sorted(naturalOrder())
             .toList();
 

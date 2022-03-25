@@ -81,29 +81,23 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
-    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
-        return newInstance(name, timeStampField, indices, indices.size(), null);
+    public static DataStream newInstance(String name, List<Index> indices) {
+        return newInstance(name, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(String name, List<Index> indices, long generation, Map<String, Object> metadata) {
+        return newInstance(name, indices, generation, metadata, false);
     }
 
     public static DataStream newInstance(
         String name,
-        DataStream.TimestampField timeStampField,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata
-    ) {
-        return newInstance(name, timeStampField, indices, generation, metadata, false);
-    }
-
-    public static DataStream newInstance(
-        String name,
-        DataStream.TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false, false, null);
+        var timestampField = new DataStream.TimestampField("@timestamp");
+        return new DataStream(name, timestampField, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -308,7 +302,6 @@ public final class DataStreamTestHelper {
 
             DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
-                createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
                 null,

@@ -135,13 +135,23 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (reservedSpace.containsShardId(routing.shardId())) {
                 continue;
             }
-
             final String actualPath = clusterInfo.getDataPath(routing);
             // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
             // free space
             if (actualPath == null || actualPath.equals(dataPath)) {
                 totalSize += getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
             }
+        }
+
+        // Count the STARTED shards which are unaccounted in the cluster info
+        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.STARTED)) {
+            if (reservedSpace.containsShardId(routing.shardId())) {
+                continue;
+            }
+            if (clusterInfo.getShardSize(routing) != null) {
+                continue;
+            }
+            totalSize += Math.max(routing.getExpectedShardSize(), 0L);
         }
 
         if (subtractShardsMovingAway) {

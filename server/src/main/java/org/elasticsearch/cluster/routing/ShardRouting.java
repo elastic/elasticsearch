@@ -75,9 +75,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.expectedShardSize = expectedShardSize;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
         this.asList = Collections.singletonList(this);
-        assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE
+        /*assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE
             || state == ShardRoutingState.INITIALIZING
-            || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
+            || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;*/
         assert expectedShardSize >= 0 || state != ShardRoutingState.INITIALIZING || state != ShardRoutingState.RELOCATING
             : expectedShardSize + " state: " + state;
         assert (state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) == false : "unassigned shard must be created with meta";
@@ -505,7 +505,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             null,
             allocationId,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE
+            expectedShardSize
         );
     }
 

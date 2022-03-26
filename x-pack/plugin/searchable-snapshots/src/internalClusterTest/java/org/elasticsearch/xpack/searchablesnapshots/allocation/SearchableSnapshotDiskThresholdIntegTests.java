@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -105,6 +106,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                             .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
                             .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                             .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), DataTier.DATA_HOT)
+                            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                             .build()
                     );
                     int nbDocs = 100;
@@ -159,7 +161,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
         assertAcked(client().admin().indices().prepareDelete("index-*"));
 
-        final Storage storage = randomFrom(Storage.values());
+        final Storage storage = FULL_COPY;
         logger.info("--> using storage [{}]", storage);
 
         final Settings.Builder otherDataNodeSettings = Settings.builder();
@@ -248,7 +250,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         }
         extraLatch.await();
 
-        // TODO Indices should not be allocated without checking the node disk usage first
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
             assertThat(
@@ -259,7 +260,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                         shardRouting -> shardRouting.shardId().getIndexName().startsWith(extraPrefix)
                             && state.metadata().index(shardRouting.shardId().getIndex()).isSearchableSnapshot()
                     )
-                    .allMatch(
+                    .noneMatch(
                         shardRouting -> shardRouting.state() == ShardRoutingState.STARTED
                             && otherDataNodeId.equals(shardRouting.currentNodeId())
                     ),

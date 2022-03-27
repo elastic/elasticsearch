@@ -16,8 +16,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,7 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ComponentTemplateTests extends AbstractDiffableSerializationTestCase<ComponentTemplate> {
+public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
     protected ComponentTemplate makeTestChanges(ComponentTemplate testInstance) {
         try {
@@ -133,7 +133,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         switch (randomIntBetween(0, 2)) {
             case 0:
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
+                    case 0 -> {
                         Template ot = orig.template();
                         return new ComponentTemplate(
                             new Template(
@@ -144,7 +144,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                             orig.version(),
                             orig.metadata()
                         );
-                    case 1:
+                    }
+                    case 1 -> {
                         Template ot2 = orig.template();
                         return new ComponentTemplate(
                             new Template(
@@ -155,7 +156,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                             orig.version(),
                             orig.metadata()
                         );
-                    case 2:
+                    }
+                    case 2 -> {
                         Template ot3 = orig.template();
                         return new ComponentTemplate(
                             new Template(
@@ -166,8 +168,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                             orig.version(),
                             orig.metadata()
                         );
-                    default:
-                        throw new IllegalStateException("illegal randomization branch");
+                    }
+                    default -> throw new IllegalStateException("illegal randomization branch");
                 }
             case 1:
                 return new ComponentTemplate(

@@ -25,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -48,11 +49,11 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -104,6 +105,7 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -267,7 +269,20 @@ public abstract class ESRestTestCase extends ESTestCase {
                     + "to which to send REST requests"
             );
         }
+
         return cluster;
+    }
+
+    protected String getTestReadinessPorts() {
+        String ports = System.getProperty("tests.cluster.readiness");
+        if (ports == null) {
+            throw new RuntimeException(
+                "Must specify [tests.rest.cluster.readiness] system property with a comma delimited list "
+                    + "to which to send readiness requests"
+            );
+        }
+
+        return ports;
     }
 
     /**
@@ -571,6 +586,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ilm-history-ilm-policy",
             "slm-history-ilm-policy",
             "watch-history-ilm-policy",
+            "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
@@ -581,7 +597,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "180-days-default",
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
-            ".deprecation-indexing-ilm-policy"
+            ".deprecation-indexing-ilm-policy",
+            ".monitoring-8-ilm-policy"
         );
     }
 
@@ -901,9 +918,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream()
-            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-            .collect(Collectors.toUnmodifiableList());
+        List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
             assertOK(adminClient().performRequest(deleteRequest));
@@ -1398,6 +1413,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    public static void assertAcknowledged(Response response) throws IOException {
+        assertOK(response);
+        String jsonBody = EntityUtils.toString(response.getEntity());
+        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+    }
+
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(Settings settings) throws IOException {
+        updateClusterSettings(client(), settings);
+    }
+
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(RestClient client, Settings settings) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+        assertOK(response);
+    }
+
     /**
      * Permits subclasses to increase the default timeout when waiting for green health
      */
@@ -1429,6 +1468,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
         ensureHealth(client(), index, requestConsumer);
+    }
+
+    public static void ensureHealth(RestClient restClient, Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth(restClient, "", requestConsumer);
     }
 
     protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
@@ -1595,7 +1638,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        Response response = client().performRequest(new Request("GET", endpoint));
+        return getAsMap(client(), endpoint);
+    }
+
+    protected static Map<String, Object> getAsMap(RestClient client, final String endpoint) throws IOException {
+        Response response = client.performRequest(new Request("GET", endpoint));
         return responseAsMap(response);
     }
 
@@ -1926,5 +1973,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             return response.getStatusLine().getStatusCode() == 404;
         }
         return false;
+    }
+
+    protected FieldCapabilitiesResponse fieldCaps(List<String> indices, List<String> fields, QueryBuilder indexFilter) throws IOException {
+        Request request = new Request("POST", "/_field_caps");
+        request.addParameter("index", String.join(",", indices));
+        request.addParameter("fields", String.join(",", fields));
+        if (indexFilter != null) {
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("index_filter", indexFilter);
+            body.endObject();
+            request.setJsonEntity(Strings.toString(body));
+        }
+        Response response = client().performRequest(request);
+        assertOK(response);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
+            return FieldCapabilitiesResponse.fromXContent(parser);
+        }
     }
 }

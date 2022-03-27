@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -107,6 +108,24 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         }
         reduceContext.consumeBucketsAndMaybeBreak(list.length);
         return create(getName(), requiredSize, Arrays.asList(list), getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return create(
+            getName(),
+            requiredSize,
+            buckets.stream()
+                .<InternalGeoGridBucket>map(
+                    b -> this.createBucket(
+                        b.hashAsLong,
+                        samplingContext.scaleUp(b.docCount),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
+                    )
+                )
+                .toList(),
+            getMetadata()
+        );
     }
 
     @Override

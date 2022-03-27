@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,6 +24,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -77,7 +78,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner = createSearchRunner(client, enrichCache);
+        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner = createSearchRunner(client, enrichCache);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
@@ -123,15 +124,23 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         enrichCache.setMetadata(metadata);
     }
 
-    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(
+    private static BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> createSearchRunner(
         Client client,
         EnrichCache enrichCache
     ) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
-        return (req, handler) -> enrichCache.resolveOrDispatchSearch(
-            req,
-            (searchRequest, listener) -> originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, searchRequest, listener),
-            handler
-        );
+        return (req, handler) -> {
+            // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+            List<Map<?, ?>> response = enrichCache.get(req);
+            if (response != null) {
+                handler.accept(response, null);
+            } else {
+                originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(resp -> {
+                    List<Map<?, ?>> value = enrichCache.toCacheValue(resp);
+                    enrichCache.put(req, value);
+                    handler.accept(EnrichCache.deepCopy(value, false), null);
+                }, e -> { handler.accept(null, e); }));
+            }
+        };
     }
 }

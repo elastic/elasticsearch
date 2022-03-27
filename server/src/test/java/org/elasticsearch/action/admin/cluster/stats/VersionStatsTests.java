@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,39 +54,34 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
     @Override
     protected VersionStats mutateInstance(VersionStats instance) throws IOException {
         return new VersionStats(instance.versionStats().stream().map(svs -> {
-            switch (randomIntBetween(1, 4)) {
-                case 1:
-                    return new VersionStats.SingleVersionStats(
-                        Version.V_7_3_0,
-                        svs.indexCount,
-                        svs.primaryShardCount,
-                        svs.totalPrimaryByteCount
-                    );
-                case 2:
-                    return new VersionStats.SingleVersionStats(
-                        svs.version,
-                        svs.indexCount + 1,
-                        svs.primaryShardCount,
-                        svs.totalPrimaryByteCount
-                    );
-                case 3:
-                    return new VersionStats.SingleVersionStats(
-                        svs.version,
-                        svs.indexCount,
-                        svs.primaryShardCount + 1,
-                        svs.totalPrimaryByteCount
-                    );
-                case 4:
-                    return new VersionStats.SingleVersionStats(
-                        svs.version,
-                        svs.indexCount,
-                        svs.primaryShardCount,
-                        svs.totalPrimaryByteCount + 1
-                    );
-                default:
-                    throw new IllegalArgumentException("unexpected branch");
-            }
-        }).collect(Collectors.toList()));
+            return switch (randomIntBetween(1, 4)) {
+                case 1 -> new VersionStats.SingleVersionStats(
+                    Version.V_7_3_0,
+                    svs.indexCount,
+                    svs.primaryShardCount,
+                    svs.totalPrimaryByteCount
+                );
+                case 2 -> new VersionStats.SingleVersionStats(
+                    svs.version,
+                    svs.indexCount + 1,
+                    svs.primaryShardCount,
+                    svs.totalPrimaryByteCount
+                );
+                case 3 -> new VersionStats.SingleVersionStats(
+                    svs.version,
+                    svs.indexCount,
+                    svs.primaryShardCount + 1,
+                    svs.totalPrimaryByteCount
+                );
+                case 4 -> new VersionStats.SingleVersionStats(
+                    svs.version,
+                    svs.indexCount,
+                    svs.primaryShardCount,
+                    svs.totalPrimaryByteCount + 1
+                );
+                default -> throw new IllegalArgumentException("unexpected branch");
+            };
+        }).toList());
     }
 
     public void testCreation() {

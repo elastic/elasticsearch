@@ -7,15 +7,31 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -50,6 +66,10 @@ public interface IndexAbstraction {
      */
     @Nullable
     Index getWriteIndex();
+
+    default Index getWriteIndex(IndexRequest request, Metadata metadata) {
+        return getWriteIndex();
+    }
 
     /**
      * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
@@ -133,7 +153,7 @@ public interface IndexAbstraction {
             this.concreteIndexName = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? List.of(indexMetadata.getAliases().keys().toArray(String.class)) : null;
+            this.aliases = indexMetadata.getAliases() != null ? List.copyOf(indexMetadata.getAliases().keySet()) : null;
             this.dataStream = dataStream;
         }
 
@@ -214,37 +234,27 @@ public interface IndexAbstraction {
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
             this.referenceIndexMetadatas = new ArrayList<>(indices.size());
+            boolean isSystem = true;
+            Index widx = null;
             for (IndexMetadata imd : indices) {
                 this.referenceIndexMetadatas.add(imd.getIndex());
+                if (Boolean.TRUE.equals(imd.getAliases().get(aliasName).writeIndex())) {
+                    if (widx != null) {
+                        throw new IllegalStateException("write indices size can only be 0 or 1, but is at least 2");
+                    }
+                    widx = imd.getIndex();
+                }
+                isSystem = isSystem && imd.isSystem();
             }
 
-            List<IndexMetadata> writeIndices = indices.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
-
-            if (writeIndices.isEmpty() && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(indices.get(0));
+            if (widx == null && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                widx = indices.get(0).getIndex();
             }
-
-            if (writeIndices.size() == 0) {
-                this.writeIndex = null;
-            } else if (writeIndices.size() == 1) {
-                this.writeIndex = writeIndices.get(0).getIndex();
-            } else {
-                List<String> writeIndicesStrings = writeIndices.stream().map(i -> i.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException(
-                    "alias ["
-                        + aliasName
-                        + "] has more than one write index ["
-                        + Strings.collectionToCommaDelimitedString(writeIndicesStrings)
-                        + "]"
-                );
-            }
+            this.writeIndex = widx;
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
-            this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
+            this.isSystem = isSystem;
             dataStreamAlias = false;
-            validateAliasProperties(indices);
         }
 
         public Alias(DataStreamAlias dataStreamAlias, List<Index> indicesOfAllDataStreams, Index writeIndexOfWriteDataStream) {
@@ -301,68 +311,6 @@ public interface IndexAbstraction {
             return null;
         }
 
-        private void validateAliasProperties(List<IndexMetadata> referenceIndexMetadatas) {
-            // Validate hidden status
-            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
-                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
-            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
-                List<String> hiddenOn = groupedByHiddenStatus.get(true)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
-                List<String> nonHiddenOn = groupedByHiddenStatus.get(false)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
-                throw new IllegalStateException(
-                    "alias ["
-                        + aliasName
-                        + "] has is_hidden set to true on indices ["
-                        + Strings.collectionToCommaDelimitedString(hiddenOn)
-                        + "] but does not have is_hidden set to true on indices ["
-                        + Strings.collectionToCommaDelimitedString(nonHiddenOn)
-                        + "]; alias must have the same is_hidden setting "
-                        + "on all indices"
-                );
-            }
-
-            // Validate system status
-
-            final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = referenceIndexMetadatas.stream()
-                .collect(Collectors.groupingBy(IndexMetadata::isSystem));
-            // If the alias has either all system or all non-system, then no more validation is required
-            if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
-                final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true)
-                    .stream()
-                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
-                    .map(i -> i.getIndex().getName())
-                    .sorted() // reliable error message for testing
-                    .collect(Collectors.toList());
-
-                if (newVersionSystemIndices.isEmpty() == false) {
-                    final List<String> nonSystemIndices = groupedBySystemStatus.get(false)
-                        .stream()
-                        .map(i -> i.getIndex().getName())
-                        .sorted() // reliable error message for testing
-                        .collect(Collectors.toList());
-                    throw new IllegalStateException(
-                        "alias ["
-                            + aliasName
-                            + "] refers to both system indices "
-                            + newVersionSystemIndices
-                            + " and non-system indices: "
-                            + nonSystemIndices
-                            + ", but aliases must refer to either system or"
-                            + " non-system indices, not both"
-                    );
-                }
-            }
-        }
-
-        private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
-            return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -383,6 +331,16 @@ public interface IndexAbstraction {
     }
 
     class DataStream implements IndexAbstraction {
+
+        public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+            Set.of(TimestampField.FIXED_TIMESTAMP_FIELD),
+            null,
+            false
+        );
+
+        public static final DateFormatter TIMESTAMP_FORMATTER = DateFormatter.forPattern(
+            "strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis"
+        );
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
         private final List<String> referencedByDataStreamAliases;
@@ -409,6 +367,66 @@ public interface IndexAbstraction {
 
         public Index getWriteIndex() {
             return dataStream.getWriteIndex();
+        }
+
+        @Override
+        public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+            if (request.opType() != DocWriteRequest.OpType.CREATE) {
+                return getWriteIndex();
+            }
+
+            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+                return getWriteIndex();
+            }
+
+            Instant timestamp;
+            final var formatter = TIMESTAMP_FORMATTER;
+            XContent xContent = request.getContentType().xContent();
+            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                switch (parser.nextToken()) {
+                    case VALUE_STRING -> timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
+                    case VALUE_NUMBER -> timestamp = Instant.ofEpochMilli(parser.longValue());
+                    default -> throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                            XContentParser.Token.VALUE_STRING,
+                            XContentParser.Token.VALUE_NUMBER,
+                            parser.currentToken()
+                        )
+                    );
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            }
+            timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
+            Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
+            if (result == null) {
+                String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
+                String writeableIndicesString = dataStream.getIndices()
+                    .stream()
+                    .map(metadata::index)
+                    .map(IndexMetadata::getSettings)
+                    .map(
+                        settings -> "["
+                            + settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+                            + ","
+                            + settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+                            + "]"
+                    )
+                    .collect(Collectors.joining());
+                throw new IllegalArgumentException(
+                    "the document timestamp ["
+                        + timestampAsString
+                        + "] is outside of ranges of currently writable indices ["
+                        + writeableIndicesString
+                        + "]"
+                );
+            }
+            return result;
         }
 
         @Override

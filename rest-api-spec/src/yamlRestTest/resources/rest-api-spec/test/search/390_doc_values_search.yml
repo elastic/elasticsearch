@@ -1,0 +1,437 @@
+---
+setup:
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              byte:
+                type: byte
+                index: false
+              double:
+                type: double
+                index: false
+              float:
+                type: float
+                index: false
+              half_float:
+                type: half_float
+                index: false
+              integer:
+                type: integer
+                index: false
+              long:
+                type: long
+                index: false
+              short:
+                type: short
+                index: false
+              date:
+                type: date
+                format: yyyy/MM/dd
+                index: false
+              keyword:
+                type: keyword
+                index: false
+              boolean:
+                type: boolean
+                index: false
+              ip:
+                type: ip
+                index: false
+              geo_point:
+                type: geo_point
+                index: false
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          byte : 1
+          double : 1.0
+          float : 1.0
+          half_float: 1.0
+          integer: 1
+          long: 1
+          short: 1
+          date: "2017/01/01"
+          keyword: "key1"
+          boolean: "false"
+          ip: "192.168.0.1"
+          geo_point: [13.5, 34.89]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          byte : 2
+          double : 2.0
+          float : 2.0
+          half_float: 2.0
+          integer: 2
+          long: 2
+          short: 2
+          date: "2017/01/02"
+          keyword: "key2"
+          boolean: "true"
+          ip: "192.168.0.2"
+          geo_point : [-63.24, 31.0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test match queries on number fields where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { byte: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { double: { query: 1.0 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { float: { query: 1.0 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { half_float: { query: 1.0 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { integer: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { long: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { short: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms queries on number fields where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { byte: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { double: [ 1.0, 2.0 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { float: [ 1.0, 2.0 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { half_float: [ 1.0, 2.0 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { integer: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { long: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { short: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range queries on number fields where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { byte: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { double: { gte: 0.0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { float: { gte: 0.0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { half_float: { gte: 0.0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { integer: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { long: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { short: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test match query on date field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { date: { query: "2017/01/01" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test range query on date field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { date: { gte: "2017/01/01" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test distance_feature query on date field where only doc values are enabled":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: "date"
+                  pivot: "7d"
+                  origin: "now"
+  - length:   { hits.hits: 2  }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "1" }
+
+---
+"Test match query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { keyword: { query: "key1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { keyword: [ "key1", "key2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { keyword: { gte: "key1" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test fuzzy query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { fuzzy: { keyword: { value: "kay1", fuzziness: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test prefix query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { keyword: { value: "key" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test case insensitive term query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { keyword: { value: "KeY1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test wildcard query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "k*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test case insensitive wildcard query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test regexp query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { regexp: { keyword: { value: "k.*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test match query on boolean field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { boolean: { query: "false" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on boolean field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { boolean: [ "false", "true" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on boolean field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { boolean: { gte: "false" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test match query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { ip: { query: "192.168.0.1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { ip: [ "192.168.0.1", "192.168.0.2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { ip: { gte: "192.168.0.1" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test geo shape query on geo_point field where only doc values are enabled":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            geo_shape:
+              geo_point:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ -70, 32 ], [ -50, 30 ] ]
+  - match: {hits.total.value: 1}
+
+---
+"Test distance_feature query on geo_point field where only doc values are enabled":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: geo_point
+                  pivot: "1000km"
+                  origin: [0.0, 0.0]
+  - length:   { hits.hits: 2  }
+  - match: {hits.hits.0._id: "1" }
+  - match: {hits.hits.1._id: "2" }

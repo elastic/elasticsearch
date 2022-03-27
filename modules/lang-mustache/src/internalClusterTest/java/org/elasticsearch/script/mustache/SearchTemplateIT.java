@@ -8,12 +8,16 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -23,7 +27,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -38,7 +44,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(MustachePlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true").build();
     }
 
     @Before
@@ -344,6 +355,28 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             .setScriptParams(arrayTemplateParams)
             .get();
         assertHitCount(searchResponse.getResponse(), 5);
+    }
+
+    /**
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     */
+    public void testCCSCheckCompatibility() throws Exception {
+        String templateString = """
+            {
+              "source": "{ \\"query\\":{\\"fail_before_current_version\\":{}} }"
+            }""";
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
+        request.setRequest(new SearchRequest());
+        ExecutionException ex = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+        );
+        assertThat(
+            ex.getCause().getMessage(),
+            containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
+        );
+        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+        assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getCause().getMessage());
     }
 
 }

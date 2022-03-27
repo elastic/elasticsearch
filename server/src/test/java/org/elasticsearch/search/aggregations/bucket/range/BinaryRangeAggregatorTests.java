@@ -9,8 +9,8 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.carrotsearch.hppc.LongHashSet;
 
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;

@@ -10,22 +10,31 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentDimensions;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -38,7 +47,7 @@ import static java.util.stream.Collectors.toSet;
  * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
-    STANDARD {
+    STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -48,7 +57,7 @@ public enum IndexMode {
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
+                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
             }
         }
 
@@ -66,8 +75,13 @@ public enum IndexMode {
         }
 
         @Override
-        public Map<String, Object> getDefaultMapping() {
-            return Collections.emptyMap();
+        public CompressedXContent getDefaultMapping() {
+            return null;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexScopedSettings settings) {
+            return null;
         }
 
         @Override
@@ -75,8 +89,23 @@ public enum IndexMode {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
     },
-    TIME_SERIES {
+    TIME_SERIES("time_series") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
@@ -87,14 +116,12 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
         }
 
-        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
             }
         }
 
@@ -104,6 +131,9 @@ public enum IndexMode {
 
         @Override
         public void validateMapping(MappingLookup lookup) {
+            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
+                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
+            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
@@ -122,33 +152,65 @@ public enum IndexMode {
         }
 
         @Override
-        public Map<String, Object> getDefaultMapping() {
+        public CompressedXContent getDefaultMapping() {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexScopedSettings settings) {
+            return new TimestampBounds(settings);
         }
 
         private String routingRequiredBad() {
             return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
-        private String tsdbMode() {
-            return "[" + IndexSettings.MODE.getKey() + "=time_series]";
-        }
-
         @Override
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            // We don't support field data on TSDB's _id
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        }
     };
 
-    public static final Map<String, Object> DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = Map.of(
-        MapperService.SINGLE_MAPPING_NAME,
-        Map.of(
-            DataStreamTimestampFieldMapper.NAME,
-            Map.of("enabled", true),
-            "properties",
-            Map.of(DataStreamTimestampFieldMapper.DEFAULT_PATH, Map.of("type", DateFieldMapper.CONTENT_TYPE))
-        )
-    );
+    protected String tsdbMode() {
+        return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+    }
+
+    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
@@ -169,6 +231,16 @@ public enum IndexMode {
         ).collect(toSet())
     );
 
+    private final String name;
+
+    IndexMode(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 
     /**
@@ -187,10 +259,20 @@ public enum IndexMode {
     public abstract void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException;
 
     /**
-     * get default mapping for this index.
-     * @return
+     * Get default mapping for this index or {@code null} if there is none.
      */
-    public abstract Map<String, Object> getDefaultMapping();
+    @Nullable
+    public abstract CompressedXContent getDefaultMapping();
+
+    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
+
+    public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
+
+    /**
+     * Get timebounds
+     */
+    @Nullable
+    public abstract TimestampBounds getTimestampBound(IndexScopedSettings settings);
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
@@ -198,4 +280,28 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    /**
+     * How {@code time_series_dimension} fields are handled by indices in this mode.
+     */
+    public abstract DocumentDimensions buildDocumentDimensions();
+
+    public static IndexMode fromString(String value) {
+        return switch (value) {
+            case "standard" -> IndexMode.STANDARD;
+            case "time_series" -> IndexMode.TIME_SERIES;
+            default -> throw new IllegalArgumentException(
+                "["
+                    + value
+                    + "] is an invalid index mode, valid modes are: ["
+                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining())
+                    + "]"
+            );
+        };
+    }
+
+    @Override
+    public String toString() {
+        return getName();
+    }
 }

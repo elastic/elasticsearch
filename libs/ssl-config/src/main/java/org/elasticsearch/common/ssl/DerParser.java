@@ -268,17 +268,15 @@ public final class DerParser {
             }
             StringBuilder sb = new StringBuilder(64);
             switch (value[0] / 40) {
-                case 0:
-                    sb.append('0');
-                    break;
-                case 1:
+                case 0 -> sb.append('0');
+                case 1 -> {
                     sb.append('1');
                     value[0] -= 40;
-                    break;
-                default:
+                }
+                default -> {
                     sb.append('2');
                     value[0] -= 80;
-                    break;
+                }
             }
             int oidPart = 0;
             for (int i = 0; i < length; i++) {

@@ -45,14 +45,9 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
         Step.StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new CloseIndexStep(key, nextKey, client);

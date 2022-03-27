@@ -387,18 +387,9 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
         JobState jobState = MlTasks.getJobState(jobId, tasksMetadata);
         switch (jobState) {
-            case CLOSING:
-                closingJobs.add(jobId);
-                break;
-            case FAILED:
-                failedJobs.add(jobId);
-                break;
-            case OPENING:
-            case OPENED:
-                openJobs.add(jobId);
-                break;
-            default:
-                break;
+            case CLOSING -> closingJobs.add(jobId);
+            case FAILED -> failedJobs.add(jobId);
+            case OPENING, OPENED -> openJobs.add(jobId);
         }
     }
 

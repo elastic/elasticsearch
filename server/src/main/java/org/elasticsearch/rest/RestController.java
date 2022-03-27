@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -59,6 +58,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    /**
+     * list of browser safelisted media types - not allowed on Content-Type header
+     * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     */
+    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
 
@@ -334,15 +339,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
-            final XContentType xContentType = request.getXContentType();
-            if (xContentType == null) {
+            if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
+            final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
             if (handler.supportsContentStream()
-                && xContentType.canonical() != XContentType.JSON
-                && xContentType.canonical() != XContentType.SMILE) {
+                && XContentType.JSON != xContentType.canonical()
+                && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,
@@ -386,6 +391,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }
+    }
+
+    /**
+     * in order to prevent CSRF we have to reject all media types that are from a browser safelist
+     * see https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
+     * @param request
+     */
+    private boolean isContentTypeDisallowed(RestRequest request) {
+        return request.getParsedContentType() != null
+            && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
     private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
@@ -475,7 +491,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
             if (headerValues != null && headerValues.isEmpty() == false) {
-                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {

@@ -100,12 +100,12 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(bucket), format, metadata());
+        return new Sum(name, sums.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, format, metadata());
+        return new Sum(name, 0.0, format, metadata());
     }
 
     @Override

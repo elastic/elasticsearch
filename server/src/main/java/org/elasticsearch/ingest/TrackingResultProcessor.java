@@ -63,18 +63,29 @@ public final class TrackingResultProcessor implements Processor {
             conditionalWithResult = null; // no condition
         }
 
-        if (actualProcessor instanceof PipelineProcessor) {
-            PipelineProcessor pipelineProcessor = ((PipelineProcessor) actualProcessor);
+        if (actualProcessor instanceof PipelineProcessor pipelineProcessor) {
             Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
             // runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
             Pipeline pipelineToCall = pipelineProcessor.getPipeline(ingestDocument);
             if (pipelineToCall == null) {
-                throw new IllegalArgumentException(
+                IllegalArgumentException e = new IllegalArgumentException(
                     "Pipeline processor configured for non-existent pipeline ["
                         + pipelineProcessor.getPipelineToCallName(ingestDocument)
                         + ']'
                 );
+                // Add error as processor result, otherwise this gets lost in SimulateExecutionService#execute(...) and
+                // an empty response gets returned by the ingest simulate api.
+                processorResultList.add(
+                    new SimulateProcessorResult(
+                        pipelineProcessor.getType(),
+                        pipelineProcessor.getTag(),
+                        pipelineProcessor.getDescription(),
+                        e,
+                        conditionalWithResult
+                    )
+                );
+                throw e;
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors

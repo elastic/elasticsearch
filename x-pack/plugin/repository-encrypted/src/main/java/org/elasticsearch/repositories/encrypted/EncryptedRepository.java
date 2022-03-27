@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -706,7 +707,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public Map<String, BlobContainer> children() throws IOException {
             final Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
-            final Map<String, BlobContainer> resultBuilder = new HashMap<>(childEncryptedBlobContainers.size());
+            final Map<String, BlobContainer> resultBuilder = Maps.newMapWithExpectedSize(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> childBlobContainer : childEncryptedBlobContainers.entrySet()) {
                 if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && path().parts().isEmpty()) {
                     // do not descend into the DEK blob container

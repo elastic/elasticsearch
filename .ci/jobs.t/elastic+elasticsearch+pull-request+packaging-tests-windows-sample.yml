@@ -22,9 +22,8 @@
           status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true
           black-list-target-branches:
+            - 7.17
             - 7.16
-            - 7.15
-            - 6.8
           excluded-regions:
             - ^docs/.*
           black-list-labels:

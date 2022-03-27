@@ -35,8 +35,8 @@ import java.util.Objects;
 public class MultiPhrasePrefixQuery extends Query {
 
     private final String field;
-    private ArrayList<Term[]> termArrays = new ArrayList<>();
-    private ArrayList<Integer> positions = new ArrayList<>();
+    private final ArrayList<Term[]> termArrays = new ArrayList<>();
+    private final ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
@@ -159,11 +159,12 @@ public class MultiPhrasePrefixQuery extends Query {
                 return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
             }
 
-            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
-            // which rewrites query with an empty reader.
+            // Hack so that the Unified Highlighter can still extract the original terms from this query
+            // after rewriting, even though it would normally become a MatchNoDocsQuery against an empty
+            // index
             return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
                 .add(
-                    Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    new NoRewriteMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
                     BooleanClause.Occur.MUST
                 )
                 .build();
@@ -293,10 +294,6 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         return true;
-    }
-
-    public String getField() {
-        return field;
     }
 
     @Override

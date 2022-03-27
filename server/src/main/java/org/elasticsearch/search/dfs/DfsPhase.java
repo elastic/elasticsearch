@@ -8,15 +8,12 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -33,7 +30,7 @@ public class DfsPhase {
 
     public void execute(SearchContext context) {
         try {
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+            Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
             Map<Term, TermStatistics> stats = new HashMap<>();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
                 @Override

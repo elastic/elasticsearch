@@ -292,7 +292,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 // just close and ignore - we are already stopped and just need to make sure we release all resources
                 return;
             }
-            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
+            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
                 logger.trace(
                     () -> new ParameterizedMessage(
                         "close connection exception caught while handling client http traffic, closing connection {}",

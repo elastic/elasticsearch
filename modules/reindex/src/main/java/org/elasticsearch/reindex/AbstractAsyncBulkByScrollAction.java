@@ -593,7 +593,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        scrollSource.close(() -> {
+        scrollSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueNanos(System.nanoTime() - startTime.get()),
@@ -605,7 +605,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             } else {
                 listener.onFailure(failure);
             }
-        });
+        }));
     }
 
     /**
@@ -908,17 +908,20 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
             switch (newOpType) {
-                case NOOP:
+                case NOOP -> {
                     taskWorker.countNoop();
                     return null;
-                case DELETE:
+                }
+                case DELETE -> {
                     RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                     delete.setVersion(request.getVersion());
                     delete.setVersionType(VersionType.INTERNAL);
                     delete.setRouting(request.getRouting());
                     return delete;
-                default:
-                    throw new IllegalArgumentException("Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]");
+                }
+                default -> throw new IllegalArgumentException(
+                    "Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]"
+                );
             }
         }
 
@@ -946,18 +949,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         public static OpType fromString(String opType) {
             String lowerOpType = opType.toLowerCase(Locale.ROOT);
-            switch (lowerOpType) {
-                case "noop":
-                    return OpType.NOOP;
-                case "index":
-                    return OpType.INDEX;
-                case "delete":
-                    return OpType.DELETE;
-                default:
-                    throw new IllegalArgumentException(
-                        "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                    );
-            }
+            return switch (lowerOpType) {
+                case "noop" -> OpType.NOOP;
+                case "index" -> OpType.INDEX;
+                case "delete" -> OpType.DELETE;
+                default -> throw new IllegalArgumentException(
+                    "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
+                );
+            };
         }
 
         @Override

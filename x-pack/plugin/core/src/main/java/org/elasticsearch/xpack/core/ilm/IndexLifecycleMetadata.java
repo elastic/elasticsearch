@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
@@ -188,7 +188,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         }
 
         static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(LifecyclePolicyMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(LifecyclePolicyMetadata::new, in);
         }
     }
 }

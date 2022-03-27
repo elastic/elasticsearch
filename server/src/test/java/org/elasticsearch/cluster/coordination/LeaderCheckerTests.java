@@ -205,7 +205,9 @@ public class LeaderCheckerTests extends ESTestCase {
         leaderChecker.updateLeader(leader2);
         {
             checkCount.set(0);
-            final long maxCheckCount = randomLongBetween(2, 1000);
+            // run at least leaderCheckRetryCount iterations to ensure at least one success so that we reset the counters and clear out
+            // anything left over from the previous run
+            final long maxCheckCount = randomLongBetween(leaderCheckRetryCount, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
                 deterministicTaskQueue.runAllRunnableTasks();
@@ -267,14 +269,9 @@ public class LeaderCheckerTests extends ESTestCase {
                     @Override
                     public void run() {
                         switch (response) {
-                            case SUCCESS:
-                                handleResponse(requestId, Empty.INSTANCE);
-                                break;
-                            case REMOTE_ERROR:
-                                handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
-                                break;
-                            case DIRECT_ERROR:
-                                handleError(requestId, new ConnectTransportException(leader, "simulated error"));
+                            case SUCCESS -> handleResponse(requestId, Empty.INSTANCE);
+                            case REMOTE_ERROR -> handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
+                            case DIRECT_ERROR -> handleError(requestId, new ConnectTransportException(leader, "simulated error"));
                         }
                     }
 
@@ -408,12 +405,8 @@ public class LeaderCheckerTests extends ESTestCase {
                     @Override
                     public void run() {
                         switch (response) {
-                            case SUCCESS:
-                                handleResponse(requestId, Empty.INSTANCE);
-                                break;
-                            case REMOTE_ERROR:
-                                handleRemoteError(requestId, new NodeHealthCheckFailureException("simulated error"));
-                                break;
+                            case SUCCESS -> handleResponse(requestId, Empty.INSTANCE);
+                            case REMOTE_ERROR -> handleRemoteError(requestId, new NodeHealthCheckFailureException("simulated error"));
                         }
                     }
 

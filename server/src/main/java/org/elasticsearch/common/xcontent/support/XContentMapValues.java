@@ -190,8 +190,7 @@ public class XContentMapValues {
     }
 
     private static Object extractValue(String[] pathElements, int index, Object currentValue, Object nullValue) {
-        if (currentValue instanceof List) {
-            List<?> valueList = (List<?>) currentValue;
+        if (currentValue instanceof List<?> valueList) {
             List<Object> newList = new ArrayList<>(valueList.size());
             for (Object o : valueList) {
                 Object listValue = extractValue(pathElements, index, o, nullValue);
@@ -206,8 +205,7 @@ public class XContentMapValues {
             return currentValue != null ? currentValue : nullValue;
         }
 
-        if (currentValue instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) currentValue;
+        if (currentValue instanceof Map<?, ?> map) {
             String key = pathElements[index];
             int nextIndex = index + 1;
             List<Object> extractedValues = new ArrayList<>();
@@ -581,6 +579,9 @@ public class XContentMapValues {
     }
 
     public static boolean nodeBooleanValue(Object node) {
+        if (node instanceof Boolean) {
+            return (Boolean) node;
+        }
         return Booleans.parseBoolean(node.toString());
     }
 

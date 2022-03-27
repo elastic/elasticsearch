@@ -8,33 +8,35 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -50,7 +52,7 @@ public class RestoreServiceTests extends ESTestCase {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -73,7 +75,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -96,7 +98,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -131,26 +133,26 @@ public class RestoreServiceTests extends ESTestCase {
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
 
         final int repositoryCount = between(1, 5);
-        final Map<String, Repository> repositories = new HashMap<>(repositoryCount);
+        final Map<String, Repository> repositories = Maps.newMapWithExpectedSize(repositoryCount);
         final Set<String> pendingRefreshes = new HashSet<>();
         final List<Runnable> finalAssertions = new ArrayList<>();
         while (repositories.size() < repositoryCount) {
             final String repositoryName = randomAlphaOfLength(10);
             switch (between(1, 3)) {
-                case 1:
+                case 1 -> {
                     final Repository notBlobStoreRepo = mock(Repository.class);
                     repositories.put(repositoryName, notBlobStoreRepo);
                     finalAssertions.add(() -> verifyNoMoreInteractions(notBlobStoreRepo));
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     final Repository freshBlobStoreRepo = mock(BlobStoreRepository.class);
                     repositories.put(repositoryName, freshBlobStoreRepo);
                     when(freshBlobStoreRepo.getMetadata()).thenReturn(
                         new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY).withUuid(UUIDs.randomBase64UUID())
                     );
                     doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any());
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     final Repository staleBlobStoreRepo = mock(BlobStoreRepository.class);
                     repositories.put(repositoryName, staleBlobStoreRepo);
                     pendingRefreshes.add(repositoryName);
@@ -169,7 +171,7 @@ public class RestoreServiceTests extends ESTestCase {
                         }
                         return null;
                     }).when(staleBlobStoreRepo).getRepositoryData(any());
-                    break;
+                }
             }
         }
 
@@ -177,8 +179,46 @@ public class RestoreServiceTests extends ESTestCase {
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         RestoreService.refreshRepositoryUuids(true, repositoriesService, listener);
         assertNull(listener.get(0L, TimeUnit.SECONDS));
-        assertThat(pendingRefreshes, Matchers.empty());
+        assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);
     }
 
+    public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
+
+        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
+        var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
+
+        var snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
+
+        var exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateSnapshotRestorable(request, repository, snapshotInfo, List.of())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+        );
+    }
+
+    private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
+        var shards = randomIntBetween(0, 100);
+        return new SnapshotInfo(
+            snapshot,
+            List.of(),
+            List.of(),
+            List.of(),
+            randomAlphaOfLengthBetween(10, 100),
+            Version.CURRENT,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            shards,
+            shards,
+            List.of(),
+            includeGlobalState,
+            Map.of(),
+            SnapshotState.SUCCESS,
+            Map.of()
+        );
+    }
 }

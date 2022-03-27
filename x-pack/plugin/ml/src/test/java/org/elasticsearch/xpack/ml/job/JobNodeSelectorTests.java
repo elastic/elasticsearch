@@ -118,7 +118,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -159,7 +159,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             memoryTracker,
@@ -206,7 +206,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -255,7 +255,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             memoryTracker,
@@ -287,7 +287,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -339,7 +339,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             memoryTracker,
@@ -390,7 +390,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             memoryTracker,
@@ -460,7 +460,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -526,7 +526,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs,
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job6.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -547,7 +547,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job7 = BaseMlIntegTestCase.createFareQuoteJob("job_id7", JOB_MEMORY_REQUIREMENT).build(new Date());
         jobNodeSelector = new JobNodeSelector(
             cs,
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job7.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -570,7 +570,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(
             cs,
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job7.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -590,7 +590,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(
             cs,
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job7.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -663,7 +663,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         // Allocation won't be possible if the stale failed job is treated as opening
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs,
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job7.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -683,7 +683,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job8 = BaseMlIntegTestCase.createFareQuoteJob("job_id8", JOB_MEMORY_REQUIREMENT).build(new Date());
         jobNodeSelector = new JobNodeSelector(
             cs,
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job8.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -738,7 +738,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -793,7 +793,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -858,7 +858,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -908,7 +908,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job = jobWithRules("job_with_rules");
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -1001,7 +1001,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -1009,7 +1009,8 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo")
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(1).getBytes()
         );
         assertEquals("foo", result.getExplanation());
         assertNull(result.getExecutorNode());
@@ -1045,7 +1046,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -1053,7 +1054,53 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo")
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(1).getBytes()
+        );
+        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
+        assertNull(result.getExecutorNode());
+    }
+
+    public void testConsiderLazyAssignmentWithFilledLazyNodesAndVerticalScale() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                new DiscoveryNode(
+                    "_node_name1",
+                    "_node_id1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(1).getBytes())),
+                    ROLES_WITH_ML,
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "_node_name2",
+                    "_node_id2",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                    Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(1).getBytes())),
+                    ROLES_WITH_ML,
+                    Version.CURRENT
+                )
+            )
+            .build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            shuffled(cs.nodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            randomIntBetween(1, 3),
+            node -> nodeFilter(node, job)
+        );
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(64).getBytes()
         );
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
         assertNull(result.getExecutorNode());
@@ -1074,7 +1121,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
@@ -1164,7 +1211,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes().getAllNodes()),
+            shuffled(cs.nodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,

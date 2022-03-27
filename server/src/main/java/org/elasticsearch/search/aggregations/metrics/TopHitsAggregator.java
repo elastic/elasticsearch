@@ -199,8 +199,7 @@ class TopHitsAggregator extends MetricsAggregator {
             SearchHit searchHitFields = internalHits[i];
             searchHitFields.shard(subSearchContext.shardTarget());
             searchHitFields.score(scoreDoc.score);
-            if (scoreDoc instanceof FieldDoc) {
-                FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+            if (scoreDoc instanceof FieldDoc fieldDoc) {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
@@ -231,7 +230,7 @@ class TopHitsAggregator extends MetricsAggregator {
             subSearchContext.from(),
             subSearchContext.size(),
             new TopDocsAndMaxScore(topDocs, Float.NaN),
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             metadata()
         );
     }

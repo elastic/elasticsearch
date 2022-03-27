@@ -1179,8 +1179,8 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         validateTimestampMatch(
             "May 15, 2018 @ 17:14:56.374",
             "CUSTOM_TIMESTAMP",
-            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
-            "MMM dd, yyyy @ HH:mm:ss.SSS",
+            "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
+            "MMM d, yyyy @ HH:mm:ss.SSS",
             1526400896374L
         );
     }
@@ -1270,6 +1270,20 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             Collections.singletonMap(
                 TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
                 "%{MONTHDAY}\\.%{MONTHNUM2}\\. %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}"
+            )
+        );
+
+        validateCustomOverrideNotMatchingBuiltInFormat(
+            // This pattern is very close to HTTPDERROR_DATE, differing only because it contains a "d" instead of a "dd".
+            // This test therefore proves that we don't decide that this override can be replaced with the built in
+            // HTTPDERROR_DATE format, but do preserve it as a custom format.
+            "EEE MMM d HH:mm:ss yyyy",
+            "Mon Mar 7 15:03:23 2022",
+            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
+            "CUSTOM_TIMESTAMP",
+            Collections.singletonMap(
+                TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
+                "%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND} %{YEAR}"
             )
         );
     }
@@ -1682,19 +1696,11 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             try {
                 String timestampFormat = javaTimestampFormats.get(i);
                 switch (timestampFormat) {
-                    case "ISO8601":
-                        actualEpochMs = DateFormatter.forPattern("iso8601").withZone(defaultZone).parseMillis(text);
-                        break;
-                    case "UNIX_MS":
-                        actualEpochMs = Long.parseLong(text);
-                        break;
-                    case "UNIX":
-                        actualEpochMs = (long) (Double.parseDouble(text) * 1000.0);
-                        break;
-                    case "TAI64N":
-                        actualEpochMs = parseMillisFromTai64n(text);
-                        break;
-                    default:
+                    case "ISO8601" -> actualEpochMs = DateFormatter.forPattern("iso8601").withZone(defaultZone).parseMillis(text);
+                    case "UNIX_MS" -> actualEpochMs = Long.parseLong(text);
+                    case "UNIX" -> actualEpochMs = (long) (Double.parseDouble(text) * 1000.0);
+                    case "TAI64N" -> actualEpochMs = parseMillisFromTai64n(text);
+                    default -> {
                         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().appendPattern(timestampFormat);
                         if (timestampFormat.indexOf('y') == -1) {
                             builder.parseDefaulting(ChronoField.YEAR_OF_ERA, 2018);
@@ -1722,7 +1728,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                             parsed = parser.withZone(defaultZone).parse(text);
                         }
                         actualEpochMs = Instant.from(parsed).toEpochMilli();
-                        break;
+                    }
                 }
                 if (expectedEpochMs == actualEpochMs) {
                     break;

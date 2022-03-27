@@ -9,6 +9,7 @@ package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -59,10 +60,10 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error("unexpected error during disruption", e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         try {
             started.await();
         } catch (InterruptedException e) {}

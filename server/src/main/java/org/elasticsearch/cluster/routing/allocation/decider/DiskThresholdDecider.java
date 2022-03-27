@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -682,7 +683,9 @@ public class DiskThresholdDecider extends AllocationDecider {
                     sourceIndexMeta,
                     indexMetadata.getNumberOfShards()
                 );
-                for (IndexShardRoutingTable shardRoutingTable : routingTable.index(mergeSourceIndex.getName())) {
+                final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                     if (shardIds.contains(shardRoutingTable.shardId())) {
                         targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
                     }
@@ -697,20 +700,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
     }
 
-    static class DiskUsageWithRelocations {
-
-        private final DiskUsage diskUsage;
-        private final long relocatingShardSize;
-
-        DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
-            this.diskUsage = diskUsage;
-            this.relocatingShardSize = relocatingShardSize;
-        }
-
-        @Override
-        public String toString() {
-            return "DiskUsageWithRelocations{" + "diskUsage=" + diskUsage + ", relocatingShardSize=" + relocatingShardSize + '}';
-        }
+    record DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
 
         double getFreeDiskAsPercentage() {
             if (getTotalBytes() == 0L) {

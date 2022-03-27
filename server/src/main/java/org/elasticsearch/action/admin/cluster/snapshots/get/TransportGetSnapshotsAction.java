@@ -86,7 +86,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             GetSnapshotsRequest::new,
             indexNameExpressionResolver,
             GetSnapshotsResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT // Execute this on the management pool because creating the response can become fairly expensive
+                                        // for large repositories in the verbose=false case when there are a lot of indices per snapshot.
+                                        // This is intentionally not using the snapshot_meta pool because that pool is sized rather large
+                                        // to accommodate concurrent IO and could consume excessive CPU resources through concurrent
+                                        // verbose=false requests that are CPU bound only.
         );
         this.repositoriesService = repositoriesService;
     }
@@ -145,7 +149,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final Predicate<RepositoryMetadata> predicate = order == SortOrder.ASC
             ? repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) <= 0
             : repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) >= 0;
-        return repositories.stream().filter(predicate).collect(Collectors.toUnmodifiableList());
+        return repositories.stream().filter(predicate).toList();
     }
 
     private void getMultipleReposSnapshotInfo(
@@ -176,7 +180,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v2)
                     .filter(Objects::nonNull)
                     .flatMap(snapshotsInRepo -> snapshotsInRepo.snapshotInfos.stream())
-                    .collect(Collectors.toUnmodifiableList());
+                    .toList();
                 final Map<String, ElasticsearchException> failures = responses.stream()
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
@@ -373,7 +377,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             snapshots(
                 snapshotsInProgress,
                 repo,
-                toResolve.stream().map(Snapshot::getSnapshotId).collect(Collectors.toUnmodifiableList()),
+                toResolve.stream().map(Snapshot::getSnapshotId).toList(),
                 ignoreUnavailable,
                 task,
                 sortBy,
@@ -391,7 +395,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } else {
                 // only want current snapshots
                 snapshotInfos = sortSnapshots(
-                    currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()),
+                    currentSnapshots.stream().map(SnapshotInfo::basic).toList(),
                     sortBy,
                     after,
                     0,
@@ -431,13 +435,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
             repositoryName,
-            snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList())
+            snapshotIdsToIterate.stream().map(SnapshotId::getName).toList()
         );
         for (SnapshotsInProgress.Entry entry : entries) {
             if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                 final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
                 if (predicate.test(snapshotInfo)) {
-                    snapshotSet.add(SnapshotInfo.inProgress(entry));
+                    snapshotSet.add(snapshotInfo);
                 }
             }
         }
@@ -577,32 +581,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         SortOrder order
     ) {
-        final Comparator<SnapshotInfo> comparator;
-        switch (sortBy) {
-            case START_TIME:
-                comparator = BY_START_TIME;
-                break;
-            case NAME:
-                comparator = BY_NAME;
-                break;
-            case DURATION:
-                comparator = BY_DURATION;
-                break;
-            case INDICES:
-                comparator = BY_INDICES_COUNT;
-                break;
-            case SHARDS:
-                comparator = BY_SHARDS_COUNT;
-                break;
-            case FAILED_SHARDS:
-                comparator = BY_FAILED_SHARDS_COUNT;
-                break;
-            case REPOSITORY:
-                comparator = BY_REPOSITORY;
-                break;
-            default:
-                throw new AssertionError("unexpected sort column [" + sortBy + "]");
-        }
+        final Comparator<SnapshotInfo> comparator = switch (sortBy) {
+            case START_TIME -> BY_START_TIME;
+            case NAME -> BY_NAME;
+            case DURATION -> BY_DURATION;
+            case INDICES -> BY_INDICES_COUNT;
+            case SHARDS -> BY_SHARDS_COUNT;
+            case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
+            case REPOSITORY -> BY_REPOSITORY;
+        };
 
         Stream<SnapshotInfo> infos = snapshotInfos.stream();
 
@@ -611,10 +598,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             infos = infos.filter(buildAfterPredicate(sortBy, after, order));
         }
         infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
-        final List<SnapshotInfo> allSnapshots = infos.collect(Collectors.toUnmodifiableList());
+        final List<SnapshotInfo> allSnapshots = infos.toList();
         final List<SnapshotInfo> snapshots;
         if (size != GetSnapshotsRequest.NO_LIMIT) {
-            snapshots = allSnapshots.stream().limit(size + 1).collect(Collectors.toUnmodifiableList());
+            snapshots = allSnapshots.stream().limit(size + 1).toList();
         } else {
             snapshots = allSnapshots;
         }
@@ -632,31 +619,31 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final String snapshotName = after.snapshotName();
         final String repoName = after.repoName();
         final String value = after.value();
-        switch (sortBy) {
-            case START_TIME:
-                return filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
-            case NAME:
+        return switch (sortBy) {
+            case START_TIME -> filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
+            case NAME ->
                 // TODO: cover via pre-flight predicate
-                return order == SortOrder.ASC
+                order == SortOrder.ASC
                     ? (info -> compareName(snapshotName, repoName, info) < 0)
                     : (info -> compareName(snapshotName, repoName, info) > 0);
-            case DURATION:
-                return filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(value), snapshotName, repoName, order);
-            case INDICES:
+            case DURATION -> filterByLongOffset(
+                info -> info.endTime() - info.startTime(),
+                Long.parseLong(value),
+                snapshotName,
+                repoName,
+                order
+            );
+            case INDICES ->
                 // TODO: cover via pre-flight predicate
-                return filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
-            case SHARDS:
-                return filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
-            case FAILED_SHARDS:
-                return filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(value), snapshotName, repoName, order);
-            case REPOSITORY:
+                filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
+            case SHARDS -> filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
+            case FAILED_SHARDS -> filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(value), snapshotName, repoName, order);
+            case REPOSITORY ->
                 // TODO: cover via pre-flight predicate
-                return order == SortOrder.ASC
+                order == SortOrder.ASC
                     ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
                     : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-            default:
-                throw new AssertionError("unexpected sort column [" + sortBy + "]");
-        }
+        };
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(
@@ -871,18 +858,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     }
 
-    private static final class SnapshotsInRepo {
+    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
 
-        private final List<SnapshotInfo> snapshotInfos;
-
-        private final int totalCount;
-
-        private final int remaining;
-
-        SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
-            this.snapshotInfos = snapshotInfos;
-            this.totalCount = totalCount;
-            this.remaining = remaining;
-        }
     }
 }

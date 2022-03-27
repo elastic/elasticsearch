@@ -197,7 +197,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
         }
-        out.writeMap(params);
+        out.writeGenericMap(params);
         out.writeInt(summaryFields.size());
         for (String fieldName : summaryFields) {
             out.writeString(fieldName);

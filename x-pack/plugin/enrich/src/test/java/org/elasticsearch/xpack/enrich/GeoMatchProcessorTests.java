@@ -6,14 +6,9 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
@@ -26,17 +21,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +78,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
     private void testBasicsForFieldValue(Object fieldValue, Geometry expectedGeometry) {
         int maxMatches = randomIntBetween(1, 8);
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("key", Map.of("shape", "object", "zipcode", 94040)));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("shape", "object", "zipcode", 94040));
         GeoMatchProcessor processor = new GeoMatchProcessor(
             "_tag",
             null,
@@ -153,13 +139,13 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> {
-        private final SearchResponse mockResponse;
+    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> {
+        private final List<Map<?, ?>> mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
 
-        MockSearchFunction(SearchResponse mockResponse) {
-            this.mockResponse = mockResponse;
+        MockSearchFunction(Map<?, ?> mockResponse) {
+            this.mockResponse = List.of(mockResponse);
             this.exception = null;
             this.capturedRequest = new SetOnce<>();
         }
@@ -171,7 +157,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
         }
 
         @Override
-        public void accept(SearchRequest request, BiConsumer<SearchResponse, Exception> handler) {
+        public void accept(SearchRequest request, BiConsumer<List<Map<?, ?>>, Exception> handler) {
             capturedRequest.set(request);
             if (exception != null) {
                 handler.accept(null, exception);
@@ -186,47 +172,14 @@ public class GeoMatchProcessorTests extends ESTestCase {
     }
 
     public MockSearchFunction mockedSearchFunction() {
-        return new MockSearchFunction(mockResponse(Collections.emptyMap()));
+        return new MockSearchFunction(Collections.emptyMap());
     }
 
     public MockSearchFunction mockedSearchFunction(Exception exception) {
         return new MockSearchFunction(exception);
     }
 
-    public MockSearchFunction mockedSearchFunction(Map<String, Map<String, ?>> documents) {
-        return new MockSearchFunction(mockResponse(documents));
-    }
-
-    public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
-        SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), Collections.emptyMap(), Collections.emptyMap());
-            try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
-                builder.map(e.getValue());
-                builder.flush();
-                ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
-                searchHit.sourceRef(new BytesArray(outputStream.toByteArray()));
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-            return searchHit;
-        }).toArray(SearchHit[]::new);
-        return new SearchResponse(
-            new SearchResponseSections(
-                new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
-                new Aggregations(Collections.emptyList()),
-                new Suggest(Collections.emptyList()),
-                false,
-                false,
-                null,
-                1
-            ),
-            null,
-            1,
-            1,
-            0,
-            1,
-            ShardSearchFailure.EMPTY_ARRAY,
-            new SearchResponse.Clusters(1, 1, 0)
-        );
+    public MockSearchFunction mockedSearchFunction(Map<?, ?> documents) {
+        return new MockSearchFunction(documents);
     }
 }

@@ -343,7 +343,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertFalse(searchResponse.isTerminatedEarly());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78080")
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
         prepareCreate("test").setSettings(
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.sort.field", "rank")

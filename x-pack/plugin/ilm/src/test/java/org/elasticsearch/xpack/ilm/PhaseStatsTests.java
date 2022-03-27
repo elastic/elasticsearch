@@ -34,18 +34,15 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
         TimeValue minimumAge = instance.getAfter();
         String[] actionNames = instance.getActionNames();
         switch (between(0, 1)) {
-            case 0:
-                minimumAge = randomValueOtherThan(
-                    minimumAge,
-                    () -> TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after")
-                );
-                break;
-            case 1:
+            case 0 -> minimumAge = randomValueOtherThan(
+                minimumAge,
+                () -> TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after")
+            );
+            case 1 -> {
                 actionNames = Arrays.copyOf(actionNames, actionNames.length + 1);
                 actionNames[actionNames.length - 1] = randomAlphaOfLengthBetween(10, 20);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PhaseStats(minimumAge, actionNames, instance.getConfigurations());
     }

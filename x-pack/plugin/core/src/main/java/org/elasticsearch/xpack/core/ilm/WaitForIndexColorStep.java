@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -93,21 +90,11 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         }
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
-        Result result;
-        switch (this.color) {
-            case GREEN:
-                result = waitForGreen(indexRoutingTable);
-                break;
-            case YELLOW:
-                result = waitForYellow(indexRoutingTable);
-                break;
-            case RED:
-                result = waitForRed(indexRoutingTable);
-                break;
-            default:
-                result = new Result(false, new Info("no index color match"));
-                break;
-        }
+        Result result = switch (this.color) {
+            case GREEN -> waitForGreen(indexRoutingTable);
+            case YELLOW -> waitForYellow(indexRoutingTable);
+            case RED -> waitForRed(indexRoutingTable);
+        };
         return result;
     }
 
@@ -142,8 +129,8 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         }
 
         if (indexRoutingTable.allPrimaryShardsActive()) {
-            for (ObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().values()) {
-                boolean replicaIndexIsGreen = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                boolean replicaIndexIsGreen = indexRoutingTable.shard(i).replicaShards().stream().allMatch(ShardRouting::active);
                 if (replicaIndexIsGreen == false) {
                     return new Result(false, new Info("index is yellow; not all replica shards are active"));
                 }

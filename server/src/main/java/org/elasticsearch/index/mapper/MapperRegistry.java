@@ -26,6 +26,7 @@ public final class MapperRegistry {
     private final Map<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
+    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
     private final Function<String, Predicate<String>> fieldFilter;
 
     public MapperRegistry(
@@ -40,6 +41,9 @@ public final class MapperRegistry {
         Map<String, MetadataFieldMapper.TypeParser> metadata7x = new LinkedHashMap<>(metadataMapperParsers);
         metadata7x.remove(NestedPathFieldMapper.NAME);
         this.metadataMapperParsers7x = metadata7x;
+        Map<String, MetadataFieldMapper.TypeParser> metadata5x = new LinkedHashMap<>(metadata7x);
+        metadata5x.put(LegacyTypeFieldMapper.NAME, LegacyTypeFieldMapper.PARSER);
+        this.metadataMapperParsers5x = metadata5x;
         this.fieldFilter = fieldFilter;
     }
 
@@ -62,8 +66,11 @@ public final class MapperRegistry {
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
         if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
             return metadataMapperParsers;
+        } else if (indexCreatedVersion.major < 6) {
+            return metadataMapperParsers5x;
+        } else {
+            return metadataMapperParsers7x;
         }
-        return metadataMapperParsers7x;
     }
 
     /**

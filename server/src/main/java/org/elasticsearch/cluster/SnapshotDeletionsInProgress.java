@@ -337,14 +337,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public static State readFrom(StreamInput in) throws IOException {
             final byte value = in.readByte();
-            switch (value) {
-                case 0:
-                    return WAITING;
-                case 1:
-                    return STARTED;
-                default:
-                    throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> WAITING;
+                case 1 -> STARTED;
+                default -> throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
+            };
         }
 
         @Override

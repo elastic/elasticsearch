@@ -62,35 +62,18 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
             if (text.charAt(i) == '\\') {
                 // ANTLR4 Grammar guarantees there is always a character after the `\`
                 switch (text.charAt(++i)) {
-                    case 't':
-                        sb.append('\t');
-                        break;
-                    case 'b':
-                        sb.append('\b');
-                        break;
-                    case 'f':
-                        sb.append('\f');
-                        break;
-                    case 'n':
-                        sb.append('\n');
-                        break;
-                    case 'r':
-                        sb.append('\r');
-                        break;
-                    case '"':
-                        sb.append('\"');
-                        break;
-                    case '\'':
-                        sb.append('\'');
-                        break;
-                    case 'u':
-                        i = handleUnicodePoints(source, sb, text, ++i);
-                        break;
-                    case '\\':
-                        sb.append('\\');
-                        // will be interpreted as regex, so we have to escape it
-                        break;
-                    default:
+                    case 't' -> sb.append('\t');
+                    case 'b' -> sb.append('\b');
+                    case 'f' -> sb.append('\f');
+                    case 'n' -> sb.append('\n');
+                    case 'r' -> sb.append('\r');
+                    case '"' -> sb.append('\"');
+                    case '\'' -> sb.append('\'');
+                    case 'u' -> i = handleUnicodePoints(source, sb, text, ++i);
+                    case '\\' -> sb.append('\\');
+
+                    // will be interpreted as regex, so we have to escape it
+                    default ->
                         // unknown escape sequence, pass through as-is, e.g: `...\w...`
                         sb.append('\\').append(text.charAt(i));
                 }

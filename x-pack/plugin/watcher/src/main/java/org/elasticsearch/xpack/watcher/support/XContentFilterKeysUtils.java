@@ -50,10 +50,8 @@ public final class XContentFilterKeysUtils {
         Map<String, Object> data = new HashMap<>();
         for (XContentParser.Token token = parser.nextToken(); token != END_OBJECT; token = parser.nextToken()) {
             switch (token) {
-                case FIELD_NAME:
-                    state.nextField(parser.currentName());
-                    break;
-                case START_OBJECT:
+                case FIELD_NAME -> state.nextField(parser.currentName());
+                case START_OBJECT -> {
                     if (state.includeKey) {
                         String fieldName = state.currentFieldName();
                         Map<String, Object> nestedData = parse(parser, state, isOutsideOfArray);
@@ -64,8 +62,8 @@ public final class XContentFilterKeysUtils {
                     if (isOutsideOfArray) {
                         state.previousField();
                     }
-                    break;
-                case START_ARRAY:
+                }
+                case START_ARRAY -> {
                     if (state.includeKey) {
                         String fieldName = state.currentFieldName();
                         List<Object> arrayData = arrayParsing(parser, state);
@@ -74,31 +72,31 @@ public final class XContentFilterKeysUtils {
                         parser.skipChildren();
                     }
                     state.previousField();
-                    break;
-                case VALUE_STRING:
+                }
+                case VALUE_STRING -> {
                     if (state.includeKey) {
                         data.put(state.currentFieldName(), parser.text());
                     }
                     if (isOutsideOfArray) {
                         state.previousField();
                     }
-                    break;
-                case VALUE_NUMBER:
+                }
+                case VALUE_NUMBER -> {
                     if (state.includeKey) {
                         data.put(state.currentFieldName(), parser.numberValue());
                     }
                     if (isOutsideOfArray) {
                         state.previousField();
                     }
-                    break;
-                case VALUE_BOOLEAN:
+                }
+                case VALUE_BOOLEAN -> {
                     if (state.includeKey) {
                         data.put(state.currentFieldName(), parser.booleanValue());
                     }
                     if (isOutsideOfArray) {
                         state.previousField();
                     }
-                    break;
+                }
             }
         }
         return data;
@@ -108,18 +106,10 @@ public final class XContentFilterKeysUtils {
         List<Object> values = new ArrayList<>();
         for (XContentParser.Token token = parser.nextToken(); token != END_ARRAY; token = parser.nextToken()) {
             switch (token) {
-                case START_OBJECT:
-                    values.add(parse(parser, state, false));
-                    break;
-                case VALUE_STRING:
-                    values.add(parser.text());
-                    break;
-                case VALUE_NUMBER:
-                    values.add(parser.numberValue());
-                    break;
-                case VALUE_BOOLEAN:
-                    values.add(parser.booleanValue());
-                    break;
+                case START_OBJECT -> values.add(parse(parser, state, false));
+                case VALUE_STRING -> values.add(parser.text());
+                case VALUE_NUMBER -> values.add(parser.numberValue());
+                case VALUE_BOOLEAN -> values.add(parser.booleanValue());
             }
         }
         return values;

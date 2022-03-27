@@ -11,7 +11,7 @@ IPv4 or IPv6 address.
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
 ASN GeoIP2 databases from
 http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
-CCA-ShareAlike 4.0 license. {es} automatically downloads updates for
+CC BY-SA 4.0 license. {es} automatically downloads updates for
 these databases from the Elastic GeoIP endpoint:
 https://geoip.elastic.co/v1/database. To get download statistics for these
 updates, use the <<geoip-stats-api,GeoIP stats API>>.

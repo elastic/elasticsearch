@@ -131,11 +131,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]",
             "strict_date_optional_time||epoch_millis"
         );
-        testIgnoreMalformedForValue(
-            "-2147483648",
-            "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]",
-            "strict_date_optional_time||epoch_millis"
-        );
         testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
     }
 
@@ -508,16 +503,12 @@ public class DateFieldMapperTests extends MapperTestCase {
     @Override
     protected String randomFetchTestFormat() {
         // TODO more choices! The test should work fine even for choices that throw out a ton of precision.
-        switch (randomInt(2)) {
-            case 0:
-                return null;
-            case 1:
-                return "epoch_millis";
-            case 2:
-                return "iso8601";
-            default:
-                throw new IllegalStateException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> "epoch_millis";
+            case 2 -> "iso8601";
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
@@ -529,16 +520,12 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 return randomLongBetween(0, Long.MAX_VALUE);
             case NANOSECONDS:
-                switch (randomInt(2)) {
-                    case 0:
-                        return randomLongBetween(0, MAX_NANOS);
-                    case 1:
-                        return randomIs8601Nanos(MAX_NANOS);
-                    case 2:
-                        return new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
-                    default:
-                        throw new IllegalStateException();
-                }
+                return switch (randomInt(2)) {
+                    case 0 -> randomLongBetween(0, MAX_NANOS);
+                    case 1 -> randomIs8601Nanos(MAX_NANOS);
+                    case 2 -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                    default -> throw new IllegalStateException();
+                };
             default:
                 throw new IllegalStateException();
         }

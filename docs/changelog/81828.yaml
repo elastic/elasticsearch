@@ -1,5 +1,0 @@
-pr: 81828
-summary: Change default shell to bash in default Docker image
-area: Packaging
-type: bug
-issues: []

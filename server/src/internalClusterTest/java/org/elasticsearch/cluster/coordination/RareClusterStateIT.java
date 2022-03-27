@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -107,8 +108,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {}
-        });
+            public void onFailure(Exception e) {}
+        }, ClusterStateTaskExecutor.unbatched());
         ensureGreen(index);
         // remove the extra node
         clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
@@ -122,8 +123,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {}
-        });
+            public void onFailure(Exception e) {}
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(

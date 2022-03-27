@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -28,14 +29,12 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
+    private static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -68,7 +67,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         // support _uid for loading older indices
         if ("_uid".equals(fieldInfo.name)) {
-            return Status.YES;
+            if (requiredFields.remove(IdFieldMapper.NAME) || requiredFields.remove(LegacyTypeFieldMapper.NAME)) {
+                return Status.YES;
+            }
         }
         // All these fields are single-valued so we can stop when the set is
         // empty
@@ -111,8 +112,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         if ("_uid".equals(fieldInfo.name)) {
             // 5.x-only
             int delimiterIndex = value.indexOf('#'); // type is not allowed to have # in it..., ids can
-            // type = value.substring(0, delimiterIndex);
+            String type = value.substring(0, delimiterIndex);
             id = value.substring(delimiterIndex + 1);
+            addValue(LegacyTypeFieldMapper.NAME, type);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             // only applies to 5.x indices that have single_type = true
             id = value;

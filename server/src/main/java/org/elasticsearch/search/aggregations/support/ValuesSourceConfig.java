@@ -434,7 +434,7 @@ public class ValuesSourceConfig {
      * the ordering.
      */
     public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isSearchable();
+        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
     }
 
     /**

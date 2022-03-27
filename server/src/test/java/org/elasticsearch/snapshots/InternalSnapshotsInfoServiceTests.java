@@ -385,7 +385,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
         PlainActionFuture.<Void, RuntimeException>get(
             future -> clusterService.getClusterApplierService()
-                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future)
+                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future),
+            10,
+            TimeUnit.SECONDS
         );
     }
 

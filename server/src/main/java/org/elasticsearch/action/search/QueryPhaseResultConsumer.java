@@ -36,8 +36,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
@@ -141,21 +141,25 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         );
         if (hasAggs
             // reduced aggregations can be null if all shards failed
-            && reducePhase.aggregations != null) {
+            && reducePhase.aggregations() != null) {
 
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations) - breakerSize;
+            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
-        progressListener.notifyFinalReduce(
-            SearchProgressListener.buildSearchShards(results.asList()),
-            reducePhase.totalHits,
-            reducePhase.aggregations,
-            reducePhase.numReducePhases
-        );
+        if (progressListener != SearchProgressListener.NOOP) {
+            progressListener.notifyFinalReduce(
+                SearchProgressListener.buildSearchShards(results.asList()),
+                reducePhase.totalHits(),
+                reducePhase.aggregations(),
+                reducePhase.numReducePhases()
+            );
+        }
         return reducePhase;
     }
+
+    private static final Comparator<QuerySearchResult> RESULT_COMPARATOR = Comparator.comparingInt(QuerySearchResult::getShardIndex);
 
     private MergeResult partialReduce(
         QuerySearchResult[] toConsume,
@@ -165,7 +169,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int numReducePhases
     ) {
         // ensure consistent ordering
-        Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+        Arrays.sort(toConsume, RESULT_COMPARATOR);
 
         for (QuerySearchResult result : toConsume) {
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
@@ -213,7 +217,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchShardTarget target = result.getSearchShardTarget();
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
-        progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        if (progressListener != SearchProgressListener.NOOP) {
+            progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        }
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
         long serializedSize = hasAggs ? DelayableWriteable.getSerializedSize(newAggs) : 0;
@@ -256,12 +262,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            List<Releasable> toRelease = new ArrayList<>(buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(Collectors.toList()));
+            List<Releasable> toRelease = buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(toCollection(ArrayList::new));
             toRelease.add(() -> {
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;
             });
-
             Releasables.close(toRelease);
 
             if (hasPendingMerges()) {
@@ -284,7 +289,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         void sortBuffer() {
             if (buffer.size() > 0) {
-                Collections.sort(buffer, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+                buffer.sort(RESULT_COMPARATOR);
             }
         }
 
@@ -498,24 +503,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
-    private static class MergeResult {
-        private final List<SearchShard> processedShards;
-        private final TopDocs reducedTopDocs;
-        private final InternalAggregations reducedAggs;
-        private final long estimatedSize;
-
-        private MergeResult(
-            List<SearchShard> processedShards,
-            TopDocs reducedTopDocs,
-            InternalAggregations reducedAggs,
-            long estimatedSize
-        ) {
-            this.processedShards = processedShards;
-            this.reducedTopDocs = reducedTopDocs;
-            this.reducedAggs = reducedAggs;
-            this.estimatedSize = estimatedSize;
-        }
-    }
+    private record MergeResult(
+        List<SearchShard> processedShards,
+        TopDocs reducedTopDocs,
+        InternalAggregations reducedAggs,
+        long estimatedSize
+    ) {}
 
     private static class MergeTask {
         private final List<SearchShard> emptyResults;

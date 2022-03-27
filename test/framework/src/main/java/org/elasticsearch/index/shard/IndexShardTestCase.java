@@ -830,7 +830,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
-        return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::getId).collect(Collectors.toSet());
+        return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::id).collect(Collectors.toSet());
     }
 
     public static List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {

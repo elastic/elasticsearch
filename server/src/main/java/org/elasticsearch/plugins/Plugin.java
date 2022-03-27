@@ -48,6 +48,7 @@ import java.util.function.UnaryOperator;
  * <li>{@link AnalysisPlugin}
  * <li>{@link ClusterPlugin}
  * <li>{@link DiscoveryPlugin}
+ * <li>{@link HealthPlugin}
  * <li>{@link IngestPlugin}
  * <li>{@link MapperPlugin}
  * <li>{@link NetworkPlugin}

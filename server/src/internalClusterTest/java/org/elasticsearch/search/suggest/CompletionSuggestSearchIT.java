@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
@@ -1285,15 +1285,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 mapping = mapping.startObject()
                     .field("name", contextMapping.getValue().name())
                     .field("type", contextMapping.getValue().type().name());
-                switch (contextMapping.getValue().type()) {
-                    case CATEGORY:
-                        mapping = mapping.field("path", ((CategoryContextMapping) contextMapping.getValue()).getFieldName());
-                        break;
-                    case GEO:
-                        mapping = mapping.field("path", ((GeoContextMapping) contextMapping.getValue()).getFieldName())
-                            .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
-                        break;
-                }
+                mapping = switch (contextMapping.getValue().type()) {
+                    case CATEGORY -> mapping.field("path", ((CategoryContextMapping) contextMapping.getValue()).getFieldName());
+                    case GEO -> mapping.field("path", ((GeoContextMapping) contextMapping.getValue()).getFieldName())
+                        .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
+                };
 
                 mapping = mapping.endObject();
             }
@@ -1343,7 +1339,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("b");
         assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
-            ShardSegments[] shards = seg.getShards();
+            ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
                 assertThat(shardSegments.getSegments().size(), equalTo(1));
             }

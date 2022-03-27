@@ -101,20 +101,12 @@ public class GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testMultipleIndexTemplateUpgrade() {
-        final Metadata metadata;
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                metadata = randomMetadataWithIndexTemplates("template1", "template2");
-                break;
-            case 1:
-                metadata = randomMetadataWithIndexTemplates(randomBoolean() ? "template1" : "template2");
-                break;
-            case 2:
-                metadata = randomMetadata();
-                break;
-            default:
-                throw new IllegalStateException("should never happen");
-        }
+        final Metadata metadata = switch (randomIntBetween(0, 2)) {
+            case 0 -> randomMetadataWithIndexTemplates("template1", "template2");
+            case 1 -> randomMetadataWithIndexTemplates(randomBoolean() ? "template1" : "template2");
+            case 2 -> randomMetadata();
+            default -> throw new IllegalStateException("should never happen");
+        };
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Arrays.asList(indexTemplateMetadatas -> {
             indexTemplateMetadatas.put(
                 "template1",

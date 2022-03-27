@@ -365,7 +365,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         Request request = new Request("GET", "/200");
         Response esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
         String header = esResponse.getHeader(RestClientBuilder.META_HEADER_NAME);
-        assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
+        assertTrue(header.matches("^es=[0-9]+\\.[0-9]+\\.[0-9]+p?,jv=[^,]+,t=[^,]*,hc=.*"));
 
         // Also check user-agent
         header = esResponse.getHeader("User-Agent");

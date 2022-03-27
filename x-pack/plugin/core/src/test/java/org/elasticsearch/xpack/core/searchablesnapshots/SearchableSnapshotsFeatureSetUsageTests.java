@@ -25,23 +25,16 @@ public class SearchableSnapshotsFeatureSetUsageTests extends AbstractWireSeriali
         int numFullCopySearchableSnapshotIndices = instance.getNumberOfFullCopySearchableSnapshotIndices();
         int numSharedCacheSearchableSnapshotIndices = instance.getNumberOfSharedCacheSearchableSnapshotIndices();
         switch (between(0, 2)) {
-            case 0:
-                available = available == false;
-                break;
-            case 1:
-                numFullCopySearchableSnapshotIndices = randomValueOtherThan(
-                    numFullCopySearchableSnapshotIndices,
-                    () -> randomIntBetween(0, 100000)
-                );
-                break;
-            case 2:
-                numSharedCacheSearchableSnapshotIndices = randomValueOtherThan(
-                    numSharedCacheSearchableSnapshotIndices,
-                    () -> randomIntBetween(0, 100000)
-                );
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> available = available == false;
+            case 1 -> numFullCopySearchableSnapshotIndices = randomValueOtherThan(
+                numFullCopySearchableSnapshotIndices,
+                () -> randomIntBetween(0, 100000)
+            );
+            case 2 -> numSharedCacheSearchableSnapshotIndices = randomValueOtherThan(
+                numSharedCacheSearchableSnapshotIndices,
+                () -> randomIntBetween(0, 100000)
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new SearchableSnapshotFeatureSetUsage(
             available,

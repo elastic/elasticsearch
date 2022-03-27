@@ -1,6 +1,9 @@
 setup:
   - skip:
-      features: headers
+      features:
+        - "warnings"
+        - "headers"
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -36,6 +39,8 @@ setup:
           }
 
   - do:
+      warnings:
+        - 'bucket_span 17m [1020s] is not an integral divisor of the number of seconds in 1d [86400s]. This is now deprecated.'
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.put_job:

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.client.HttpClient.ResponseWithWarnings;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -18,12 +18,13 @@ import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.core.Tuple;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
@@ -68,17 +69,22 @@ class JdbcHttpClient {
             fetch,
             TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
             TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
-            null,
             Boolean.FALSE,
             null,
             new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
             conCfg.fieldMultiValueLeniency(),
             conCfg.indexIncludeFrozen(),
-            conCfg.binaryCommunication(),
-            emptyMap()
+            conCfg.binaryCommunication()
         );
-        SqlQueryResponse response = httpClient.query(sqlRequest);
-        return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
+        ResponseWithWarnings<SqlQueryResponse> response = httpClient.query(sqlRequest);
+        return new DefaultCursor(
+            this,
+            response.response().cursor(),
+            toJdbcColumnInfo(response.response().columns()),
+            response.response().rows(),
+            meta,
+            response.warnings()
+        );
     }
 
     /**
@@ -93,7 +99,7 @@ class JdbcHttpClient {
             new RequestInfo(Mode.JDBC),
             conCfg.binaryCommunication()
         );
-        SqlQueryResponse response = httpClient.query(sqlRequest);
+        SqlQueryResponse response = httpClient.query(sqlRequest).response();
         return new Tuple<>(response.cursor(), response.rows());
     }
 
@@ -109,9 +115,13 @@ class JdbcHttpClient {
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
-        MainResponse mainResponse = httpClient.serverInfo();
-        SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version);
+        try {
+            MainResponse mainResponse = httpClient.serverInfo();
+            SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
+            return new InfoResponse(mainResponse.getClusterName(), version);
+        } catch (ClientException ex) {
+            throw new SQLException(ex);
+        }
     }
 
     private void checkServerVersion() throws SQLException {

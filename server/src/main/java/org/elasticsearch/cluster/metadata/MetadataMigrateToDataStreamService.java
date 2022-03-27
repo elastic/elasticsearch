@@ -16,13 +16,17 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -34,16 +38,26 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.createDataStream;
 
 public class MetadataMigrateToDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataMigrateToDataStreamService.class);
+
+    private static final CompressedXContent TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(DataStreamTimestampFieldMapper.NAME).field("enabled", true).endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -101,8 +115,14 @@ public class MetadataMigrateToDataStreamService {
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-            }
+            },
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     static ClusterState migrateToDataStream(
@@ -129,7 +149,7 @@ public class MetadataMigrateToDataStreamService {
             .stream()
             .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
             .map(x -> finalCurrentState.metadata().index(x))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
@@ -169,11 +189,7 @@ public class MetadataMigrateToDataStreamService {
 
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
-        mapperService.merge(
-            "_doc",
-            Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, TIMESTAMP_MAPPING, MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();
 
         var imb = IndexMetadata.builder(im);

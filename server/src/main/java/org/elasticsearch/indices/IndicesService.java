@@ -73,6 +73,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -142,6 +143,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -203,7 +205,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Settings settings;
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
-    private final NamedXContentRegistry xContentRegistry;
     private final XContentParserConfiguration parserConfig;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
@@ -238,7 +239,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
 
-    private final IdFieldMapper idFieldMapper = new IdFieldMapper(() -> idFieldDataEnabled);
+    private final Function<IndexMode, IdFieldMapper> idFieldMappers;
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -286,7 +287,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
-        this.xContentRegistry = xContentRegistry;
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRegistry(xContentRegistry);
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -361,6 +361,12 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         });
 
+        Map<IndexMode, IdFieldMapper> idFieldMappers = new EnumMap<>(IndexMode.class);
+        for (IndexMode mode : IndexMode.values()) {
+            idFieldMappers.put(mode, mode.buildIdFieldMapper(() -> idFieldDataEnabled));
+        }
+        this.idFieldMappers = idFieldMappers::get;
+
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
         danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo
@@ -370,6 +376,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 1,
                 0,
                 TimeUnit.MILLISECONDS,
+                true,
                 daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext()
             )
@@ -441,30 +448,14 @@ public class IndicesService extends AbstractLifecycleComponent
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
             switch (flag) {
-                case Get:
-                    commonStats.get.add(oldShardsStats.getStats);
-                    break;
-                case Indexing:
-                    commonStats.indexing.add(oldShardsStats.indexingStats);
-                    break;
-                case Search:
-                    commonStats.search.add(oldShardsStats.searchStats);
-                    break;
-                case Merge:
-                    commonStats.merge.add(oldShardsStats.mergeStats);
-                    break;
-                case Refresh:
-                    commonStats.refresh.add(oldShardsStats.refreshStats);
-                    break;
-                case Recovery:
-                    commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
-                    break;
-                case Flush:
-                    commonStats.flush.add(oldShardsStats.flushStats);
-                    break;
-                case Bulk:
-                    commonStats.bulk.add(oldShardsStats.bulkStats);
-                    break;
+                case Get -> commonStats.get.add(oldShardsStats.getStats);
+                case Indexing -> commonStats.indexing.add(oldShardsStats.indexingStats);
+                case Search -> commonStats.search.add(oldShardsStats.searchStats);
+                case Merge -> commonStats.merge.add(oldShardsStats.mergeStats);
+                case Refresh -> commonStats.refresh.add(oldShardsStats.refreshStats);
+                case Recovery -> commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                case Flush -> commonStats.flush.add(oldShardsStats.flushStats);
+                case Bulk -> commonStats.bulk.add(oldShardsStats.bulkStats);
             }
         }
 
@@ -722,7 +713,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexModule.newIndexService(
             indexCreationContext,
             nodeEnv,
-            xContentRegistry,
+            parserConfig,
             this,
             circuitBreakerService,
             bigArrays,
@@ -734,7 +725,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            idFieldMapper,
+            idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers
@@ -751,7 +742,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
             .map(engineFactoryProvider -> engineFactoryProvider.apply(idxSettings))
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
-            .collect(Collectors.toList());
+            .toList();
         if (engineFactories.isEmpty()) {
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
@@ -789,7 +780,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories
         );
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
     }
 
     /**
@@ -1644,9 +1635,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (
                 InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream)
-                    .xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)
+                XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
                 return parseInnerQueryBuilder(parser);
             }
@@ -1665,7 +1654,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             if (filters.isEmpty()) {
                 return new AliasFilter(null, aliases);
             } else {

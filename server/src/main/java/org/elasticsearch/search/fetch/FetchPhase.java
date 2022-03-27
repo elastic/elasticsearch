@@ -134,14 +134,13 @@ public class FetchPhase {
                     try {
                         currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         currentReaderIndex = readerIndex;
-                        if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader
+                        if (currentReaderContext.reader()instanceof SequentialStoredFieldsLeafReader lf
                             && hasSequentialDocs
                             && docs.length >= 10) {
                             // All the docs to fetch are adjacent but Lucene stored fields are optimized
                             // for random access and don't optimize for sequential access - except for merging.
                             // So we do a little hack here and pretend we're going to do merges in order to
                             // get better sequential access.
-                            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
                             fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
                         } else {
                             fieldReader = currentReaderContext.reader()::document;
@@ -217,7 +216,7 @@ public class FetchPhase {
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
             if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
-                context.fetchSourceContext(new FetchSourceContext(true));
+                context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
             return new FieldsVisitor(loadSource);
@@ -230,7 +229,7 @@ public class FetchPhase {
                     FetchSourceContext fetchSourceContext = context.hasFetchSourceContext()
                         ? context.fetchSourceContext()
                         : FetchSourceContext.FETCH_SOURCE;
-                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+                    context.fetchSourceContext(FetchSourceContext.of(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
@@ -363,8 +362,7 @@ public class FetchPhase {
         XContentType rootSourceContentType = null;
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-        if (context instanceof InnerHitsContext.InnerHitSubContext) {
-            InnerHitsContext.InnerHitSubContext innerHitsContext = (InnerHitsContext.InnerHitSubContext) context;
+        if (context instanceof InnerHitsContext.InnerHitSubContext innerHitsContext) {
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {

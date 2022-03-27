@@ -89,6 +89,30 @@ setup:
           grid_type: point
 
 ---
+"grid agg geotile":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_agg: geotile
+
+---
+"grid agg geohex":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_agg: geohex
+
+---
 "grid type grid":
   - do:
       search_mvt:

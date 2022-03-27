@@ -243,19 +243,15 @@ public class AzureHttpHandler implements HttpHandler {
     // See https://docs.microsoft.com/en-us/rest/api/storageservices/common-rest-api-error-codes
     private static String toAzureErrorCode(final RestStatus status) {
         assert status.getStatus() >= 400;
-        switch (status) {
-            case BAD_REQUEST:
-                return "InvalidMetadata";
-            case NOT_FOUND:
-                return "BlobNotFound";
-            case INTERNAL_SERVER_ERROR:
-                return "InternalError";
-            case SERVICE_UNAVAILABLE:
-                return "ServerBusy";
-            case CONFLICT:
-                return "BlobAlreadyExists";
-            default:
-                throw new IllegalArgumentException("Error code [" + status.getStatus() + "] is not mapped to an existing Azure code");
-        }
+        return switch (status) {
+            case BAD_REQUEST -> "InvalidMetadata";
+            case NOT_FOUND -> "BlobNotFound";
+            case INTERNAL_SERVER_ERROR -> "InternalError";
+            case SERVICE_UNAVAILABLE -> "ServerBusy";
+            case CONFLICT -> "BlobAlreadyExists";
+            default -> throw new IllegalArgumentException(
+                "Error code [" + status.getStatus() + "] is not mapped to an existing Azure code"
+            );
+        };
     }
 }

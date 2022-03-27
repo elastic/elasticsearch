@@ -78,7 +78,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     // package private for test
-    boolean hasRemoteIndices(SearchRequest request) {
+    static boolean hasRemoteIndices(SearchRequest request) {
         return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
     }
 }

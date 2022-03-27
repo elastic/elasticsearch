@@ -282,7 +282,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // overrideable by tests
-    Logger getLogger() {
+    static Logger getLogger() {
         return logger;
     }
 

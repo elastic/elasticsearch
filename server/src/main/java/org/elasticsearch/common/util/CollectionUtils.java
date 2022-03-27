@@ -108,7 +108,7 @@ public class CollectionUtils {
                 return compare(pivot, array.get(j));
             }
 
-            private int compare(byte[] left, byte[] right) {
+            private static int compare(byte[] left, byte[] right) {
                 for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
                     int a = left[i] & 0xFF;
                     int b = right[j] & 0xFF;

@@ -2023,7 +2023,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService,
                         clusterService,
                         repositoriesService,
-                        snapshotsService,
                         threadPool,
                         actionFilters,
                         indexNameExpressionResolver

@@ -303,7 +303,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxFileDescriptorCount() {
-            return ProcessProbe.getInstance().getMaxFileDescriptorCount();
+            return ProcessProbe.getMaxFileDescriptorCount();
         }
 
     }
@@ -462,7 +462,7 @@ final class BootstrapChecks {
         }
 
         @SuppressForbidden(reason = "access /proc/sys/vm/max_map_count")
-        private Path getProcSysVmMaxMapCountPath() {
+        private static Path getProcSysVmMaxMapCountPath() {
             return PathUtils.get("/proc/sys/vm/max_map_count");
         }
 
@@ -472,12 +472,12 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
+        static String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
             return bufferedReader.readLine();
         }
 
         // visible for testing
-        long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
+        static long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
             return Long.parseLong(procSysVmMaxMapCount);
         }
 

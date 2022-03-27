@@ -608,7 +608,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 

@@ -696,7 +696,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return routing;
     }
 
-    private void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
+    private static void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
         String[] indexNames = new String[result.getIndices().size()];
         int i = 0;
         for (Index indexName : result.getIndices()) {
@@ -1232,7 +1232,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
+        static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
                 return true;
             }

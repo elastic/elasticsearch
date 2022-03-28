@@ -209,8 +209,8 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BytesRef binaryValue() {
             try {
-                bytesList.sort(Arrays::compare);
-                CollectionUtils.uniquify(bytesList, Arrays::compare);
+                bytesList.sort(Arrays::compareUnsigned);
+                CollectionUtils.uniquify(bytesList, Arrays::compareUnsigned);
                 int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
                 int n = bytesList.size();
                 BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);

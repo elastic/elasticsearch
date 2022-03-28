@@ -10,10 +10,6 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -24,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -204,65 +199,6 @@ public class CollectionUtils {
         public int size() {
             return in.size();
         }
-    }
-
-    public static void sort(final BytesRefArray bytes, final int[] indices) {
-        sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
-    }
-
-    private static void sort(
-        final BytesRefBuilder scratch,
-        final BytesRefBuilder scratch1,
-        final BytesRefArray bytes,
-        final int[] indices
-    ) {
-
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues > 1) {
-            new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
-
-                @Override
-                protected int compare(int i, int j) {
-                    return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
-                }
-
-                @Override
-                protected void swap(int i, int j) {
-                    int value_i = indices[i];
-                    indices[i] = indices[j];
-                    indices[j] = value_i;
-                }
-            }.sort(0, numValues);
-        }
-
-    }
-
-    public static int sortAndDedup(final BytesRefArray bytes, final int[] indices) {
-        final BytesRefBuilder scratch = new BytesRefBuilder();
-        final BytesRefBuilder scratch1 = new BytesRefBuilder();
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues <= 1) {
-            return numValues;
-        }
-        sort(scratch, scratch1, bytes, indices);
-        int uniqueCount = 1;
-        BytesRefBuilder previous = scratch;
-        BytesRefBuilder current = scratch1;
-        bytes.get(previous, indices[0]);
-        for (int i = 1; i < numValues; ++i) {
-            bytes.get(current, indices[i]);
-            if (previous.get().equals(current.get()) == false) {
-                indices[uniqueCount++] = indices[i];
-            }
-            BytesRefBuilder tmp = previous;
-            previous = current;
-            current = tmp;
-        }
-        return uniqueCount;
-
     }
 
     @SuppressWarnings("unchecked")

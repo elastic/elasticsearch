@@ -58,7 +58,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         var split = joinTaskContexts.stream().collect(Collectors.partitioningBy(t -> t.getTask().term() == term));
         for (TaskContext<JoinTask> outdated : split.get(false)) {
-            outdated.onFailure(new NotMasterException("Higher term encountered (encountered: " + term + " > used: " + outdated.getTask().term() + ")"));
+            outdated.onFailure(
+                new NotMasterException("Higher term encountered (encountered: " + term + " > used: " + outdated.getTask().term() + ")")
+            );
         }
 
         joinTaskContexts = split.get(true);

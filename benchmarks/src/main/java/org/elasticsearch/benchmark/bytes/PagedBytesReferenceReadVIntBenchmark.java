@@ -5,8 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.benchmark.bytes;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -30,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
 @Fork(value = 1)
-public class BytesArrayReadVLongBenchmark {
+public class PagedBytesReferenceReadVIntBenchmark {
 
     @Param(value = { "10000000" })
     int entries;
@@ -41,24 +43,24 @@ public class BytesArrayReadVLongBenchmark {
     public void initResults() throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
         for (int i = 0; i < entries / 2; i++) {
-            tmp.writeVLong(i);
+            tmp.writeVInt(i);
         }
         for (int i = 0; i < entries / 2; i++) {
-            tmp.writeVLong(Long.MAX_VALUE - i);
+            tmp.writeVInt(Integer.MAX_VALUE - i);
         }
-        BytesReference bytesArray = tmp.copyBytes();
-        if (bytesArray instanceof BytesArray == false) {
-            throw new AssertionError("expected BytesArray but saw [" + bytesArray.getClass() + "]");
+        BytesReference pagedBytes = tmp.bytes();
+        if (pagedBytes instanceof PagedBytesReference == false) {
+            throw new AssertionError("expected PagedBytesReference but saw [" + pagedBytes.getClass() + "]");
         }
-        this.streamInput = bytesArray.streamInput();
+        this.streamInput = pagedBytes.streamInput();
     }
 
     @Benchmark
-    public long readVLong() throws IOException {
-        long res = 0;
+    public int readVInt() throws IOException {
+        int res = 0;
         streamInput.reset();
         for (int i = 0; i < entries; i++) {
-            res = res ^ streamInput.readVLong();
+            res = res ^ streamInput.readVInt();
         }
         return res;
     }

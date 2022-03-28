@@ -112,7 +112,7 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.net.SocketPermission "*", "accept,connect";
 };
 
-// TODO: Nasty
 grant {
    permission java.lang.RuntimePermission "shutdownHooks";
+   permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
 };

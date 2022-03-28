@@ -26,8 +26,7 @@ import org.elasticsearch.common.inject.spi.Dependency;
 import java.util.List;
 
 /**
- * Builds a tree of injectors. This is a primary injector, plus child injectors needed for each
- * {@link Binder#newPrivateBinder() private environment}. The primary injector is not necessarily a
+ * Builds a tree of injectors. This is a primary injector. The primary injector is not necessarily a
  * top-level injector.
  * <p>
  * Injector construction happens in two phases.
@@ -49,28 +48,14 @@ class InjectorBuilder {
     private final Stopwatch stopwatch = new Stopwatch();
     private final Errors errors = new Errors();
 
-    private Stage stage;
-
     private final Initializer initializer = new Initializer();
     private final BindingProcessor bindingProcesor;
-    private final InjectionRequestProcessor injectionRequestProcessor;
 
     private final InjectorShell.Builder shellBuilder = new InjectorShell.Builder();
     private List<InjectorShell> shells;
 
     InjectorBuilder() {
-        injectionRequestProcessor = new InjectionRequestProcessor(errors, initializer);
         bindingProcesor = new BindingProcessor(errors, initializer);
-    }
-
-    /**
-     * Sets the stage for the created injector. If the stage is {@link Stage#PRODUCTION}, this class
-     * will eagerly load singletons.
-     */
-    InjectorBuilder stage(Stage stage) {
-        shellBuilder.stage(stage);
-        this.stage = stage;
-        return this;
     }
 
     InjectorBuilder addModules(Iterable<? extends Module> modules) {
@@ -79,14 +64,11 @@ class InjectorBuilder {
     }
 
     Injector build() {
-        if (shellBuilder == null) {
-            throw new AssertionError("Already built, builders are not reusable.");
-        }
 
         // Synchronize while we're building up the bindings and other injector state. This ensures that
         // the JIT bindings in the parent injector don't change while we're being built
         synchronized (shellBuilder.lock()) {
-            shells = shellBuilder.build(initializer, bindingProcesor, stopwatch, errors);
+            shells = shellBuilder.build(bindingProcesor, stopwatch, errors);
             stopwatch.resetAndLog("Injector construction");
 
             initializeStatically();
@@ -109,13 +91,11 @@ class InjectorBuilder {
         }
         stopwatch.resetAndLog("Binding indexing");
 
-        injectionRequestProcessor.process(shells);
         stopwatch.resetAndLog("Collecting injection requests");
 
         bindingProcesor.runCreationListeners();
         stopwatch.resetAndLog("Binding validation");
 
-        injectionRequestProcessor.validate();
         stopwatch.resetAndLog("Static validation");
 
         initializer.validateOustandingInjections(errors);
@@ -149,7 +129,6 @@ class InjectorBuilder {
      * code build a just-in-time binding from another thread.
      */
     private void injectDynamically() {
-        injectionRequestProcessor.injectMembers();
         stopwatch.resetAndLog("Static member injection");
 
         initializer.injectAll(errors);
@@ -157,7 +136,7 @@ class InjectorBuilder {
         errors.throwCreationExceptionIfErrorsExist();
 
         for (InjectorShell shell : shells) {
-            loadEagerSingletons(shell.getInjector(), stage, errors);
+            loadEagerSingletons(shell.getInjector(), Stage.DEVELOPMENT, errors);
         }
         stopwatch.resetAndLog("Preloading singletons");
         errors.throwCreationExceptionIfErrorsExist();
@@ -171,8 +150,8 @@ class InjectorBuilder {
         for (final Binding<?> binding : injector.state.getExplicitBindingsThisLevel().values()) {
             loadEagerSingletons(injector, stage, errors, (BindingImpl<?>) binding);
         }
-        for (final Binding<?> binding : injector.jitBindings.values()) {
-            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>) binding);
+        for (final BindingImpl<?> binding : injector.jitBindings.values()) {
+            loadEagerSingletons(injector, stage, errors, binding);
         }
     }
 
@@ -180,7 +159,7 @@ class InjectorBuilder {
         if (binding.getScoping().isEagerSingleton(stage)) {
             try {
                 injector.callInContext(new ContextualCallable<Void>() {
-                    Dependency<?> dependency = Dependency.get(binding.getKey());
+                    final Dependency<?> dependency = Dependency.get(binding.getKey());
 
                     @Override
                     public Void call(InternalContext context) {

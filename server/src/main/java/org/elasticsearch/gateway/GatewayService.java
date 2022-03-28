@@ -36,7 +36,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
@@ -189,19 +188,13 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             }
         } else {
             if (recoveryInProgress.compareAndSet(false, true)) {
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(final Exception e) {
-                        logger.warn("state recovery failed", e);
-                        resetRecoveredFlags();
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        logger.debug("performing state recovery...");
-                        runRecovery();
-                    }
-                });
+                try {
+                    logger.debug("performing state recovery...");
+                    runRecovery();
+                } catch (Exception e) {
+                    logger.warn("state recovery failed", e);
+                    resetRecoveredFlags();
+                }
             }
         }
     }
@@ -221,11 +214,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 logger.debug("cluster is already recovered");
                 return currentState;
             }
-
-            return Function.<ClusterState>identity()
-                .andThen(ClusterStateUpdaters::updateRoutingTable)
-                .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
-                .apply(currentState);
+            return ClusterStateUpdaters.removeStateNotRecoveredBlock(ClusterStateUpdaters.updateRoutingTable(currentState));
         }
 
         @Override

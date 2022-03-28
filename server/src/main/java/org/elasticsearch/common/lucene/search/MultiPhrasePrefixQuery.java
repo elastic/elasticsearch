@@ -35,8 +35,8 @@ import java.util.Objects;
 public class MultiPhrasePrefixQuery extends Query {
 
     private final String field;
-    private ArrayList<Term[]> termArrays = new ArrayList<>();
-    private ArrayList<Integer> positions = new ArrayList<>();
+    private final ArrayList<Term[]> termArrays = new ArrayList<>();
+    private final ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
@@ -294,10 +294,6 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         return true;
-    }
-
-    public String getField() {
-        return field;
     }
 
     @Override

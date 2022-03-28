@@ -176,7 +176,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         logger.warn(
             "User roles [{}] are disabled since they require document or field level security to determine user access. "
                 + "These security features [{}, {}] are not available under the current license. "
-                + "Users will be denied access to documents or fields granted by above roles. "
+                + "Access to documents or fields granted by above roles will be denied. "
                 + "To re-enable the roles, upgrade license to [{}] or above, or renew if it's expired.",
             DOCUMENT_LEVEL_SECURITY_FEATURE.getName(),
             FIELD_LEVEL_SECURITY_FEATURE.getName(),

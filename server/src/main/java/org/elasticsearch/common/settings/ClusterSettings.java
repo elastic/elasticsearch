@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.JoinValidationService;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
@@ -490,6 +491,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
         Coordinator.PUBLISH_TIMEOUT_SETTING,
         Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
+        JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING,
         FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
         FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
         FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,

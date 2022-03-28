@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
@@ -22,12 +21,10 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +39,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -54,7 +50,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -64,7 +59,6 @@ public class JoinHelper {
 
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
-    public static final String JOIN_VALIDATE_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
     private final AllocationService allocationService;
@@ -81,15 +75,12 @@ public class JoinHelper {
     private final Map<DiscoveryNode, Releasable> joinConnections = new HashMap<>(); // synchronized on itself
 
     JoinHelper(
-        Settings settings,
         AllocationService allocationService,
         MasterService masterService,
         TransportService transportService,
         LongSupplier currentTermSupplier,
-        Supplier<ClusterState> currentStateSupplier,
         BiConsumer<JoinRequest, ActionListener<Void>> joinHandler,
         Function<StartJoinRequest, Join> joinLeaderInTerm,
-        Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
         JoinReasonService joinReasonService
@@ -134,33 +125,6 @@ public class JoinHelper {
             false,
             TransportRequest.Empty::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)
-        );
-
-        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        transportService.registerRequestHandler(
-            JOIN_VALIDATE_ACTION_NAME,
-            ThreadPool.Names.CLUSTER_COORDINATION,
-            ValidateJoinRequest::new,
-            (request, channel, task) -> {
-                final ClusterState localState = currentStateSupplier.get();
-                if (localState.metadata().clusterUUIDCommitted()
-                    && localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException(
-                        "This node previously joined a cluster with UUID ["
-                            + localState.metadata().clusterUUID()
-                            + "] and is now trying to join a different cluster with UUID ["
-                            + request.getState().metadata().clusterUUID()
-                            + "]. This is forbidden and usually indicates an incorrect "
-                            + "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and "
-                            + "can only be changed by deleting the contents of the node's data "
-                            + (dataPaths.size() == 1 ? "path " : "paths ")
-                            + dataPaths
-                            + " which will also remove any data held by this node."
-                    );
-                }
-                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
-                channel.sendResponse(Empty.INSTANCE);
-            }
         );
     }
 

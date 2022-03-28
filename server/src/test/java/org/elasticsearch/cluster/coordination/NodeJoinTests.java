@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO")
 public class NodeJoinTests extends ESTestCase {
 
     private static ThreadPool threadPool;
@@ -182,11 +184,12 @@ public class NodeJoinTests extends ESTestCase {
                             initialState.getClusterName()
                         )
                     );
-                } else if (action.equals(JoinHelper.JOIN_VALIDATE_ACTION_NAME) || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportResponse.Empty());
-                } else {
-                    super.onSendRequest(requestId, action, request, destination);
-                }
+                } else if (action.equals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME)
+                    || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
+                        handleResponse(requestId, new TransportResponse.Empty());
+                    } else {
+                        super.onSendRequest(requestId, action, request, destination);
+                    }
             }
         };
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

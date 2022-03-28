@@ -1,0 +1,6 @@
+pr: 85393
+summary: Warn on user roles disabled due license reqs
+area: Authentication
+type: enhancement
+issues:
+ - 79207

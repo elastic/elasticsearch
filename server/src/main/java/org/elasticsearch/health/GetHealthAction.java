@@ -128,8 +128,9 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final String componentName;
         private final String indicatorName;
 
-        public Request(boolean includeDetails) {
-            this.computeDetails = includeDetails;
+        public Request() {
+            // We never compute details if no component name is given because of the runtime cost:
+            this.computeDetails = false;
             this.componentName = null;
             this.indicatorName = null;
         }

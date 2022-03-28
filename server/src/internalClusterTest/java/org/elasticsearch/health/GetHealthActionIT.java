@@ -215,7 +215,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
             // First, test that we don't request any components or indicators, and get back everything (but no details):
             {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(false)).get();
+                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
 
                 assertThat(
                     response.getStatus(),

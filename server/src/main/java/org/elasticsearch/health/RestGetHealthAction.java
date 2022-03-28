@@ -40,7 +40,7 @@ public class RestGetHealthAction extends BaseRestHandler {
         String componentName = request.param("component");
         String indicatorName = request.param("indicator");
         GetHealthAction.Request getHealthRequest = componentName == null
-            ? new GetHealthAction.Request(false)
+            ? new GetHealthAction.Request()
             : new GetHealthAction.Request(componentName, indicatorName);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }

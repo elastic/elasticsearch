@@ -84,6 +84,23 @@ public class PluginInfoTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
     }
 
+    public void testReadFromPropertiesElasticsearchVersionEmpty() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "elasticsearch.version",
+            "  "
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
+    }
+
     public void testReadFromPropertiesJavaVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(

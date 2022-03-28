@@ -1668,10 +1668,12 @@ public class RestoreService implements ClusterStateApplier {
 
             try {
                 Mapping mapping = indexMetadataVerifier.checkMappingsCompatibility(convertedIndexMetadata);
-                convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
-                // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)
-                convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mapping.toCompressedXContent()));
-                return convertedIndexMetadataBuilder.build();
+                if (mapping != null) {
+                    convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
+                    // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)
+                    convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mapping.toCompressedXContent()));
+                    return convertedIndexMetadataBuilder.build();
+                }
             } catch (Exception e) {
                 logger.warn(
                     new ParameterizedMessage("could not import mappings for legacy index {}", snapshotIndexMetadata.getIndex().getName()),

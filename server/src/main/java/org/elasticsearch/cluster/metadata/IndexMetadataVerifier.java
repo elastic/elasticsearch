@@ -18,10 +18,12 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -129,6 +131,7 @@ public class IndexMetadataVerifier {
      * indicate a compatibility bug (which are unfortunately not that uncommon).
      * @return the mapping
      */
+    @Nullable
     public Mapping checkMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
 
@@ -196,7 +199,8 @@ public class IndexMetadataVerifier {
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-                return mapperService.documentMapper().mapping();
+                DocumentMapper documentMapper = mapperService.documentMapper();
+                return documentMapper == null ? null : documentMapper.mapping();
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message

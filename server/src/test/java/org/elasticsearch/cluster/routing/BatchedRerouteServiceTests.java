@@ -223,7 +223,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     return ClusterState.builder(state)
                         .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId()))
                         .build();
-                }, ActionListener.wrap(() -> {}));
+                }, ActionListener.noop());
             }
         }
 

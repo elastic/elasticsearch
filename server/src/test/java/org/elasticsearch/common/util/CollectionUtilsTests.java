@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -19,18 +15,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class CollectionUtilsTests extends ESTestCase {
     public void testRotateEmpty() {
@@ -60,67 +52,6 @@ public class CollectionUtilsTests extends ESTestCase {
                 assertEquals(list, CollectionUtils.rotate(CollectionUtils.rotate(list, distance), -distance));
             }
         }
-    }
-
-    public void testSortAndDedupByteRefArray() {
-        SortedSet<BytesRef> set = new TreeSet<>();
-        final int numValues = scaledRandomIntBetween(0, 10000);
-        List<BytesRef> tmpList = new ArrayList<>();
-        BytesRefArray array = new BytesRefArray(Counter.newCounter());
-        for (int i = 0; i < numValues; i++) {
-            String s = randomRealisticUnicodeOfCodepointLengthBetween(1, 100);
-            set.add(new BytesRef(s));
-            tmpList.add(new BytesRef(s));
-            array.append(new BytesRef(s));
-        }
-        if (randomBoolean()) {
-            Collections.shuffle(tmpList, random());
-            for (BytesRef ref : tmpList) {
-                array.append(ref);
-            }
-        }
-        int[] indices = new int[array.size()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-        int numUnique = CollectionUtils.sortAndDedup(array, indices);
-        assertThat(numUnique, equalTo(set.size()));
-        Iterator<BytesRef> iterator = set.iterator();
-
-        BytesRefBuilder spare = new BytesRefBuilder();
-        for (int i = 0; i < numUnique; i++) {
-            assertThat(iterator.hasNext(), is(true));
-            assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));
-        }
-
-    }
-
-    public void testSortByteRefArray() {
-        List<BytesRef> values = new ArrayList<>();
-        final int numValues = scaledRandomIntBetween(0, 10000);
-        BytesRefArray array = new BytesRefArray(Counter.newCounter());
-        for (int i = 0; i < numValues; i++) {
-            String s = randomRealisticUnicodeOfCodepointLengthBetween(1, 100);
-            values.add(new BytesRef(s));
-            array.append(new BytesRef(s));
-        }
-        if (randomBoolean()) {
-            Collections.shuffle(values, random());
-        }
-        int[] indices = new int[array.size()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-        CollectionUtils.sort(array, indices);
-        Collections.sort(values);
-        Iterator<BytesRef> iterator = values.iterator();
-
-        BytesRefBuilder spare = new BytesRefBuilder();
-        for (int i = 0; i < values.size(); i++) {
-            assertThat(iterator.hasNext(), is(true));
-            assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));
-        }
-
     }
 
     public void testEmptyPartition() {

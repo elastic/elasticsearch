@@ -87,7 +87,7 @@ TIP: `iss`, `aud`, `iat`, and `exp` are required. `iss` and `aud` must be allowe
 IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workflow, not application to JWT realm.
 
 Elasticsearch claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
-Regular expressions may be used with some or none of these claims.
+Regular expression settings may be used.
 
 See <<security-settings,ref-jwt-settings>>.
 
@@ -105,7 +105,7 @@ WARNING: JWT realm does not support using the role_mapping.yml file.
 
 ==== JWT Realm Authorization via Role Mapping API
 
-If JWT realm role mapping is used for authorization, these claims are available for role mapping.
+.If JWT realm role mapping is used for authorization, these claims are available for role mapping.
 * `principal` claim: JWT claim in the form of a string is used as the {es} user's principal value.
 * `dn` claim: JWT claim in the form of a Distinguished Name string is used as the {es} user's DN value.
 * `groups` claim: JWT claim in the form of a comma separate list is used as the {es} user's groups value.
@@ -119,19 +119,23 @@ Example JWT realm role mapping rule.
 
 [source,text]
 --------------------------------------------------
-{ "all": [
-    { "field": { "realm.name": "jwt1" } },
-    { "field": { "username": "principalname1" } }
-    { "field": { "dn": "CN=Principal Name 1,DC=example.com" } }
-    { "field": { "groups": "group1" } }
-    { "field": { "metadata.jwt_claim_other1": "value1" } }
-    { "field": { "metadata.jwt_claim_other2": "value2" } }
-] }
+PUT /_security/role_mapping/jwt1_users
+{
+  "roles" : [ "user" ],
+  "rules" : { "all" : [
+      { "field": { "realm.name": "jwt1" } },
+      { "field": { "username": "principalname1" } }
+      { "field": { "dn": "CN=Principal Name 1,DC=example.com" } }
+      { "field": { "groups": "group1" } }
+      { "field": { "metadata.jwt_claim_other": "other1" } }
+  ] },
+  "enabled": true
+}
 --------------------------------------------------
 
 ==== JWT Realm Authorization via Delegated Authorization
 
-If Delegated Realms are used for authorization, this claim is available for roles lookup.
+.If Delegated Realms are used for authorization, this claim is available for roles lookup.
 * `principal` claim: JWT claim in the form of a string is used as the {es} user's principal value.
 
 See <<security-settings,ref-jwt-settings>>.
@@ -149,25 +153,29 @@ Example Native realm role mapping rule.
 
 [source,text]
 --------------------------------------------------
-{ "all": [
-    { "field": { "realm.name": "native1" } },
-    { "field": { "username": "principalname1" } }
-    { "field": { "dn": "CN=Principal Name 1,DC=example.com" } }
-    { "field": { "groups": "group1" } }
-    { "field": { "metadata.jwt_claim_other": "other1" } }
-] }
+PUT /_security/role_mapping/native1_users
+{
+  "roles" : [ "user" ],
+  "rules" : { "all" : [
+      { "field": { "realm.name": "jwt1" } },
+      { "field": { "username": "principalname1" } }
+  ] },
+  "enabled": true
+}
 --------------------------------------------------
 
 [[hmac-oidc-example]]
 ==== JWT Realm Example with OIDC HMAC Key
 
-This is a complete example of a JWT issuer, realm, and {es} request headers.
-It uses a static HMAC signing key in OIDC compatible format using UTF-8 restricted alphabet encoding.
+These settings are for a JWT issuer, Elasticsearch, and a client of Elasticsearch.
+The example HMAC key is in OIDC HMAC compatible format; key bytes are UTF-8 encoded UNICODE characters.
+
+WARNING: HMAC UTF-8 keys need to be longer than HMAC random byte keys to achieve same key strength.
 
 [[hmac-oidc-example-jwt-issuer]]
 ===== JWT issuer
 
-These values are external to {es}. An example is an external authentication service.
+These values are for a bespoke authentication service; external to {es}.
 
 [source,text]
 --------------------------------------------------
@@ -179,6 +187,9 @@ HMAC OIDC:  hmac-oidc-key-string-for-hs256-algorithm
 
 [[hmac-oidc-example-jwt-realm]]
 ===== JWT realm elasticsearch.yml settings
+
+These settings are for {es}.
+
 [source,yml]
 --------------------------------------------------
 xpack.security.authc.realms.jwt.jwt8.allowed_audiences: [aud8]
@@ -190,14 +201,36 @@ xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SHARED_SECRET
 --------------------------------------------------
 
 ===== JWT realm elasticsearch-keystore secure settings
+
+These settings are for {es}.
+
 [source,yml]
 --------------------------------------------------
 xpack.security.authc.realms.jwt.jwt8.hmac_key: hmac-oidc-key-string-for-hs256-algorithm
 xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client-shared-secret-string
 --------------------------------------------------
 
+===== JWT realm role mapping rule
+
+These settings are for {es}.
+
+[source,text]
+--------------------------------------------------
+PUT /_security/role_mapping/native1_users
+{
+  "roles" : [ "user" ],
+  "rules" : { "all" : [
+      { "field": { "realm.name": "jwt8" } },
+      { "field": { "username": "principalname1" } }
+  ] },
+  "enabled": true
+}
+--------------------------------------------------
+
 [[hmac-oidc-example-request-headers]]
 ===== Request Headers
+
+These settings are for an {es} client.
 
 [source,text]
 --------------------------------------------------
@@ -208,6 +241,8 @@ Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoi
 [[hmac-oidc-example-jwt-decoded]]
 ===== Decoded JWT
 
+This is a partial decoding of the JWT. It is for information only.
+
 [source,text]
 --------------------------------------------------
 Header: {"typ":"JWT","alg":"HS256"}
@@ -215,8 +250,7 @@ Claims: {"aud":"aud8","sub":"security_test_user","iss":"iss8","exp":4070908800,"
 Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 --------------------------------------------------
 
-IMPORTANT: The validity period in this example is 2000 to 2099.
+TIP: The validity period in this example is from 2000 to 2099, inclusive. JWTs typically have a shorter validity period than 100 years.
 
-TIP: The signature in this example is deterministic.
-Reusing the JWS header, claims set, HMAC algorithm, and HMAC key, produces the same signature.
-Use a different HMAC key and re-sign the JWT to make this example secure.
+TIP: The signature in this example is deterministic because the header, claims, and HMAC key are fixed.
+     {es} does not validate `nonce` claims, but adding it could inject entropy to vary the signature.

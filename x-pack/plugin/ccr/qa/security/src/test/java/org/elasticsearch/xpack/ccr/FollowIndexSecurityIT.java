@@ -73,9 +73,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
-                assertThat(tasks.size(), equalTo(0));
+                assertNoPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
@@ -84,9 +82,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
-                assertThat(tasks.size(), equalTo(0));
+                assertNoPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
@@ -143,7 +139,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
     }
 
     public void testAutoFollowPatterns() throws Exception {
-        assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
+        assumeTrue("Test should only run with target_cluster=follow", "follow".equals(targetCluster));
+
         String allowedIndex = "logs-eu_20190101";
         String disallowedIndex = "logs-us_20190101";
 
@@ -175,20 +172,21 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             }
         }
 
-        assertBusy(() -> {
-            ensureYellow(allowedIndex);
-            verifyDocuments(allowedIndex, 5, "*:*");
-        }, 30, TimeUnit.SECONDS);
-        assertThat(indexExists(disallowedIndex), is(false));
-        assertBusy(() -> {
-            verifyCcrMonitoring(allowedIndex, allowedIndex);
-            verifyAutoFollowMonitoring();
-        }, 30, TimeUnit.SECONDS);
-
-        // Cleanup by deleting auto follow pattern and pause following:
-        request = new Request("DELETE", "/_ccr/auto_follow/test_pattern");
-        assertOK(client().performRequest(request));
-        pauseFollow(client(), allowedIndex);
+        try {
+            assertBusy(() -> {
+                ensureYellow(allowedIndex);
+                verifyDocuments(allowedIndex, 5, "*:*");
+            }, 30, TimeUnit.SECONDS);
+            assertThat(indexExists(disallowedIndex), is(false));
+            assertBusy(() -> {
+                verifyCcrMonitoring(allowedIndex, allowedIndex);
+                verifyAutoFollowMonitoring();
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            // Cleanup by deleting auto follow pattern and pause following:
+            assertOK(client().performRequest(new Request("DELETE", "/_ccr/auto_follow/test_pattern")));
+            pauseFollow(client(), allowedIndex);
+        }
     }
 
     public void testForgetFollower() throws IOException {
@@ -256,23 +254,17 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             logger.info("running against follower cluster");
             followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);
 
-            final Request request = new Request("DELETE", "/" + cleanFollower);
-            final Response response = client().performRequest(request);
-            assertOK(response);
+            assertOK(client().performRequest(new Request("DELETE", "/" + cleanFollower)));
             // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
-                assertThat(tasks.size(), equalTo(0));
+                assertNoPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
         }
     }
 
     public void testUnPromoteAndFollowDataStream() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
-            return;
-        }
+        assumeTrue("Test should only run with target_cluster=follow", "follow".equals(targetCluster));
 
         var numDocs = 64;
         var dataStreamName = "logs-eu-monitor1";
@@ -282,7 +274,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         {
             createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster");
         }
-        // Create data stream and ensure that is is auto followed
+        // Create data stream and ensure that it is auto followed
         {
             try (var leaderClient = buildLeaderClient()) {
                 for (var i = 0; i < numDocs; i++) {
@@ -304,11 +296,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
         // promote and unfollow
         {
-            var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
-            assertOK(client().performRequest(promoteRequest));
+            assertOK(client().performRequest(new Request("POST", "/_data_stream/_promote/" + dataStreamName)));
             // Now that the data stream is a non replicated data stream, rollover.
-            var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
-            assertOK(client().performRequest(rolloverRequest));
+            assertOK(client().performRequest(new Request("POST", "/" + dataStreamName + "/_rollover")));
             // Unfollow .ds-logs-eu-monitor1-000001,
             // which is now possible because this index can now be closed as it is no longer the write index.
             pauseFollow(backingIndexName(dataStreamName, 1));
@@ -317,4 +307,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
     }
 
+    private static void assertNoPersistentTasks() throws IOException {
+        Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
+        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+        assertThat(tasks, empty());
+    }
 }

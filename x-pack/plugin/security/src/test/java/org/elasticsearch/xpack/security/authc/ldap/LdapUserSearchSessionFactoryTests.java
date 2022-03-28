@@ -217,8 +217,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         assertEquals(
             "When [%s] is set you must also specify [%s] or [%s]".formatted(
                 getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD),
-                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
+                getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
             ),
             ex.getMessage()
         );

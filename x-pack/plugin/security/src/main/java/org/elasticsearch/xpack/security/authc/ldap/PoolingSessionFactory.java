@@ -96,9 +96,9 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     "When ["
                         + RealmSettings.getFullSettingKey(config, BIND_DN)
                         + "] is set you must also specify ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                        + "] or ["
                         + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                        + "] or ["
+                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
                         + "]"
                 );
             }

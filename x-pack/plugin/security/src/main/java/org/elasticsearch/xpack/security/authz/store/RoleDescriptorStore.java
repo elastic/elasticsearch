@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
@@ -43,6 +42,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 public class RoleDescriptorStore implements RoleReferenceResolver {
 
@@ -169,23 +169,20 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     }
 
     private Set<RoleDescriptor> filterRolesNotUsingLicensedFeatures(Set<RoleDescriptor> roleDescriptors) {
-        Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
+        final Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 
-        Set<RoleDescriptor> rolesUsingFeature = roles.get(true);
-        String licenseStatusDescription = licenseState.statusDescription();
-        String headerWarning = "Some user roles are disabled since they require feature [{}] not supported by your license [{}].";
+        final Set<RoleDescriptor> rolesUsingFeatures = roles.get(true);
         logger.warn(
-            headerWarning
-                + "Disabled roles: [{}]. "
-                + "Actions that require these roles will fail. "
-                + "Upgrade license to [{}] or above, or renew if it's expired to re-enable them.",
-            DOCUMENT_LEVEL_SECURITY_FEATURE,
-            licenseStatusDescription,
-            rolesUsingFeature.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
+            "User roles [{}] are disabled since they require document or field level security to determine user access. "
+                + "These security features [{}, {}] are not available under the current license. "
+                + "Users will be denied access to documents or fields granted by above roles. "
+                + "To re-enable the roles, upgrade license to [{}] or above, or renew if it's expired.",
+            DOCUMENT_LEVEL_SECURITY_FEATURE.getName(),
+            FIELD_LEVEL_SECURITY_FEATURE.getName(),
+            rolesUsingFeatures.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
             DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
         );
-        HeaderWarning.addWarning(headerWarning, DOCUMENT_LEVEL_SECURITY_FEATURE, licenseStatusDescription);
 
         return roles.get(false);
     }

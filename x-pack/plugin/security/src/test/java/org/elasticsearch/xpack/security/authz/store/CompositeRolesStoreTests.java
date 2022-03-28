@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -27,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -37,6 +41,7 @@ import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -210,7 +215,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            rds -> effectiveRoleDescriptors.set(rds)
+            effectiveRoleDescriptors::set
         );
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -236,6 +241,64 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertNotEquals(Role.EMPTY, roleFuture.actionGet());
         assertThat(effectiveRoleDescriptors.get(), containsInAnyOrder(noFlsDlsRole));
         effectiveRoleDescriptors.set(null);
+    }
+
+    public void testLoggingWarnWhenDlsUnlicensed() throws IOException, IllegalAccessException {
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
+        BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
+        RoleDescriptor dlsRole = new RoleDescriptor(
+            "dls",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("read").query(matchAllBytes).build() },
+            null
+        );
+
+        FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+
+        when(fileRolesStore.roleDescriptors(Collections.singleton("dls"))).thenReturn(Collections.singleton(dlsRole));
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<>();
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            fileRolesStore,
+            null,
+            null,
+            null,
+            licenseState,
+            null,
+            null,
+            null,
+            effectiveRoleDescriptors::set
+        );
+
+        final MockLogAppender mockAppender = new MockLogAppender();
+        final Logger logger = LogManager.getLogger(RoleDescriptorStore.class);
+        mockAppender.start();
+        try {
+            Loggers.addAppender(logger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "disabled role warning",
+                    RoleDescriptorStore.class.getName(),
+                    Level.WARN,
+                    "User roles ["
+                        + "dls"
+                        + "] are disabled since they require document or field level security to determine user access. "
+                        + "These security features [*, *] are not available under the current license. "
+                        + "Users will be denied access to documents or fields granted by above roles. "
+                        + "To re-enable the roles, upgrade license to [*] or above, or renew if it's expired."
+                )
+            );
+            PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+            getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
+            assertEquals(Role.EMPTY, roleFuture.actionGet());
+            assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     public void testRolesWhenDlsFlsLicensed() throws IOException {

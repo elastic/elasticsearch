@@ -2,4 +2,5 @@ pr: 85376
 summary: Upgrade to JDK 18.0.0+36
 area: Packaging
 type: upgrade
-issues: []
+issues:
+ - 85357

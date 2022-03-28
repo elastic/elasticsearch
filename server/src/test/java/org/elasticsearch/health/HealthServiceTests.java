@@ -10,6 +10,7 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -23,9 +24,9 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testShouldReturnGroupedIndicators() {
 
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, true);
-        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, true);
-        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, true);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, true, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, true, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, true, null);
 
         var service = new HealthService(
             List.of(
@@ -65,8 +66,8 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testDuplicateIndicatorNamess() {
         // Same component, same indicator name, should throw exception:
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, true);
-        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, true);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, true, Collections.emptyList());
+        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, true, Collections.emptyList());
         expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2), true));
     }
 

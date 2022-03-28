@@ -59,7 +59,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.assertDataStreams;
 import static org.hamcrest.Matchers.allOf;
@@ -1137,7 +1136,7 @@ public class MetadataTests extends ESTestCase {
                 IndexMetadata.builder(dataStreamName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
                 false
             )
-            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
+            .put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1154,9 +1153,7 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(AliasMetadata.builder(dataStreamName).build()).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1175,9 +1172,7 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         AssertionError e = expectThrows(AssertionError.class, b::build);
         assertThat(e.getMessage(), containsString("aliases [" + conflictingName + "] cannot refer to backing indices of data streams"));
@@ -1200,7 +1195,7 @@ public class MetadataTests extends ESTestCase {
             backingIndices.add(im.getIndex());
         }
 
-        b.put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
+        b.put(newInstance(dataStreamName, backingIndices, lastBackingIndexNum, null));
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -1354,7 +1349,7 @@ public class MetadataTests extends ESTestCase {
             indices.add(idx.getIndex());
             b.put(idx, true);
         }
-        b.put(newInstance(name, createTimestampField("@timestamp"), indices));
+        b.put(newInstance(name, indices));
     }
 
     private DataStream createDataStream(String name) {
@@ -1364,7 +1359,7 @@ public class MetadataTests extends ESTestCase {
             IndexMetadata idx = createBackingIndex(name, j).build();
             indices.add(idx.getIndex());
         }
-        return newInstance(name, createTimestampField("@timestamp"), indices);
+        return newInstance(name, indices);
     }
 
     public void testIndicesLookupRecordsDataStreamForBackingIndices() {
@@ -1758,7 +1753,7 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder builder = Metadata.builder(previous);
             IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
             builder.put(idx, true);
-            DataStream dataStream = newInstance(dataStreamName, new DataStream.TimestampField("@timestamp"), List.of(idx.getIndex()));
+            DataStream dataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
             builder.put(dataStream);
             Metadata metadata = builder.build();
             assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
@@ -2354,7 +2349,7 @@ public class MetadataTests extends ESTestCase {
             b.put(im, false);
             backingIndices.add(im.getIndex());
         }
-        b.put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
+        b.put(newInstance(dataStreamName, backingIndices, lastBackingIndexNum, null));
         return new CreateIndexResult(indices, backingIndices, b.build());
     }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -326,7 +325,6 @@ public class IndexRequestTests extends ESTestCase {
                 .put(
                     DataStreamTestHelper.newInstance(
                         regularDataStream,
-                        new DataStream.TimestampField("@timestamp"),
                         List.of(backingIndex1.getIndex(), backingIndex2.getIndex()),
                         2,
                         null

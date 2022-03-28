@@ -20,6 +20,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +51,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No corrupted repositories.",
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
-                    true
+                    true,
+                    Collections.emptyList()
                 )
             )
         );
@@ -75,7 +77,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     ),
-                    true
+                    true,
+                    Collections.emptyList()
                 )
             )
         );
@@ -87,7 +90,17 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(
             service.calculate(false),
-            equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY, false))
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "No repositories configured.",
+                    HealthIndicatorDetails.EMPTY,
+                    false,
+                    Collections.emptyList()
+                )
+            )
         );
     }
 

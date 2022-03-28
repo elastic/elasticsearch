@@ -44,18 +44,10 @@ public class InternalSettingsPreparer {
         Path configPath,
         Supplier<String> defaultNodeName
     ) {
-        Path configFile = findConfigDir(configPath, input, properties);
-
-        if (Files.exists(configFile.resolve("elasticsearch.yaml"))) {
-            throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
-        }
-
-        if (Files.exists(configFile.resolve("elasticsearch.json"))) {
-            throw new SettingsException("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml");
-        }
+        Path configDir = findConfigDir(configPath, input, properties);
 
         Settings.Builder output = Settings.builder(); // start with a fresh output
-        Path path = configFile.resolve("elasticsearch.yml");
+        Path path = configDir.resolve("elasticsearch.yml");
 
         if (Files.exists(path)) {
             try {
@@ -71,7 +63,7 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input);
         finalizeSettings(output, defaultNodeName);
 
-        return new Environment(output.build(), configFile);
+        return new Environment(output.build(), configDir);
     }
 
     static Path findConfigDir(Path configPath, Settings input, Map<String, String> properties) {

@@ -11,7 +11,6 @@ package org.elasticsearch.transport.netty5;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -52,16 +51,6 @@ public class Netty5Plugin extends Plugin implements NetworkPlugin {
             Netty5Transport.NETTY_RECEIVE_PREDICTOR_MAX,
             Netty5Transport.NETTY_BOSS_COUNT
         );
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return Settings.builder()
-            // here we set the netty4 transport and http transport as the default. This is a set once setting
-            // ie. if another plugin does that as well the server will fail - only one default network can exist!
-            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
-            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
-            .build();
     }
 
     @Override

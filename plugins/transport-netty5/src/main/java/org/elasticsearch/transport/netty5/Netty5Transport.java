@@ -65,29 +65,29 @@ public class Netty5Transport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(Netty5Transport.class);
 
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(
-        "transport.netty.worker_count",
+        "transport.netty5.worker_count",
         (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
-        (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
+        (s) -> Setting.parseInt(s, 1, "transport.netty5.worker_count"),
         Property.NodeScope
     );
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "transport.netty.receive_predictor_size",
+        "transport.netty5.receive_predictor_size",
         new ByteSizeValue(64, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN = byteSizeSetting(
-        "transport.netty.receive_predictor_min",
+        "transport.netty5.receive_predictor_min",
         NETTY_RECEIVE_PREDICTOR_SIZE,
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(
-        "transport.netty.receive_predictor_max",
+        "transport.netty5.receive_predictor_max",
         NETTY_RECEIVE_PREDICTOR_SIZE,
         Property.NodeScope
     );
 
-    public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
+    public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty5.boss_count", 1, 1, Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvBufferAllocator recvByteBufAllocator;

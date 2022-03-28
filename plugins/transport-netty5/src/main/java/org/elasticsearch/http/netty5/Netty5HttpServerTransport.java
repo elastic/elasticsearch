@@ -84,7 +84,7 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
      */
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
 
-    private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
+    private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty5.max_composite_buffer_components";
 
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
         SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
@@ -117,10 +117,10 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
         Property.NodeScope
     );
 
-    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty5.worker_count", 0, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "http.netty.receive_predictor_size",
+        "http.netty5.receive_predictor_size",
         new ByteSizeValue(64, ByteSizeUnit.KB),
         Property.NodeScope
     );

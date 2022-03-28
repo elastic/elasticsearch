@@ -369,7 +369,7 @@ public class AuthorizationService {
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
-                listener.onFailure(denialException(authentication, action, request, buildRunAsDeniedContext(authentication), null));
+                listener.onFailure(denialException(authentication, action, request, null));
             }), threadContext);
             authorizeRunAs(requestInfo, authzInfo, runAsListener);
         } else {

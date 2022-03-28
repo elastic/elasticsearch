@@ -33,6 +33,7 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.internal.HeaderWarningAppender;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.logging.internal.LoggingOutputStream;
 import org.elasticsearch.logging.internal.NodeNamePatternConverter;
@@ -143,6 +144,7 @@ public class LogConfigurator {
      */
     public static void loadLog4jPlugins() {
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+        PluginManager.addPackage(HeaderWarningAppender.class.getPackage().getName());
     }
 
     /**

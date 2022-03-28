@@ -12,7 +12,7 @@ import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;
 import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.ESMapMessage;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,7 +24,7 @@ import java.util.Map;
  * Custom logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 // TODO: PG the same as deprecationmessage. probably an implementation detail
-public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements Message {
+public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements ESMapMessage {
     private final List<Object> arguments = new ArrayList<>();
     private String messagePattern;
 
@@ -46,26 +46,31 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements Me
         super(new LinkedHashMap<>());
     }
 
+    @Override
     public ESLogMessage argAndField(String key, Object value) {
         this.arguments.add(value);
         super.with(key, value);
         return this;
     }
 
+    @Override
     public ESLogMessage field(String key, Object value) {
         super.with(key, value);
         return this;
     }
 
+    @Override
     public ESLogMessage withFields(Map<String, Object> prepareMap) {
         prepareMap.forEach(this::field);
         return this;
     }
 
+    @Override
     public Object[] getArguments() {
         return arguments.toArray();
     }
 
+    @Override
     public String getMessagePattern() {
         return messagePattern;
     }
@@ -73,6 +78,7 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements Me
     /**
      * This method is used in order to support ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
      * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
+     *
      * @param sb a string builder where JSON fields will be attached
      */
     protected void addJsonNoBrackets(StringBuilder sb) {

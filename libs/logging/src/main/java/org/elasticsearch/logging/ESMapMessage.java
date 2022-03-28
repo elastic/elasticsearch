@@ -8,57 +8,18 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.ESLogMessage;
-
 import java.util.Map;
 
-public class ESMapMessage implements Message {
-    private ESLogMessage esLogMessage;
+public interface ESMapMessage extends Message {
 
-    public ESMapMessage(String pattern) {
-        this.esLogMessage = new ESLogMessage(pattern);
-    }
+    ESMapMessage argAndField(String key, Object value);
 
-    public ESMapMessage argAndField(String key, Object value) {
-        esLogMessage.argAndField(key, value);
-        return this;
-    }
+    ESMapMessage field(String key, Object value);
 
-    public ESMapMessage field(String key, Object value) {
-        esLogMessage.field(key, value);
-        return this;
-    }
+    ESMapMessage withFields(Map<String, Object> prepareMap);
 
-    public ESMapMessage withFields(Map<String, Object> prepareMap) {
-        esLogMessage.withFields(prepareMap);
-        return this;
-    }
+    Object[] getArguments();
 
-    public Object[] getArguments() {
-        return esLogMessage.getArguments();
-    }
+    String getMessagePattern();
 
-    public String getMessagePattern() {
-        return esLogMessage.getMessagePattern();
-    }
-
-    @Override
-    public String getFormattedMessage() {
-        return esLogMessage.getFormattedMessage();
-    }
-
-    @Override
-    public String getFormat() {
-        return esLogMessage.getFormat();
-    }
-
-    @Override
-    public Object[] getParameters() {
-        return esLogMessage.getParameters();
-    }
-
-    @Override
-    public Throwable getThrowable() {
-        return esLogMessage.getThrowable();
-    }
 }

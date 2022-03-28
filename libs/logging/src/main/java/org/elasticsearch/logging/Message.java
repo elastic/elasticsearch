@@ -8,6 +8,7 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.logging.internal.ParameterizedMessageImpl;
 
 // TODO: This sucks ( to extends log4j type, but is temporary, until we replace new XXXMessage with factories )
@@ -21,6 +22,10 @@ public interface Message {
 
     static Message createParameterizedMessage(String format, Object... params) {
         return new ParameterizedMessageImpl(format, params, null);
+    }
+
+    static ESMapMessage createMapMessage(String format, Object... params) {
+        return new ESLogMessage(format, params);
     }
 
     String getFormattedMessage();

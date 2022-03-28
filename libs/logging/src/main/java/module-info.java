@@ -17,22 +17,19 @@ module org.elasticsearch.logging {
     requires org.hamcrest;
 
     exports org.elasticsearch.logging;
-    exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
-
-     exports org.elasticsearch.logging.internal2;
-     opens org.elasticsearch.logging.internal2;
-
-    opens org.elasticsearch.logging.internal;
-
-    exports org.elasticsearch.logging.internal;
-
     exports org.elasticsearch.logging.api.core;
 
-    opens org.elasticsearch.logging.api.core to org.apache.logging.log4j.core;
+    exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
+
+    opens org.elasticsearch.logging.internal to org.apache.logging.log4j.core;
 
     exports org.elasticsearch.logging.internal.testing;
 
     opens org.elasticsearch.logging.internal.testing to org.apache.logging.log4j.core;
+
+    exports org.elasticsearch.logging.internal2 to org.elasticsearch.server;
+
+    opens org.elasticsearch.logging.api.core to org.apache.logging.log4j.core;
 
     uses org.elasticsearch.logging.internal.spi.ServerSupport;
 }

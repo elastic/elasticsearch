@@ -332,7 +332,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
-            return new ValueFetcherSource.SourceOnly(context) {
+            return new ValueFetcherSource.SourceOnly(context, this) {
                 @Override
                 protected ValueFetcher forceSource() {
                     return SourceValueFetcher.toString(name(), context, format);
@@ -477,7 +477,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
-            return new ValueFetcherSource.SourceOnly(context) {
+            return new ValueFetcherSource.SourceOnly(context, this) {
                 @Override
                 protected ValueFetcher forceSource() {
                     return SourceValueFetcher.toString(name(), context, format);
@@ -594,7 +594,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
-            return new ValueFetcherSource.SourceOnly(context) {
+            return new ValueFetcherSource.SourceOnly(context, this) {
                 @Override
                 protected ValueFetcher forceSource() {
                     return SourceValueFetcher.toString(name(), context, format);

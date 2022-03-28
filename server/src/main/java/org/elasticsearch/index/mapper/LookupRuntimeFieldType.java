@@ -235,6 +235,10 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         public ValueFetcher forceDocValues() {
             return new LookupFieldValueFetcher(source.forceDocValues());
         }
+
+        @Override public boolean supportsDocValues() {
+            return source.supportsDocValues();
+        }
     }
 
     private class LookupFieldValueFetcher implements ValueFetcher {

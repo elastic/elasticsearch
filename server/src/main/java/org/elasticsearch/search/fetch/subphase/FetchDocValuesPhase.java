@@ -44,11 +44,23 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             if (ft == null) {
                 continue;
             }
+            // ValueFetcherSource fetcher;
+            // try {
+            // fetcher = ft.valueFetcher(context.getSearchExecutionContext(), fieldAndFormat.format);
+            // } catch (UnsupportedOperationException e) {
+            // System.err.println("unsupported on fetcher " + ft.typeName() + " " + ft.name());
+            // continue;
+            // }
+            // if (fetcher.supportsDocValues() == false) { // NOCOMMIT probably revert this whole file
+            // System.err.println("no doc values " + ft.typeName() + " " + ft.name());
+            // continue;
+            // }
+            // fields.add(new DocValueField(fieldAndFormat.field, fetcher.forceDocValues()));
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft)
+                context.getSearchExecutionContext().getForField(ft)
             );
-            fields.add(new DocValueField(fieldAndFormat.field, fetcher));
+            fields.add((new DocValueField(fieldAndFormat.field, fetcher)));
         }
 
         return new FetchSubPhaseProcessor() {

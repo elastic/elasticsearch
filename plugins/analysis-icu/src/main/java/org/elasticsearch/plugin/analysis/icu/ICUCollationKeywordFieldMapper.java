@@ -96,7 +96,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ValueFetcherSource.SourceOnly(context) {  // Doc values are broken for fetching
+            return new ValueFetcherSource.SourceOnly(context, this) {  // Doc values are broken for fetching
                 @Override
                 protected ValueFetcher forceSource() {
                     return new SourceValueFetcher(name(), context, nullValue) {

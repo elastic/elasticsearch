@@ -19,9 +19,11 @@ import java.util.List;
 public interface ValueFetcherSource {
     ValueFetcher preferStored();
 
-    ValueFetcher preferStoredOrEmpty();
+    ValueFetcher preferStoredOrEmpty();  // NOCOMMIT remove in favor of returning some error thing with an orEmpty
 
     ValueFetcher forceDocValues();
+
+    boolean supportsDocValues();
 
     abstract class SourceOrDocValues implements ValueFetcherSource {
         private final SearchExecutionContext context;
@@ -67,6 +69,11 @@ public interface ValueFetcherSource {
         public DocValueFetcher forceDocValues() {
             return new DocValueFetcher(ft.docValueFormat(format, null), context.getForField(ft));
         }
+
+        @Override
+        public boolean supportsDocValues() {
+            return true;
+        }
     }
 
     final class DocValuesOnly implements ValueFetcherSource {
@@ -100,13 +107,20 @@ public interface ValueFetcherSource {
         public DocValueFetcher forceDocValues() {
             return new DocValueFetcher(ft.docValueFormat(format, null), context.getForField(ft));
         }
+
+        @Override
+        public boolean supportsDocValues() {
+            return true;
+        }
     }
 
     abstract class SourceOnly implements ValueFetcherSource {
         private final SearchExecutionContext context;
+        private final MappedFieldType ft;
 
-        public SourceOnly(SearchExecutionContext context) {
+        public SourceOnly(SearchExecutionContext context, MappedFieldType ft) {
             this.context = context;
+            this.ft = ft;
         }
 
         @Override
@@ -132,7 +146,14 @@ public interface ValueFetcherSource {
 
         @Override
         public DocValueFetcher forceDocValues() {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException(
+                "[" + ft.name() + "] may only be fetched from _source because it is of type [" + ft.typeName() + "]"
+            );
+        }
+
+        @Override
+        public boolean supportsDocValues() {
+            return false;
         }
     }
 
@@ -171,7 +192,14 @@ public interface ValueFetcherSource {
 
         @Override
         public DocValueFetcher forceDocValues() {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException(
+                "[" + ft.name() + "] may only be fetched from stored fields because it is of type [" + ft.typeName() + "]"
+            );
+        }
+
+        @Override
+        public boolean supportsDocValues() {
+            return false;
         }
     }
 
@@ -195,6 +223,11 @@ public interface ValueFetcherSource {
         @Override
         public ValueFetcher forceDocValues() {
             return (lookup, ignored) -> values;
+        }
+
+        @Override
+        public boolean supportsDocValues() {
+            return true;
         }
     }
 }

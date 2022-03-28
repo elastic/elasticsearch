@@ -700,7 +700,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
-            return new ValueFetcherSource.SourceOnly(context) {
+            return new ValueFetcherSource.SourceOnly(context, this) {
                 @Override
                 protected ValueFetcher forceSource() {
                     return SourceValueFetcher.toString(name(), context, format);

@@ -63,7 +63,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ValueFetcherSource.SourceOrDocValues(context, this, format) {
+            return new ValueFetcherSource.SourceOnly(context, this) {
                 @Override
                 protected ValueFetcher forceSource() {
                     return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {

@@ -143,7 +143,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
             if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
                 && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = filterRolesNotUsingLicensedFeatures(roleDescriptors);
+                effectiveDescriptors = skipRolesUsingLicensedDlsFlsFeatures(roleDescriptors);
             } else {
                 effectiveDescriptors = roleDescriptors;
             }
@@ -168,7 +168,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, listener::onFailure));
     }
 
-    private Set<RoleDescriptor> filterRolesNotUsingLicensedFeatures(Set<RoleDescriptor> roleDescriptors) {
+    private Set<RoleDescriptor> skipRolesUsingLicensedDlsFlsFeatures(Set<RoleDescriptor> roleDescriptors) {
         final Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 

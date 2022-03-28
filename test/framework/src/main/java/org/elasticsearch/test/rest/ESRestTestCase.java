@@ -269,7 +269,20 @@ public abstract class ESRestTestCase extends ESTestCase {
                     + "to which to send REST requests"
             );
         }
+
         return cluster;
+    }
+
+    protected String getTestReadinessPorts() {
+        String ports = System.getProperty("tests.cluster.readiness");
+        if (ports == null) {
+            throw new RuntimeException(
+                "Must specify [tests.rest.cluster.readiness] system property with a comma delimited list "
+                    + "to which to send readiness requests"
+            );
+        }
+
+        return ports;
     }
 
     /**

@@ -1,0 +1,5 @@
+pr: 85423
+summary: "Warn if use [indices.queries.cache.all_segments] setting"
+area: Search
+type: bug
+issues: []

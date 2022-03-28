@@ -502,6 +502,9 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         for (int i = 0; i < scaledRandomIntBetween(100, 1000); i++) {
             LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
             Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
+            // if the step's key is different from the previous iteration of the loop, then the cache will be updated, and we'll
+            // get a non-cached response. if the step's key happens to be the same as the previous iteration of the loop, then
+            // we'll get a cached response. so this loop randomly tests both cached and non-cached responses.
             Step actualStep = registry.getStep(indexMetadata, step.getKey());
             assertThat(actualStep.getKey(), equalTo(step.getKey()));
         }

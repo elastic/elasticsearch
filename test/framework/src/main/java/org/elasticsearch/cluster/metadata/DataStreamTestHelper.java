@@ -96,8 +96,7 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        var timestampField = new DataStream.TimestampField("@timestamp");
-        return new DataStream(name, timestampField, indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -147,10 +146,6 @@ public final class DataStreamTestHelper {
             .settings(Settings.builder().put(SETTINGS.build()).put(SETTING_INDEX_UUID, index.getUUID()))
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
-    }
-
-    public static DataStream.TimestampField createTimestampField(String fieldName) {
-        return new DataStream.TimestampField(fieldName);
     }
 
     public static String generateMapping(String timestampFieldName) {
@@ -218,7 +213,6 @@ public final class DataStreamTestHelper {
 
         return new DataStream(
             dataStreamName,
-            createTimestampField("@timestamp"),
             indices,
             generation,
             metadata,
@@ -350,7 +344,6 @@ public final class DataStreamTestHelper {
         }
         DataStream ds = new DataStream(
             dataStream,
-            createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
             backingIndices.size(),
             null,

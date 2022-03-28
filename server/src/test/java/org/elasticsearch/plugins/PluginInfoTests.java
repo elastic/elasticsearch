@@ -95,7 +95,7 @@ public class PluginInfoTests extends ESTestCase {
             "version",
             "1.0",
             "elasticsearch.version",
-            ""
+            "  "
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));

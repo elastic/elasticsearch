@@ -1571,12 +1571,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
             165,
             Version.V_8_2_0
-        ),
-        JOIN_TASK_OUTDATED_EXCEPTION(
-            org.elasticsearch.cluster.coordination.JoinTaskOutdatedException.class,
-            org.elasticsearch.cluster.coordination.JoinTaskOutdatedException::new,
-            166,
-            Version.V_8_2_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

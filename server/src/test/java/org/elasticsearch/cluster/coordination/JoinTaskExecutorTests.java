@@ -483,7 +483,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
             t -> assertThat(t.term(), equalTo(currentTerm)),
             (t, e) -> {
                 assertThat(t.term(), lessThan(currentTerm));
-                assertThat(e, instanceOf(JoinTaskOutdatedException.class));
+                assertThat(e, instanceOf(NotMasterException.class));
             }
         );
     }

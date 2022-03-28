@@ -198,8 +198,8 @@ setup:
             text.keyword:
               type: keyword
 
-      - is_true: fields.text\\.keyword
-      - is_true: fields.misc\\.keyword
+  - is_true: fields.text\\.keyword
+  - is_true: fields.misc\\.keyword
 
 ---
 "Field type filters":

@@ -1954,14 +1954,27 @@ Identifier is usually a case sensitive URL using the https scheme that contains
 scheme, host, and optionally, port number and path components and no query or
 fragment components. However, it can be any string. The value for this setting
 should be provided by your JWT Issuer.
+Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 // end::jwt-allowed-issuer-tag[]
+
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A list of allowed JWT audiences that {es} should verify.
++
+{es} will only consume JWTs that were intended for any of these audiences.
+( as denoted by the `aud` claim in the JWT).
+Examples of `aud` claim are `https://example.com/client1` and `other_service,elasticsearch`.
+// end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-allowed-signature-algorithms-tag[]
 `allowed_signature_algorithms` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The signature algorithm that will be used by {es} in order to verify the
+A list of signature algorithms that will be used by {es} in order to verify the
 signature of the JWT it will receive from the JWT Issuer.
-Defaults to `RS256`.
+Defaults to `RS256`. Examples are `HS512,RS512,ES512` and `ES384`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
 // end::jwt-allowed-signature-algorithms-tag[]
 
 // tag::jwt-allowed-clock-skew-tag[]
@@ -1987,15 +2000,6 @@ rotated the signing keys.
 File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 // end::jwt-jwkset-path-tag[]
-
-// tag::jwt-allowed-audiences-tag[]
-`allowed_audiences` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-A list of allowed JWT audiences that {es} should verify.
-+
-{es} will only consume JWTs that were intended for these audiences.
-( as denoted by the `aud` claim in the JWT).
-// end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-claims-principal-tag[]
 `claims.principal`::
@@ -2038,8 +2042,8 @@ provided by the JWT claims. Defaults to `true`.
 // tag::jwt-client-authentication-type-tag[]
 `client_authentication.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Specifies whether to use `SharedSecret` or `None` to authenticate
-incoming client requests. Defaults to `SharedSecret`.
+Specifies whether to use `shared_secret` or `none` to authenticate
+incoming client requests. Defaults to `shared_secret`.
 It is recommended to enable client authentication. If JWT bearer
 tokens are shared with other clients or services, client authentication
 restricts which ones are allowed to submit those JWTs to Elasticsearch.
@@ -2049,7 +2053,7 @@ restricts which ones are allowed to submit those JWTs to Elasticsearch.
 `client_authentication.shared_secret` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Secret value string for client authentication.
-Required if client_authentication.type is `SharedSecret`.
+Required if client_authentication.type is `shared_secret`.
 // end::jwt-client-authentication-shared-secret-tag[]
 
 `authorization_realms`::

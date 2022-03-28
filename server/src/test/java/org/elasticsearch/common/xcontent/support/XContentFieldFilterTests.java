@@ -38,7 +38,8 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     @Override
-    protected void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes) throws IOException {
+    protected void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
         String[] sourceIncludes;
@@ -58,7 +59,8 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         assertMap(XContentHelper.convertToMap(ref, true, xContentType).v2(), matchesMap(toMap(expected, xContentType, humanReadable)));
     }
 
-    private void testFilter(String expectedJson, String actualJson, Collection<String> includes, Collection<String> excludes) throws IOException {
+    private void testFilter(String expectedJson, String actualJson, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         CheckedFunction<String, Builder, IOException> toBuilder = json -> {
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON);
             if ((parser.currentToken() == null) && (parser.nextToken() == null)) {

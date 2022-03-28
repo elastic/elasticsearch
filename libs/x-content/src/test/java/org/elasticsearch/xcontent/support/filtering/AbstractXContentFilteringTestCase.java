@@ -325,7 +325,8 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     @Override
-    protected final void testFilter(Builder expected, Builder sample, Collection<String> includes, Collection<String> excludes) throws IOException {
+    protected final void testFilter(Builder expected, Builder sample, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         testFilter(expected, sample, Set.copyOf(includes), Set.copyOf(excludes), false);
     }
 

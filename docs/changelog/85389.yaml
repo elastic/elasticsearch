@@ -1,0 +1,5 @@
+pr: 85389
+summary: Simplify and Speedup `QueryPhaseResultConsumer#close`
+area: Aggregations
+type: enhancement
+issues: []

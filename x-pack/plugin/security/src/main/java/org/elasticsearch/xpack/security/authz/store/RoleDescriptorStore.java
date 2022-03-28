@@ -143,7 +143,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
             if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
                 && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = skipRolesUsingLicensedDlsOrFlsFeatures(roleDescriptors);
+                effectiveDescriptors = skipRolesUsingDocumentOrFieldLevelSecurity(roleDescriptors);
             } else {
                 effectiveDescriptors = roleDescriptors;
             }
@@ -168,11 +168,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, listener::onFailure));
     }
 
-    private Set<RoleDescriptor> skipRolesUsingLicensedDlsOrFlsFeatures(Set<RoleDescriptor> roleDescriptors) {
+    private Set<RoleDescriptor> skipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
         final Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 
-        final Set<RoleDescriptor> rolesUsingFeatures = roles.get(true);
+        final Set<RoleDescriptor> rolesToSkip = roles.get(true);
         logger.warn(
             "User roles [{}] are disabled since they require document or field level security to determine user access. "
                 + "These security features [{}, {}] are not available under the current license. "
@@ -180,7 +180,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 + "To re-enable the roles, upgrade license to [{}] or above, or renew if it's expired.",
             DOCUMENT_LEVEL_SECURITY_FEATURE.getName(),
             FIELD_LEVEL_SECURITY_FEATURE.getName(),
-            rolesUsingFeatures.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
+            rolesToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
             DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
         );
 

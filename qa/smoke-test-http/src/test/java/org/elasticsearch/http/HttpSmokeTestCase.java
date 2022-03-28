@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.transport.netty5.Netty5Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
@@ -25,13 +26,15 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @BeforeClass
     public static void setUpTransport() {
-        nodeTransportTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), NioTransportPlugin.class));
-        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
+        nodeTransportTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), NioTransportPlugin.class, Netty5Plugin.class));
+        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class, Netty5Plugin.class));
     }
 
     private static String getTypeKey(Class<? extends Plugin> clazz) {
         if (clazz.equals(NioTransportPlugin.class)) {
             return NioTransportPlugin.NIO_TRANSPORT_NAME;
+        } else if (clazz.equals(Netty5Plugin.class)) {
+            return Netty5Plugin.NETTY_TRANSPORT_NAME;
         } else {
             assert clazz.equals(Netty4Plugin.class);
             return Netty4Plugin.NETTY_TRANSPORT_NAME;
@@ -41,6 +44,8 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     private static String getHttpTypeKey(Class<? extends Plugin> clazz) {
         if (clazz.equals(NioTransportPlugin.class)) {
             return NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
+        } else if (clazz.equals(Netty5Plugin.class)) {
+            return Netty5Plugin.NETTY_HTTP_TRANSPORT_NAME;
         } else {
             assert clazz.equals(Netty4Plugin.class);
             return Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
@@ -63,7 +68,7 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), NioTransportPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), NioTransportPlugin.class, Netty5Plugin.class);
     }
 
     @Override

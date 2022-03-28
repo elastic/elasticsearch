@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.test-with-dependencies'
 dependencies {
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   testImplementation project(':plugins:transport-nio') // for http
+  testImplementation project(':plugins:transport-netty5') // for http
 }
 
 testClusters.configureEach {

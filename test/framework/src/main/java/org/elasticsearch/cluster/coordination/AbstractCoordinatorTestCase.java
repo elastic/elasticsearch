@@ -536,11 +536,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void stabilise() {
+        public void stabilise() {
             stabilise(DEFAULT_STABILISATION_TIME, true);
         }
 
-        void stabilise(long stabilisationDurationMillis) {
+        public void stabilise(long stabilisationDurationMillis) {
             stabilise(stabilisationDurationMillis, false);
         }
 

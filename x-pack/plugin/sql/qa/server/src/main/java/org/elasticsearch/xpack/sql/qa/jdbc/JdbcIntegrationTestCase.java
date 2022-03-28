@@ -29,8 +29,6 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestTestCase {
 
-    private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
-
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of PIT cleanup

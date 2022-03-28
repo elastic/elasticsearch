@@ -379,15 +379,11 @@ public class SearchExecutionContextTests extends ESTestCase {
                 new MockFieldMapper.FakeFieldType("pig"),
                 new MockFieldMapper.FakeFieldType("pig.subfield"),
                 new MockFieldMapper.FakeFieldType("cat"),
-                new MockFieldMapper.FakeFieldType("cat.subfield")),
+                new MockFieldMapper.FakeFieldType("cat.subfield")
+            ),
             List.of(new TestRuntimeField("runtime", "long"))
         );
-        SearchExecutionContext context = createSearchExecutionContext(
-            "uuid",
-            null,
-            mappingLookup,
-            runtimeMappings
-        );
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null, mappingLookup, runtimeMappings);
         assertTrue(context.isMultiField("pig.subfield"));
         assertFalse(context.isMultiField("cat.subfield"));
         assertTrue(mappingLookup.isMultiField("cat.subfield"));
@@ -472,8 +468,9 @@ public class SearchExecutionContextTests extends ESTestCase {
                 indexSettings.getMode().buildIdFieldMapper(() -> true)
             )
         );
-        when(mapperService.isMultiField(anyString()))
-            .then((Answer<Boolean>) invocation -> mappingLookup.isMultiField(invocation.getArgument(0)));
+        when(mapperService.isMultiField(anyString())).then(
+            (Answer<Boolean>) invocation -> mappingLookup.isMultiField(invocation.getArgument(0))
+        );
         return mapperService;
     }
 

@@ -11,7 +11,7 @@ module org.elasticsearch.xcontent.impl {
     requires com.fasterxml.jackson.dataformat.cbor;
     requires com.fasterxml.jackson.dataformat.smile;
     requires com.fasterxml.jackson.dataformat.yaml;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
 
     provides org.elasticsearch.xcontent.spi.XContentProvider with org.elasticsearch.xcontent.provider.XContentProviderImpl;

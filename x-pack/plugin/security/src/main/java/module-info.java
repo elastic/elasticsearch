@@ -5,16 +5,16 @@
  * 2.0.
  */
 
-module org.elasticsearch.xpack.plugin.security {
+module org.elasticsearch.security {
     requires org.elasticsearch.cli;
-    requires org.elasticsearch.core;
-    requires org.elasticsearch.module.transport.netty4;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.nio;
-    requires org.elasticsearch.plugin.transport.nio;
     requires org.elasticsearch.server;
     requires org.elasticsearch.ssl.config;
+    requires org.elasticsearch.transport.netty4;
+    requires org.elasticsearch.transport.nio;
     requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.xpack.plugin.core;
+    requires org.elasticsearch.xcore;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.queries;

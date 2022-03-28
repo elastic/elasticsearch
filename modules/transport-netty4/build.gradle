@@ -23,7 +23,7 @@ apply plugin: 'elasticsearch.publish'
  */
 esplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.module.transport.netty4/org.elasticsearch.transport.netty4.Netty4Plugin'
+  classname 'org.elasticsearch.transport.netty4/org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass

@@ -14,7 +14,7 @@ module org.elasticsearch.server {
     requires jdk.unsupported;
 
     requires org.elasticsearch.cli;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.plugin.classloader;

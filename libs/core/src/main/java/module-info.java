@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.core {
+module org.elasticsearch.base {
     requires static jsr305;
 
     exports org.elasticsearch.core;

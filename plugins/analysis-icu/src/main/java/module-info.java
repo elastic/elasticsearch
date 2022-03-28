@@ -7,7 +7,7 @@
  */
 
 module org.elasticsearch.plugin.analysis.icu {
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires com.ibm.icu;

@@ -6,8 +6,8 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.module.transport.netty4 {
-    requires org.elasticsearch.core;
+module org.elasticsearch.transport.netty4 {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;

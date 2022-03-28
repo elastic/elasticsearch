@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.plugin.transport.nio {
+module org.elasticsearch.transport.nio {
     requires org.apache.logging.log4j;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.nio;
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;

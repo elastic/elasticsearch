@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
-  classname 'org.elasticsearch.xpack.plugin.security/org.elasticsearch.xpack.security.Security'
+  classname 'org.elasticsearch.security/org.elasticsearch.xpack.security.Security'
   requiresKeystore true
   extendedPlugins = ['x-pack-core']
 }

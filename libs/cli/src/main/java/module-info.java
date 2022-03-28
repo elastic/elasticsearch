@@ -9,7 +9,7 @@
 /** Elasticsearch Command Line Interface. */
 module org.elasticsearch.cli {
     requires jopt.simple;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.cli;
 }

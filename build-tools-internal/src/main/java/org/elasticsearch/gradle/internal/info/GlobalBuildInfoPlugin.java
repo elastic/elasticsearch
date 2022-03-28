@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -30,10 +29,8 @@ import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
@@ -41,10 +38,8 @@ import java.nio.file.Files;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -55,7 +50,6 @@ import javax.inject.Inject;
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
-    private static Integer _defaultParallel = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;

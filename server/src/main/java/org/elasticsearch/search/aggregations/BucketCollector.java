@@ -22,7 +22,7 @@ public abstract class BucketCollector implements Collector {
     public static final BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext reader, AggregationExecutionContext aggCtx) {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
@@ -44,10 +44,10 @@ public abstract class BucketCollector implements Collector {
     // TODO: will remove it in a follow up PR
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        return getLeafCollector(ctx, null);
+        return getLeafCollector(new AggregationExecutionContext(ctx, null));
     }
 
-    public abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException;
+    public abstract LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException;
 
     /**
      * Pre collection callback.

@@ -695,7 +695,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         public void close() {}
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 

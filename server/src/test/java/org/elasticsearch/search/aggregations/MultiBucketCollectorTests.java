@@ -59,11 +59,11 @@ public class MultiBucketCollectorTests extends ESTestCase {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext context, AggregationExecutionContext aggCtx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             if (count >= terminateAfter) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            final LeafBucketCollector leafCollector = in.getLeafCollector(context, aggCtx);
+            final LeafBucketCollector leafCollector = in.getLeafCollector(aggCtx);
             return new LeafBucketCollectorBase(leafCollector, null) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -95,7 +95,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
         TotalHitCountBucketCollector() {}
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext context, AggregationExecutionContext aggCtx) {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -130,8 +130,8 @@ public class MultiBucketCollectorTests extends ESTestCase {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext context, AggregationExecutionContext aggCtx) throws IOException {
-            final LeafBucketCollector leafCollector = in.getLeafCollector(context, aggCtx);
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+            final LeafBucketCollector leafCollector = in.getLeafCollector(aggCtx);
             return new LeafBucketCollectorBase(leafCollector, null) {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
@@ -252,7 +252,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
         Collections.shuffle(collectors, random());
         BucketCollector collector = MultiBucketCollector.wrap(true, collectors);
 
-        LeafBucketCollector leafCollector = collector.getLeafCollector(null);
+        LeafBucketCollector leafCollector = collector.getLeafCollector((LeafReaderContext) null);
         leafCollector.setScorer(scorer);
         assertTrue(setScorerCalled1.get());
         assertTrue(setScorerCalled2.get());

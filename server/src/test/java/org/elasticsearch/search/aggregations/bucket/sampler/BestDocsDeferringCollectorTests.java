@@ -12,7 +12,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -82,11 +81,11 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
     private BucketCollector testCollector(Set<Integer> docIds) {
         return new BucketCollector() {
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
-                        docIds.add(ctx.docBase + doc);
+                        docIds.add(aggCtx.getLeafReaderContext().docBase + doc);
                     }
                 };
             }

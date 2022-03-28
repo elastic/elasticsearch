@@ -12,7 +12,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -102,7 +101,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
         public AtomicInteger count = new AtomicInteger();
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {

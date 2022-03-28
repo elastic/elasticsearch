@@ -78,8 +78,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
-        perSegCollector = new PerSegmentCollects(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        perSegCollector = new PerSegmentCollects(aggCtx.getLeafReaderContext());
         entries.add(perSegCollector);
 
         // Deferring collector

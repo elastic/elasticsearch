@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedSupplier;
 
@@ -21,13 +22,19 @@ import java.io.IOException;
  */
 public class AggregationExecutionContext {
 
-    private CheckedSupplier<BytesRef, IOException> tsidProvider;
+    private final CheckedSupplier<BytesRef, IOException> tsidProvider;
+    private final LeafReaderContext leafReaderContext;
 
-    public BytesRef getTsid() throws IOException {
-        return tsidProvider.get();
+    public AggregationExecutionContext(LeafReaderContext leafReaderContext, CheckedSupplier<BytesRef, IOException> tsidProvider) {
+        this.leafReaderContext = leafReaderContext;
+        this.tsidProvider = tsidProvider;
     }
 
-    public void setTsidProvider(CheckedSupplier<BytesRef, IOException> tsidProvider) {
-        this.tsidProvider = tsidProvider;
+    public LeafReaderContext getLeafReaderContext() {
+        return leafReaderContext;
+    }
+
+    public BytesRef getTsid() throws IOException {
+        return tsidProvider != null ? tsidProvider.get() : null;
     }
 }

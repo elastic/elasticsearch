@@ -60,12 +60,9 @@ public class TimeSeriesIndexSearcher {
             if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled();
             }
-            AggregationExecutionContext context = new AggregationExecutionContext();
-            LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf, context);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, leafCollector);
-                context.setTsidProvider(leafWalker.scratch::get);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, leaf);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -160,8 +157,9 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, LeafBucketCollector collector) throws IOException {
-            this.collector = collector;
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LeafReaderContext leaf) throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get);
+            this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();

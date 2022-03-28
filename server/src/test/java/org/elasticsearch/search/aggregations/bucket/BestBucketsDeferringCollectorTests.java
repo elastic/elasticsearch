@@ -14,7 +14,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -102,11 +101,11 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     private BucketCollector bla(Set<Integer> docIds) {
         return new BucketCollector() {
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
-                        docIds.add(ctx.docBase + doc);
+                        docIds.add(aggCtx.getLeafReaderContext().docBase + doc);
                     }
                 };
             }
@@ -213,9 +212,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                     public void postCollection() throws IOException {}
 
                     @Override
-                    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx)
-                        throws IOException {
-                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(ctx, aggCtx);
+                    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(aggCtx);
                         return leafCollector.apply(deferringCollector, delegate);
                     }
                 });
@@ -234,7 +232,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {

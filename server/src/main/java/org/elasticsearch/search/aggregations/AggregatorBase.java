@@ -79,7 +79,7 @@ public abstract class AggregatorBase extends Aggregator {
             }
 
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext reader, AggregationExecutionContext aggCtx) {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
                 badState();
                 assert false;
                 return null; // unreachable but compiler does not agree
@@ -216,10 +216,10 @@ public abstract class AggregatorBase extends Aggregator {
      * for more details on what this does.
      */
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
-        preGetSubLeafCollectors(ctx);
-        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx, aggCtx);
-        return getLeafCollector(ctx, sub, aggCtx);
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        preGetSubLeafCollectors(aggCtx.getLeafReaderContext());
+        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(aggCtx);
+        return getLeafCollector(aggCtx.getLeafReaderContext(), sub, aggCtx);
     }
 
     /**

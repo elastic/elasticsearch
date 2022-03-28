@@ -15,7 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -96,9 +95,12 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             long total = 0;
 
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, AggregationExecutionContext aggCtx) throws IOException {
-                SortedDocValues tsid = DocValues.getSorted(ctx.reader(), TimeSeriesIdFieldMapper.NAME);
-                NumericDocValues timestamp = DocValues.getNumeric(ctx.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+                SortedDocValues tsid = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+                NumericDocValues timestamp = DocValues.getNumeric(
+                    aggCtx.getLeafReaderContext().reader(),
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD
+                );
 
                 return new LeafBucketCollector() {
                     @Override

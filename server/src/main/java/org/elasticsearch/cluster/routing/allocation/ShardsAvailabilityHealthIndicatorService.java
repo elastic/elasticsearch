@@ -148,7 +148,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
         private final Metadata clusterMetadata;
 
-        public ShardAllocationStatus(Metadata clusterMetadata) {
+        ShardAllocationStatus(Metadata clusterMetadata) {
             this.clusterMetadata = clusterMetadata;
         }
 

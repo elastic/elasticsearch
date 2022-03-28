@@ -213,8 +213,8 @@ public class TestTranslog {
         return ops;
     }
 
-    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Operation> operations) {
-        final Iterator<Translog.Operation> iterator = operations.iterator();
+    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Index> operations) {
+        final Iterator<Translog.Index> iterator = operations.iterator();
         return new Translog.Snapshot() {
             @Override
             public int totalOperations() {

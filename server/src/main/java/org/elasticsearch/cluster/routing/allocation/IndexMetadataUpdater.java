@@ -216,7 +216,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 List<ShardRouting> assignedShards = newShardRoutingTable.assignedShards()
                     .stream()
                     .filter(s -> s.isRelocationTarget() == false)
-                    .collect(Collectors.toList());
+                    .toList();
                 assert assignedShards.size() <= maxActiveShards
                     : "cannot have more assigned shards " + assignedShards + " than maximum possible active shards " + maxActiveShards;
                 Set<String> assignedAllocations = assignedShards.stream().map(s -> s.allocationId().getId()).collect(Collectors.toSet());

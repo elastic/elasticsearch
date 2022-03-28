@@ -264,7 +264,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             .stream()
             .filter(holder -> holder.info.getName().equals("same") == false)
             .map(holder -> holder.info)
-            .collect(Collectors.toList());
+            .toList();
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();

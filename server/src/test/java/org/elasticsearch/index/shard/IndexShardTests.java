@@ -124,6 +124,7 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -2815,7 +2816,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
             .build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
-        List<Translog.Operation> operations = new ArrayList<>();
+        List<Translog.Index> operations = new ArrayList<>();
         int numTotalEntries = randomIntBetween(0, 10);
         int numCorruptEntries = 0;
         for (int i = 0; i < numTotalEntries; i++) {
@@ -3145,7 +3146,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             final List<Integer> ids = randomSubsetOf(
                 Math.toIntExact(numDocsToDelete),
-                IntStream.range(0, Math.toIntExact(numDocs)).boxed().collect(Collectors.toList())
+                IntStream.range(0, Math.toIntExact(numDocs)).boxed().toList()
             );
             for (final Integer i : ids) {
                 final String id = Integer.toString(i);
@@ -3179,7 +3180,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                     ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE
                                 )
                             )
-                            .collect(Collectors.toList())
+                            .toList()
                     )
                 );
             }
@@ -3925,7 +3926,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(deleteTombstone.docs(), hasSize(1));
         LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(
-            deleteDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
+            deleteDoc.getFields().stream().map(IndexableField::name).toList(),
             containsInAnyOrder(
                 IdFieldMapper.NAME,
                 VersionFieldMapper.NAME,
@@ -3943,7 +3944,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(noopTombstone.docs(), hasSize(1));
         LuceneDocument noopDoc = noopTombstone.docs().get(0);
         assertThat(
-            noopDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
+            noopDoc.getFields().stream().map(IndexableField::name).toList(),
             containsInAnyOrder(
                 VersionFieldMapper.NAME,
                 SourceFieldMapper.NAME,
@@ -3979,7 +3980,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
                         .stream()
                         .map(DocIdSeqNoAndSource::id)
-                        .collect(Collectors.toList());
+                        .toList();
                     assertThat(
                         "every operations before the global checkpoint must be reserved",
                         docBelowGlobalCheckpoint,
@@ -4155,7 +4156,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
                 .build()
         );
-        final List<Translog.Operation> operations = Stream.concat(
+        final List<Translog.Index> operations = Stream.concat(
             IntStream.range(0, randomIntBetween(0, 10))
                 .mapToObj(
                     n -> new Translog.Index(
@@ -4163,7 +4164,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         0,
                         shard.getPendingPrimaryTerm(),
                         1,
-                        "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")),
+                        "{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8),
                         null,
                         -1
                     )
@@ -4176,12 +4177,12 @@ public class IndexShardTests extends IndexShardTestCase {
                         0,
                         shard.getPendingPrimaryTerm(),
                         1,
-                        "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")),
+                        "{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8),
                         null,
                         -1
                     )
                 )
-        ).collect(Collectors.toList());
+        ).collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(operations);
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllReplicaOperationsPermits(

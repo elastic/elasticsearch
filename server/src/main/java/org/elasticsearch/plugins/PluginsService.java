@@ -20,6 +20,8 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
@@ -30,7 +32,12 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.lang.reflect.Constructor;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
@@ -76,11 +83,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     );
 
     public List<Setting<?>> getPluginSettings() {
-        return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).collect(Collectors.toList());
+        return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).toList();
     }
 
     public List<String> getPluginSettingsFilter() {
-        return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
+        return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).toList();
     }
 
     /**
@@ -199,7 +206,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (pluginInfos.isEmpty()) {
             logger.info("no " + type + "s loaded");
         } else {
-            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().collect(Collectors.toList())) {
+            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
         }
@@ -480,7 +487,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private List<Tuple<PluginInfo, Plugin>> loadBundles(Set<Bundle> bundles) {
         List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
-        Map<String, Tuple<Plugin, ClassLoader>> loaded = new HashMap<>();
+        Map<String, Tuple<Plugin, LoaderAndLayer>> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
@@ -651,15 +658,64 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, ClassLoader>> loaded) {
+    static final URI uncheckedToURI(URL url) {
+        try {
+            return url.toURI();
+        } catch (URISyntaxException e) {
+            throw new UncheckedIOException(new IOException(e));
+        }
+    }
+
+    static final String toPackageName(String className) {
+        assert className.endsWith(".") == false;
+        int index = className.lastIndexOf(".");
+        if (index == -1) {
+            throw new IllegalStateException("invalid class name:" + className);
+        }
+        return className.substring(0, index);
+    }
+
+    record LoaderAndLayer(ClassLoader loader, ModuleLayer layer) {}
+
+    @SuppressForbidden(reason = "I need to convert URL's to Paths")
+    static final LoaderAndLayer moduleLoader(Bundle bundle, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {
+        PrivilegedAction<LoaderAndLayer> pa = () -> {
+            assert bundle.plugin.getModuleName().isPresent();
+            var moduleName = bundle.plugin.getModuleName().get();
+            var paths = bundle.urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
+            var finder = ModuleFinder.of(paths);
+            List<ModuleLayer> pls;
+            List<Configuration> cfs;
+            if (parentLayers == null || parentLayers.isEmpty()) {
+                pls = List.of(ModuleLayer.boot());
+                cfs = List.of(ModuleLayer.boot().configuration());
+            } else {
+                pls = parentLayers;
+                cfs = parentLayers.stream().map(ModuleLayer::configuration).toList();
+            }
+            // TODO resolve AND BIND ?
+            var configuration = Configuration.resolve(ModuleFinder.of(), cfs, finder, Set.of(moduleName));
+            var controller = ModuleLayer.defineModulesWithOneLoader(configuration, pls, parentLoader);
+            var layer = controller.layer();
+            ClassLoader loader = layer.findLoader(moduleName);
+            var mainModule = layer.findModule(moduleName).get();
+            // ensure that the main class is accessible to server
+            controller.addOpens(mainModule, toPackageName(bundle.plugin.getClassname()), PluginsService.class.getModule());
+            logger.info("plugin module loader for {}", moduleName);
+            return new LoaderAndLayer(loader, layer);
+        };
+        return AccessController.doPrivileged(pa);
+    }
+
+    private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, LoaderAndLayer>> loaded) {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
 
         // collect loaders of extended plugins
-        List<ClassLoader> extendedLoaders = new ArrayList<>();
+        List<LoaderAndLayer> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            Tuple<Plugin, ClassLoader> extendedPlugin = loaded.get(extendedPluginName);
+            Tuple<Plugin, LoaderAndLayer> extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin.v1()) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
@@ -667,33 +723,47 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             extendedLoaders.add(extendedPlugin.v2());
         }
 
-        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
+        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(
+            getClass().getClassLoader(),
+            extendedLoaders.stream().map(LoaderAndLayer::loader).toList()
+        );
         ClassLoader spiLoader = null;
         if (bundle.spiUrls != null) {
+            // TODO: should this be in it's own module/layer ? or part of painless??
             spiLoader = URLClassLoader.newInstance(bundle.spiUrls.toArray(new URL[0]), parentLoader);
         }
 
-        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), spiLoader == null ? parentLoader : spiLoader);
+        LoaderAndLayer lal;
+        if (bundle.plugin.getModuleName().isPresent()) {
+            lal = moduleLoader(
+                bundle,
+                spiLoader == null ? parentLoader : spiLoader,
+                extendedLoaders.stream().map(LoaderAndLayer::layer).toList()
+            );
+        } else {
+            lal = new LoaderAndLayer(
+                URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), spiLoader == null ? parentLoader : spiLoader),
+                null
+            );
+        }
+
         if (spiLoader == null) {
             // use full implementation for plugins extending this one
-            spiLoader = loader;
+            spiLoader = lal.loader();
         }
 
         // reload SPI with any new services from the plugin
-        reloadLuceneSPI(loader);
+        reloadLuceneSPI(lal.loader());
 
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         try {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(loader);
-                return null;
-            });
+            privilegedSetContextClassLoader(lal.loader());
 
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-            if (loader != pluginClass.getClassLoader()) {
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), lal.loader());
+            if (lal.loader() != pluginClass.getClassLoader()) {
                 throw new IllegalStateException(
                     "Plugin ["
                         + name
@@ -705,14 +775,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            loaded.put(name, Tuple.tuple(plugin, spiLoader));
+            loaded.put(name, Tuple.tuple(plugin, lal));
             return plugin;
         } finally {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(cl);
-                return null;
-            });
+            privilegedSetContextClassLoader(cl);
         }
+    }
+
+    @SuppressWarnings("removal")
+    void privilegedSetContextClassLoader(ClassLoader loader) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Thread.currentThread().setContextClassLoader(loader);
+            return null;
+        });
     }
 
     /**
@@ -781,6 +856,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).toList();
     }
 }

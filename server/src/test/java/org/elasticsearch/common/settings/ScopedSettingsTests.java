@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -1473,7 +1472,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
                 @Override
                 public List<String> getListValue(final List<String> value) {
-                    return value.stream().map(s -> "new." + s).collect(Collectors.toList());
+                    return value.stream().map(s -> "new." + s).toList();
                 }
             })
         );
@@ -1488,10 +1487,7 @@ public class ScopedSettingsTests extends ESTestCase {
         final Settings upgradedSettings = service.upgradeSettings(settings);
         assertFalse(oldSetting.exists(upgradedSettings));
         assertTrue(newSetting.exists(upgradedSettings));
-        assertThat(
-            newSetting.get(upgradedSettings),
-            equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList()))
-        );
+        assertThat(newSetting.get(upgradedSettings), equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).toList()));
     }
 
 }

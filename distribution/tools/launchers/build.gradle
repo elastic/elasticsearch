@@ -35,7 +35,3 @@ tasks.named("testingConventions").configure {
 ["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
   tasks.named(tsk).configure { enabled = false }
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-requires-automatic")
-}

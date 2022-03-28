@@ -81,13 +81,9 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         // at the end of the search
         addReleasable(resultConsumer);
 
-        boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
-        progressListener.notifyListShards(
-            SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts),
-            clusters,
-            hasFetchPhase
-        );
+        if (progressListener != SearchProgressListener.NOOP) {
+            notifyListShards(progressListener, clusters, request.source());
+        }
     }
 
     protected void executePhaseOnShard(

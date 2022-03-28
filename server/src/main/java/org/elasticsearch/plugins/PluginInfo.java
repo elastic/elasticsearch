@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,6 +49,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final Version elasticsearchVersion;
     private final String javaVersion;
     private final String classname;
+    private final String moduleName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
     private final PluginType type;
@@ -87,7 +89,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.version = version;
         this.elasticsearchVersion = elasticsearchVersion;
         this.javaVersion = javaVersion;
-        this.classname = classname;
+        int i;
+        if (classname != null && (i = classname.indexOf('/')) != -1) {
+            // it's a module qualified name
+            this.moduleName = classname.substring(0, i);
+            this.classname = classname.substring(i + 1);
+        } else {
+            this.classname = classname;
+            this.moduleName = null;
+        }
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
         this.type = type;
@@ -108,6 +118,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         elasticsearchVersion = Version.readVersion(in);
         javaVersion = in.readString();
         this.classname = in.readString();
+        this.moduleName = null; // TODO: fix this
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
 
@@ -297,6 +308,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getClassname() {
         return classname;
+    }
+
+    /**
+     * The module name of the plugin.
+     *
+     * @return the module name of the plugin
+     */
+    public Optional<String> getModuleName() {
+        return Optional.ofNullable(moduleName);
     }
 
     /**

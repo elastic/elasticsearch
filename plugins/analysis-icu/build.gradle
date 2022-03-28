@@ -13,7 +13,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.'
-  classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
+  classname 'org.elasticsearch.plugin.analysis.icu/org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
 tasks.named("forbiddenApisMain").configure {
@@ -25,6 +25,10 @@ tasks.named("forbiddenApisMain").configure {
 dependencies {
   api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic")
 }
 
 if (BuildParams.isSnapshotBuild() == false) {

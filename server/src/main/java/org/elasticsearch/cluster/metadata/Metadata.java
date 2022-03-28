@@ -1618,7 +1618,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
+                indices = this.indices.keys().toArray(new String[0]);
             }
             for (String index : indices) {
                 IndexMetadata indexMetadata = this.indices.get(index);
@@ -1750,10 +1750,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             var aliasedIndices = this.aliasedIndices.build();
             for (var entry : aliasedIndices.entrySet()) {
-                List<IndexMetadata> aliasIndices = entry.getValue()
-                    .stream()
-                    .map(idx -> indicesMap.get(idx.getName()))
-                    .collect(Collectors.toList());
+                List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
             }
             final DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
@@ -1938,7 +1935,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
                         aliases.add(alias.getName());
                         return dataStreamMetadata.dataStreams().get(name);
-                    }).flatMap(ds -> ds.getIndices().stream()).collect(Collectors.toList());
+                    }).flatMap(ds -> ds.getIndices().stream()).toList();
                     Index writeIndexOfWriteDataStream = null;
                     if (alias.getWriteDataStream() != null) {
                         DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
@@ -2001,7 +1998,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             List<String> writeIndices = indexMetadatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .map(im -> im.getIndex().getName())
-                .collect(Collectors.toList());
+                .toList();
             if (writeIndices.size() > 1) {
                 throw new IllegalStateException(
                     "alias ["
@@ -2016,14 +2013,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
                 .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
             if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
-                List<String> hiddenOn = groupedByHiddenStatus.get(true)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
-                List<String> nonHiddenOn = groupedByHiddenStatus.get(false)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
+                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream().map(idx -> idx.getIndex().getName()).toList();
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream().map(idx -> idx.getIndex().getName()).toList();
                 throw new IllegalStateException(
                     "alias ["
                         + aliasName
@@ -2046,14 +2037,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
                     .map(i -> i.getIndex().getName())
                     .sorted() // reliable error message for testing
-                    .collect(Collectors.toList());
+                    .toList();
 
                 if (newVersionSystemIndices.isEmpty() == false) {
                     final List<String> nonSystemIndices = groupedBySystemStatus.get(false)
                         .stream()
                         .map(i -> i.getIndex().getName())
                         .sorted() // reliable error message for testing
-                        .collect(Collectors.toList());
+                        .toList();
                     throw new IllegalStateException(
                         "alias ["
                             + aliasName

@@ -77,6 +77,8 @@ function package() {
 
     # install environment
     cd $SDK_DIR/connector-packager
+    # apply pip-installed modules version pinning
+    patch setup.py $MY_TOP_DIR/setup.py.diff
     python3 -m venv .venv
     source .venv/bin/activate
     python3 setup.py install

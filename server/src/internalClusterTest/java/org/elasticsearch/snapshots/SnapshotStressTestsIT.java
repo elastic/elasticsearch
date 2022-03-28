@@ -1153,7 +1153,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             // the snapshot already exists).
 
             // TODO generalise this so that it succeeds as soon as it's acquired a permit on >1/2 of the master-eligible nodes
-            final List<TrackedNode> masterNodes = shuffledNodes.stream().filter(TrackedNode::isMasterNode).collect(Collectors.toList());
+            final List<TrackedNode> masterNodes = shuffledNodes.stream().filter(TrackedNode::isMasterNode).toList();
             try (TransferableReleasables localReleasables = new TransferableReleasables()) {
                 for (TrackedNode trackedNode : masterNodes) {
                     if (localReleasables.add(tryAcquirePermit(trackedNode.getPermits())) == null) {

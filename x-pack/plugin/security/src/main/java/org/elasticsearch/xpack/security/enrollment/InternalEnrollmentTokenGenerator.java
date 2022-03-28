@@ -51,7 +51,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     public InternalEnrollmentTokenGenerator(Environment environment, SSLService sslService, Client client) {
         this.environment = environment;
         this.sslService = sslService;
-        // enrollment tokens API keys will be owned by the "_xpack_security" system user ("superuser" role)
+        // enrollment tokens API keys will be owned by the "_xpack_security" system user ("_xpack_security" role)
         this.client = new OriginSettingClient(client, SECURITY_ORIGIN);
     }
 

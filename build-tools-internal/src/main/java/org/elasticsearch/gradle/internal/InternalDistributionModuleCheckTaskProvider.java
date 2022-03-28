@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import com.google.common.collect.Streams;
-
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -35,7 +33,7 @@ import java.util.stream.Collectors;
 
 /**
  * Distribution level checks for Elasticsearch Java modules, i.e. modular jar files.
- * Currently, ES modular jar files are in the lib and lib/launchers directory.
+ * Currently, ES modular jar files are in the lib directory.
  */
 public class InternalDistributionModuleCheckTaskProvider {
 
@@ -77,8 +75,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** Checks that all expected ES jar files are modular, i.e. contain a module-info.class in their root. */
     private static void assertAllESJarsAreModular(Path libPath) {
-        try {
-            var s = Streams.concat(Files.walk(libPath, 1), Files.walk(libPath.resolve("launchers")));
+        try (var s = Files.walk(libPath, 1)) {
             s.filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
                 try (JarFile jf = new JarFile(path.toFile())) {
                     JarEntry entry = jf.getJarEntry(MODULE_INFO);
@@ -102,8 +99,6 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.cli",
         "org.elasticsearch.core",
         "org.elasticsearch.geo",
-        "org.elasticsearch.java_version_checker",
-        "org.elasticsearch.launchers",
         "org.elasticsearch.lz4",
         "org.elasticsearch.plugin.classloader",
         "org.elasticsearch.secure_sm",
@@ -113,8 +108,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** Checks that all expected Elasticsearch modules are present. */
     private static void assertAllModulesPresent(Path libPath) {
-        var finder = ModuleFinder.compose(ModuleFinder.of(libPath), ModuleFinder.of(libPath.resolve("launchers")));
-        List<String> actualESModules = finder.findAll().stream().filter(isESModule).map(toName).sorted().toList();
+        List<String> actualESModules = ModuleFinder.of(libPath).findAll().stream().filter(isESModule).map(toName).sorted().toList();
         if (actualESModules.equals(EXPECTED_ES_MODUlES) == false) {
             throw new GradleException(
                 "expected modules " + listToString(EXPECTED_ES_MODUlES) + ", \nactual modules " + listToString(actualESModules)

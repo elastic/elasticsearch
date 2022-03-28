@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
-  classname 'org.elasticsearch.xpack.security.Security'
+  classname 'org.elasticsearch.xpack.plugin.security/org.elasticsearch.xpack.security.Security'
   requiresKeystore true
   extendedPlugins = ['x-pack-core']
 }
@@ -144,6 +144,10 @@ dependencies {
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
+}
+
 tasks.named("processInternalClusterTestResources").configure {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))
@@ -175,6 +179,12 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
+}
+
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

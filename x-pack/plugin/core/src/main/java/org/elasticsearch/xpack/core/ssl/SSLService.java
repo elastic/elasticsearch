@@ -516,7 +516,7 @@ public class SSLService {
                     .filter(e -> e.getValue().equals(configuration))
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
-                    .collect(Collectors.toUnmodifiableList());
+                    .toList();
                 final String name = switch (names.size()) {
                     case 0 -> "(unknown)";
                     case 1 -> names.get(0);
@@ -637,11 +637,7 @@ public class SSLService {
                 );
             }
         } else if (settings.hasValue(enabledSetting) == false) {
-            final List<String> sslSettingNames = settings.keySet()
-                .stream()
-                .filter(s -> s.startsWith(prefix))
-                .sorted()
-                .collect(Collectors.toUnmodifiableList());
+            final List<String> sslSettingNames = settings.keySet().stream().filter(s -> s.startsWith(prefix)).sorted().toList();
             if (sslSettingNames.isEmpty() == false) {
                 throw new ElasticsearchSecurityException(
                     "invalid configuration for "

@@ -484,8 +484,10 @@ public class RoutingTableTests extends ESAllocationTestCase {
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/
     public static IndexMetadata updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetadata indexMetadata) {
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(indexMetadata);
-        for (IndexShardRoutingTable shardTable : indexRoutingTable) {
-            for (ShardRouting shardRouting : shardTable) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardTable.size(); copy++) {
+                ShardRouting shardRouting = shardTable.shard(copy);
                 Set<String> insyncAids = shardTable.activeShards()
                     .stream()
                     .map(shr -> shr.allocationId().getId())

@@ -2025,6 +2025,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         new TestRequest("secondary " + request.info),
                         TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TestResponse>() {
+
+                            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
                                 return new TestResponse(in);
@@ -2056,7 +2059,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                             @Override
                             public String executor() {
-                                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                                return executor;
                             }
                         }
                     );
@@ -2090,6 +2093,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
+            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
 
             TestResponseHandler(int id) {
                 this.id = id;
@@ -2121,7 +2125,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public String executor() {
-                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                return executor;
             }
         }
 
@@ -2409,6 +2413,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(2);
 
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+
+            private final String executor = randomFrom(executors);
+
             @Override
             public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
@@ -2442,7 +2449,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public String executor() {
-                return randomFrom(executors);
+                return executor;
             }
         };
 

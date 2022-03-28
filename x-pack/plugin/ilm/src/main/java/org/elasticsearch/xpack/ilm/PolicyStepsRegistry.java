@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +48,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
@@ -289,9 +287,9 @@ public class PolicyStepsRegistry {
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
         if (steps == null) {
-            phaseSteps = new ArrayList<>();
+            phaseSteps = List.of();
         } else {
-            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).collect(Collectors.toList());
+            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).toList();
         }
         logger.trace(
             "parsed steps for policy [{}] in phase [{}], definition: [{}], steps: [{}]",

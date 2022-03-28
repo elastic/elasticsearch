@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -151,7 +153,7 @@ public interface IndexAbstraction {
             this.concreteIndexName = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? indexMetadata.getAliases().keySet().stream().toList() : null;
+            this.aliases = indexMetadata.getAliases() != null ? List.copyOf(indexMetadata.getAliases().keySet()) : null;
             this.dataStream = dataStream;
         }
 
@@ -232,28 +234,26 @@ public interface IndexAbstraction {
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
             this.referenceIndexMetadatas = new ArrayList<>(indices.size());
+            boolean isSystem = true;
+            Index widx = null;
             for (IndexMetadata imd : indices) {
                 this.referenceIndexMetadatas.add(imd.getIndex());
+                if (Boolean.TRUE.equals(imd.getAliases().get(aliasName).writeIndex())) {
+                    if (widx != null) {
+                        throw new IllegalStateException("write indices size can only be 0 or 1, but is at least 2");
+                    }
+                    widx = imd.getIndex();
+                }
+                isSystem = isSystem && imd.isSystem();
             }
 
-            List<IndexMetadata> writeIndices = indices.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
-
-            if (writeIndices.isEmpty() && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(indices.get(0));
+            if (widx == null && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                widx = indices.get(0).getIndex();
             }
-
-            if (writeIndices.size() == 0) {
-                this.writeIndex = null;
-            } else if (writeIndices.size() == 1) {
-                this.writeIndex = writeIndices.get(0).getIndex();
-            } else {
-                throw new IllegalStateException("write indices size can only be 0 or 1, but is [" + writeIndices.size() + "]");
-            }
+            this.writeIndex = widx;
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
-            this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
+            this.isSystem = isSystem;
             dataStreamAlias = false;
         }
 
@@ -338,6 +338,10 @@ public interface IndexAbstraction {
             false
         );
 
+        public static final DateFormatter TIMESTAMP_FORMATTER = DateFormatter.forPattern(
+            "strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis"
+        );
+
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
         private final List<String> referencedByDataStreamAliases;
 
@@ -376,15 +380,12 @@ public interface IndexAbstraction {
             }
 
             Instant timestamp;
-            final var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+            final var formatter = TIMESTAMP_FORMATTER;
             XContent xContent = request.getContentType().xContent();
             try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
                 switch (parser.nextToken()) {
-                    // TODO: deal with nanos too here.
-                    // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
-                    // so we can use it here)
                     case VALUE_STRING -> timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
                     case VALUE_NUMBER -> timestamp = Instant.ofEpochMilli(parser.longValue());
                     default -> throw new ParsingException(
@@ -401,6 +402,7 @@ public interface IndexAbstraction {
             } catch (Exception e) {
                 throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
             }
+            timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
             if (result == null) {
                 String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);

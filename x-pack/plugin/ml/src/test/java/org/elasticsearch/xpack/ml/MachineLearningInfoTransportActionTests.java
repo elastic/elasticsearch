@@ -384,7 +384,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                        randomIntBetween(1, 16),
+                                        1L,
+                                        2L,
+                                        33.0
                                     ),
                                     AllocationStats.NodeStats.forStartedState(
                                         new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
@@ -397,7 +400,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                        randomIntBetween(1, 16),
+                                        2L,
+                                        4L,
+                                        34.0
                                     )
                                 )
                             ).setState(AllocationState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))

@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction<
     GetDataStreamAction.Request,
@@ -121,7 +120,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
         Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
-        return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).collect(Collectors.toList());
+        return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
     }
 
     @Override

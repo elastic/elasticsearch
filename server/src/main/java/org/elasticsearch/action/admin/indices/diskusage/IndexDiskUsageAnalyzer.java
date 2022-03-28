@@ -386,8 +386,12 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(new PointsVisitor(values.getMinPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
-                values.intersect(new PointsVisitor(values.getMaxPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
+                values.intersect(
+                    new PointsVisitor(values.getMinPackedValue(), values.getNumIndexDimensions(), values.getBytesPerDimension())
+                );
+                values.intersect(
+                    new PointsVisitor(values.getMaxPackedValue(), values.getNumIndexDimensions(), values.getBytesPerDimension())
+                );
                 stats.addPoints(field.name, directory.getBytesRead());
             }
         }

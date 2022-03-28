@@ -1159,9 +1159,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         final String repoName = "repo";
-        final List<String> snapshotNames = IntStream.range(1, randomIntBetween(2, 4))
-            .mapToObj(i -> "snapshot-" + i)
-            .collect(Collectors.toList());
+        final List<String> snapshotNames = IntStream.range(1, randomIntBetween(2, 4)).mapToObj(i -> "snapshot-" + i).toList();
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(1, 100);
@@ -1328,12 +1326,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final Collection<ClusterState> clusterStates = testClusterNodes.nodes.values()
                 .stream()
                 .map(node -> node.clusterService.state())
-                .collect(Collectors.toList());
+                .toList();
             final Set<String> masterNodeIds = clusterStates.stream()
                 .map(clusterState -> clusterState.nodes().getMasterNodeId())
                 .collect(Collectors.toSet());
             final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
-            final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
+            final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().toList();
             return versions.size() == 1 && masterNodeIds.size() == 1 && masterNodeIds.contains(null) == false && terms.size() == 1;
         }, TimeUnit.MINUTES.toMillis(1L));
     }
@@ -1385,7 +1383,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .stream()
             .filter(n -> testClusterNodes.disconnectedNodes.contains(n.node.getName()) == false)
             .sorted(Comparator.comparing(n -> n.node.getName()))
-            .collect(Collectors.toList());
+            .toList();
         if (nodes.isEmpty()) {
             throw new AssertionError("No nodes available");
         }
@@ -1488,7 +1486,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .filter(n -> n.node.isMasterNode())
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
-                .collect(Collectors.toList());
+                .toList();
             return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }
 
@@ -1515,7 +1513,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     return true;
                 })
                 .sorted(Comparator.comparing(n -> n.node.getName()))
-                .collect(Collectors.toList());
+                .toList();
             return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(randomFrom(dataNodes));
         }
 
@@ -1572,8 +1570,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private final Logger logger = LogManager.getLogger(TestClusterNode.class);
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream())
-                    .collect(Collectors.toList())
+                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
             );
 
             private final TransportService transportService;
@@ -2160,11 +2157,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     allocationService,
                     masterService,
                     () -> persistedState,
-                    hostsResolver -> nodes.values()
-                        .stream()
-                        .filter(n -> n.node.isMasterNode())
-                        .map(n -> n.node.getAddress())
-                        .collect(Collectors.toList()),
+                    hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
                     clusterService.getClusterApplierService(),
                     Collections.emptyList(),
                     random(),

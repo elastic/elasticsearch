@@ -154,7 +154,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                         b
                     )
                 )
-                .collect(Collectors.toList()),
+                .toList(),
             filter
         );
     }

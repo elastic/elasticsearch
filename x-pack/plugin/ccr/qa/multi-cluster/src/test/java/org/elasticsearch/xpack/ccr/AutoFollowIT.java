@@ -105,6 +105,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84403")
     public void testAutoFollowPatterns() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]");

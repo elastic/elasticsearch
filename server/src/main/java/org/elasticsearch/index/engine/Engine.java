@@ -59,7 +59,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.transport.Transports;
 
@@ -134,7 +134,7 @@ public abstract class Engine implements Closeable {
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
         // we use the engine class directly here to make sure all subclasses have the same logger name
-        this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId().getId());
+        this.logger = PrefixLogger.getLogger(Engine.class, engineConfig.getShardId().getId());
         this.eventListener = engineConfig.getEventListener();
     }
 

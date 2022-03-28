@@ -5,7 +5,7 @@ set -e -o pipefail
 CDPATH=""
 
 SCRIPT="$0"
-
+echo "env"
 # SCRIPT might be an arbitrarily deep series of symbolic links; loop until we
 # have the concrete path
 while [ -h "$SCRIPT" ] ; do

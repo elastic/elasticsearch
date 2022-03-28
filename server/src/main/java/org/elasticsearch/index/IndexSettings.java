@@ -24,7 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.node.Node;
 
 import java.time.Instant;
@@ -697,7 +697,7 @@ public final class IndexSettings {
         this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
         this.index = indexMetadata.getIndex();
         version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
-        logger = Loggers.getLogger(getClass(), index.getName());
+        logger = PrefixLogger.getLogger(getClass(), index.getName());
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);

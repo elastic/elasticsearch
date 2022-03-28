@@ -80,7 +80,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
@@ -169,12 +169,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setRootLoggerLevel(LogSettings.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        LogLevelUtil.setRootLoggerLevel(LogSettings.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setRootLoggerLevel(rootLevel);
+                        LogLevelUtil.setRootLoggerLevel(rootLevel);
                     }
                 } else {
-                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
+                    LogLevelUtil.setLevel(LogManager.getLogger(component), value.get(key));
                 }
             }
         }

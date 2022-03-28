@@ -24,7 +24,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,7 +58,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
-        this.logger = Loggers.getLogger(getClass(), shardId.getId());
+        this.logger = PrefixLogger.getLogger(getClass(), shardId.getId());
         refreshConfig();
     }
 

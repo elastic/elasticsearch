@@ -8,11 +8,11 @@
 
 package org.elasticsearch.logging.internal.spi;
 
-
 public interface ServerSupport {
 
     /** Return a tuple, where the first element is the node name, and second is the cluster Id (in string form). */
     String nodeId();
+
     String clusterId();
 
     // Header Warning support

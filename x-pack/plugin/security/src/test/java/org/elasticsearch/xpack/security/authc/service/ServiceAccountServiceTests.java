@@ -21,7 +21,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -110,9 +110,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final byte[] magicBytes = { 0, 1, 0, 1 };
 
         final Logger satLogger = LogManager.getLogger(ServiceAccountToken.class);
-        Loggers.setLevel(satLogger, Level.TRACE);
+        LogLevelUtil.setLevel(satLogger, Level.TRACE);
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
-        Loggers.setLevel(sasLogger, Level.TRACE);
+        LogLevelUtil.setLevel(sasLogger, Level.TRACE);
 
         final MockLogAppender appender = new MockLogAppender();
         AppenderUtils.addAppender(satLogger, appender);
@@ -314,8 +314,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
         } finally {
             appender.stop();
-            Loggers.setLevel(satLogger, Level.INFO);
-            Loggers.setLevel(sasLogger, Level.INFO);
+            LogLevelUtil.setLevel(satLogger, Level.INFO);
+            LogLevelUtil.setLevel(sasLogger, Level.INFO);
             AppenderUtils.removeAppender(satLogger, appender);
             AppenderUtils.removeAppender(sasLogger, appender);
         }
@@ -372,7 +372,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testAuthenticateWithToken() throws ExecutionException, InterruptedException, IllegalAccessException {
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
-        Loggers.setLevel(sasLogger, Level.TRACE);
+        LogLevelUtil.setLevel(sasLogger, Level.TRACE);
 
         final MockLogAppender appender = new MockLogAppender();
         AppenderUtils.addAppender(sasLogger, appender);
@@ -567,7 +567,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            Loggers.setLevel(sasLogger, Level.INFO);
+            LogLevelUtil.setLevel(sasLogger, Level.INFO);
             AppenderUtils.removeAppender(sasLogger, appender);
         }
     }

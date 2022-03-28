@@ -18,7 +18,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -84,7 +84,7 @@ public final class MockFSIndexStore {
             if (indexShard != null) {
                 Boolean remove = shardSet.remove(indexShard);
                 if (remove == Boolean.TRUE) {
-                    Logger logger = Loggers.getLogger(getClass(), indexShard.shardId().getId());
+                    Logger logger = PrefixLogger.getLogger(getClass(), indexShard.shardId().getId());
                     MockFSDirectoryFactory.checkIndex(logger, indexShard.store(), indexShard.shardId());
                 }
             }

@@ -34,7 +34,7 @@ import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -198,7 +198,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetadata metadata) {
-        super(settings, metadata.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metadata.getIndex().getName()));
+        super(settings, metadata.getSettings(), other, PrefixLogger.getLogger(IndexScopedSettings.class, metadata.getIndex().getName()));
     }
 
     public IndexScopedSettings copy(Settings settings, IndexMetadata metadata) {

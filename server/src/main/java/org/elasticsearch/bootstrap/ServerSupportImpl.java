@@ -45,12 +45,14 @@ public class ServerSupportImpl implements ServerSupport {
 
     @Override
     public String nodeId() {
-        return NodeAndClusterIdStateListener.getNodeIdAndClusterId().v1();
+        Tuple<String, String> nodeIdAndClusterId = NodeAndClusterIdStateListener.getNodeIdAndClusterId();
+        return nodeIdAndClusterId != null ? nodeIdAndClusterId.v1() : null;
     }
 
     @Override
     public String clusterId() {
-        return NodeAndClusterIdStateListener.getNodeIdAndClusterId().v2();
+        Tuple<String, String> nodeIdAndClusterId = NodeAndClusterIdStateListener.getNodeIdAndClusterId();
+        return nodeIdAndClusterId != null ? nodeIdAndClusterId.v2() : null;
     }
     // -- settings
 

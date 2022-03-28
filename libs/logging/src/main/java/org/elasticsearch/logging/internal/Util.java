@@ -43,7 +43,7 @@ public final class Util {
         };
     }
 
-    static org.apache.logging.log4j.Logger log4jLogger(final org.elasticsearch.logging.Logger logger) {
+    public static org.apache.logging.log4j.Logger log4jLogger(final org.elasticsearch.logging.Logger logger) {
         if (logger instanceof org.apache.logging.log4j.Logger log4jLogger) {
             return log4jLogger;
         }

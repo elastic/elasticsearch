@@ -32,7 +32,6 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.LogConfigurator;
-import org.elasticsearch.logging.internal.LogConfigurator.ConsoleAppenderMode;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -334,7 +333,7 @@ final class Bootstrap {
         try {
             final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
-                LogConfigurator.consoleAppender().accept(ConsoleAppenderMode.DISABLE);
+                LogConfigurator.consoleAppender().accept(LogConfigurator.ConsoleAppenderMode.DISABLE);
                 sysOutCloser.run();
             }
 
@@ -383,7 +382,7 @@ final class Bootstrap {
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             if (foreground) {
-                LogConfigurator.consoleAppender().accept(ConsoleAppenderMode.DISABLE);
+                LogConfigurator.consoleAppender().accept(LogConfigurator.ConsoleAppenderMode.DISABLE);
             }
             Logger logger = LogManager.getLogger(Bootstrap.class);
             // HACK, it sucks to do this, but we will run users out of disk space otherwise

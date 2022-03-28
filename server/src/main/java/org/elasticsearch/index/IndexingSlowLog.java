@@ -18,12 +18,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.SlowLogger;
 import org.elasticsearch.logging.StringBuilders;
-import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.Loggers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -69,7 +65,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    private final Logger indexLogger;
+    private final SlowLogger indexLogger;
     private final Index index;
 
     private boolean reformat;
@@ -104,8 +100,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     );
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
-        Loggers.setLevel(this.indexLogger, Level.TRACE);
+        this.indexLogger = SlowLogger.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -170,10 +165,10 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     static final class IndexingSlowLogMessage {
 
-        public static ESLogMessage of(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-
+        // TODO PG cleanup
+        public static Map<String, Object> of(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
-            return new ESLogMessage().withFields(jsonFields);
+            return jsonFields;
         }
 
         private static Map<String, Object> prepareMap(

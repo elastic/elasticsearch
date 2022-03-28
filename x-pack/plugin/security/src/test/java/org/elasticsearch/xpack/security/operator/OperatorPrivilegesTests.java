@@ -17,7 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -103,7 +103,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         AppenderUtils.addAppender(logger, appender);
-        Loggers.setLevel(logger, Level.DEBUG);
+        LogLevelUtil.setLevel(logger, Level.DEBUG);
 
         try {
             appender.addExpectation(
@@ -123,7 +123,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         } finally {
             AppenderUtils.removeAppender(logger, appender);
             appender.stop();
-            Loggers.setLevel(logger, (Level) null);
+            LogLevelUtil.setLevel(logger, (Level) null);
         }
 
         // Will mark empty for non-operator user
@@ -221,7 +221,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         AppenderUtils.addAppender(logger, appender);
-        Loggers.setLevel(logger, Level.DEBUG);
+        LogLevelUtil.setLevel(logger, Level.DEBUG);
 
         try {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
@@ -239,7 +239,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         } finally {
             AppenderUtils.removeAppender(logger, appender);
             appender.stop();
-            Loggers.setLevel(logger, (Level) null);
+            LogLevelUtil.setLevel(logger, (Level) null);
         }
     }
 

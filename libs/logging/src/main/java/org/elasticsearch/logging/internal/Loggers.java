@@ -17,94 +17,13 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 
-import java.util.Arrays;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * A set of utilities around Logging.
  */
 public class Loggers {
     public Loggers() {}
-
-    private static final String SPACE = " ";
-
-    public static org.elasticsearch.logging.Logger getLogger(Class<?> clazz, int shardId, String... prefixes) {
-        return getLogger(
-            clazz,
-
-            Stream.concat(Stream.of(Integer.toString(shardId)), Arrays.stream(prefixes)).toArray(String[]::new)
-        );
-    }
-
-    // /**
-    // * Just like {@link #getLogger(Class, ShardId, String...)} but String loggerName instead of
-    // * Class and no extra prefixes. // TODO: fix docs
-    // */
-    public static org.elasticsearch.logging.Logger getLogger(String loggerName, String indexName, int shardId) {
-        String prefix = formatPrefix(indexName, Integer.toString(shardId));
-        return new LoggerImpl(new PrefixLogger(LogManager.getLogger(loggerName), prefix));
-    }
-
-    public static org.elasticsearch.logging.Logger getLoggerWithIndexName(Class<?> clazz, String indexName, String... prefixes) {
-        return getLogger(clazz, Stream.concat(Stream.of(Loggers.SPACE, indexName), Arrays.stream(prefixes)).toArray(String[]::new));
-    }
-
-    public static org.elasticsearch.logging.Logger getLogger(Class<?> clazz, String... prefixes) {
-        return new LoggerImpl(new PrefixLogger(LogManager.getLogger(clazz), formatPrefix(prefixes)));
-    }
-
-    public static org.elasticsearch.logging.Logger getLogger(org.elasticsearch.logging.Logger parentLogger, String s) {
-        org.elasticsearch.logging.Logger inner = org.elasticsearch.logging.LogManager.getLogger(parentLogger.getName() + s);
-        if (parentLogger instanceof PrefixLogger) {
-            return new LoggerImpl(new PrefixLogger(Util.log4jLogger(inner), ((PrefixLogger) parentLogger).prefix()));
-        }
-        return inner;
-    }
-
-    public static org.elasticsearch.logging.Logger getLoggerImpl(Logger parentLogger, String s) {
-        Logger inner = LogManager.getLogger(parentLogger.getName() + s);
-        if (parentLogger instanceof PrefixLogger) {
-            return new LoggerImpl(new PrefixLogger(inner, ((PrefixLogger) parentLogger).prefix()));
-        }
-        return new LoggerImpl(inner);
-    }
-
-    private static String formatPrefix(String... prefixes) {
-        String prefix = null;
-        if (prefixes != null && prefixes.length > 0) {
-            StringBuilder sb = new StringBuilder();
-            for (String prefixX : prefixes) {
-                if (prefixX != null) {
-                    if (prefixX.equals(SPACE)) {
-                        sb.append(" ");
-                    } else {
-                        sb.append("[").append(prefixX).append("]");
-                    }
-                }
-            }
-            if (sb.length() > 0) {
-                prefix = sb.toString();
-            }
-        }
-        return prefix;
-    }
-
-    public static void setRootLoggerLevel(String level) {
-        setLevelImpl(LogManager.getRootLogger(), level);
-    }
-
-    public static void setRootLoggerLevel(org.elasticsearch.logging.Level level) {
-        setLevelImpl(LogManager.getRootLogger(), Util.log4jLevel(level));
-    }
-
-    /**
-     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
-     * level.
-     */
-    public static void setLevel(org.elasticsearch.logging.Logger logger, String level) {
-        setLevelImpl(Util.log4jLogger(logger), level);
-    }
 
     private static void setLevelImpl(Logger logger, String level) {
         final Level l;
@@ -114,10 +33,6 @@ public class Loggers {
             l = Level.valueOf(level);
         }
         setLevelImpl(logger, l);
-    }
-
-    public static void setLevel(org.elasticsearch.logging.Logger logger, org.elasticsearch.logging.Level level) {
-        setLevelImpl(Util.log4jLogger(logger), Util.log4jLevel(level));
     }
 
     public static void setLevelImpl(Logger logger, Level level) {
@@ -139,8 +54,6 @@ public class Loggers {
             }
         }
     }
-
-    public static void addAppender(final org.elasticsearch.logging.Logger logger, final Appender appender) {}
 
     public static void addAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -167,7 +80,7 @@ public class Loggers {
         ctx.updateLoggers();
     }
 
-    static Appender findAppender(final Logger logger, final Class<? extends Appender> clazz) {
+    public static Appender findAppender(final Logger logger, final Class<? extends Appender> clazz) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
@@ -179,7 +92,4 @@ public class Loggers {
         return null;
     }
 
-    public static void setLevel(Logger logger, org.elasticsearch.logging.Level info) {
-
-    }
 }

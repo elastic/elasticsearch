@@ -68,7 +68,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -156,7 +156,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
         this.directory = new StoreDirectory(
             sizeCachingDir,
-            Loggers.getLogger("index.store.deletes", shardId.getIndexName(), shardId.getId())
+            PrefixLogger.getLogger("index.store.deletes", shardId.getIndexName(), shardId.getId())
         );
         this.shardLock = shardLock;
         this.onClose = onClose;

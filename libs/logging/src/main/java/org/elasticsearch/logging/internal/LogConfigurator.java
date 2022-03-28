@@ -195,7 +195,7 @@ public class LogConfigurator {
     // }
     // }
 
-    private static void checkErrorListener() {
+    /* TODO PG private */ public static void checkErrorListener() {
         assert errorListenerIsRegistered() : "expected error listener to be registered";
         if (error.get()) {
             throw new IllegalStateException("status logger logged an error before logging was configured");

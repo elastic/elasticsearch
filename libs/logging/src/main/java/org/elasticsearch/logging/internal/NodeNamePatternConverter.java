@@ -46,7 +46,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * Set the name of this node.
      */
-    static void setNodeName(String nodeName) {
+    public static void setNodeName(String nodeName) {
         String prev = (String) NAME_SETTER_HANDLE.compareAndExchange(null, nodeName);
         if (prev != null) {
             throw new IllegalStateException("already set");

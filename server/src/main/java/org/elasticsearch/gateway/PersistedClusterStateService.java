@@ -66,7 +66,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -669,7 +669,7 @@ public class PersistedClusterStateService {
             this.path = path;
             this.directory = directory;
             this.indexWriter = indexWriter;
-            this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
+            this.logger = PrefixLogger.getLogger(MetadataIndexWriter.class, directory.toString());
         }
 
         void deleteAll() throws IOException {

@@ -48,11 +48,11 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
         String nodeId = ServerSupportImpl.INSTANCE.nodeId();
         String clusterId = ServerSupportImpl.INSTANCE.clusterId();
 
-        if(nodeId != null) {
+        if (nodeId != null) {
             toAppendTo.append(formatFields("node.id", nodeId));
         }
-        if(clusterId != null) {
-            if(nodeId != null) {
+        if (clusterId != null) {
+            if (nodeId != null) {
                 toAppendTo.append(", ");
             }
             toAppendTo.append(formatFields("cluster.uuid", clusterId));
@@ -60,8 +60,9 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
         // nodeId/clusterUuid not received yet, not appending
     }
+
     private String formatFields(String fieldName, String value) {
-        return String.format(Locale.ROOT, "\""+fieldName+"\": \"%s\"", fieldName, value);
+        return String.format(Locale.ROOT, "\"" + fieldName + "\": \"%s\"", fieldName, value);
     }
 
 }

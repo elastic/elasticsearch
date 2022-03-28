@@ -42,7 +42,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
@@ -670,7 +670,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testSecurityRestHandlerWrapperCanBeInstalled() throws IllegalAccessException {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
-        Loggers.setLevel(amLogger, Level.DEBUG);
+        LogLevelUtil.setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
         AppenderUtils.addAppender(amLogger, appender);
         appender.start();
@@ -720,7 +720,7 @@ public class SecurityTests extends ESTestCase {
     public void testSecurityStatusMessageInLog() throws Exception {
         final Logger mockLogger = LogManager.getLogger(Security.class);
         boolean securityEnabled = true;
-        Loggers.setLevel(mockLogger, Level.INFO);
+        LogLevelUtil.setLevel(mockLogger, Level.INFO);
         final MockLogAppender appender = new MockLogAppender();
         AppenderUtils.addAppender(mockLogger, appender);
         appender.start();

@@ -26,7 +26,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
 import org.elasticsearch.logging.api.core.MockLogAppender.LoggingExpectation;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -285,7 +285,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
 
-        Loggers.setLevel(checkpointProviderLogger, Level.DEBUG);
+        LogLevelUtil.setLevel(checkpointProviderLogger, Level.DEBUG);
         mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh

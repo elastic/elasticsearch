@@ -19,7 +19,7 @@ import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.Filter;
 import org.elasticsearch.logging.api.core.Layout;
 import org.elasticsearch.logging.api.core.LogEvent;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
@@ -78,7 +78,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         // mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         AppenderUtils.addAppender(settingsLogger, mockAppender);
-        Loggers.setLevel(settingsLogger, Level.TRACE);
+        LogLevelUtil.setLevel(settingsLogger, Level.TRACE);
         try {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -99,7 +99,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         } finally {
             AppenderUtils.removeAppender(settingsLogger, mockAppender);
             // mockAppender.stop();
-            Loggers.setLevel(settingsLogger, (Level) null);
+            LogLevelUtil.setLevel(settingsLogger, (Level) null);
         }
     }
 
@@ -109,7 +109,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         // mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         AppenderUtils.addAppender(settingsLogger, mockAppender);
-        Loggers.setLevel(settingsLogger, Level.TRACE);
+        LogLevelUtil.setLevel(settingsLogger, Level.TRACE);
         try {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -131,7 +131,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         } finally {
             AppenderUtils.removeAppender(settingsLogger, mockAppender);
             // mockAppender.stop();
-            Loggers.setLevel(settingsLogger, (Level) null);
+            LogLevelUtil.setLevel(settingsLogger, (Level) null);
         }
     }
 

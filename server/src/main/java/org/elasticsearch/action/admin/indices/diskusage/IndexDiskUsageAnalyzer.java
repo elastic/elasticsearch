@@ -50,7 +50,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,7 +69,7 @@ final class IndexDiskUsageAnalyzer {
     private final CancellationChecker cancellationChecker;
 
     private IndexDiskUsageAnalyzer(ShardId shardId, IndexCommit commit, Runnable checkForCancellation) {
-        this.logger = Loggers.getLogger(IndexDiskUsageAnalyzer.class, shardId.getId(), shardId.getIndexName());
+        this.logger = PrefixLogger.getLogger(IndexDiskUsageAnalyzer.class, shardId.getId(), shardId.getIndexName());
         this.directory = new TrackingReadBytesDirectory(commit.getDirectory());
         this.commit = new FilterIndexCommit(commit) {
             @Override

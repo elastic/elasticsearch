@@ -43,6 +43,7 @@ while [ $# -gt 0 ]; do
    fi
 done
 
+echo "temp dir"
 if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" "$XSHARE" --module-path "$LAUNCHERS_MODULEPATH" -m org.elasticsearch.launchers/org.elasticsearch.tools.launchers.TempDirectory`
 fi

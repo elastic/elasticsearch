@@ -62,7 +62,7 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -143,7 +143,7 @@ public class RecoverySourceHandler {
         this.recoveryPlannerService = recoveryPlannerService;
         this.request = request;
         this.shardId = this.request.shardId().id();
-        this.logger = Loggers.getLogger(getClass(), request.shardId().getId(), "recover to " + request.targetNode().getName());
+        this.logger = PrefixLogger.getLogger(getClass(), request.shardId().getId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
         this.maxConcurrentOperations = maxConcurrentOperations;

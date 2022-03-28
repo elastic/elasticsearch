@@ -17,7 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
@@ -39,7 +39,7 @@ public class GeoDataLoader {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
             loadOGCDatasetIntoEs(client, "ogc");
             loadGeoDatasetIntoEs(client, "geo");
-            Loggers.getLogger(GeoDataLoader.class).info("Geo data loaded");
+            PrefixLogger.getLogger(GeoDataLoader.class).info("Geo data loaded");
         }
     }
 

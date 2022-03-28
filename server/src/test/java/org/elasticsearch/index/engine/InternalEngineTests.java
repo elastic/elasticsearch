@@ -2506,7 +2506,7 @@ public class InternalEngineTests extends EngineTestCase {
     // Logger rootLogger = LogManager.getRootLogger();
     // Level savedLevel = rootLogger.getLevel();
     // AppenderUtils.addAppender(rootLogger, mockAppender);
-    // Loggers.setLevel(rootLogger, Level.DEBUG);
+    // LogLevelUtil.setLevel(rootLogger, Level.DEBUG);
     // rootLogger = LogManager.getRootLogger();
     //
     // try {
@@ -2517,7 +2517,7 @@ public class InternalEngineTests extends EngineTestCase {
     // assertFalse(mockAppender.sawIndexWriterMessage);
     //
     // // Again, with TRACE, which should log IndexWriter output:
-    // Loggers.setLevel(rootLogger, Level.TRACE);
+    // LogLevelUtil.setLevel(rootLogger, Level.TRACE);
     // engine.index(indexForDoc(doc));
     // engine.flush();
     // assertTrue(mockAppender.sawIndexWriterMessage);
@@ -2525,7 +2525,7 @@ public class InternalEngineTests extends EngineTestCase {
     // } finally {
     // AppenderUtils.removeAppender(rootLogger, mockAppender);
     //// mockAppender.stop();
-    // Loggers.setLevel(rootLogger, savedLevel);
+    // LogLevelUtil.setLevel(rootLogger, savedLevel);
     // }
     // }
     //
@@ -2556,7 +2556,7 @@ public class InternalEngineTests extends EngineTestCase {
     // Logger rootLogger = LogManager.getRootLogger();
     // Level savedLevel = rootLogger.getLevel();
     // Loggers.addAppender(rootLogger, mockAppender);
-    // Loggers.setLevel(rootLogger, Level.TRACE);
+    // LogLevelUtil.setLevel(rootLogger, Level.TRACE);
     //
     // LogMergePolicy lmp = newLogMergePolicy();
     // lmp.setMergeFactor(2);
@@ -2584,7 +2584,7 @@ public class InternalEngineTests extends EngineTestCase {
     // } finally {
     // Loggers.removeAppender(rootLogger, mockAppender);
     // mockAppender.stop();
-    // Loggers.setLevel(rootLogger, savedLevel);
+    // LogLevelUtil.setLevel(rootLogger, savedLevel);
     // }
     // }
 
@@ -2910,7 +2910,7 @@ public class InternalEngineTests extends EngineTestCase {
     // final Logger iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.Engine.IFD");
     //
     // Loggers.addAppender(iwIFDLogger, mockAppender);
-    // Loggers.setLevel(iwIFDLogger, Level.DEBUG);
+    // LogLevelUtil.setLevel(iwIFDLogger, Level.DEBUG);
     //
     // try {
     // // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2921,7 +2921,7 @@ public class InternalEngineTests extends EngineTestCase {
     // assertFalse(mockAppender.sawIndexWriterIFDMessage);
     //
     // // Again, with TRACE, which should only log IndexWriter IFD output:
-    // Loggers.setLevel(iwIFDLogger, Level.TRACE);
+    // LogLevelUtil.setLevel(iwIFDLogger, Level.TRACE);
     // engine.index(indexForDoc(doc));
     // engine.flush();
     // assertFalse(mockAppender.sawIndexWriterMessage);
@@ -2930,7 +2930,7 @@ public class InternalEngineTests extends EngineTestCase {
     // } finally {
     // Loggers.removeAppender(iwIFDLogger, mockAppender);
     // mockAppender.stop();
-    // Loggers.setLevel(iwIFDLogger, (Level) null);
+    // LogLevelUtil.setLevel(iwIFDLogger, (Level) null);
     // }
     // }
 

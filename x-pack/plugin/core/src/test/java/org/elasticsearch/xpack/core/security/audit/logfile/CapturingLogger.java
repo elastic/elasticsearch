@@ -10,7 +10,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 
 import java.util.List;
 
@@ -42,7 +42,7 @@ public class CapturingLogger {
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = LogManager.getLogger(name);
-        Loggers.setLevel(logger, level);
+        LogLevelUtil.setLevel(logger, level);
         // final MockAppender appender = new MockAppender(name, layout);
         // appender.start();
         // Loggers.addAppender(logger, appender);

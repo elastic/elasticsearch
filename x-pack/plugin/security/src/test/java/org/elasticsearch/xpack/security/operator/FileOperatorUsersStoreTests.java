@@ -105,7 +105,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     // final MockLogAppender appender = new MockLogAppender();
     // appender.start();
     // Loggers.addAppender(logger, appender);
-    // Loggers.setLevel(logger, Level.TRACE);
+    // LogLevelUtil.setLevel(logger, Level.TRACE);
     //
     // try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
     // appender.addExpectation(
@@ -190,7 +190,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     // } finally {
     // Loggers.removeAppender(logger, appender);
     // appender.stop();
-    // Loggers.setLevel(logger, (Level) null);
+    // LogLevelUtil.setLevel(logger, (Level) null);
     // }
     // }
 

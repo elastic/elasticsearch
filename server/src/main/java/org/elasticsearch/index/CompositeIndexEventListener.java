@@ -18,7 +18,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 
 import java.util.Collection;
 import java.util.List;
@@ -38,7 +38,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
         this.listeners = List.copyOf(listeners);
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex().getName());
+        this.logger = PrefixLogger.getLogger(getClass(), indexSettings.getIndex().getName());
     }
 
     @Override

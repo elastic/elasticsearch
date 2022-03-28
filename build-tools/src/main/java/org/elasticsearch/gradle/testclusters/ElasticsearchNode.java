@@ -938,10 +938,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
         // Capture the process stdout/stderr, if any, that may be emitted before ES logger is configured
-        // threads[0] = new OutputThread(esProcess.getInputStream(), OutputThread.Type.sdtout, esLogFile);
-        // threads[1] = new OutputThread(esProcess.getErrorStream(), OutputThread.Type.stderr, esLogFile);
-        // threads[0].start();
-        // threads[1].start();
+        threads[0] = new OutputThread(esProcess.getInputStream(), OutputThread.Type.sdtout, esLogFile);
+        threads[1] = new OutputThread(esProcess.getErrorStream(), OutputThread.Type.stderr, esLogFile);
+        threads[0].start();
+        threads[1].start();
         reaperServiceProvider.get().registerPid(toString(), esProcess.pid());
     }
 

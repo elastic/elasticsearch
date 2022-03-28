@@ -35,10 +35,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.logging.ESMapMessage;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.ESLogMessage;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
@@ -494,7 +494,7 @@ public class AllocationService {
         ClusterHealthStatus currentHealth = newStateHealth.getStatus();
         if (previousHealth.equals(currentHealth) == false) {
             logger.info(
-                new ESLogMessage("Cluster health status changed from [{}] to [{}] (reason: [{}]).").argAndField(
+                new ESMapMessage("Cluster health status changed from [{}] to [{}] (reason: [{}]).").argAndField(
                     "previous.health",
                     previousHealth
                 ).argAndField("current.health", currentHealth).argAndField("reason", reason)

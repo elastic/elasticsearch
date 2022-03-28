@@ -11,7 +11,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -385,12 +385,12 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         AppenderUtils.addAppender(cppMessageLogger, mockAppender);
 
         Level oldLevel = cppMessageLogger.getLevel();
-        Loggers.setLevel(cppMessageLogger, level);
+        LogLevelUtil.setLevel(cppMessageLogger, level);
         try (CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)) {
             handler.tailStream();
         } finally {
             AppenderUtils.removeAppender(cppMessageLogger, mockAppender);
-            Loggers.setLevel(cppMessageLogger, oldLevel);
+            LogLevelUtil.setLevel(cppMessageLogger, oldLevel);
             mockAppender.stop();
         }
 

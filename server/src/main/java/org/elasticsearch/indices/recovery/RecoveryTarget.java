@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 import org.elasticsearch.repositories.IndexId;
 
 import java.io.IOException;
@@ -107,7 +107,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
-        this.logger = Loggers.getLogger(getClass(), indexShard.shardId().getId());
+        this.logger = PrefixLogger.getLogger(getClass(), indexShard.shardId().getId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.snapshotFilesProvider = snapshotFilesProvider;

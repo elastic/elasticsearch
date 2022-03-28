@@ -13,7 +13,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.junit.Before;
@@ -26,7 +26,7 @@ public class ExpressionModelTests extends ESTestCase {
 
     @Before
     public void enableDebugLogging() {
-        Loggers.setLevel(LogManager.getLogger(ExpressionModel.class), Level.DEBUG);
+        LogLevelUtil.setLevel(LogManager.getLogger(ExpressionModel.class), Level.DEBUG);
     }
 
     public void testCheckFailureAgainstUndefinedFieldLogsMessage() throws Exception {

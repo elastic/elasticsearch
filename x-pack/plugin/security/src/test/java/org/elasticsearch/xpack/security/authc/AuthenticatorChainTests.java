@@ -19,7 +19,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.api.core.AppenderUtils;
 import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -342,7 +342,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }).when(realmsAuthenticator).lookupRunAsUser(any(), any(), any());
 
         final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
-        Loggers.setLevel(logger, Level.INFO);
+        LogLevelUtil.setLevel(logger, Level.INFO);
         final MockLogAppender appender = new MockLogAppender();
         AppenderUtils.addAppender(logger, appender);
         appender.start();
@@ -365,7 +365,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            Loggers.setLevel(logger, Level.INFO);
+            LogLevelUtil.setLevel(logger, Level.INFO);
             AppenderUtils.removeAppender(logger, appender);
         }
     }

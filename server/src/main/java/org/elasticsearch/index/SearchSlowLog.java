@@ -12,11 +12,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.SlowLogger;
+import org.elasticsearch.logging.internal.LogMessageUtil;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
@@ -41,8 +38,8 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
 
-    private final Logger queryLogger;
-    private final Logger fetchLogger;
+    private final SlowLogger queryLogger;
+    private final SlowLogger fetchLogger;
 
     static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
@@ -105,10 +102,8 @@ public final class SearchSlowLog implements SearchOperationListener {
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public SearchSlowLog(IndexSettings indexSettings) {
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
-        Loggers.setLevel(this.fetchLogger, Level.TRACE);
-        Loggers.setLevel(this.queryLogger, Level.TRACE);
+        this.queryLogger = SlowLogger.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+        this.fetchLogger = SlowLogger.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
@@ -165,9 +160,10 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     static final class SearchSlowLogMessage {
 
-        public static ESLogMessage of(SearchContext context, long tookInNanos) {
+        // TODO PG cleanup
+        public static Map<String, Object> of(SearchContext context, long tookInNanos) {
             Map<String, Object> jsonFields = prepareMap(context, tookInNanos);
-            return new ESLogMessage().withFields(jsonFields);
+            return jsonFields;
         }
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
@@ -182,7 +178,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             messageFields.put(
                 "elasticsearch.slowlog.stats",
-                escapeJson(ESLogMessage.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
+                escapeJson(LogMessageUtil.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
             );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());

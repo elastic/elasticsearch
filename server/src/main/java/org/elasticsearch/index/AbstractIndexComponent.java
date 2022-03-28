@@ -10,7 +10,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.PrefixLogger;
 
 public abstract class AbstractIndexComponent implements IndexComponent {
 
@@ -22,7 +22,7 @@ public abstract class AbstractIndexComponent implements IndexComponent {
      * Constructs a new index component, with the index name and its settings.
      */
     protected AbstractIndexComponent(IndexSettings indexSettings) {
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex().getName());
+        this.logger = PrefixLogger.getLogger(getClass(), indexSettings.getIndex().getName());
         this.deprecationLogger = DeprecationLogger.getLogger(getClass());
         this.indexSettings = indexSettings;
     }

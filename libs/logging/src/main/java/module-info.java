@@ -19,10 +19,14 @@ module org.elasticsearch.logging {
     exports org.elasticsearch.logging;
     exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
 
-    opens org.elasticsearch.logging.internal to org.apache.logging.log4j.core;
+    // exports org.elasticsearch.logging.internal2;
+    // opens org.elasticsearch.logging.internal2;
+
+    opens org.elasticsearch.logging.internal;
+
+    exports org.elasticsearch.logging.internal;
 
     exports org.elasticsearch.logging.api.core;
-    exports org.elasticsearch.logging.internal;
 
     opens org.elasticsearch.logging.api.core to org.apache.logging.log4j.core;
 

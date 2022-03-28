@@ -37,7 +37,6 @@ public class AppenderUtils {
     // throws IllegalAccessException {
     // Loggers.addAppender(logger, mockLogAppender.mockLogAppender1);
     // return mockLogAppender;
-    // }
 
     public static void addAppender(
         final org.elasticsearch.logging.Logger logger,

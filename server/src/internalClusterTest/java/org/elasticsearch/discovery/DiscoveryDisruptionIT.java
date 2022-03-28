@@ -9,6 +9,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -71,7 +72,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         if (randomBoolean()) {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, Coordinator.COMMIT_STATE_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);

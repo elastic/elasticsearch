@@ -101,7 +101,6 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         // Unsure index_mode=null
         ds = new DataStream(
             ds.getName(),
-            ds.getTimeStampField(),
             ds.getIndices(),
             ds.getGeneration(),
             ds.getMetadata(),
@@ -127,7 +126,6 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         ds = new DataStream(
             ds.getName(),
-            ds.getTimeStampField(),
             ds.getIndices(),
             ds.getGeneration(),
             ds.getMetadata(),
@@ -489,7 +487,6 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
-            preSnapshotDataStream.getTimeStampField(),
             postSnapshotIndices,
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
             preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
@@ -532,7 +529,6 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
-            preSnapshotDataStream.getTimeStampField(),
             indicesToAdd,
             preSnapshotDataStream.getGeneration(),
             preSnapshotDataStream.getMetadata(),

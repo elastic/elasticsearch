@@ -80,7 +80,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                     }
                     abstractRunnable.onRejection(e);
                 } finally {
-                    ((AbstractRunnable) command).onAfter();
+                    abstractRunnable.onAfter();
                 }
             } else {
                 throw e;

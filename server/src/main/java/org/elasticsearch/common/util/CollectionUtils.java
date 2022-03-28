@@ -46,7 +46,7 @@ public class CollectionUtils {
     }
 
     /**
-     * Eliminate duplicates from a list.
+     * Eliminate duplicates from a sorted list in-place.
      *
      * @param list A sorted list, which will be modified in place.
      * @param cmp A comparator the list is already sorted by.

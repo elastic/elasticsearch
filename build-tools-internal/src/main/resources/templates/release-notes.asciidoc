@@ -1,4 +1,4 @@
-<% for (version in changelogsByVersionByTypeByArea.keySet()) {
+<%
 def unqualifiedVersion = version.withoutQualifier()
 %>[[release-notes-$unqualifiedVersion]]
 == {es} version ${unqualifiedVersion}
@@ -6,33 +6,36 @@ def unqualifiedVersion = version.withoutQualifier()
 coming[$unqualifiedVersion]
 <% } %>
 Also see <<breaking-changes-${ version.major }.${ version.minor },Breaking changes in ${ version.major }.${ version.minor }>>.
-<% if (changelogsByVersionByTypeByArea[version]["security"] != null) { %>
+<% if (changelogsByTypeByArea["security"] != null) { %>
 [discrete]
 [[security-updates-${unqualifiedVersion}]]
 === Security updates
 
-<% for (change in changelogsByVersionByTypeByArea[version].remove("security").remove("_all_")) {
+<% for (change in changelogsByTypeByArea.remove("security").remove("_all_")) {
     print "* ${change.summary}\n"
 }
 }
-if (changelogsByVersionByTypeByArea[version]["known-issue"] != null) { %>
+if (changelogsByTypeByArea["known-issue"] != null) { %>
 [discrete]
 [[known-issues-${unqualifiedVersion}]]
 === Known issues
 
-<% for (change in changelogsByVersionByTypeByArea[version].remove("known-issue").remove("_all_")) {
+<% for (change in changelogsByTypeByArea.remove("known-issue").remove("_all_")) {
     print "* ${change.summary}\n"
 }
 }
-for (changeType in changelogsByVersionByTypeByArea[version].keySet()) { %>
+for (changeType in changelogsByTypeByArea.keySet()) { %>
 [[${ changeType }-${ unqualifiedVersion }]]
 [float]
 === ${ TYPE_LABELS.getOrDefault(changeType, 'No mapping for TYPE_LABELS[' + changeType + ']') }
-<% for (team in changelogsByVersionByTypeByArea[version][changeType].keySet()) {
+<% for (team in changelogsByTypeByArea[changeType].keySet()) {
     print "\n${team}::\n";
 
-    for (change in changelogsByVersionByTypeByArea[version][changeType][team]) {
-        print "* ${change.summary} {es-pull}${change.pr}[#${change.pr}]"
+    for (change in changelogsByTypeByArea[changeType][team]) {
+        print "* ${change.summary}"
+        if (change.pr != -1) {
+          print " {es-pull}${change.pr}[#${change.pr}]"
+        }
         if (change.issues != null && change.issues.empty == false) {
             print change.issues.size() == 1 ? " (issue: " : " (issues: "
             print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
@@ -43,5 +46,3 @@ for (changeType in changelogsByVersionByTypeByArea[version].keySet()) { %>
 }
 }
 print "\n\n"
-}
-%>

@@ -505,8 +505,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    /**
+     * @return If this field is defined as a multifield of another field
+     */
     public boolean isMultiField(String field) {
-        return mappingLookup().isShadowed(field) == false && mappingLookup().isMultiField(field);
+        return mappingLookup().isMultiField(field);
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {

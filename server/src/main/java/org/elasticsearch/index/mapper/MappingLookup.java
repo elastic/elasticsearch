@@ -339,6 +339,10 @@ public final class MappingLookup {
         if (fieldMappers.containsKey(field) == false) {
             return false;
         }
+        // Is it a runtime field?
+        if (indexTimeLookup.get(field) != fieldTypeLookup.get(field)) {
+            return false;
+        }
         String sourceParent = parentObject(field);
         return sourceParent != null && fieldMappers.containsKey(sourceParent);
     }

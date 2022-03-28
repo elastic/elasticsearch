@@ -18,7 +18,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Applies field type filters to responses that come from earlier versions of ES
+ * Applies field type filters to field caps responses that come from earlier versions of ES
  * that do not support filtering directly.
  */
 final class ResponseRewriter {

@@ -264,6 +264,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    // Returns a client connected to one of the upgraded nodes.
     private RestClient getUpgradedNodeClient() throws IOException {
         for (HttpHost host : getClusterHosts()) {
             RestClient client = RestClient.builder(host).build();
@@ -280,6 +281,9 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     // Test field type filtering on mixed cluster
+    // We need to use a client that is connected to one of the upgraded nodes,
+    // because we are testing that the upgraded node will correctly apply filtering
+    // to responses from older nodes that don't understand the filter parameters
     public void testAllIndicesWithFieldTypeFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         RestClient restClient = getUpgradedNodeClient();
@@ -290,6 +294,9 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     // Test multifield exclusion on mixed cluster
+    // We need to use a client that is connected to one of the upgraded nodes,
+    // because we are testing that the upgraded node will correctly apply filtering
+    // to responses from older nodes that don't understand the filter parameters
     public void testAllIndicesWithExclusionFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         RestClient client = getUpgradedNodeClient();

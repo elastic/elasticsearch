@@ -40,9 +40,6 @@ public class XPackSettings {
     public static final boolean USER_PROFILE_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
         || "true".equals(System.getProperty("es.user_profile_feature_flag_enabled"));
 
-    public static final boolean JWT_REALM_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
-        || "true".equals(System.getProperty("es.jwt_realm_feature_flag_enabled"));
-
     private static final boolean IS_DARWIN_AARCH64;
     static {
         final String name = System.getProperty("os.name");

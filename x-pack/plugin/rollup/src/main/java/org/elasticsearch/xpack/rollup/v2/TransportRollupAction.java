@@ -358,7 +358,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     backingIndices.addAll(originalDataStream.getIndices());
                     DataStream dataStream = new DataStream(
                         originalDataStream.getName(),
-                        originalDataStream.getTimeStampField(),
                         backingIndices,
                         originalDataStream.getGeneration(),
                         originalDataStream.getMetadata(),

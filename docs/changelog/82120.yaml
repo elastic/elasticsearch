@@ -1,0 +1,5 @@
+pr: 82120
+summary: Override Lucene's visit methods
+area: Search/Search
+type: bug
+issues: []

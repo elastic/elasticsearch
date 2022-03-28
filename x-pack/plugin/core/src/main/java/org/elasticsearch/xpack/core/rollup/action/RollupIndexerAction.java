@@ -119,6 +119,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         private final boolean created;
 
         public Response(boolean created) {
+            super(0, 0, 0, null);
             this.created = created;
         }
 

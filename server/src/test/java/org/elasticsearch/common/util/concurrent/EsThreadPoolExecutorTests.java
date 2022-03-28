@@ -137,7 +137,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
         final AtomicReference<Exception> lastLoggedException = new AtomicReference<>();
 
         ThrowingEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, RuntimeException exception) {
-            super(name, corePoolSize, maximumPoolSize, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>() {
+            super(name, corePoolSize, maximumPoolSize, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>() {
                 @Override
                 public boolean offer(Runnable r) {
                     throw exception;

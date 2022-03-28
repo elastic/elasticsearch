@@ -303,17 +303,6 @@ public class RecoverySettingsTests extends ESTestCase {
         );
     }
 
-    public void testDefaultMaxBytesPerSecOnColdOrFrozenNodeWithOldJvm() {
-        assertThat(
-            "Data nodes with only cold/frozen data roles have a default 40mb rate limit on Java version prior to 14",
-            nodeRecoverySettings().withRoles(randomFrom(Set.of("data_cold"), Set.of("data_frozen"), Set.of("data_cold", "data_frozen")))
-                .withRandomMemory()
-                .build()
-                .getMaxBytesPerSec(),
-            equalTo(DEFAULT_MAX_BYTES_PER_SEC)
-        );
-    }
-
     public void testDefaultMaxBytesPerSecOnColdOrFrozenNode() {
         final Set<String> dataRoles = randomFrom(Set.of("data_cold"), Set.of("data_frozen"), Set.of("data_cold", "data_frozen"));
         {

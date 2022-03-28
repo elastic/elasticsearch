@@ -27,6 +27,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.build.event.BuildEventsListenerRegistry;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
 
@@ -154,6 +155,14 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     static class TestClustersHookPlugin implements Plugin<Project> {
+
+        @Inject
+        public TestClustersHookPlugin() {
+        }
+
+        @Inject
+        protected BuildEventsListenerRegistry getBuildEventsListenerRegistry() { throw new UnsupportedOperationException(); }
+
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {
@@ -176,7 +185,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             configureStartClustersHook(project.getGradle(), registry);
 
             // After each task we determine if there are clusters that are no longer needed.
-            configureStopClustersHook(project.getGradle(), registry);
+            configureStopClustersHook(registryProvider);
         }
 
         private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
@@ -202,7 +211,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     TestClustersAware awareTask = (TestClustersAware) task;
                     awareTask.beforeStart();
-                    awareTask.getClusters().forEach(registry::maybeStartCluster);
+                    awareTask.getClusters().forEach(c -> registry.maybeStartCluster(awareTask.getPath(), c));
                 }
 
                 @Override
@@ -210,21 +219,9 @@ public class TestClustersPlugin implements Plugin<Project> {
             });
         }
 
-        private static void configureStopClustersHook(Gradle gradle, TestClustersRegistry registry) {
-            gradle.addListener(new TaskExecutionListener() {
-                @Override
-                public void afterExecute(Task task, TaskState state) {
-                    if (task instanceof TestClustersAware == false) {
-                        return;
-                    }
-                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
-                    // and caused the cluster to start.
-                    ((TestClustersAware) task).getClusters().forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
-                }
-
-                @Override
-                public void beforeExecute(Task task) {}
-            });
+        private void configureStopClustersHook(Provider<TestClustersRegistry> registry) {
+            getBuildEventsListenerRegistry().onTaskCompletion(registry);
         }
+
     }
 }

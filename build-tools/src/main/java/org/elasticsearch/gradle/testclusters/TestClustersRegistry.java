@@ -11,25 +11,36 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.tooling.events.FinishEvent;
+import org.gradle.tooling.events.OperationCompletionListener;
+import org.gradle.tooling.events.task.TaskFailureResult;
+import org.gradle.tooling.events.task.TaskFinishEvent;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-public abstract class TestClustersRegistry implements BuildService<BuildServiceParameters.None> {
+public abstract class TestClustersRegistry implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {
     private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
+    private final Map<String, Set<ElasticsearchCluster>> clusters = new HashMap<>();
 
     public void claimCluster(ElasticsearchCluster cluster) {
         cluster.freeze();
         claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
     }
 
-    public void maybeStartCluster(ElasticsearchCluster cluster) {
+    public void maybeStartCluster(String taskPath, ElasticsearchCluster cluster) {
+        clusters.compute(taskPath, (s, elasticsearchClusters) -> {
+            Set<ElasticsearchCluster> clusters = elasticsearchClusters == null ? new LinkedHashSet<>() : elasticsearchClusters;
+            clusters.add(cluster);
+            return clusters;
+        });
         if (runningClusters.contains(cluster)) {
             return;
         }
@@ -37,7 +48,18 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         cluster.start();
     }
 
-    public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
+    @Override
+    public void onFinish(FinishEvent finishEvent) {
+        TaskFinishEvent taskFinishEvent = (TaskFinishEvent) finishEvent;
+        String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
+        if(clusters.containsKey(taskPath)) {
+            boolean failed = taskFinishEvent.getResult() instanceof TaskFailureResult;
+            Set<ElasticsearchCluster> elasticsearchClusters = clusters.remove(taskPath);
+            elasticsearchClusters.forEach(cluster -> stopCluster(cluster, failed));
+        }
+    }
+
+    private void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (taskFailed) {
             // If the task fails, and other tasks use this cluster, the other task will likely never be
             // executed at all, so we will never be called again to un-claim and terminate it.
@@ -70,5 +92,4 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             }
         }
     }
-
 }

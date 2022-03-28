@@ -114,6 +114,7 @@ and load data from a snapshot repository. This reduces local storage and
 operating costs while still letting you search frozen data. Because {es} must
 sometimes fetch frozen data from the snapshot repository, searches on the frozen
 tier are typically slower than on the cold tier.
+// end::frozen-tier[]
 
 [discrete]
 [[configure-data-tiers-cloud]]

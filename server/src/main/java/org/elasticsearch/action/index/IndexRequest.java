@@ -353,6 +353,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return sourceAsMap;
     }
 
+    /**
+     * return null if source not convert to source map
+     */
     public Map<String, Object> getSourceAsMapOrNull() {
         return sourceAsMap;
     }

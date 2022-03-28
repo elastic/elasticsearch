@@ -481,14 +481,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     return;
                 }
                 if (resetInProgress) {
-                    closeHandler.accept(
-                        new ElasticsearchStatusException(
-                            "cancelling model upgrade for snapshot [{}] for job [{}] due to feature reset",
-                            RestStatus.NOT_FOUND,
-                            jobId,
-                            snapshotId
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
+                            snapshotId,
+                            jobId
                         )
                     );
+                    closeHandler.accept(null);
                     return;
                 }
                 // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
@@ -512,14 +512,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             return;
                         }
                         if (resetInProgress) {
-                            closeHandler.accept(
-                                new ElasticsearchStatusException(
-                                    "cancelling model upgrade for snapshot [{}] for job [{}] due to feature reset",
-                                    RestStatus.NOT_FOUND,
-                                    jobId,
-                                    snapshotId
+                            logger.trace(
+                                () -> new ParameterizedMessage(
+                                    "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
+                                    snapshotId,
+                                    jobId
                                 )
                             );
+                            closeHandler.accept(null);
                             return;
                         }
                         runSnapshotUpgrade(task, job, params, closeHandler);

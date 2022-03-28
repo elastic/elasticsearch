@@ -118,8 +118,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws TransportException {
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
             sendLocalRequest(requestId, action, request, options);
         }
 
@@ -572,28 +571,34 @@ public class TransportService extends AbstractLifecycleComponent
                 // message, but recognise that this may fail
                 discoveryNode = new DiscoveryNode(in);
             } catch (Exception e) {
-                failIfIncompatibleBuild(e);
+                maybeThrowOnIncompatibleBuild(null, e);
                 throw e;
             }
-            failIfIncompatibleBuild(null);
+            maybeThrowOnIncompatibleBuild(discoveryNode, null);
             clusterName = new ClusterName(in);
         }
 
-        private void failIfIncompatibleBuild(@Nullable Exception cause) {
+        private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
             if (isIncompatibleBuild(version, buildHash)) {
-                throw new IllegalArgumentException(
-                    "unidentifiable remote node is build ["
-                        + buildHash
-                        + "] of version ["
-                        + version
-                        + "] but this node is build ["
-                        + Build.CURRENT.hash()
-                        + "] of version ["
-                        + Version.CURRENT
-                        + "] which has an incompatible wire format",
-                    cause
-                );
+                throwOnIncompatibleBuild(node, e);
             }
+        }
+
+        private void throwOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
+            throw new IllegalArgumentException(
+                "remote node ["
+                    + (node == null ? "unidentifiable" : node)
+                    + "] is build ["
+                    + buildHash
+                    + "] of version ["
+                    + version
+                    + "] but this node is build ["
+                    + Build.CURRENT.hash()
+                    + "] of version ["
+                    + Version.CURRENT
+                    + "] which has an incompatible wire format",
+                e
+            );
         }
 
         @Override
@@ -763,8 +768,8 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         // the caller might not handle this so we invoke the handler
         final TransportException te;
-        if (ex instanceof TransportException) {
-            te = (TransportException) ex;
+        if (ex instanceof TransportException tex) {
+            te = tex;
         } else {
             te = new SendRequestTransportException(connection.getNode(), action, ex);
         }
@@ -925,7 +930,11 @@ public class TransportService extends AbstractLifecycleComponent
             }
             final String executor = reg.getExecutor();
             if (ThreadPool.Names.SAME.equals(executor)) {
-                reg.processMessageReceived(request, channel);
+                try {
+                    reg.processMessageReceived(request, channel);
+                } catch (Exception e) {
+                    handleSendToLocalException(channel, e, action);
+                }
             } else {
                 boolean success = false;
                 request.incRef();
@@ -963,8 +972,8 @@ public class TransportService extends AbstractLifecycleComponent
                     }
                 }
             }
-
         } catch (Exception e) {
+            assert false : e;
             handleSendToLocalException(channel, e, action);
         }
     }

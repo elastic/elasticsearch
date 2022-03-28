@@ -16,7 +16,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Netty 5 based transport implementation'
+  description 'Netty 5 based transport implementation.'
   classname 'org.elasticsearch.transport.netty5.Netty5Plugin'
 }
 

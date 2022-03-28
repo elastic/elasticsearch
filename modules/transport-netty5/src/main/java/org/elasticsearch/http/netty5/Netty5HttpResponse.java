@@ -8,9 +8,9 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
+import io.netty5.handler.codec.http.DefaultFullHttpResponse;
+import io.netty5.handler.codec.http.HttpResponseStatus;
+import io.netty5.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpResponse;

@@ -35,8 +35,8 @@ import java.util.function.Supplier;
 
 public class Netty5Plugin extends Plugin implements NetworkPlugin {
 
-    public static final String NETTY_TRANSPORT_NAME = "netty4";
-    public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
+    public static final String NETTY_TRANSPORT_NAME = "netty5";
+    public static final String NETTY_HTTP_TRANSPORT_NAME = "netty5";
 
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 

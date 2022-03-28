@@ -8,9 +8,9 @@
 
 package org.elasticsearch.transport.netty5;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
+import io.netty5.buffer.ByteBuf;
+import io.netty5.buffer.CompositeByteBuf;
+import io.netty5.buffer.Unpooled;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;

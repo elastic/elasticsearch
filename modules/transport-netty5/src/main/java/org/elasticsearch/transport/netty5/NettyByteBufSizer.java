@@ -8,11 +8,11 @@
 
 package org.elasticsearch.transport.netty5;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.api.adaptor.ByteBufAdaptor;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty5.buffer.ByteBuf;
+import io.netty5.buffer.api.adaptor.ByteBufAdaptor;
+import io.netty5.channel.ChannelHandler;
+import io.netty5.channel.ChannelHandlerContext;
+import io.netty5.handler.codec.MessageToMessageDecoder;
 
 @ChannelHandler.Sharable
 public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {

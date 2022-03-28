@@ -11,6 +11,7 @@ package org.elasticsearch.transport.netty5;
 import io.netty5.channel.MultithreadEventLoopGroup;
 import io.netty5.channel.nio.NioHandler;
 import io.netty5.util.concurrent.Future;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * Creates and returns {@link io.netty.channel.EventLoopGroup} instances. It will return a shared group for
+ * Creates and returns {@link io.netty5.channel.EventLoopGroup} instances. It will return a shared group for
  * both {@link #getHttpGroup()} and {@link #getTransportGroup()} if
  * {@link Netty5HttpServerTransport#SETTING_HTTP_WORKER_COUNT} is configured to be 0.
  * If that setting is not 0, then it will return a different group in the {@link #getHttpGroup()} call.

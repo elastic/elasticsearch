@@ -24,7 +24,6 @@ esplugin {
 configurations {
   [testCompileClasspath, testRuntimeClasspath, internalClusterTestCompileClasspath, internalClusterTestRuntimeClasspath].each {
     it.exclude group: 'org.elasticsearch.plugin', module: 'transport-netty5'
-    it.exclude group: 'org.elasticsearch.plugin', module: 'transport-netty4'
   }
 }
 
@@ -39,9 +38,6 @@ dependencies {
   api "io.netty:netty5-handler:${netty5Version}"
   api "io.netty:netty5-resolver:${netty5Version}"
   api "io.netty:netty5-transport:${netty5Version}"
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'transport-netty4'
-  }
 }
 
 restResources {
@@ -51,7 +47,7 @@ restResources {
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /netty5-.*/, to: 'netty'
 }
 
 TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
@@ -94,9 +90,14 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
-    // from io.netty.logging.CommonsLoggerFactory (netty)
+    // from io.netty5.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
+
+    // from io.netty5.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
@@ -106,17 +107,12 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
 
-    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-    'org.bouncycastle.cert.X509v3CertificateBuilder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-
-    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
+    // from io.netty5.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
     'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
     'org.eclipse.jetty.npn.NextProtoNego',
 
-    // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+    // from io.netty5.util.internal.logging.InternalLoggerFactory (netty) - it's optional
     'org.slf4j.helpers.FormattingTuple',
     'org.slf4j.helpers.MessageFormatter',
     'org.slf4j.Logger',
@@ -156,18 +152,18 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreViolations(
-    'io.netty.util.internal.PlatformDependent0',
-    'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
+    'io.netty5.util.internal.PlatformDependent0',
+    'io.netty5.util.internal.PlatformDependent0$1',
+    'io.netty5.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty5.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty5.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty5.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty5.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty5.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty5.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty5.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty5.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty5.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty5.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
 }

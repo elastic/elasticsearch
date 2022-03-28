@@ -8,19 +8,18 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.buffer.api.Buffer;
-import io.netty.buffer.api.BufferAllocator;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.cookie.Cookie;
-import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
-import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-
+import io.netty5.buffer.api.Buffer;
+import io.netty5.buffer.api.BufferAllocator;
+import io.netty5.handler.codec.http.DefaultFullHttpRequest;
+import io.netty5.handler.codec.http.DefaultHttpHeaders;
 import io.netty5.handler.codec.http.FullHttpRequest;
+import io.netty5.handler.codec.http.HttpHeaderNames;
+import io.netty5.handler.codec.http.HttpHeaders;
+import io.netty5.handler.codec.http.HttpMethod;
+import io.netty5.handler.codec.http.cookie.Cookie;
+import io.netty5.handler.codec.http.cookie.ServerCookieDecoder;
+import io.netty5.handler.codec.http.cookie.ServerCookieEncoder;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -195,9 +194,9 @@ public class Netty5HttpRequest implements HttpRequest {
 
     @Override
     public HttpVersion protocolVersion() {
-        if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
+        if (request.protocolVersion().equals(io.netty5.handler.codec.http.HttpVersion.HTTP_1_0)) {
             return HttpRequest.HttpVersion.HTTP_1_0;
-        } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
+        } else if (request.protocolVersion().equals(io.netty5.handler.codec.http.HttpVersion.HTTP_1_1)) {
             return HttpRequest.HttpVersion.HTTP_1_1;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());

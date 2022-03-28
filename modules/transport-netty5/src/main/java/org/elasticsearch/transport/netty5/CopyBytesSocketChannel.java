@@ -23,14 +23,13 @@
  */
 package org.elasticsearch.transport.netty5;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelOutboundBuffer;
-import io.netty.channel.EventLoop;
-import io.netty.channel.RecvBufferAllocator;
-import io.netty.channel.socket.nio.NioSocketChannel;
-
+import io.netty5.buffer.ByteBuf;
+import io.netty5.channel.Channel;
 import io.netty5.channel.ChannelOutboundBuffer;
+import io.netty5.channel.EventLoop;
+import io.netty5.channel.RecvBufferAllocator;
+import io.netty5.channel.socket.nio.NioSocketChannel;
+
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -38,7 +37,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
-import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
+import static io.netty5.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
 /**
  * This class is adapted from {@link NioSocketChannel} class in the Netty project. It overrides the channel

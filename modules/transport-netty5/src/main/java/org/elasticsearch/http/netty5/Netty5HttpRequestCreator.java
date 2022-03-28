@@ -8,10 +8,10 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToMessageDecoder;
-import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty5.channel.ChannelHandler;
+import io.netty5.channel.ChannelHandlerContext;
+import io.netty5.handler.codec.MessageToMessageDecoder;
+import io.netty5.handler.codec.http.FullHttpRequest;
 
 import org.elasticsearch.ExceptionsHelper;
 

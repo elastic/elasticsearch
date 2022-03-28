@@ -8,8 +8,8 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.buffer.api.Resource;
-import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty5.buffer.api.Resource;
+import io.netty5.handler.codec.http.FullHttpResponse;
 
 import org.elasticsearch.ESNetty5IntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;

@@ -8,24 +8,24 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerAdapter;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.FixedRecvBufferAllocator;
-import io.netty.channel.RecvBufferAllocator;
-import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.timeout.ReadTimeoutException;
-import io.netty.handler.timeout.ReadTimeoutHandler;
-import io.netty.util.AttributeKey;
-import io.netty.util.concurrent.Future;
+import io.netty5.bootstrap.ServerBootstrap;
+import io.netty5.channel.Channel;
+import io.netty5.channel.ChannelHandler;
+import io.netty5.channel.ChannelHandlerAdapter;
+import io.netty5.channel.ChannelHandlerContext;
+import io.netty5.channel.ChannelInitializer;
+import io.netty5.channel.ChannelOption;
+import io.netty5.channel.FixedRecvBufferAllocator;
+import io.netty5.channel.RecvBufferAllocator;
+import io.netty5.channel.socket.nio.NioChannelOption;
+import io.netty5.handler.codec.http.HttpContentDecompressor;
+import io.netty5.handler.codec.http.HttpObjectAggregator;
+import io.netty5.handler.codec.http.HttpRequestDecoder;
+import io.netty5.handler.codec.http.HttpResponseEncoder;
+import io.netty5.handler.timeout.ReadTimeoutException;
+import io.netty5.handler.timeout.ReadTimeoutHandler;
+import io.netty5.util.AttributeKey;
+import io.netty5.util.concurrent.Future;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

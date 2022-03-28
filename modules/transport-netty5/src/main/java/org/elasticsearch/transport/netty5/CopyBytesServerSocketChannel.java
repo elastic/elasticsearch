@@ -23,10 +23,10 @@
  */
 package org.elasticsearch.transport.netty5;
 
-import io.netty.channel.EventLoop;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.internal.SocketUtils;
+import io.netty5.channel.EventLoop;
+import io.netty5.channel.EventLoopGroup;
+import io.netty5.channel.socket.nio.NioServerSocketChannel;
+import io.netty5.util.internal.SocketUtils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

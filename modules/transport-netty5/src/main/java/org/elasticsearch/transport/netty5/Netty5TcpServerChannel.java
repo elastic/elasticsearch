@@ -9,6 +9,7 @@
 package org.elasticsearch.transport.netty5;
 
 import io.netty5.channel.Channel;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.transport.TcpServerChannel;

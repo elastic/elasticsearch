@@ -1,1 +1,1 @@
-netty-transport: io.netty.channel.Channel
+netty5-transport: io.netty5.channel.Channel

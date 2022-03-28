@@ -8,10 +8,10 @@
 
 package org.elasticsearch.transport.netty5;
 
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
+import io.netty5.channel.ChannelHandler;
+import io.netty5.channel.ChannelHandlerContext;
+import io.netty5.handler.logging.LogLevel;
+import io.netty5.handler.logging.LoggingHandler;
 
 @ChannelHandler.Sharable
 final class ESLoggingHandler extends LoggingHandler {
@@ -23,7 +23,7 @@ final class ESLoggingHandler extends LoggingHandler {
     }
 
     @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+    public void channelReadComplete(ChannelHandlerContext ctx) {
         // We do not want to log read complete events because we log inbound messages in the TcpTransport.
         ctx.fireChannelReadComplete();
     }

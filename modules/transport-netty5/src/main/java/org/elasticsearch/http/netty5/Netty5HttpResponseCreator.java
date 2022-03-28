@@ -8,14 +8,13 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.buffer.api.Buffer;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToMessageEncoder;
-import io.netty.handler.codec.http.DefaultHttpContent;
-import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.HttpResponse;
+import io.netty5.buffer.api.Buffer;
+import io.netty5.channel.ChannelHandler;
+import io.netty5.channel.ChannelHandlerContext;
+import io.netty5.handler.codec.MessageToMessageEncoder;
+import io.netty5.handler.codec.http.DefaultHttpContent;
+import io.netty5.handler.codec.http.DefaultHttpResponse;
+import io.netty5.handler.codec.http.DefaultLastHttpContent;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.transport.netty5.NettyAllocator;
@@ -48,7 +47,7 @@ final class Netty5HttpResponseCreator extends MessageToMessageEncoder<Netty5Http
         if (DO_NOT_SPLIT_HTTP_RESPONSES || msg.payload().readableBytes() <= SPLIT_THRESHOLD) {
             out.add(msg);
         } else {
-            HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
+            DefaultHttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
             out.add(response);
             Buffer content = msg.payload();
             while (content.readableBytes() > SPLIT_THRESHOLD) {

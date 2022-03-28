@@ -8,15 +8,6 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.util.concurrent.Future;
-
 import io.netty5.channel.ChannelHandlerContext;
 import io.netty5.channel.SimpleChannelInboundHandler;
 import io.netty5.channel.embedded.EmbeddedChannel;
@@ -25,6 +16,7 @@ import io.netty5.handler.codec.http.FullHttpResponse;
 import io.netty5.handler.codec.http.HttpMethod;
 import io.netty5.handler.codec.http.QueryStringDecoder;
 import io.netty5.util.concurrent.Future;
+
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,8 +41,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
-import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static io.netty5.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty5.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;

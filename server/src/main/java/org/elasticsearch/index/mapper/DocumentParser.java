@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.DotExpandingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -96,7 +95,13 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             createDynamicUpdate(context)
-        );
+        ) {
+            @Override
+            public String documentDescription() {
+                IdFieldMapper idMapper = (IdFieldMapper) mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
+                return idMapper.documentDescription(this);
+            }
+        };
     }
 
     private static void internalParseDocument(
@@ -433,8 +438,7 @@ public final class DocumentParser {
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-                // TODO: shouldn't this skip, not parse?
-                parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
+                context.parser().skipChildren();
             } else {
                 Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, lastFieldName);
                 if (objectMapperFromTemplate == null) {

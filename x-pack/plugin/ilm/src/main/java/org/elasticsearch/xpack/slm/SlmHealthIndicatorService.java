@@ -15,6 +15,7 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -53,11 +54,11 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult calculate() {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
-            return createIndicator(GREEN, "No policies configured", createDetails(slmMetadata));
+            return createIndicator(GREEN, "No policies configured", createDetails(slmMetadata), Collections.emptyList());
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "SLM is not running", createDetails(slmMetadata));
+            return createIndicator(YELLOW, "SLM is not running", createDetails(slmMetadata), Collections.emptyList());
         } else {
-            return createIndicator(GREEN, "SLM is running", createDetails(slmMetadata));
+            return createIndicator(GREEN, "SLM is running", createDetails(slmMetadata), Collections.emptyList());
         }
     }
 

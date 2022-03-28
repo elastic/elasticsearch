@@ -269,7 +269,6 @@ tasks.named("yamlRestTest").configure {
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
 def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTestTask) {
-  dependsOn "bundlePlugin"
   if (useFixture) {
     dependsOn "createServiceAccountFile"
   }
@@ -281,7 +280,7 @@ def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTes
   // We have to wait for configure the cluster here as it might not have been created otherwise yet.
   testClusters {
     largeBlobYamlRestTest {
-      module bundlePlugin.archiveFile
+      module tasks.named("explodedBundlePlugin")
 
       // force large blob uploads by setting the threshold small, forcing this code path to be tested
       systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
@@ -325,7 +324,6 @@ testClusters.matching {
 // Application Default Credentials
 if (useFixture) {
   tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
-    dependsOn('bundlePlugin')
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
@@ -335,7 +333,7 @@ if (useFixture) {
 
   testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
     setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
-    module tasks.bundlePlugin.archiveFile
+    module tasks.named("explodedBundlePlugin")
     environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
   }
 }

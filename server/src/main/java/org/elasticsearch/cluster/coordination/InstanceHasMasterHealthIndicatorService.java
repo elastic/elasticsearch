@@ -16,6 +16,8 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 
+import java.util.Collections;
+
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
 public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorService {
@@ -68,6 +70,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        });
+        }, Collections.emptyList());
     }
 }

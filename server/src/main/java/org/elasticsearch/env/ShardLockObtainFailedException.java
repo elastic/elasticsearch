@@ -34,10 +34,6 @@ public class ShardLockObtainFailedException extends ElasticsearchException {
     }
 
     private static String buildMessage(ShardId shardId, String message) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(shardId.toString());
-        sb.append(": ");
-        sb.append(message);
-        return sb.toString();
+        return shardId.toString() + ": " + message;
     }
 }

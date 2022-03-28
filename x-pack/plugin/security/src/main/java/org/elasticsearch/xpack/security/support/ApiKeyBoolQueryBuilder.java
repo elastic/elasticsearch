@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
@@ -66,11 +67,17 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
 
         if (authentication != null) {
-            finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
-            final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
-            final QueryBuilder realmsQuery = ApiKeyService.filterForRealmNames(realms);
-            assert realmsQuery != null;
-            finalQuery.filter(realmsQuery);
+            if (authentication.isApiKey()) {
+                final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                assert apiKeyId != null : "api key id must be present in the metadata";
+                finalQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
+            } else {
+                finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
+                final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
+                final QueryBuilder realmsQuery = ApiKeyService.filterForRealmNames(realms);
+                assert realmsQuery != null;
+                finalQuery.filter(realmsQuery);
+            }
         }
         return finalQuery;
     }

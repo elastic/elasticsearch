@@ -42,7 +42,8 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     @FunctionalInterface
     protected interface Builder extends CheckedFunction<XContentBuilder, XContentBuilder, IOException> {}
 
-    protected abstract void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes) throws IOException;
+    protected abstract void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException;
 
     /** Sample test case */
     protected static final Builder SAMPLE = builderFor("sample.json");

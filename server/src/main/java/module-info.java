@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.logging.spi.ServerSupport;
+
 module org.elasticsearch.server {
     requires java.logging;
     requires java.security.jgss;
@@ -350,5 +352,5 @@ module org.elasticsearch.server {
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-    provides org.elasticsearch.logging.internal.spi.ServerSupport with org.elasticsearch.bootstrap.ServerSupportImpl;
+    provides ServerSupport with org.elasticsearch.bootstrap.ServerSupportImpl;
 }

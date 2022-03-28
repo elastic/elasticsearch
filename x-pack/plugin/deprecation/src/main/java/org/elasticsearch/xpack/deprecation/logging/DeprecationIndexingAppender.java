@@ -16,10 +16,10 @@ package org.elasticsearch.xpack.deprecation.logging;
 //import org.elasticsearch.logging.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.logging.api.core.Appender;
-import org.elasticsearch.logging.api.core.Filter;
-import org.elasticsearch.logging.api.core.Layout;
-import org.elasticsearch.logging.api.core.LogEvent;
+import org.elasticsearch.logging.core.Appender;
+import org.elasticsearch.logging.core.Filter;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Objects;

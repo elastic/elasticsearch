@@ -11,7 +11,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
-import org.elasticsearch.logging.internal.JsonThrowablePatternConverter;
+import org.elasticsearch.logging.impl.JsonThrowablePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

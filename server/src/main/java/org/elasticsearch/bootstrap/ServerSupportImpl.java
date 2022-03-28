@@ -13,7 +13,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.logging.internal.spi.ServerSupport;
+import org.elasticsearch.logging.spi.ServerSupport;
 
 /* SPI for logging support. */
 public class ServerSupportImpl implements ServerSupport {

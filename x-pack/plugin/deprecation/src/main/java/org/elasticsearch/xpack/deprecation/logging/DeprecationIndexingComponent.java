@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.api.core.Layout;
-import org.elasticsearch.logging.api.core.RateLimitingFilter;
+import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.RateLimitingFilter;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 

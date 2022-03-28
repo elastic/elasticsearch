@@ -11,7 +11,7 @@ package org.elasticsearch.common.cli;
 import org.elasticsearch.common.logging.LogSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.internal2.LogConfigurator;
+import org.elasticsearch.logging.internal.LogConfigurator;
 
 /**
  * Holder class for method to configure logging without Elasticsearch configuration files for use in CLI tools that will not read such

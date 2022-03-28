@@ -8,7 +8,7 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.StandardLevels;
+import org.elasticsearch.logging.impl.StandardLevels;
 
 import java.util.Collection;
 import java.util.Locale;

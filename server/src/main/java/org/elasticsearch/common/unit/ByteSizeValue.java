@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
-import org.elasticsearch.logging.internal2.LogConfigurator;
+import org.elasticsearch.logging.internal.LogConfigurator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 

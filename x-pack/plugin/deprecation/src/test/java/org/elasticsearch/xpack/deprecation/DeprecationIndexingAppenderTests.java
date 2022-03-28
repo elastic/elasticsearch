@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.logging.api.core.Layout;
-import org.elasticsearch.logging.api.core.LogEvent;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender;
 import org.junit.Before;

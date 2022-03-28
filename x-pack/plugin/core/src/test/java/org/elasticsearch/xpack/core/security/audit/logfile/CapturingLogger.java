@@ -10,7 +10,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal2.LogLevelUtil;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 
 import java.util.List;
 

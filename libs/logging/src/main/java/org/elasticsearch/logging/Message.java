@@ -8,8 +8,8 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.ParameterizedMessageImpl;
+import org.elasticsearch.logging.impl.ESLogMessage;
+import org.elasticsearch.logging.impl.ParameterizedMessageImpl;
 
 // TODO: This sucks ( to extends log4j type, but is temporary, until we replace new XXXMessage with factories )
 // TODO:

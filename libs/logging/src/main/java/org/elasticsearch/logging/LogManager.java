@@ -8,7 +8,7 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.LoggerImpl;
+import org.elasticsearch.logging.impl.LoggerImpl;
 
 public class LogManager {
 

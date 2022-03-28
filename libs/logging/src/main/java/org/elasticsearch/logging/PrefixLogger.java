@@ -8,8 +8,8 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.LoggerImpl;
-import org.elasticsearch.logging.internal.Util;
+import org.elasticsearch.logging.impl.LoggerImpl;
+import org.elasticsearch.logging.impl.Util;
 
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -31,7 +31,7 @@ public class PrefixLogger {
     public static org.elasticsearch.logging.Logger getLogger(String loggerName, String indexName, int shardId) {
         String prefix = formatPrefix(indexName, Integer.toString(shardId));
         return new LoggerImpl(
-            new org.elasticsearch.logging.internal.PrefixLogger(org.apache.logging.log4j.LogManager.getLogger(loggerName), prefix)
+            new org.elasticsearch.logging.impl.PrefixLogger(org.apache.logging.log4j.LogManager.getLogger(loggerName), prefix)
         );
     }
 
@@ -41,20 +41,17 @@ public class PrefixLogger {
 
     public static org.elasticsearch.logging.Logger getLogger(Class<?> clazz, String... prefixes) {
         return new LoggerImpl(
-            new org.elasticsearch.logging.internal.PrefixLogger(
-                org.apache.logging.log4j.LogManager.getLogger(clazz),
-                formatPrefix(prefixes)
-            )
+            new org.elasticsearch.logging.impl.PrefixLogger(org.apache.logging.log4j.LogManager.getLogger(clazz), formatPrefix(prefixes))
         );
     }
 
     public static org.elasticsearch.logging.Logger getLogger(org.elasticsearch.logging.Logger parentLogger, String s) {
         org.elasticsearch.logging.Logger inner = org.elasticsearch.logging.LogManager.getLogger(parentLogger.getName() + s);
-        if (parentLogger instanceof org.elasticsearch.logging.internal.PrefixLogger) {
+        if (parentLogger instanceof org.elasticsearch.logging.impl.PrefixLogger) {
             return new LoggerImpl(
-                new org.elasticsearch.logging.internal.PrefixLogger(
+                new org.elasticsearch.logging.impl.PrefixLogger(
                     Util.log4jLogger(inner),
-                    ((org.elasticsearch.logging.internal.PrefixLogger) parentLogger).prefix()
+                    ((org.elasticsearch.logging.impl.PrefixLogger) parentLogger).prefix()
                 )
             );
         }

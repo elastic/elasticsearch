@@ -9,10 +9,10 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.api.core.Appender;
-import org.elasticsearch.logging.api.core.Filter;
-import org.elasticsearch.logging.api.core.Layout;
-import org.elasticsearch.logging.api.core.LogEvent;
+import org.elasticsearch.logging.core.Appender;
+import org.elasticsearch.logging.core.Filter;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
 
 public class MockAppender implements Appender {
     public LogEvent lastEvent;
@@ -37,7 +37,7 @@ public class MockAppender implements Appender {
     }
 
     @Override
-    public void append(org.elasticsearch.logging.api.core.LogEvent event) {
+    public void append(LogEvent event) {
         lastEvent = event;
     }
 

@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.logging.spi.ServerSupport;
+
 module org.elasticsearch.logging {
     requires org.elasticsearch.cli;
     requires org.elasticsearch.core;
@@ -17,19 +19,17 @@ module org.elasticsearch.logging {
     requires org.hamcrest;
 
     exports org.elasticsearch.logging;
-    exports org.elasticsearch.logging.api.core;
+    exports org.elasticsearch.logging.core;
 
-    exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
+    opens org.elasticsearch.logging.core to org.apache.logging.log4j.core;
 
-    opens org.elasticsearch.logging.internal to org.apache.logging.log4j.core;
+    exports org.elasticsearch.logging.spi to org.elasticsearch.server;
+    exports org.elasticsearch.logging.internal to org.elasticsearch.server;
 
-    exports org.elasticsearch.logging.internal.testing;
+    exports org.elasticsearch.logging.impl.testing;
 
-    opens org.elasticsearch.logging.internal.testing to org.apache.logging.log4j.core;
+    opens org.elasticsearch.logging.impl.testing to org.apache.logging.log4j.core;
+    opens org.elasticsearch.logging.impl to org.apache.logging.log4j.core;
 
-    exports org.elasticsearch.logging.internal2 to org.elasticsearch.server;
-
-    opens org.elasticsearch.logging.api.core to org.apache.logging.log4j.core;
-
-    uses org.elasticsearch.logging.internal.spi.ServerSupport;
+    uses ServerSupport;
 }

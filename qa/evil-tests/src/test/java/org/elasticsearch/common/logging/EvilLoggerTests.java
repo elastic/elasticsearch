@@ -24,7 +24,7 @@ import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal2.LogConfigurator;
+import org.elasticsearch.logging.internal.LogConfigurator;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;

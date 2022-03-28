@@ -14,12 +14,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.api.core.Appender;
-import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.api.core.Filter;
-import org.elasticsearch.logging.api.core.Layout;
-import org.elasticsearch.logging.api.core.LogEvent;
-import org.elasticsearch.logging.internal2.LogLevelUtil;
+import org.elasticsearch.logging.core.Appender;
+import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.core.Filter;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.process.logging;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.api.core.AppenderUtils;
-import org.elasticsearch.logging.api.core.MockLogAppender;
-import org.elasticsearch.logging.internal2.LogLevelUtil;
+import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.core.MockLogAppender;
+import org.elasticsearch.logging.internal.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;

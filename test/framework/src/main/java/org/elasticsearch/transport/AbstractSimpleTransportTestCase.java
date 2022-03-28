@@ -38,7 +38,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.api.core.MockLogAppender;
+import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;

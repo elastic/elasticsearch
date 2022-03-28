@@ -73,8 +73,8 @@ import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.HeaderWarningAppender;
-import org.elasticsearch.logging.internal2.LogConfigurator;
+import org.elasticsearch.logging.impl.HeaderWarningAppender;
+import org.elasticsearch.logging.internal.LogConfigurator;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -376,8 +376,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public void setHeaderWarningAppender() {
-        // this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
-        // this.headerWarningAppender.start();
+        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
+        this.headerWarningAppender.start();
         // Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
     }
 

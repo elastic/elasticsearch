@@ -8,11 +8,11 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.DeprecatedMessage;
-import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.HeaderWarningAppender;
-import org.elasticsearch.logging.internal.RateLimitingFilter;
-import org.elasticsearch.logging.internal.ServerSupportImpl;
+import org.elasticsearch.logging.impl.DeprecatedMessage;
+import org.elasticsearch.logging.impl.ESLogMessage;
+import org.elasticsearch.logging.impl.HeaderWarningAppender;
+import org.elasticsearch.logging.impl.RateLimitingFilter;
+import org.elasticsearch.logging.impl.ServerSupportImpl;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;

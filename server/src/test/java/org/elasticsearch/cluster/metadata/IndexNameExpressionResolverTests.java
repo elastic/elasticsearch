@@ -54,7 +54,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -2777,7 +2776,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(
                         new DataStream(
                             dataStream1,
-                            createTimestampField("@timestamp"),
                             List.of(index1.getIndex(), index2.getIndex()),
                             2,
                             Collections.emptyMap(),

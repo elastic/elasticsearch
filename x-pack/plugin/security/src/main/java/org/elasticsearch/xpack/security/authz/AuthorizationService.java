@@ -365,16 +365,22 @@ public class AuthorizationService {
                             authzInfo.getAuthenticatedUserAuthorizationInfo()
                         );
                     }
-                    listener.onFailure(denialException(authentication, action, request, null));
+                    listener.onFailure(denialException(authentication, action, request, buildRunAsDeniedContext(authentication), null));
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
-                listener.onFailure(denialException(authentication, action, request, null));
+                listener.onFailure(denialException(authentication, action, request, buildRunAsDeniedContext(authentication), null));
             }), threadContext);
             authorizeRunAs(requestInfo, authzInfo, runAsListener);
         } else {
             authorizeAction(requestInfo, requestId, authzInfo, listener);
         }
+    }
+
+    private String buildRunAsDeniedContext(Authentication authentication) {
+        final User authUser = authentication.getUser().authenticatedUser();
+        // TODO check run as is available
+        return "([%s] does not have permission to run as [%s])".formatted(authUser.principal(), authentication.getUser().principal());
     }
 
     private void authorizeAction(

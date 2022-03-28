@@ -74,8 +74,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private final LongSupplier timeProvider;
     private final String name;
-    // This was always fixed to @timestamp with the idea that one day this field could be configurable. This idea no longer exists.
-    private final TimestampField timeStampField = TIMESTAMP_FIELD;
     private final List<Index> indices;
     private final long generation;
     private final Map<String, Object> metadata;
@@ -131,7 +129,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public TimestampField getTimeStampField() {
-        return timeStampField;
+        // This was always fixed to @timestamp with the idea that one day this field could be configurable. This idea no longer exists.
+        return TIMESTAMP_FIELD;
     }
 
     public List<Index> getIndices() {
@@ -530,7 +529,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        timeStampField.writeTo(out);
+        TIMESTAMP_FIELD.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
@@ -593,7 +592,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
+        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), TIMESTAMP_FIELD);
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
@@ -616,7 +615,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
         return name.equals(that.name)
-            && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
@@ -628,7 +626,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
+        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

@@ -36,12 +36,12 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
-    private final BasicFormatter requestFormatter;
+    private final String requestCursor;
 
     SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
         this.request = request;
-        this.requestFormatter = Cursors.decodeFormatter(sqlRequest.cursor());
+        this.requestCursor = sqlRequest.cursor();
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
 
         /*
@@ -63,7 +63,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     SqlResponseListener(RestChannel channel, RestRequest request) {
         super(channel);
         this.request = request;
-        this.requestFormatter = null;
+        this.requestCursor = null;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request);
     }
 
@@ -77,8 +77,10 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
             response.toXContent(builder, request);
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
         } else { // TextFormat
+            BasicFormatter formatter = Cursors.decodeFormatter(requestCursor);
+
             TextFormat type = (TextFormat) mediaType;
-            final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, requestFormatter, response);
+            final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, formatter, response);
 
             if (response.hasCursor()) {
                 response.cursor(Cursors.attachFormatter(response.cursor(), dataWithNextFormatter.v2()));

@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -159,34 +159,85 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         return Strings.toString(json);
     }
 
-    public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
+    public void testCursorFromOldNodeWorksOnNewNode() throws IOException {
+        assertCursorCompatibleAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
-    public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+    public void testCursorFromNewNodeWorksOnOldNode() throws IOException {
+        assertCursorCompatibleAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
     }
 
-    private void assertCursorNotCompatibleAcrossVersions(Version version1, RestClient client1, Version version2, RestClient client2)
-        throws IOException {
+    private void assertCursorCompatibleAcrossVersions(Version version1, RestClient client1, RestClient client2) throws IOException {
         indexDocs();
 
         Request req = new Request("POST", "_sql");
         // GROUP BY queries always return a cursor
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1", bwcVersion));
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1", version1));
         Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
         String cursor = (String) json.get("cursor");
         assertThat(cursor, Matchers.not(Matchers.emptyString()));
 
         Request scrollReq = new Request("POST", "_sql");
+        scrollReq.addParameter("error_trace", "true");
         scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
-        ResponseException exception = expectThrows(ResponseException.class, () -> client2.performRequest(scrollReq));
+        Map<String, Object> scrollJson = performRequestAndReadBodyAsJson(client2, scrollReq);
 
-        assertThat(
-            exception.getMessage(),
-            Matchers.containsString("Unsupported cursor version [" + version1 + "], expected [" + version2 + "]")
-        );
+        assertNotNull(scrollJson.get("rows"));
+    }
+
+    public void testCursorFromOldNodeCanCloseOnNewNode() throws IOException {
+        assertCursorCloseWorksAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
+    }
+
+    public void testCursorFromNewNodeCanCloseOnOldNode() throws IOException {
+        assertCursorCloseWorksAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
+    }
+
+    private void assertCursorCloseWorksAcrossVersions(Version version1, RestClient client1, RestClient client2) throws IOException {
+        indexDocs();
+
+        Request req = new Request("POST", "_sql");
+        // GROUP BY queries always return a cursor
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1", version1));
+        Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
+        String cursor = (String) json.get("cursor");
+        assertThat(cursor, Matchers.not(Matchers.emptyString()));
+
+        Request scrollReq = new Request("POST", "_sql/close");
+        scrollReq.addParameter("error_trace", "true");
+        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
+        Map<String, Object> scrollJson = performRequestAndReadBodyAsJson(client2, scrollReq);
+
+        assertEquals(scrollJson.get("succeeded"), true);
+    }
+
+    public void testTextCursorFromOldNodeWorksOnNewNode() throws IOException {
+        assertTextCursorCompatibleAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
+    }
+
+    @AwaitsFix(bugUrl = "tbd")
+    public void testTextCursorFromNewNodeWorksOnOldNode() throws IOException {
+        assertTextCursorCompatibleAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
+    }
+
+    private void assertTextCursorCompatibleAcrossVersions(Version version1, RestClient client1, RestClient client2) throws IOException {
+        indexDocs();
+
+        Request req = new Request("POST", "_sql");
+        // GROUP BY queries always return a cursor
+        req.addParameter("format", "txt");
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1", version1));
+        Response response = client1.performRequest(req);
+        String cursor = response.getHeader("Cursor");
+        assertThat(cursor, Matchers.not(Matchers.emptyString()));
+
+        Request scrollReq = new Request("POST", "_sql");
+        scrollReq.addParameter("error_trace", "true");
+        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
+        Response scrollResponse = client2.performRequest(scrollReq);
+
+        String content = EntityUtils.toString(scrollResponse.getEntity());
+        assertThat(content, Matchers.not(Matchers.emptyOrNullString()));
     }
 
     private Map<String, Object> performRequestAndReadBodyAsJson(RestClient client, Request request) throws IOException {

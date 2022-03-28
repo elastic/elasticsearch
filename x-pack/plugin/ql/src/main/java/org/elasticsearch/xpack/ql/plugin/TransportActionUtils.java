@@ -43,15 +43,7 @@ public final class TransportActionUtils {
                 if (log.isDebugEnabled()) {
                     log.debug("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
                 }
-                DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
-                DiscoveryNode candidateNode = null;
-                for (DiscoveryNode node : clusterService.state().nodes()) {
-                    // find the first node that's older than the current node
-                    if (node != localNode && node.getVersion().before(localNode.getVersion())) {
-                        candidateNode = node;
-                        break;
-                    }
-                }
+                DiscoveryNode candidateNode = findNodeOlderThanLocalNode(clusterService);
                 if (candidateNode != null) {
                     if (log.isDebugEnabled()) {
                         log.debug(
@@ -78,4 +70,15 @@ public final class TransportActionUtils {
             queryRunner.accept(onFailure);
         }
     }
+
+    public static DiscoveryNode findNodeOlderThanLocalNode(ClusterService clusterService) {
+        DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
+        for (DiscoveryNode node : clusterService.state().nodes()) {
+            if (node != localNode && node.getVersion().before(localNode.getVersion())) {
+                return node;
+            }
+        }
+        return null;
+    }
+
 }

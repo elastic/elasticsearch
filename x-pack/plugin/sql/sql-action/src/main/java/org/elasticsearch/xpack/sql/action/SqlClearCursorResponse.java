@@ -30,7 +30,7 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
         this.succeeded = succeeded;
     }
 
-    SqlClearCursorResponse(StreamInput in) throws IOException {
+    public SqlClearCursorResponse(StreamInput in) throws IOException {
         super(in);
         succeeded = in.readBoolean();
     }

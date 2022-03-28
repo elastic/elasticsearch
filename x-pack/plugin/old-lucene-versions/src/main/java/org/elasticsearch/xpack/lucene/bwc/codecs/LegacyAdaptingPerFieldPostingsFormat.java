@@ -1,10 +1,22 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * @notice
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Modifications copyright (C) 2021 Elasticsearch B.V.
  */
-
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
 import org.apache.lucene.codecs.FieldsConsumer;
@@ -32,6 +44,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Modified version of {@link PerFieldPostingsFormat} that allows swapping in
+ * {@link org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat} instead of
+ * {@link org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat} when reading from older
+ * codecs. The former has full support for older Lucene versions (going back to Lucene 5) while the
+ * latter only supports Lucene 7 and above (as it was shipped with backwards-codecs of Lucene 9 that
+ * only has support for N-2).
+ *
+ * This class can probably be removed once we are on Lucene 10 and Lucene50PostingsFormat is no longer
+ * shipped as part of bwc jars.
+ *
+ * Swapping out formats can be done via the {@link #getPostingsFormat(String) method}.
+ */
 public abstract class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     /** Name of this {@link PostingsFormat}. */
     public static final String PER_FIELD_NAME = "PerField40";
@@ -65,12 +90,12 @@ public abstract class LegacyAdaptingPerFieldPostingsFormat extends PostingsForma
 
         @Override
         public void write(Fields fields, NormsProducer norms) throws IOException {
-            throw new UnsupportedOperationException();
+            throw new IllegalStateException("This codec should only be used for reading, not writing");
         }
 
         @Override
         public void merge(MergeState mergeState, NormsProducer norms) throws IOException {
-            throw new UnsupportedOperationException();
+            throw new IllegalStateException("This codec should only be used for reading, not writing");
         }
 
         @Override
@@ -189,12 +214,4 @@ public abstract class LegacyAdaptingPerFieldPostingsFormat extends PostingsForma
     public final FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
         return new FieldsReader(state, this);
     }
-
-    /**
-     * Returns the postings format that should be used for writing new segments of <code>field</code>.
-     *
-     * <p>The field to format mapping is written to the index, so this method is only invoked when
-     * writing, not when reading.
-     */
-    public abstract PostingsFormat getPostingsFormatForField(String field);
 }

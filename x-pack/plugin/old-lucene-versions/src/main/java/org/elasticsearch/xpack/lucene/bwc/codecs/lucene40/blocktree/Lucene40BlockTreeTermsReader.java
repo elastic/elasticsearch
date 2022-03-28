@@ -32,6 +32,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.ByteSequenceOutputs;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.Outputs;
@@ -280,7 +281,7 @@ public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
                     if (metaIn != null) {
                         CodecUtil.checkFooter(metaIn, priorE);
                     } else if (priorE != null) {
-                        IOUtils.rethrowAlways(priorE);
+                        rethrowAlways(priorE);
                     }
                 }
             }
@@ -325,6 +326,11 @@ public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
         input.seek(input.length() - CodecUtil.footerLength() - 8);
         long offset = input.readLong();
         input.seek(offset);
+    }
+
+    @SuppressForbidden(reason = "Lucene class")
+    private static Error rethrowAlways(Throwable th) throws IOException, RuntimeException {
+        return org.apache.lucene.util.IOUtils.rethrowAlways(th);
     }
 
     // for debugging

@@ -59,11 +59,6 @@ public class Lucene62Codec extends BWCCodec {
     };
     private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat() {
         @Override
-        public PostingsFormat getPostingsFormatForField(String field) {
-            throw new IllegalStateException("This codec should only be used for reading, not writing");
-        }
-
-        @Override
         protected PostingsFormat getPostingsFormat(String formatName) {
             if (formatName.equals("Lucene50")) {
                 return new BWCLucene50PostingsFormat();

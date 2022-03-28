@@ -491,7 +491,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             );
             logger.info(searchResponse);
             // check match
-            assertEquals(List.of(id), Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList()));
+            ElasticsearchAssertions.assertSearchHits(searchResponse, id);
 
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 // search on _type and check that results contain _type information

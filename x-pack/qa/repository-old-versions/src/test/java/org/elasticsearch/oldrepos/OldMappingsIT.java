@@ -74,13 +74,20 @@ public class OldMappingsIT extends ESRestTestCase {
 
         String repoName = "old_mappings_repo";
         String snapshotName = "snap";
-        List<String> indices = Arrays.asList("filebeat", "winlogbeat");
+        List<String> indices;
+        if (oldVersion.before(Version.fromString("6.0.0"))) {
+            indices = Arrays.asList("filebeat", "winlogbeat");
+        } else {
+            indices = Arrays.asList("filebeat");
+        }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
 
             assertOK(oldEs.performRequest(createIndex("filebeat", "filebeat.json")));
-            assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
+            if (oldVersion.before(Version.fromString("6.0.0"))) {
+                assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
+            }
 
             Request doc1 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
@@ -156,9 +163,11 @@ public class OldMappingsIT extends ESRestTestCase {
         Map<String, Object> mapping = entityAsMap(client().performRequest(mappingRequest));
         assertNotNull(XContentMapValues.extractValue(mapping, "filebeat", "mappings", "properties", "apache2"));
 
-        mappingRequest = new Request("GET", "/" + "winlogbeat" + "/_mapping");
-        mapping = entityAsMap(client().performRequest(mappingRequest));
-        assertNotNull(XContentMapValues.extractValue(mapping, "winlogbeat", "mappings", "properties", "message"));
+        if (oldVersion.before(Version.fromString("6.0.0"))) {
+            mappingRequest = new Request("GET", "/" + "winlogbeat" + "/_mapping");
+            mapping = entityAsMap(client().performRequest(mappingRequest));
+            assertNotNull(XContentMapValues.extractValue(mapping, "winlogbeat", "mappings", "properties", "message"));
+        }
     }
 
     public void testSearchKeyword() throws IOException {

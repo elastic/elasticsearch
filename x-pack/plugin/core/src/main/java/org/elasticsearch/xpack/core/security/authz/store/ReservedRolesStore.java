@@ -794,7 +794,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     )
                     .privileges("create_index", "delete_index", "read", "index")
                     .build(),
-                // For src/dest indices of the CSP packages that ships a transform
+                // For src/dest indices of the Cloud Security Posture packages that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cis_kubernetes_benchmark.findings-*")
                     .privileges("read", "view_index_metadata")

@@ -19,12 +19,13 @@ import java.util.List;
 public interface ValueFetcherSource {
     ValueFetcher preferStored();
 
-    ValueFetcher preferStoredOrEmpty();  // NOCOMMIT remove in favor of returning some error thing with an orEmpty
+    ValueFetcher preferStoredOrEmpty();
 
     ValueFetcher forceDocValues();
 
-    boolean supportsDocValues();
-
+    /**
+     * Fields that can be loaded from {@code _source} or doc values.
+     */
     abstract class SourceOrDocValues implements ValueFetcherSource {
         private final SearchExecutionContext context;
         private final MappedFieldType ft;
@@ -69,13 +70,11 @@ public interface ValueFetcherSource {
         public DocValueFetcher forceDocValues() {
             return new DocValueFetcher(ft.docValueFormat(format, null), context.getForField(ft));
         }
-
-        @Override
-        public boolean supportsDocValues() {
-            return true;
-        }
     }
 
+    /**
+     * Fields that can only be loaded from doc values.
+     */
     final class DocValuesOnly implements ValueFetcherSource {
         private final SearchExecutionContext context;
         private final MappedFieldType ft;
@@ -107,13 +106,11 @@ public interface ValueFetcherSource {
         public DocValueFetcher forceDocValues() {
             return new DocValueFetcher(ft.docValueFormat(format, null), context.getForField(ft));
         }
-
-        @Override
-        public boolean supportsDocValues() {
-            return true;
-        }
     }
 
+    /**
+     * Fields that can only be loaded from source.
+     */
     abstract class SourceOnly implements ValueFetcherSource {
         private final SearchExecutionContext context;
         private final MappedFieldType ft;
@@ -150,13 +147,11 @@ public interface ValueFetcherSource {
                 "[" + ft.name() + "] may only be fetched from _source because it is of type [" + ft.typeName() + "]"
             );
         }
-
-        @Override
-        public boolean supportsDocValues() {
-            return false;
-        }
     }
 
+    /**
+     * Fields that can only be loaded from a lucene stored field.
+     */
     final class StoredOnly implements ValueFetcherSource {
         private final SearchExecutionContext context;
         private final MappedFieldType ft;
@@ -196,13 +191,11 @@ public interface ValueFetcherSource {
                 "[" + ft.name() + "] may only be fetched from stored fields because it is of type [" + ft.typeName() + "]"
             );
         }
-
-        @Override
-        public boolean supportsDocValues() {
-            return false;
-        }
     }
 
+    /**
+     * Constant fields.
+     */
     final class Constant implements ValueFetcherSource {
         private final List<Object> values;
 
@@ -223,11 +216,6 @@ public interface ValueFetcherSource {
         @Override
         public ValueFetcher forceDocValues() {
             return (lookup, ignored) -> values;
-        }
-
-        @Override
-        public boolean supportsDocValues() {
-            return true;
         }
     }
 }

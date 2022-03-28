@@ -66,11 +66,6 @@ public interface FieldValues<T> {
                 throw new UnsupportedOperationException("we have no way to force the fields from loading from doc values");
             }
 
-            @Override
-            public boolean supportsDocValues() {
-                return false;
-            }
-
             private ValueFetcher fromFieldValues() {
                 return new ValueFetcher() {
                     LeafReaderContext ctx;
@@ -121,11 +116,6 @@ public interface FieldValues<T> {
             @Override
             public ValueFetcher forceDocValues() {
                 throw new UnsupportedOperationException("we have no way to force the fields from loading from doc values");
-            }
-
-            @Override
-            public boolean supportsDocValues() {
-                return false;
             }
 
             private ValueFetcher fromFieldValues() {

@@ -168,9 +168,6 @@ class FieldCapabilitiesFetcher {
             if ("-parent".equals(filter)) {
                 return false;
             }
-            if ("parent".equals(filter)) {
-                return true;
-            }
         }
         return true;
     }

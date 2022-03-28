@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.internal;
+package org.elasticsearch.logging.internal2;
 
 import org.apache.logging.log4j.spi.AbstractLogger;
 import org.apache.logging.log4j.spi.ExtendedLoggerWrapper;
@@ -14,6 +14,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.Util;
 
 import java.io.OutputStream;
 import java.io.PrintWriter;

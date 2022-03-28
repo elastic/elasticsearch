@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.internal;
+package org.elasticsearch.logging.internal2;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.Util;
 
 public class LogLevelUtil {
 

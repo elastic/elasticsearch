@@ -11,7 +11,7 @@ package org.elasticsearch.test.junit.listeners;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.internal2.LogLevelUtil;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;

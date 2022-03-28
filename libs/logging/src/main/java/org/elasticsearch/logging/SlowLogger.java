@@ -9,7 +9,7 @@
 package org.elasticsearch.logging;
 
 import org.elasticsearch.logging.internal.ESLogMessage;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.internal2.LogLevelUtil;
 
 import java.util.Map;
 

@@ -19,8 +19,8 @@ module org.elasticsearch.logging {
     exports org.elasticsearch.logging;
     exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
 
-    // exports org.elasticsearch.logging.internal2;
-    // opens org.elasticsearch.logging.internal2;
+     exports org.elasticsearch.logging.internal2;
+     opens org.elasticsearch.logging.internal2;
 
     opens org.elasticsearch.logging.internal;
 

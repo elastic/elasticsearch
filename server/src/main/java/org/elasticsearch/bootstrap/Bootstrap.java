@@ -31,7 +31,7 @@ import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.internal2.LogConfigurator;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;

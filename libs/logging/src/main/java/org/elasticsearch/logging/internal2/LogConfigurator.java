@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.internal;
+package org.elasticsearch.logging.internal2;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +33,10 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.LoggingOutputStream;
+import org.elasticsearch.logging.internal.NodeNamePatternConverter;
+import org.elasticsearch.logging.internal.Util;
 
 import java.io.IOException;
 import java.io.InputStream;

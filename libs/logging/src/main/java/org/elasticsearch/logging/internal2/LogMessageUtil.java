@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.internal;
+package org.elasticsearch.logging.internal2;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;

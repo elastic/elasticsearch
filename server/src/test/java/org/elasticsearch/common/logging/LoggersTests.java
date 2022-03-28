@@ -12,7 +12,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.internal2.LogLevelUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

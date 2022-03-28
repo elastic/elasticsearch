@@ -161,7 +161,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         String[] excludes,
         SearchHit.NestedIdentity nestedIdentity
     ) throws IOException {
-        FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
+        FetchSourceContext fetchSourceContext = FetchSourceContext.of(fetchSource, includes, excludes);
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
         when(fetchContext.getIndexName()).thenReturn("index");

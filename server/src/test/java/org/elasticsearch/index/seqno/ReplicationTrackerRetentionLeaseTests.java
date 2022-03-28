@@ -498,7 +498,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final RetentionLeases retentionLeases = new RetentionLeases(
                 primaryTerm,
                 1,
-                Collections.singleton(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0"))
+                List.of(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0"))
             );
             replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
         }
@@ -522,7 +522,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final RetentionLeases retentionLeases = new RetentionLeases(
                 primaryTerm,
                 2,
-                Collections.singleton(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0"))
+                List.of(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0"))
             );
             replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
         }
@@ -572,7 +572,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         long version = 0;
         for (int i = 0; i < length; i++) {
             final int innerLength = randomIntBetween(0, 8);
-            final Collection<RetentionLease> leases = new ArrayList<>();
+            final List<RetentionLease> leases = new ArrayList<>();
             for (int j = 0; j < innerLength; j++) {
                 leases.add(new RetentionLease(i + "-" + j, randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(8)));
             }

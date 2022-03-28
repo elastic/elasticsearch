@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +48,7 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,7 +67,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                createExpectedResult(GREEN, "This cluster has all shards available.", Map.of("started_primaries", 2, "started_replicas", 1))
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has all shards available.",
+                    Map.of("started_primaries", 2, "started_replicas", 1),
+                    Collections.emptyList()
+                )
             )
         );
     }
@@ -100,19 +108,109 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         unavailableReplicas.size(),
                         "started_replicas",
                         availableReplicas.size()
+                    ),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index]."
+                        )
                     )
                 )
             )
         );
     }
 
-    public void testShouldBeRedWhenThereAreUnassignedPrimaries() {
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndAssignedReplicas() {
+        var clusterState = createClusterStateWith(
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE))),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary.",
+                    Map.of("unassigned_primaries", 1, "started_replicas", 1),
+                    List.of(
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndNoReplicas() {
         var clusterState = createClusterStateWith(List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE))), List.of());
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
             service.calculate(),
-            equalTo(createExpectedResult(RED, "This cluster has 1 unavailable primary.", Map.of("unassigned_primaries", 1)))
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary.",
+                    Map.of("unassigned_primaries", 1),
+                    List.of(
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnSameIndex() {
+        var clusterState = createClusterStateWith(
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate();
+        assertEquals(RED, result.status());
+        assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.summary());
+        assertEquals(1, result.impacts().size());
+        assertEquals(
+            result.impacts().get(0),
+            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+        );
+    }
+
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnDifferentIndices() {
+        var clusterState = createClusterStateWith(
+            List.of(
+                index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
+                index("yellow-index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("yellow-index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
+            ),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate();
+        assertEquals(RED, result.status());
+        assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.summary());
+        assertEquals(2, result.impacts().size());
+        assertEquals(
+            result.impacts().get(0),
+            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+        );
+        assertThat(
+            result.impacts().get(1),
+            oneOf(
+                new HealthIndicatorImpact(
+                    3,
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-1, "
+                        + "yellow-index-2]."
+                ),
+                new HealthIndicatorImpact(
+                    3,
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
+                        + "yellow-index-1]."
+                )
+            )
         );
     }
 
@@ -135,7 +233,28 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting replica.",
-                    Map.of("started_primaries", 1, "restarting_replicas", 1)
+                    Map.of("started_primaries", 1, "restarting_replicas", 1),
+                    Collections.emptyList()
+                )
+            )
+        );
+    }
+
+    public void testShouldBeGreenWhenThereAreNoReplicasExpected() {
+        var clusterState = createClusterStateWith(
+            List.of(index("primaries-only-index", new ShardAllocation(randomNodeId(), AVAILABLE))),
+            List.of(new NodeShutdown("node-0", RESTART, 60))
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has all shards available.",
+                    Map.of("started_primaries", 1),
+                    Collections.emptyList()
                 )
             )
         );
@@ -160,7 +279,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     "This cluster has 1 unavailable replica.",
-                    Map.of("started_primaries", 1, "unassigned_replicas", 1)
+                    Map.of("started_primaries", 1, "unassigned_replicas", 1),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index "
+                                + "[restarting-index]."
+                        )
+                    )
                 )
             )
         );
@@ -175,7 +301,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(
             service.calculate(),
-            equalTo(createExpectedResult(GREEN, "This cluster has 1 creating primary.", Map.of("creating_primaries", 1)))
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has 1 creating primary.",
+                    Map.of("creating_primaries", 1),
+                    Collections.emptyList()
+                )
+            )
         );
     }
 
@@ -188,11 +321,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(
             service.calculate(),
-            equalTo(createExpectedResult(GREEN, "This cluster has 1 restarting primary.", Map.of("restarting_primaries", 1)))
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has 1 restarting primary.",
+                    Map.of("restarting_primaries", 1),
+                    Collections.emptyList()
+                )
+            )
         );
     }
 
-    public void testShouldBeRedWhenRestartingPrimariesReachedAllocationDelay() {
+    public void testShouldBeRedWhenRestartingPrimariesReachedAllocationDelayAndNoReplicas() {
         var clusterState = createClusterStateWith(
             List.of(
                 index(
@@ -206,12 +346,29 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(
             service.calculate(),
-            equalTo(createExpectedResult(RED, "This cluster has 1 unavailable primary.", Map.of("unassigned_primaries", 1)))
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary.",
+                    Map.of("unassigned_primaries", 1),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results."
+                        )
+                    )
+                )
+            )
         );
     }
 
-    private HealthIndicatorResult createExpectedResult(HealthStatus status, String summary, Map<String, Object> details) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)));
+    private HealthIndicatorResult createExpectedResult(
+        HealthStatus status,
+        String summary,
+        Map<String, Object> details,
+        List<HealthIndicatorImpact> impacts
+    ) {
+        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts);
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {

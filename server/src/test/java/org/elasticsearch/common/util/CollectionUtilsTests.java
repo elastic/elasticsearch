@@ -13,8 +13,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +25,7 @@ import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class CollectionUtilsTests extends ESTestCase {
     public void testRotateEmpty() {
@@ -52,6 +55,25 @@ public class CollectionUtilsTests extends ESTestCase {
                 assertEquals(list, CollectionUtils.rotate(CollectionUtils.rotate(list, distance), -distance));
             }
         }
+    }
+
+    private <T> void assertUniquify(List<T> list, Comparator<T> cmp, int size) {
+        for (List<T> listCopy : List.of(new ArrayList<T>(list), new LinkedList<T>(list))) {
+            CollectionUtils.uniquify(listCopy, cmp);
+            for (int i = 0; i < listCopy.size() - 1; ++i) {
+                assertThat(cmp.compare(listCopy.get(i), listCopy.get(i + 1)), lessThan(0));
+            }
+            assertThat(listCopy.size(), equalTo(size));
+        }
+    }
+
+    public void testUniquify() {
+        assertUniquify(List.<Integer>of(), Comparator.naturalOrder(), 0);
+        assertUniquify(List.of(1), Comparator.naturalOrder(), 1);
+        assertUniquify(List.of(1, 2, 3), Comparator.naturalOrder(), 3);
+        assertUniquify(List.of(1, 1, 1), Comparator.naturalOrder(), 1);
+        assertUniquify(List.of(1, 2, 2, 3), Comparator.naturalOrder(), 3);
+        assertUniquify(List.of(1, 2, 2, 2), Comparator.naturalOrder(), 2);
     }
 
     public void testEmptyPartition() {

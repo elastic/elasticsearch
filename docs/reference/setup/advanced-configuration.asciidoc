@@ -53,7 +53,7 @@ or a range of versions followed by a colon.
 -------------------------------------
 +
 To apply a setting to a specific version and any later versions,
-omit the upper bound of the range. 
+omit the upper bound of the range.
 For example, this setting applies to Java 8 and later:
 +
 [source,text]
@@ -69,7 +69,7 @@ as valid JVM arguments are rejected and {es} will fail to start.
 ===== Use environment variables to set JVM options
 
 In production, use JVM options files to override the
-default settings. In testing and development environments, 
+default settings. In testing and development environments,
 you can also set JVM options through the `ES_JAVA_OPTS` environment variable.
 
 [source,sh]
@@ -149,3 +149,25 @@ options. We do not recommend using `ES_JAVA_OPTS` in production.
 
 NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.
+
+[[readiness-tcp-port]]
+===== Enable the Elasticsearch TCP readiness port
+
+NOTE: This feature is currently experimental for internal use by Elastic software only.
+
+If configured, a node can open a TCP port when the node is in a ready state. A node is deemed
+ready when it has successfully joined a cluster. In a single node configuration, the node is
+said to be ready, when it's able to accept requests.
+
+The readiness TCP port can be configured through the `readiness.port` setting and it is
+always bound to the loopback address. By default, the IPv4 loopback address of `127.0.0.1`
+is used. If you wish to bind the readiness port to the IPv6 loopback address of `::1`,
+you should add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JVM options>>.
+
+If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
+for shutdown, the readiness port is immediately closed.
+
+When clients connect to the readiness TCP port, no data is sent back to the client, the server
+simply terminates the socket connection. A successful connection on the configured TCP port
+signals that the Elasticsearch node is ready, while not being able to connect means that the node
+is not ready.

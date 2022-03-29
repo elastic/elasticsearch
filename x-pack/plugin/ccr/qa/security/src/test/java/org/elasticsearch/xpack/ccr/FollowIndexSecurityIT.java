@@ -66,11 +66,11 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             refresh(allowedIndex);
             verifyDocuments(allowedIndex, numDocs, "*:*");
         } else {
-            followIndex(client(), "leader_cluster", allowedIndex, allowedIndex);
+            followIndex("leader_cluster", allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(allowedIndex, numDocs, "*:*"));
             assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
             assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 30, TimeUnit.SECONDS);
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
+            pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 assertNoPersistentTasks();
@@ -79,15 +79,15 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             resumeFollow(allowedIndex);
             assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
+            pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 assertNoPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_close")));
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
+            closeIndex(allowedIndex);
+            unfollow(allowedIndex);
             Exception e = expectThrows(ResponseException.class, () -> resumeFollow(allowedIndex));
             assertThat(e.getMessage(), containsString("follow index [" + allowedIndex + "] does not have ccr metadata"));
 
@@ -203,7 +203,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             final Response response = client().performRequest(new Request("GET", "/" + forgetFollower + "/_stats"));
             final String followerIndexUUID = ObjectPath.createFromResponse(response).evaluate("indices." + forgetFollower + ".uuid");
 
-            assertOK(client().performRequest(new Request("POST", "/" + forgetFollower + "/_ccr/pause_follow")));
+            pauseFollow(forgetFollower);
 
             try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
@@ -253,8 +253,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         } else {
             logger.info("running against follower cluster");
             followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);
-
-            assertOK(client().performRequest(new Request("DELETE", "/" + cleanFollower)));
+            deleteIndex(client(), cleanFollower);
             // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
             assertBusy(() -> {
                 assertNoPersistentTasks();

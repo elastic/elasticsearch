@@ -21,7 +21,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -66,14 +65,14 @@ public class ApmIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-//        ((MockSecureSettings) builder.getSecureSettings()).setString(
-//            APMTracer.APM_ENDPOINT_SETTING.getKey(),
-//            System.getProperty("tests.apm.endpoint", "")
-//        );
-//        ((MockSecureSettings) builder.getSecureSettings()).setString(
-//            APMTracer.APM_TOKEN_SETTING.getKey(),
-//            System.getProperty("tests.apm.token", "")
-//        );
+        // ((MockSecureSettings) builder.getSecureSettings()).setString(
+        // APMTracer.APM_ENDPOINT_SETTING.getKey(),
+        // System.getProperty("tests.apm.endpoint", "")
+        // );
+        // ((MockSecureSettings) builder.getSecureSettings()).setString(
+        // APMTracer.APM_TOKEN_SETTING.getKey(),
+        // System.getProperty("tests.apm.token", "")
+        // );
         builder.put(APMTracer.APM_ENABLED_SETTING.getKey(), true).put("xpack.security.authz.tracing", true);
         return builder.build();
     }

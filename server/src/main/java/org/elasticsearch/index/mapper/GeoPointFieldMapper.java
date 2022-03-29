@@ -22,7 +22,6 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -330,7 +329,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+            final LatLonGeometry[] luceneGeometries = GeoShapeQueryable.toQuantizeLuceneGeometry(fieldName, context, shape, relation);
             if (luceneGeometries.length == 0) {
                 return new MatchNoDocsQuery();
             }

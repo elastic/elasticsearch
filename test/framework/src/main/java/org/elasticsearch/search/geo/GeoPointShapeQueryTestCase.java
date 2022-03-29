@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
@@ -695,4 +696,50 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
             }
         }
     }
+
+    public void testIndexPointsFromLine() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        Line line = GeometryTestUtils.randomLine(false);
+        for (int i = 0; i < line.length(); i++) {
+            Point point = new Point(line.getLon(i), line.getLat(i));
+            client().prepareIndex(defaultIndexName)
+                .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        }
+        // all points from a line intersect with the line
+        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, line).relation(ShapeRelation.INTERSECTS))
+            .get();
+        assertSearchResponse(searchResponse);
+        SearchHits searchHits = searchResponse.getHits();
+        assertThat(searchHits.getTotalHits().value, equalTo((long) line.length()));
+    }
+
+    public void testIndexPointsFromPolygon() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        Polygon polygon = GeometryTestUtils.randomPolygon(false);
+        LinearRing linearRing = polygon.getPolygon();
+        for (int i = 0; i < linearRing.length(); i++) {
+            Point point = new Point(linearRing.getLon(i), linearRing.getLat(i));
+            client().prepareIndex(defaultIndexName)
+                .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        }
+        // all points from a polygon intersect with the polygon
+        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, polygon).relation(ShapeRelation.INTERSECTS))
+            .get();
+        assertSearchResponse(searchResponse);
+        SearchHits searchHits = searchResponse.getHits();
+        assertThat(searchHits.getTotalHits().value, equalTo((long) linearRing.length()));
+    }
+
 }

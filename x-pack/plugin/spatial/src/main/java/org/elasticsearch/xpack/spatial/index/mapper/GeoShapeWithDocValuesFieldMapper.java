@@ -18,7 +18,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -200,7 +199,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
                 );
             }
-            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+            final LatLonGeometry[] luceneGeometries = GeoShapeQueryable.toQuantizeLuceneGeometry(fieldName, context, shape, relation);
             if (luceneGeometries.length == 0) {
                 return new MatchNoDocsQuery();
             }

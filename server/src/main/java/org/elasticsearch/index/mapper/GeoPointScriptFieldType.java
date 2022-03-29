@@ -13,7 +13,6 @@ import org.apache.lucene.geo.Point;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
@@ -108,7 +107,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-        final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+        final LatLonGeometry[] luceneGeometries = GeoShapeQueryable.toQuantizeLuceneGeometry(fieldName, context, shape, relation);
         if (luceneGeometries.length == 0
             || (relation == ShapeRelation.CONTAINS && Arrays.stream(luceneGeometries).anyMatch(g -> (g instanceof Point) == false))) {
             return new MatchNoDocsQuery();

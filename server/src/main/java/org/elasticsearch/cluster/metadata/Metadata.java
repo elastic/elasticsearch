@@ -304,8 +304,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
 
-        // build a new index metadata with the version incremented and the new lifecycle state
         IndexMetadata indexMetadata = getIndexSafe(index);
+        if (lifecycleState.equals(indexMetadata.getLifecycleExecutionState())) {
+            return this;
+        }
+
+        // build a new index metadata with the version incremented and the new lifecycle state
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
         indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap());

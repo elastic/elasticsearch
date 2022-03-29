@@ -40,7 +40,11 @@ public class LifecycleExecutionStateUtils {
         Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
 
         final Metadata metadata = clusterState.metadata().withLifecycleState(index, lifecycleState);
-        return ClusterState.builder(clusterState).metadata(metadata).build();
+        if (metadata == clusterState.metadata()) {
+            return clusterState;
+        } else {
+            return ClusterState.builder(clusterState).metadata(metadata).build();
+        }
     }
 
 }

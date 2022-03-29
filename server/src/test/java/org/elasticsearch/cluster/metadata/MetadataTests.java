@@ -2321,6 +2321,10 @@ public class MetadataTests extends ESTestCase {
         builder.removeCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
         assertThat(index1, equalTo(builder.build()));
 
+        // withLifecycleState returns the same reference if nothing changed
+        Metadata metadata3 = metadata2.withLifecycleState(index2.getIndex(), state);
+        assertThat(metadata3, sameInstance(metadata2));
+
         // withLifecycleState rejects a nonsense Index
         String randomUUID = randomValueOtherThan(indexUUID, () -> randomAlphaOfLength(10));
         expectThrows(IndexNotFoundException.class, () -> metadata1.withLifecycleState(new Index(indexName, randomUUID), state));

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,22 +35,44 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     @After
-    public void deletePolicies() throws Exception {
-        Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
-        List<Map<?, ?>> policies = unsafeGetProperty(responseMap, "policies");
+    public void deletePipelinesAndPolicies() throws Exception {
+        {
+            // delete all pipelines
+            List<String> pipelines = new ArrayList<>();
+            try {
+                Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_ingest/pipeline")));
+                pipelines.addAll(responseMap.keySet());
+            } catch (ResponseException e) {
+                // if there are no pipelines, then GET /_ingest/pipeline 404s, so this is actually expected
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e; // rethrow if it isn't a 404, though
+                }
+            }
 
-        for (Map<?, ?> entry : policies) {
-            Map<?, Map<String, ?>> config = unsafeGetProperty(entry, "config");
-            Map<String, ?> policy = config.values().iterator().next();
-            String endpoint = "/_enrich/policy/" + policy.get("name");
-            assertOK(client().performRequest(new Request("DELETE", endpoint)));
+            for (String pipeline : pipelines) {
+                String endpoint = "/_ingest/pipeline/" + pipeline;
+                assertOK(client().performRequest(new Request("DELETE", endpoint)));
+            }
+        }
 
-            List<?> sourceIndices = (List<?>) policy.get("indices");
-            for (Object sourceIndex : sourceIndices) {
-                try {
-                    client().performRequest(new Request("DELETE", "/" + sourceIndex));
-                } catch (ResponseException e) {
-                    // and that is ok
+        {
+            // delete all policies
+            Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
+            List<Map<?, ?>> policies = unsafeGetProperty(responseMap, "policies");
+
+            for (Map<?, ?> entry : policies) {
+                Map<?, Map<String, ?>> config = unsafeGetProperty(entry, "config");
+                Map<String, ?> policy = config.values().iterator().next();
+                String endpoint = "/_enrich/policy/" + policy.get("name");
+                assertOK(client().performRequest(new Request("DELETE", endpoint)));
+
+                List<?> sourceIndices = (List<?>) policy.get("indices");
+                for (Object sourceIndex : sourceIndices) {
+                    try {
+                        client().performRequest(new Request("DELETE", "/" + sourceIndex));
+                    } catch (ResponseException e) {
+                        // and that is ok
+                    }
                 }
             }
         }

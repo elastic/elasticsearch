@@ -52,7 +52,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     public void onFinish(FinishEvent finishEvent) {
         TaskFinishEvent taskFinishEvent = (TaskFinishEvent) finishEvent;
         String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
-        if(clusters.containsKey(taskPath)) {
+        if (clusters.containsKey(taskPath)) {
             boolean failed = taskFinishEvent.getResult() instanceof TaskFailureResult;
             Set<ElasticsearchCluster> elasticsearchClusters = clusters.remove(taskPath);
             elasticsearchClusters.forEach(cluster -> stopCluster(cluster, failed));

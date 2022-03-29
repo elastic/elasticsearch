@@ -17,7 +17,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
-import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.internal.file.FileOperations;
@@ -26,7 +25,6 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.tasks.TaskState;
 import org.gradle.build.event.BuildEventsListenerRegistry;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
@@ -157,11 +155,12 @@ public class TestClustersPlugin implements Plugin<Project> {
     static class TestClustersHookPlugin implements Plugin<Project> {
 
         @Inject
-        public TestClustersHookPlugin() {
-        }
+        public TestClustersHookPlugin() {}
 
         @Inject
-        protected BuildEventsListenerRegistry getBuildEventsListenerRegistry() { throw new UnsupportedOperationException(); }
+        protected BuildEventsListenerRegistry getBuildEventsListenerRegistry() {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public void apply(Project project) {

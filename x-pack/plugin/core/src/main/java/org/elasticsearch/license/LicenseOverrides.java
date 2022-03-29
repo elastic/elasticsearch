@@ -30,7 +30,7 @@ class LicenseOverrides {
     static {
         // This value is not a "real" license ID, it is used for testing this code
         String TEST_LICENSE_ID_HASH = MessageDigests.toHexString(
-            MessageDigests.sha256().digest("20f0e481-0bfa-4f63-938c-259a3fc6ec01".getBytes(StandardCharsets.UTF_8))
+            MessageDigests.sha256().digest("12345678-abcd-0000-0000-000000000000".getBytes(StandardCharsets.UTF_8))
         );
 
         LICENSE_OVERRIDES = Map.ofEntries(

@@ -108,7 +108,7 @@ public class LicenseInstallationIT extends ESRestTestCase {
      */
     public void testInstallOverriddenExpiredLicense() throws Exception {
         long futureExpiryDate = System.currentTimeMillis() + TimeValue.timeValueDays(randomIntBetween(1, 1000)).millis();
-        License signedLicense = generateRandomLicense("20f0e481-0bfa-4f63-938c-259a3fc6ec01", futureExpiryDate);
+        License signedLicense = generateRandomLicense("12345678-abcd-0000-0000-000000000000", futureExpiryDate);
         Request putLicenseRequest = createPutLicenseRequest(signedLicense);
         Response putLicenseResponse = client().performRequest(putLicenseRequest);
         assertOK(putLicenseResponse);

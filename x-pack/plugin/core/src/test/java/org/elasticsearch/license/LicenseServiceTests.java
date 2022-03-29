@@ -120,7 +120,7 @@ public class LicenseServiceTests extends ESTestCase {
      * Tests that the license overrides from {@link LicenseOverrides} are applied when an override is present for a license's ID.
      */
     public void testLicenseExpiryDateOverride() throws IOException {
-        UUID licenseId = UUID.fromString("20f0e481-0bfa-4f63-938c-259a3fc6ec01"); // Special test UUID
+        UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
         License.LicenseType type = randomFrom(License.LicenseType.values());
         License testLicense = buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis());
 
@@ -131,7 +131,7 @@ public class LicenseServiceTests extends ESTestCase {
      * Tests that a license with an overridden expiry date that's in the past is expired.
      */
     public void testLicenseWithOverridenExpiryInPastIsExpired() throws IOException {
-        UUID licenseId = UUID.fromString("20f0e481-0bfa-4f63-938c-259a3fc6ec01"); // Special test UUID
+        UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
         License.LicenseType type = randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES);
         License testLicense = sign(buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis()));
 

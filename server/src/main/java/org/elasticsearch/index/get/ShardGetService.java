@@ -145,7 +145,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     /**
      * decides what needs to be done based on the request input and always returns a valid non-null FetchSourceContext
      */
-    private FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
+    private static FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
         if (context != null) {
             return context;
         }

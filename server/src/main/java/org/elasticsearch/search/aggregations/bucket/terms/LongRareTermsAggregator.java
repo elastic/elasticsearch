@@ -59,7 +59,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
-    protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
+    protected static SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
         return valuesSource.longValues(ctx);
     }
 

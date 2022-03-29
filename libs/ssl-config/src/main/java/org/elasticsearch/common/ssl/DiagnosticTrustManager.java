@@ -136,7 +136,7 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         logger.warning(diagnostic, cause);
     }
 
-    private SSLSession session(Socket socket) {
+    private static SSLSession session(Socket socket) {
         if (socket instanceof final SSLSocket ssl) {
             final SSLSession handshakeSession = ssl.getHandshakeSession();
             if (handshakeSession == null) {
@@ -149,7 +149,7 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         }
     }
 
-    private SSLSession session(SSLEngine engine) {
+    private static SSLSession session(SSLEngine engine) {
         return engine.getHandshakeSession();
     }
 }

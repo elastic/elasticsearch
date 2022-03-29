@@ -157,6 +157,7 @@ public class PyTorchResultProcessor {
             // in this period to close off the last period stats.
             // The stats are valid return them here
             rs = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage());
+            peakThroughput = Math.max(peakThroughput, lastPeriodSummaryStats.getCount());
         }
 
         if (rs == null) {

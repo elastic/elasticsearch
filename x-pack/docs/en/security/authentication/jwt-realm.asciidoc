@@ -5,7 +5,7 @@
 JWT realms allow reuse of certain `identification tokens` for {es} authentication and authorization.
 JWT realms are only intended to use with JWTs from existing, external workflows.
 The format of those JWTs must be similar to Open ID Connect (OIDC) ID Tokens.
-See <<jwt-realm,external-workflow-requirements>>.
+See <<external-workflow-requirements>>.
 
 TIP: If the external workflow does not exist, use `api` tokens instead.
 
@@ -34,16 +34,16 @@ The client and end-user are separate entities, so both must be authenticated.
 JWT realms allow repurposing an identification token for {es} authentication and authorization.
 The external workflow can be Open ID Connect or bespoke.
 JWT format and validation are similar to Open ID Connect (OIDC) ID Tokens, with some differences.
-See <<jwt-realm,jwt-validation>>.
+See <<jwt-validation>>.
 
 The client is separate from the end-user. JWT realms require the external client to authenticate as well.
-See <<jwt-realm,client-authentication>>.
+See <<client-authentication>>.
 
 [[client-authentication]]
-=== Client authentication
+==== Client authentication
 
 Client authentication is one of two credentials required by JWT realms.
-See <<jwt-realm,jwt-validation>> for the other credential.
+See <<jwt-validation>> for the other credential.
 
 JWT realms support two client authentication settings: `shared_secret` and `none`.
 
@@ -51,22 +51,22 @@ IMPORTANT: Client authentication is enabled by default in JWT realms.
 
 If client authentication type is `shared_secret`, JWT realm requires a request header `ES-Client-Authentication`.
 The value must be a case-insensitive match to the realm's secure string setting `client_authentication.shared_secret`.
-See <<security-settings,ref-jwt-settings>>.
+See <<ref-jwt-settings>>.
 
 If client authentication type is `none`, the request header `ES-Client-Authentication` is ignored.
 
 WARNING: Client authentication can be disabled, but it is not recommended.
 
 [[jwt-validation]]
-=== JWT validation
+==== JWT validation
 
 JWT validation is one of two credentials required by JWT realms.
-See <<jwt-realm,client-authentication>> for the other credential.
+See <<client-authentication>> for the other credential.
 
 The supported JWT encoding is JSON Web Signature (JWS).
-See <<jwt-realm,jws-header-validation>> and <<jwt-realm,jws-signature-validation>>.
+See <<jws-header-validation>> and <<jws-signature-validation>>.
 
-The supported JWT payload is an OIDC ID Token claims set. See <<jwt-realm,jwt-claims-set-validation>>.
+The supported JWT payload is an OIDC ID Token claims set. See <<jwt-claims-set-validation>>.
 
 [[jws-header-validation]]
 ==== JWS header validation
@@ -75,7 +75,7 @@ Values `alg` and `typ` are validated using OIDC ID Token validation rules.
 
 TIP: `alg` is required. `alg` must be allowed in JWT realm settings.
 
-See `allowed_signature_algorithms` in <<security-settings,ref-jwt-settings>>.
+See `allowed_signature_algorithms` in <<ref-jwt-settings>>.
 
 [[jwt-claims-set-validation]]
 ==== JWT claims set validation
@@ -89,7 +89,7 @@ IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workfl
 Elasticsearch claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
 Regular expression settings may be used.
 
-See <<security-settings,ref-jwt-settings>>.
+See <<ref-jwt-settings>>.
 
 [[jws-signature-validation]]
 ==== JWS signature validation
@@ -111,7 +111,7 @@ WARNING: JWT realm does not support using the role_mapping.yml file.
 * `groups` claim: JWT claim in the form of a comma separate list is used as the {es} user's groups value.
 * `metadata` claims: JWTs claims in the form of strings, numbers, booleans, and collections are used as the {es} user's metadata, formatted as `jwt_claim_<key>` = `<value>`
 
-See <<security-settings,ref-jwt-settings>>.
+See <<ref-jwt-settings>>.
 
 ===== Example JWT Realm Role Mapping Rule
 
@@ -138,7 +138,7 @@ PUT /_security/role_mapping/jwt1_users
 .If Delegated Realms are used for authorization, this claim is available for roles lookup.
 * `principal` claim: JWT claim in the form of a string is used as the {es} user's principal value.
 
-See <<security-settings,ref-jwt-settings>>.
+See <<ref-jwt-settings>>.
 
 ===== Example JWT Realm Delegated Authorization:
 

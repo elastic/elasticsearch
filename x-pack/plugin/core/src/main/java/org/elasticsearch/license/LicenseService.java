@@ -75,7 +75,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         Setting.Property.NodeScope
     );
 
-    static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
+    public static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
 
     public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting(
         "xpack.license.upload.types",

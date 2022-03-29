@@ -162,8 +162,15 @@ public final class ApplicationPrivilege extends Privilege {
         }
     }
 
-    private static boolean isValidPrivilegeName(String name) {
+    public static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
+    }
+
+    public static void validateActionName(String action) {
+        if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+            throw new IllegalArgumentException("action [" + action + "] must contain one of [ '/' , '*' , ':' ]");
+        }
+        ApplicationPrivilege.validatePrivilegeOrActionName(action);
     }
 
     /**

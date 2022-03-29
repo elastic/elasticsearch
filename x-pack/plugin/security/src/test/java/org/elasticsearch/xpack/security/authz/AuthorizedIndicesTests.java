@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -259,7 +258,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     "adatastream1",
-                    createTimestampField("@timestamp"),
                     List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
                 )
             )
@@ -332,7 +330,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     "adatastream1",
-                    createTimestampField("@timestamp"),
                     List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
                 )
             )

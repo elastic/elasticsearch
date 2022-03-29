@@ -40,8 +40,6 @@ public class SourceProvider {
         this.classNamesToSkip = singleton(SourceProvider.class.getName());
     }
 
-    public static final SourceProvider DEFAULT_INSTANCE = new SourceProvider();
-
     @SuppressWarnings("rawtypes")
     private SourceProvider(SourceProvider copy, Class[] moreClassesToSkip) {
         Set<String> classNamesToSkip = new HashSet<>(copy.classNamesToSkip);

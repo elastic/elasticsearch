@@ -1270,10 +1270,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
-                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
-                    .stream()
-                    .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
-                    .collect(Collectors.toUnmodifiableSet());
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(
                     localNode.getName(),
@@ -1283,7 +1279,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? allExceptVotingOnlyRole : emptySet(),
+                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
                     Version.CURRENT
                 );
                 try {
@@ -1683,9 +1679,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.wrap(() -> {
-                        // ignore result
-                    }));
+                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.noop());
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
@@ -1710,6 +1704,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
+    private static final Set<DiscoveryNodeRole> ALL_ROLES_EXCEPT_VOTING_ONLY = DiscoveryNodeRole.roles()
+        .stream()
+        .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
+        .collect(Collectors.toUnmodifiableSet());
+
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
         final TransportAddress address = buildNewFakeTransportAddress();
         return new DiscoveryNode(
@@ -1720,7 +1719,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             address.getAddress(),
             address,
             Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.roles() : emptySet(),
+            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
             Version.CURRENT
         );
     }

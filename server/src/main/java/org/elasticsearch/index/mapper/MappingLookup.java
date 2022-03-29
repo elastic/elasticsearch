@@ -336,7 +336,11 @@ public final class MappingLookup {
     }
 
     public boolean isMultiField(String field) {
-        if (fieldTypeLookup.isRuntimeField(field)) {
+        if (fieldMappers.containsKey(field) == false) {
+            return false;
+        }
+        // Is it a runtime field?
+        if (indexTimeLookup.get(field) != fieldTypeLookup.get(field)) {
             return false;
         }
         String sourceParent = parentObject(field);

@@ -70,7 +70,7 @@ public class JoinHelper {
     private final AllocationService allocationService;
     private final MasterService masterService;
     private final TransportService transportService;
-    private volatile JoinTaskExecutor joinTaskExecutor;
+    private final JoinTaskExecutor joinTaskExecutor;
     private final LongSupplier currentTermSupplier;
     private final RerouteService rerouteService;
     private final NodeHealthService nodeHealthService;
@@ -97,6 +97,7 @@ public class JoinHelper {
         this.allocationService = allocationService;
         this.masterService = masterService;
         this.transportService = transportService;
+        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
         this.currentTermSupplier = currentTermSupplier;
         this.rerouteService = rerouteService;
         this.nodeHealthService = nodeHealthService;
@@ -343,8 +344,12 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTask task = JoinTask.singleNode(sender, joinReasonService.getJoinReason(sender, Mode.LEADER), joinListener);
-            assert joinTaskExecutor != null;
+            final JoinTask task = JoinTask.singleNode(
+                sender,
+                joinReasonService.getJoinReason(sender, Mode.LEADER),
+                joinListener,
+                currentTermSupplier.getAsLong()
+            );
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
@@ -406,18 +411,16 @@ public class JoinHelper {
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         listener
                     );
-                }));
-
-                joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, currentTermSupplier.getAsLong());
+                }), currentTermSupplier.getAsLong());
                 masterService.submitStateUpdateTask(
                     "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
                     joinTask,
                     ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor
+
                 );
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
-                joinTaskExecutor = null;
                 joinRequestAccumulator.values()
                     .forEach(joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException("became follower")));
             }

@@ -42,6 +42,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         SHARED_CACHE("shared_cache");
 
         private final String storageName;
+
         public String storageName() {
             return storageName;
         }

@@ -78,7 +78,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
             logger.warn(
-                "[indices.queries.cache.all_segments] setting shouldn't be enabled in production environments. The setting will be removed in a future version"
+                "[indices.queries.cache.all_segments] setting shouldn't be enabled in production environments."
+                    + " The setting will be removed in a future version"
             );
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 10f);
         } else {

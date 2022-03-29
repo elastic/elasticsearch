@@ -201,7 +201,7 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
-    // TODO: Remove the
+    // TODO: Remove this method in refactoring
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
         throws IOException {
         return getLeafCollector(ctx, sub);

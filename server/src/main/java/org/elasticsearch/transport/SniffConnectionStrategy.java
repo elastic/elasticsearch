@@ -512,7 +512,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    private boolean seedsChanged(final List<String> oldSeedNodes, final List<String> newSeedNodes) {
+    private static boolean seedsChanged(final List<String> oldSeedNodes, final List<String> newSeedNodes) {
         if (oldSeedNodes.size() != newSeedNodes.size()) {
             return true;
         }
@@ -521,7 +521,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return oldSeeds.equals(newSeeds) == false;
     }
 
-    private boolean proxyChanged(String oldProxy, String newProxy) {
+    private static boolean proxyChanged(String oldProxy, String newProxy) {
         if (oldProxy == null || oldProxy.isEmpty()) {
             return (newProxy == null || newProxy.isEmpty()) == false;
         }

@@ -675,7 +675,7 @@ public final class DocumentParser {
 
     // looks up a child mapper
     // returns null if no such child mapper exists - note that unlike getLeafMapper,
-    // we do not check for shadowing runtime fields because they only apply to leaf
+    // we do not check for runtime fields with same name as they only apply to leaf
     // fields
     private static Mapper getMapper(final DocumentParserContext context, ObjectMapper objectMapper, String fieldName) {
         if (context.path().atRoot()) {
@@ -688,7 +688,7 @@ public final class DocumentParser {
         return objectMapper.getMapper(fieldName);
     }
 
-    // looks up a child mapper, taking into account field names that expand to objects
+    // looks up a child mapper
     // if no mapper is found, checks to see if a runtime field with the specified
     // field name exists and if so returns a no-op mapper to prevent indexing
     private static Mapper getLeafMapper(final DocumentParserContext context, ObjectMapper objectMapper, String fieldName) {
@@ -700,7 +700,10 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        if (context.isShadowed(fieldPath)) {
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
+        if (fieldType != null) {
+            // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
             return NO_OP_FIELDMAPPER;
         }
         return null;

@@ -495,12 +495,47 @@ public class CompoundProcessorTests extends ESTestCase {
             processors[i] = getTestProcessor(Integer.toString(i), randomBoolean(), randomBoolean());
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(relativeTimeProvider, true, processors);
-        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
+        executeCompound(
+            compoundProcessor,
+            ingestDocument,
+            (result, e) -> { if (e != null) fail("CompoundProcessor threw exception despite ignoreFailure being true"); }
+        );
         for (int i = 0; i < processors.length; i++) {
             assertThat(
                 "Processor " + i + " ran " + processors[i].getInvokedCounter() + " times",
                 processors[i].getInvokedCounter(),
                 equalTo(1)
+            );
+        }
+    }
+
+    public void testMultipleProcessorsDoNotIgnoreFailures() {
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1));
+        int goodProcessorsCount = 100;
+        int totalProcessorsCount = goodProcessorsCount * 2 + 1;
+        TestProcessor[] processors = new TestProcessor[totalProcessorsCount];
+        for (int i = 0; i < goodProcessorsCount; i++) {
+            processors[i] = getTestProcessor(Integer.toString(i), randomBoolean(), false);
+        }
+        processors[goodProcessorsCount] = getTestProcessor(Integer.toString(goodProcessorsCount), randomBoolean(), true);
+        for (int i = goodProcessorsCount + 1; i < totalProcessorsCount; i++) {
+            processors[i] = getTestProcessor(Integer.toString(i), randomBoolean(), false);
+        }
+        CompoundProcessor compoundProcessor = new CompoundProcessor(relativeTimeProvider, false, processors);
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
+        for (int i = 0; i < goodProcessorsCount + 1; i++) {
+            assertThat(
+                "Processor " + i + " ran " + processors[i].getInvokedCounter() + " times",
+                processors[i].getInvokedCounter(),
+                equalTo(1)
+            );
+        }
+        for (int i = goodProcessorsCount + 1; i < totalProcessorsCount; i++) {
+            assertThat(
+                "Processor " + i + " ran " + processors[i].getInvokedCounter() + " times",
+                processors[i].getInvokedCounter(),
+                equalTo(0)
             );
         }
     }

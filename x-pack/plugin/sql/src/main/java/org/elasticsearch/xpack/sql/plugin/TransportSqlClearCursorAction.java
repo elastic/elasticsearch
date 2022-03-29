@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
+import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.retryOnNodeWithMatchingVersion;
 import static org.elasticsearch.xpack.sql.action.SqlClearCursorAction.NAME;
 
 public class TransportSqlClearCursorAction extends HandledTransportAction<SqlClearCursorRequest, SqlClearCursorResponse> {
@@ -67,24 +67,25 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         TransportService transportService,
         ClusterService clusterService
     ) {
-        executeRequestWithRetryAttempt(clusterService, listener::onFailure, onFailure -> {
-            try {
-                Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.getCursor(), planExecutor.writeableRegistry());
-                planExecutor.cleanCursor(
-                    decoded.v1(),
-                    ActionListener.wrap(success -> listener.onResponse(new SqlClearCursorResponse(success)), onFailure)
-                );
-            } catch (QlVersionMismatchException e) {
-                onFailure.accept(e);
-            }
-        },
-            node -> transportService.sendRequest(
-                node,
-                SqlClearCursorAction.NAME,
-                request,
-                new ActionListenerResponseHandler<>(listener, SqlClearCursorResponse::new, ThreadPool.Names.SAME)
-            ),
-            log
-        );
+        try {
+            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.getCursor(), planExecutor.writeableRegistry());
+            planExecutor.cleanCursor(
+                decoded.v1(),
+                ActionListener.wrap(success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure)
+            );
+        } catch (QlVersionMismatchException e) {
+            retryOnNodeWithMatchingVersion(
+                clusterService,
+                e,
+                node -> transportService.sendRequest(
+                    node,
+                    SqlClearCursorAction.NAME,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, SqlClearCursorResponse::new, ThreadPool.Names.SAME)
+                ),
+                listener::onFailure,
+                log
+            );
+        }
     }
 }

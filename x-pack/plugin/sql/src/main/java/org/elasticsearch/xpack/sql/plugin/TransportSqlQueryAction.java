@@ -58,6 +58,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
+import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.retryOnNodeWithMatchingVersion;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
@@ -178,26 +179,27 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 log
             );
         } else {
-            executeRequestWithRetryAttempt(clusterService, listener::onFailure, onFailure -> {
-                try {
-                    Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
-                    planExecutor.nextPage(
-                        cfg,
-                        decoded.v1(),
-                        wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), onFailure)
-                    );
-                } catch (QlVersionMismatchException e) {
-                    onFailure.accept(e);
-                }
-            },
-                node -> transportService.sendRequest(
-                    node,
-                    SqlQueryAction.NAME,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
-                ),
-                log
-            );
+            try {
+                Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
+                planExecutor.nextPage(
+                    cfg,
+                    decoded.v1(),
+                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
+                );
+            } catch (QlVersionMismatchException e) {
+                retryOnNodeWithMatchingVersion(
+                    clusterService,
+                    e,
+                    node -> transportService.sendRequest(
+                        node,
+                        SqlQueryAction.NAME,
+                        request,
+                        new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
+                    ),
+                    listener::onFailure,
+                    log
+                );
+            }
         }
     }
 

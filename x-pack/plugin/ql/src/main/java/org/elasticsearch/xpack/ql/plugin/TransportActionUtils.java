@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.plugin;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,8 +40,7 @@ public final class TransportActionUtils {
         queryRunner.accept(e -> {
             // the search request likely ran on nodes with different versions of ES
             // we will retry on a node with an older version that should generate a backwards compatible _search request
-            if (e instanceof QlVersionMismatchException
-                || (e instanceof SearchPhaseExecutionException && e.getCause() instanceof VersionMismatchException)) {
+            if (e instanceof SearchPhaseExecutionException && e.getCause() instanceof VersionMismatchException) {
                 if (log.isDebugEnabled()) {
                     log.debug("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
                 }
@@ -77,6 +77,57 @@ public final class TransportActionUtils {
             }
             queryRunner.accept(onFailure);
         }
+    }
+
+    public static void retryOnNodeWithMatchingVersion(
+        ClusterService clusterService,
+        QlVersionMismatchException exception,
+        Consumer<DiscoveryNode> retryRequest,
+        Consumer<Exception> onFailure,
+        Logger log
+    ) {
+        if (log.isDebugEnabled()) {
+            log.debug("Version mismatch detected: {}", exception.getMessage());
+        }
+
+        DiscoveryNode candidateNode = findNodeWithVersionOtherThanLocalNode(clusterService, exception.getInputVersion());
+
+        if (candidateNode != null) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                    "Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
+                    candidateNode.getAddress(),
+                    candidateNode.getId(),
+                    candidateNode.getName(),
+                    candidateNode.getVersion()
+                );
+            }
+
+            retryRequest.accept(candidateNode);
+        } else {
+            if (log.isInfoEnabled()) {
+                log.info(
+                    "No candidate node with version {} found, likely all were upgraded in the meantime. Failing request.",
+                    exception.getInputVersion()
+                );
+            }
+            onFailure.accept(exception);
+        }
+
+    }
+
+    private static DiscoveryNode findNodeWithVersionOtherThanLocalNode(ClusterService clusterService, Version expectedVersion) {
+        DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
+        if (expectedVersion.equals(localNode.getVersion())) {
+            return null;
+        }
+
+        for (DiscoveryNode node : clusterService.state().nodes()) {
+            if (node.getVersion().equals(expectedVersion)) {
+                return node;
+            }
+        }
+        return null;
     }
 
 }

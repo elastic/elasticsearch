@@ -7,8 +7,17 @@
 
 package org.elasticsearch.xpack.ql;
 
+import org.elasticsearch.Version;
+
 public class QlVersionMismatchException extends QlServerException {
-    public QlVersionMismatchException(String message, Object... args) {
-        super(message, args);
+    private final Version inputVersion;
+
+    public QlVersionMismatchException(String objectName, Version inputVersion, Version expectedVersion) {
+        super("Unsupported {} version [{}], expected [{}]", objectName, inputVersion, expectedVersion);
+        this.inputVersion = inputVersion;
+    }
+
+    public Version getInputVersion() {
+        return inputVersion;
     }
 }

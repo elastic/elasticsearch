@@ -14,6 +14,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -703,7 +705,10 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        Line line = GeometryTestUtils.randomLine(false);
+        Line line = randomValueOtherThanMany(
+            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l),
+            () -> GeometryTestUtils.randomLine(false)
+        );
 
         client().prepareIndex(defaultIndexName)
             .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(line)).endObject())
@@ -726,7 +731,10 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        Polygon polygon = GeometryTestUtils.randomPolygon(false);
+        Polygon polygon = randomValueOtherThanMany(
+            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p),
+            () -> GeometryTestUtils.randomPolygon(false)
+        );
 
         client().prepareIndex(defaultIndexName)
             .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(polygon)).endObject())

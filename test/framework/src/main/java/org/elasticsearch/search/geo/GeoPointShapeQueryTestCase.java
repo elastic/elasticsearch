@@ -16,6 +16,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -701,14 +703,17 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        Line line = GeometryTestUtils.randomLine(false);
+        Line line = randomValueOtherThanMany(
+            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l),
+            () -> GeometryTestUtils.randomLine(false)
+        );
         for (int i = 0; i < line.length(); i++) {
             Point point = new Point(line.getLon(i), line.getLat(i));
             client().prepareIndex(defaultIndexName)
                 .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
-                .setRefreshPolicy(IMMEDIATE)
                 .get();
         }
+        client().admin().indices().prepareRefresh(defaultIndexName).get();
         // all points from a line intersect with the line
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
             .setTrackTotalHits(true)
@@ -723,15 +728,18 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        Polygon polygon = GeometryTestUtils.randomPolygon(false);
+        Polygon polygon = randomValueOtherThanMany(
+            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p),
+            () -> GeometryTestUtils.randomPolygon(false)
+        );
         LinearRing linearRing = polygon.getPolygon();
         for (int i = 0; i < linearRing.length(); i++) {
             Point point = new Point(linearRing.getLon(i), linearRing.getLat(i));
             client().prepareIndex(defaultIndexName)
                 .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
-                .setRefreshPolicy(IMMEDIATE)
                 .get();
         }
+        client().admin().indices().prepareRefresh(defaultIndexName).get();
         // all points from a polygon intersect with the polygon
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
             .setTrackTotalHits(true)

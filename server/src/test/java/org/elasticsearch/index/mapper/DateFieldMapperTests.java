@@ -15,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -131,11 +130,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]",
             "strict_date_optional_time||epoch_millis"
         );
-        testIgnoreMalformedForValue(
-            "-2147483648",
-            "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]",
-            "strict_date_optional_time||epoch_millis"
-        );
         testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
     }
 
@@ -178,8 +172,6 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testChangeLocale() throws IOException {
-        assumeTrue("need java 9 for testing ", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
-
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
         );

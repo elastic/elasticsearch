@@ -22,9 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This class is for testing that when restarting a node, SystemIndexMigrationTaskState can be read.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
     private static Logger logger = LogManager.getLogger(SystemIndexMigrationIT.class);
 
@@ -64,20 +61,10 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         return plugins;
     }
 
-    @Before
-    public void init() {
-        // master node is created in AbstractFeatureMigrationIntegTest#setupTestPlugin when trying to access plugins
-        internalCluster().setBootstrapMasterNodeIndex(0);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85164")
     public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {
         CyclicBarrier taskCreated = new CyclicBarrier(2);
         CyclicBarrier shutdownCompleted = new CyclicBarrier(2);
         AtomicBoolean hasBlocked = new AtomicBoolean();
-
-        final String masterName = internalCluster().getMasterName();
-        final String masterAndDataNode = internalCluster().startNode();
 
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
 

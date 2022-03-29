@@ -71,7 +71,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
     }
 
     public void testOnStop() {
-        assertTrackingComplete(t -> t.stop("foo", ActionListener.wrap(r -> {}, e -> {})), randomAlphaOfLength(10));
+        assertTrackingComplete(t -> t.stop("foo", ActionListener.noop()), randomAlphaOfLength(10));
     }
 
     public void testCancelled() {

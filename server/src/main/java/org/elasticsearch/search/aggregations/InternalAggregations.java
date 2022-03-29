@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
-        return from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+        return from(in.readList(stream -> stream.readNamedWriteable(InternalAggregation.class)));
     }
 
     @Override
@@ -80,7 +81,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     /**
      * Get value to use when sorting by a descendant of the aggregation containing this.
      */
-    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         InternalAggregation aggregation = get(head.name());
         if (aggregation == null) {
             throw new IllegalArgumentException("Cannot find aggregation named [" + head.name() + "]");

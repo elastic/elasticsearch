@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -129,6 +130,33 @@ public final class ThreadContext implements Writeable {
             // uncaught exception
             threadLocal.set(context);
         };
+    }
+
+    public StoredContext newTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
+
+        final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
+
+        if (previousTraceParent != null) {
+            newTransientHeaders.put("parent_" + Task.TRACE_PARENT_HTTP_HEADER, previousTraceParent);
+        }
+        if (previousTraceState != null) {
+            newTransientHeaders.put("parent_" + Task.TRACE_STATE, previousTraceState);
+        }
+
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                context.responseHeaders,
+                newTransientHeaders,
+                context.isSystemContext,
+                context.warningHeadersSize
+            )
+        );
+        return () -> threadLocal.set(context);
     }
 
     private Map<String, String> headers(ThreadContextStruct context) {

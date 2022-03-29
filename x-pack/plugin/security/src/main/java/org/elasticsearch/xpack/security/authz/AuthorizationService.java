@@ -225,7 +225,7 @@ public class AuthorizationService {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
 
-        final Runnable tracer = maybeStartTracing(enclosingContext, authentication, action, originalRequest);
+        Runnable stopTracing = null;
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -233,47 +233,55 @@ public class AuthorizationService {
          * Therefore we begin by clearing the existing ones up, as they might already be set during the authorization of a
          * previous parent action that ran under the same thread context (also on the same node).
          * When the returned {@code StoredContext} is closed, ALL the original headers are restored.
+         *
+         * We also clear tracing-related headers
          */
         try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false, ACTION_SCOPE_AUTHORIZATION_KEYS)) {
-            // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
-            // prior to doing any authorization lets set the originating action in the thread context
-            // the originating action is the current action if no originating action has yet been set in the current thread context
-            // if there is already an original action, that stays put (eg. the current action is a child action)
-            putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
+            // FIXME improve this
+            try (var ignore2 = threadContext.newTraceContext()) {
+                stopTracing = maybeStartTracing(enclosingContext, authentication, action, originalRequest);
+                // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
+                // prior to doing any authorization lets set the originating action in the thread context
+                // the originating action is the current action if no originating action has yet been set in the current thread context
+                // if there is already an original action, that stays put (eg. the current action is a child action)
+                putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
-            final String auditId;
-            try {
-                auditId = requireAuditId(authentication, action, originalRequest);
-            } catch (ElasticsearchSecurityException e) {
-                listener.onFailure(e);
-                return;
-            }
+                final String auditId;
+                try {
+                    auditId = requireAuditId(authentication, action, originalRequest);
+                } catch (ElasticsearchSecurityException e) {
+                    listener.onFailure(e);
+                    return;
+                }
 
-            // sometimes a request might be wrapped within another, which is the case for proxied
-            // requests and concrete shard requests
-            final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+                // sometimes a request might be wrapped within another, which is the case for proxied
+                // requests and concrete shard requests
+                final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
 
-            try {
-                checkOperatorPrivileges(authentication, action, originalRequest);
-            } catch (ElasticsearchException e) {
-                listener.onFailure(e);
-                return;
-            }
+                try {
+                    checkOperatorPrivileges(authentication, action, originalRequest);
+                } catch (ElasticsearchException e) {
+                    listener.onFailure(e);
+                    return;
+                }
 
-            if (SystemUser.is(authentication.getUser())) {
-                // this never goes async so no need to wrap the listener
-                authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
-            } else {
-                final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
-                final AuthorizationEngine engine = getAuthorizationEngine(authentication);
-                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
-                    threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                    maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                }, listener::onFailure), threadContext);
-                engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
+                if (SystemUser.is(authentication.getUser())) {
+                    // this never goes async so no need to wrap the listener
+                    authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
+                } else {
+                    final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
+                    final AuthorizationEngine engine = getAuthorizationEngine(authentication);
+                    final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
+                        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                        maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                    }, listener::onFailure), threadContext);
+                    engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
+                }
             }
         } finally {
-            tracer.run();
+            if (stopTracing != null) {
+                stopTracing.run();
+            }
         }
     }
 

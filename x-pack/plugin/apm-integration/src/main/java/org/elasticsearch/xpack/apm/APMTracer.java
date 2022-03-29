@@ -287,8 +287,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
 
-            // Ignore the result here, we don't need to restore the threadContext
-            threadContext.removeRequestHeaders(TRACE_HEADERS);
             threadContext.putHeader(spanHeaders);
 
             // logGraphviz(span);
@@ -346,11 +344,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private Context getParentSpanContext() {
-        // Check for a parent context in the thread context
-        String traceParentHeader = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
-        String traceStateHeader = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+        // Check for a parent context in the thread context.
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String traceParentHeader = threadContext.getHeader("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+        final String traceStateHeader = threadContext.getHeader("parent_" + Task.TRACE_STATE);
+
         if (traceParentHeader != null) {
-            Map<String, String> traceContextMap = new HashMap<>();
+            final Map<String, String> traceContextMap = new HashMap<>(2);
             // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
             traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
             if (traceStateHeader != null) {

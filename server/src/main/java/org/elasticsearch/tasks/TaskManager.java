@@ -121,31 +121,34 @@ public class TaskManager implements ClusterStateApplier {
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
-        for (String key : taskHeaders) {
-            String httpHeader = threadContext.getHeader(key);
-            if (httpHeader != null) {
-                headerSize += key.length() * 2 + httpHeader.length() * 2;
-                if (headerSize > maxSize) {
-                    throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
-                }
-                headers.put(key, httpHeader);
-            }
-        }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
-        Objects.requireNonNull(task);
-        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
-        if (logger.isTraceEnabled()) {
-            logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
-        }
 
-        if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
-        } else {
-            Task previousTask = tasks.put(task.getId(), task);
-            assert previousTask == null;
-            taskTracer.onTaskRegistered(threadContext, task);
+        try (var ignored = threadContext.newTraceContext()) {
+            for (String key : taskHeaders) {
+                String httpHeader = threadContext.getHeader(key);
+                if (httpHeader != null) {
+                    headerSize += key.length() * 2 + httpHeader.length() * 2;
+                    if (headerSize > maxSize) {
+                        throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
+                    }
+                    headers.put(key, httpHeader);
+                }
+            }
+            Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+            Objects.requireNonNull(task);
+            assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+            if (logger.isTraceEnabled()) {
+                logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+            }
+
+            if (task instanceof CancellableTask) {
+                registerCancellableTask(task);
+            } else {
+                Task previousTask = tasks.put(task.getId(), task);
+                assert previousTask == null;
+                taskTracer.onTaskRegistered(threadContext, task);
+            }
+            return task;
         }
-        return task;
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -161,43 +164,45 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = () -> {};
         }
-        final Task task;
-        try {
-            task = register(type, action.actionName, request);
-        } catch (TaskCancelledException e) {
-            unregisterChildNode.close();
-            throw e;
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task;
+            try {
+                task = register(type, action.actionName, request);
+            } catch (TaskCancelledException e) {
+                unregisterChildNode.close();
+                throw e;
+            }
+            // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
+            action.execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onResponse(task, response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onFailure(task, e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                }
+
+                private void release() {
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                }
+            });
+            return task;
         }
-        // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
-        action.execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onResponse(task, response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onFailure(task, e);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-            }
-
-            private void release() {
-                Releasables.close(unregisterChildNode, () -> unregister(task));
-            }
-        });
-        return task;
     }
 
     private void registerCancellableTask(Task task) {

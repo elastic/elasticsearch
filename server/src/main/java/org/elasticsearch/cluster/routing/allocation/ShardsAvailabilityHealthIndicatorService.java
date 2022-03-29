@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -261,10 +262,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
         final int maxIndices = 10;
+        final int unknownIndexPriority = -1;
         // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
-        Comparator<String> priorityThenNameComparator = Comparator.comparingInt((String index) -> clusterMetadata.index(index).priority())
-            .reversed()
-            .thenComparing(Comparator.naturalOrder());
+        Comparator<String> priorityThenNameComparator = Comparator.comparingInt((String indexName) -> {
+            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
+            return indexMetadata == null ? unknownIndexPriority : indexMetadata.priority();
+        }).reversed().thenComparing(Comparator.naturalOrder());
         String truncatedIndicesString = indices.stream().sorted(priorityThenNameComparator).limit(maxIndices).collect(joining(", "));
         if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";

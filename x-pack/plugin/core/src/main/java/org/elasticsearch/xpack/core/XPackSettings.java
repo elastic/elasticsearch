@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -153,33 +152,6 @@ public class XPackSettings {
         Property.NodeScope
     );
 
-    /*
-     * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
-     * but instead parse based on a prefix (eg *.ssl.*)
-     */
-    private static final List<String> JDK11_CIPHERS = List.of(
-        "TLS_AES_256_GCM_SHA384",
-        "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
-        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
-        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
-        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
-        "TLS_RSA_WITH_AES_256_GCM_SHA384",
-        "TLS_RSA_WITH_AES_128_GCM_SHA256", // AEAD, hardware support
-        "TLS_RSA_WITH_AES_256_CBC_SHA256",
-        "TLS_RSA_WITH_AES_128_CBC_SHA256", // hardware support
-        "TLS_RSA_WITH_AES_256_CBC_SHA",
-        "TLS_RSA_WITH_AES_128_CBC_SHA"
-    ); // hardware support
-
     private static final List<String> JDK12_CIPHERS = List.of(
         "TLS_AES_256_GCM_SHA384",
         "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
@@ -206,9 +178,7 @@ public class XPackSettings {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     ); // hardware support
 
-    public static final List<String> DEFAULT_CIPHERS = JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1
-        ? JDK12_CIPHERS
-        : JDK11_CIPHERS;
+    public static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
 
     /*
      * Do not allow insecure hashing algorithms to be used for password hashing

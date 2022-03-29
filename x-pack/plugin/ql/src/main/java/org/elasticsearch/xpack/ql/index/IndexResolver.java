@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -216,20 +217,13 @@ public class IndexResolver {
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
         if (retrieveAliases && clusterIsLocal(clusterWildcard)) {
-            GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
-                .aliases(indexWildcards)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
-
-            client.admin().indices().getAliases(aliasRequest, wrap(aliases -> {
-                if (aliases != null) {
-                    for (List<AliasMetadata> aliasList : aliases.getAliases().values()) {
-                        for (AliasMetadata amd : aliasList) {
-                            String alias = amd.alias();
-                            if (alias != null) {
-                                indexInfos.add(new IndexInfo(clusterName, alias, IndexType.ALIAS));
-                            }
-                        }
-                    }
+            ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(indexWildcards, IndicesOptions.lenientExpandOpen());
+            client.admin().indices().resolveIndex(resolveRequest, wrap(response -> {
+                for (ResolveIndexAction.ResolvedAlias alias : response.getAliases()) {
+                    indexInfos.add(new IndexInfo(clusterName, alias.getName(), IndexType.ALIAS));
+                }
+                for (ResolveIndexAction.ResolvedDataStream dataStream : response.getDataStreams()) {
+                    indexInfos.add(new IndexInfo(clusterName, dataStream.getName(), IndexType.ALIAS));
                 }
                 resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos, listener);
             }, ex -> {

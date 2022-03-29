@@ -134,13 +134,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 
@@ -173,17 +167,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(true);
                     }
                 };
-                completeStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-
-                    }
-                });
+                completeStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
                 assertThat(completeStep.getNextStepKey(), is(nextKeyOnComplete));
             }
         }
@@ -203,17 +187,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(false);
                     }
                 };
-                incompleteStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-
-                    }
-                });
+                incompleteStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
                 assertThat(incompleteStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }
@@ -233,17 +207,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onFailure(new SnapshotNameAlreadyInUseException(repository, snapshotName, "simulated"));
                     }
                 };
-                doubleInvocationStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-
-                    }
-                });
+                doubleInvocationStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
                 assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }

@@ -103,6 +103,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_0_1 = new Version(8_00_01_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_0 = new Version(8_01_00_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_1 = new Version(8_01_01_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
+    public static final Version V_8_1_2 = new Version(8_01_02_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_2_0 = new Version(8_02_00_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version CURRENT = V_8_2_0;
 
@@ -309,7 +310,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * lazily once.
      */
     private static class DeclaredVersionsHolder {
-        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+        static final List<Version> DECLARED_VERSIONS = List.copyOf(getDeclaredVersions(Version.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version

@@ -1,0 +1,6 @@
+pr: 85287
+summary: No longer require master node to install Watcher templates
+area: Watcher
+type: bug
+issues:
+ - 85043

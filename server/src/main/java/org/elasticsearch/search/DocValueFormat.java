@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,6 +64,13 @@ public interface DocValueFormat extends NamedWriteable {
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
     default Object format(BytesRef value) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Format a {@link GeoPoint}.
+     */
+    default Object format(GeoPoint value) {
         throw new UnsupportedOperationException();
     }
 

@@ -15,7 +15,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Geometry;
@@ -25,13 +27,16 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -137,5 +142,29 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             originGeoPoint.lon(),
             pivotDouble
         );
+    }
+
+    @Override
+    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        Function<List<GeoPoint>, List<Object>> formatter = GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY.getFormatter(
+            format != null ? format : GeometryFormatterFactory.GEOJSON,
+            p -> new org.elasticsearch.geometry.Point(p.getLon(), p.getLat())
+        );
+        return new DocValueFormat() {
+            @Override
+            public String getWriteableName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object format(GeoPoint value) {
+                return formatter.apply(List.of(value)).get(0);
+            }
+        };
     }
 }

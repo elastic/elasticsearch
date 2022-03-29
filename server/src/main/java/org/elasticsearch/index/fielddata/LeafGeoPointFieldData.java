@@ -16,5 +16,4 @@ public interface LeafGeoPointFieldData extends LeafFieldData {
      * Return geo-point values.
      */
     MultiGeoPointValues getGeoPointValues();
-
 }

@@ -15,7 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -38,6 +40,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -205,6 +208,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
+        when(context.getForField(any())).then(args -> {
+            MappedFieldType ft = args.getArgument(0);
+            return ft.fielddataBuilder("test", context::lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        });
         return context;
     }
 

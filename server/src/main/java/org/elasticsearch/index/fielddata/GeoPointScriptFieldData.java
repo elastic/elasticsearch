@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
@@ -21,6 +22,8 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+
+import java.io.IOException;
 
 public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
     public static class Builder implements IndexFieldData.Builder {
@@ -104,6 +107,28 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
             @Override
             public void close() {
 
+            }
+
+            @Override
+            public FormattedDocValues getFormattedValues(DocValueFormat format) {
+                MultiGeoPointValues values = getGeoPointValues();
+                LogManager.getLogger().error("ASDFDASF {} {}", this, values);
+                return new FormattedDocValues() {
+                    @Override
+                    public boolean advanceExact(int docId) throws IOException {
+                        return values.advanceExact(docId);
+                    }
+
+                    @Override
+                    public int docValueCount() {
+                        return values.docValueCount();
+                    }
+
+                    @Override
+                    public Object nextValue() throws IOException {
+                        return format.format(values.nextValue());
+                    }
+                };
             }
         };
     }

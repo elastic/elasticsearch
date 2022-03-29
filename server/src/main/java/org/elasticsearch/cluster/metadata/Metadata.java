@@ -300,6 +300,17 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         );
     }
 
+    /**
+     * Given an index and lifecycle state, returns a metadata where the lifecycle state will be
+     * associated with the given index.
+     *
+     * The passed-in index must already be present in the cluster state, this method cannot
+     * be used to add an index.
+     *
+     * @param index A non-null index
+     * @param lifecycleState A non-null lifecycle execution state
+     * @return a <code>Metadata</code> instance where the index has the provided lifecycle state
+     */
     public Metadata withLifecycleState(final Index index, final LifecycleExecutionState lifecycleState) {
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
@@ -318,6 +329,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
         builder.put(index.getName(), indexMetadataBuilder.build());
 
+        // construct a new Metadata object directly rather than using Metadata.builder(this).[...].build().
+        // the Metadata.Builder validation needs to handle the general case where anything at all could
+        // have changed, and hence it is expensive -- since we are changing so little about the metadata
+        // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
         return new Metadata(
             clusterUUID,
             clusterUUIDCommitted,

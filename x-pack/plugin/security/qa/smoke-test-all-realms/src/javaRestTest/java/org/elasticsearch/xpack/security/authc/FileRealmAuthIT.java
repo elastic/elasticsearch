@@ -61,12 +61,13 @@ public class FileRealmAuthIT extends SecurityRealmSmokeTestCase {
             assertOK(client().performRequest(closeRequest));
             // clear the authentication cache
             Request clearCachesRequest = new Request(HttpPost.METHOD_NAME, "_security/realm/*/_clear_cache");
-            closeRequest.setOptions(
+            clearCachesRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ANOTHER_USERNAME, PASSWORD))
             );
             assertOK(client().performRequest(clearCachesRequest));
 
+            // file-realm authentication still works when cache is cleared and .security-7 is out
             assertUsername(authenticate, ANOTHER_USERNAME);
             assertRealm(authenticate, "file", "file0");
             assertRoles(authenticate, "all_index_privileges", "all_application_privileges");

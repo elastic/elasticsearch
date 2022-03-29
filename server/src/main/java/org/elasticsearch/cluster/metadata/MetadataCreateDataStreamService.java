@@ -259,7 +259,6 @@ public class MetadataCreateDataStreamService {
         final IndexMode indexMode = template.getDataStreamTemplate().getIndexMode();
         DataStream newDataStream = new DataStream(
             dataStreamName,
-            timestampField,
             dsBackingIndices,
             1L,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,

@@ -750,7 +750,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .filter(s -> s.equals(RepositoryData.MISSING_UUID) == false)
                 .collect(Collectors.toSet());
             if (knownUuids.addAll(newUuids)) {
-                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.wrap((() -> {})));
+                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.noop());
             }
             knownUuids.retainAll(newUuids);
             assert knownUuids.equals(newUuids) : knownUuids + " vs " + newUuids;

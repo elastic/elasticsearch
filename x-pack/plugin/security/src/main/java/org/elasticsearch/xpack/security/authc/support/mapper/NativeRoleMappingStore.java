@@ -85,18 +85,6 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
-    private static final ActionListener<Object> NO_OP_ACTION_LISTENER = new ActionListener<Object>() {
-        @Override
-        public void onResponse(Object o) {
-            // nothing
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            // nothing
-        }
-    };
-
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndex;
@@ -356,7 +344,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            refreshRealms(NO_OP_ACTION_LISTENER, null);
+            refreshRealms(ActionListener.noop(), null);
         }
     }
 

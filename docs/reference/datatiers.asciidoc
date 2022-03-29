@@ -33,6 +33,7 @@ according to your performance, resiliency and data retention requirements.
 [[content-tier]]
 === Content tier
 
+// tag::content-tier[]
 Data stored in the content tier is generally a collection of items such as a product catalog or article archive.
 Unlike time series data, the value of the content remains relatively constant over time,
 so it doesn't make sense to move it to a tier with different performance characteristics as it ages.
@@ -47,11 +48,13 @@ tier should be configured to use one or more replicas.
 
 The content tier is required. System indices and other indices that aren't part
 of a data stream are automatically allocated to the content tier.
+// end::content-tier[]
 
 [discrete]
 [[hot-tier]]
 === Hot tier
 
+// tag::hot-tier[]
 The hot tier is the {es} entry point for time series data and holds your most-recent,
 most-frequently-searched time series data.
 Nodes in the hot tier need to be fast for both reads and writes,
@@ -60,22 +63,26 @@ For resiliency, indices in the hot tier should be configured to use one or more 
 
 The hot tier is required. New indices that are part of a <<data-streams,
 data stream>> are automatically allocated to the hot tier.
+// end::hot-tier[]
 
 [discrete]
 [[warm-tier]]
 === Warm tier
 
+// tag::warm-tier[]
 Time series data can move to the warm tier once it is being queried less frequently
 than the recently-indexed data in the hot tier.
 The warm tier typically holds data from recent weeks.
 Updates are still allowed, but likely infrequent.
 Nodes in the warm tier generally don't need to be as fast as those in the hot tier.
 For resiliency, indices in the warm tier should be configured to use one or more replicas.
+// end::warm-tier[]
 
 [discrete]
 [[cold-tier]]
 === Cold tier
 
+// tag::cold-tier[]
 When you no longer need to search time series data regularly, it can move from
 the warm tier to the cold tier. While still searchable, this tier is typically
 optimized for lower storage costs rather than search speed.
@@ -91,11 +98,13 @@ Fully mounted indices are read-only.
 Alternatively, you can use the cold tier to store regular indices with replicas instead
 of using {search-snaps}. This lets you store older data on less expensive hardware
 but doesn't reduce required disk space compared to the warm tier.
+// end::cold-tier[]
 
 [discrete]
 [[frozen-tier]]
 === Frozen tier
 
+// tag::frozen-tier[]
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
@@ -105,6 +114,7 @@ and load data from a snapshot repository. This reduces local storage and
 operating costs while still letting you search frozen data. Because {es} must
 sometimes fetch frozen data from the snapshot repository, searches on the frozen
 tier are typically slower than on the cold tier.
+// end::frozen-tier[]
 
 [discrete]
 [[configure-data-tiers-cloud]]

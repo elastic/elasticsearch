@@ -221,7 +221,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());
         remoteRequest.filters(request.filters());
-        remoteRequest.allowedTypes(request.allowedTypes());
+        remoteRequest.types(request.types());
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
@@ -281,7 +281,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             response.getOriginVersion(),
             response.get(),
             request.filters(),
-            request.allowedTypes(),
+            request.types(),
             metadataFieldPred
         );
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {

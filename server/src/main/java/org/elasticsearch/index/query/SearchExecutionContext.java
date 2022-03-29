@@ -375,6 +375,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
         return mapperService.isMultiField(field);
     }
 

@@ -23,7 +23,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,7 +38,8 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     @Override
-    protected void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException {
+    protected void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
         String[] sourceIncludes;
@@ -56,7 +59,8 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         assertMap(XContentHelper.convertToMap(ref, true, xContentType).v2(), matchesMap(toMap(expected, xContentType, humanReadable)));
     }
 
-    private void testFilter(String expectedJson, String actualJson, Set<String> includes, Set<String> excludes) throws IOException {
+    private void testFilter(String expectedJson, String actualJson, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         CheckedFunction<String, Builder, IOException> toBuilder = json -> {
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON);
             if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
@@ -80,6 +84,36 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
             }
             """;
         testFilter(expected, actual, singleton("obj_name"), emptySet());
+    }
+
+    public void testDuplicatedIncludes() throws IOException {
+        String actual = """
+            {
+                "obj": "value",
+                "obj_name": "value_name"
+            }
+            """;
+        String expected = """
+            {
+                "obj_name": "value_name"
+            }
+            """;
+        testFilter(expected, actual, List.of("obj_name", "obj_name"), emptySet());
+    }
+
+    public void testDuplicatedExcludes() throws IOException {
+        String actual = """
+            {
+                "obj": "value",
+                "obj_name": "value_name"
+            }
+            """;
+        String expected = """
+            {
+                "obj": "value"
+            }
+            """;
+        testFilter(expected, actual, emptySet(), List.of("obj_name", "obj_name"));
     }
 
     public void testNestedFiltering() throws IOException {

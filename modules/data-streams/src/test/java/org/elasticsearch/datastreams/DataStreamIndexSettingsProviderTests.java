@@ -119,7 +119,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         mb.put(
             new DataStream(
                 ds.getName(),
-                ds.getTimeStampField(),
                 ds.getIndices(),
                 ds.getGeneration(),
                 ds.getMetadata(),

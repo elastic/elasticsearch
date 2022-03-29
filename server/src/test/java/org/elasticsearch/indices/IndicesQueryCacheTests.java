@@ -175,6 +175,8 @@ public class IndicesQueryCacheTests extends ESTestCase {
     public void testUseNonProductionSettings() throws Exception {
         Logger logger = LogManager.getLogger(IndicesQueryCache.class);
         // Use non-production setting
+        String message =
+            "[indices.queries.cache.all_segments] setting shouldn't be enabled in production environments. The setting will be removed in a future version";
         {
             MockLogAppender appender = new MockLogAppender();
             appender.start();
@@ -190,7 +192,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
                         "non-production setting",
                         IndicesQueryCache.class.getName(),
                         Level.WARN,
-                        "[indices.queries.cache.all_segments] setting shouldn't be enabled in production environments"
+                        message
                     )
                 );
                 try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
@@ -216,7 +218,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
                         "non-production setting",
                         IndicesQueryCache.class.getName(),
                         Level.WARN,
-                        "[indices.queries.cache.all_segments] setting shouldn't be enabled in production environments"
+                        message
                     )
                 );
                 try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {

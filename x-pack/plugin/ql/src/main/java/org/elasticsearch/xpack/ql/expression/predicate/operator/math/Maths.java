@@ -12,35 +12,10 @@ import java.math.MathContext;
 
 public final class Maths {
 
-    public static Number round(Number n, Number precision) {
+    public static Number round(Number n, Number precision) throws ArithmeticException {
         long longPrecision = precision.longValue();
         if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
-            long nLong = n.longValue();
-            if (nLong == 0L || longPrecision >= 0) {
-                return n;
-            }
-
-            long digitsToRound = -longPrecision;
-            int digits = (int) (Math.log10(Math.abs(n.doubleValue())) + 1);
-            if (digits <= digitsToRound) {
-                return convertToIntegerType(0L, n.getClass());
-            }
-
-            long tenAtScale = (long) tenPower(digitsToRound);
-            long middleResult = nLong / tenAtScale;
-            long remainder = nLong % tenAtScale;
-            if (remainder >= 5 * (long) tenPower(digitsToRound - 1)) {
-                middleResult++;
-            } else if (remainder <= -5 * (long) tenPower(digitsToRound - 1)) {
-                middleResult--;
-            }
-
-            long result = middleResult * tenAtScale;
-            if (Long.signum(result) == Long.signum(nLong)) {
-                return convertToIntegerType(result, n.getClass());
-            } else {
-                throw new ArithmeticException("long overflow");
-            }
+            return convertToIntegerType(round(n.longValue(), longPrecision), n.getClass());
         }
         double nDouble = n.doubleValue();
         if (Double.isNaN(nDouble)) {
@@ -70,6 +45,35 @@ public final class Maths {
             .divide(new BigDecimal(tenAtScale), prec)
             .doubleValue() * sign;
         return n instanceof Float ? result.floatValue() : result;
+    }
+
+    public static Long round(Long n, Long precision) throws ArithmeticException {
+        long nLong = n.longValue();
+        if (nLong == 0L || precision >= 0) {
+            return n;
+        }
+
+        long digitsToRound = -precision;
+        int digits = (int) (Math.log10(Math.abs(n.doubleValue())) + 1);
+        if (digits <= digitsToRound) {
+            return 0L;
+        }
+
+        long tenAtScale = (long) tenPower(digitsToRound);
+        long middleResult = nLong / tenAtScale;
+        long remainder = nLong % tenAtScale;
+        if (remainder >= 5 * (long) tenPower(digitsToRound - 1)) {
+            middleResult++;
+        } else if (remainder <= -5 * (long) tenPower(digitsToRound - 1)) {
+            middleResult--;
+        }
+
+        long result = middleResult * tenAtScale;
+        if (Long.signum(result) == Long.signum(nLong)) {
+            return result;
+        } else {
+            throw new ArithmeticException("long overflow");
+        }
     }
 
     public static Number truncate(Number n, Number precision) {

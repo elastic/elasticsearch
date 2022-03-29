@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestStatus;
@@ -108,6 +109,16 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                     // If the event indicates there were nodes added/removed, this method only looks at the current state and has
                     // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
                     // it may get re-allocated to that node when another node is added/removed...
+
+                    // As this produces a cluster state update task, we are certain that if the persistent
+                    // task framework results in assigning some ML tasks on that same cluster state change
+                    // we do not end up over-allocating a node. Both this service and the persistant task service
+                    // will produce a cluster state update but the one that gets applied first wins. The other
+                    // update will be rejected and we will retry to assign getting a correct update on available memory
+                    // on each node.
+                    // Also, note that as this service is a returned as a component of the ML plugin,
+                    // and components are created before persistent task executors, we will try to allocate
+                    // trained models before we try to assign ML persistent tasks.
                     return addRemoveAllocationNodes(currentState);
                 }
 
@@ -428,21 +439,63 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (newMetadata == null) {
             return false;
         }
-        if (event.nodesChanged()) {
+
+        // Reallocate in reaction to either node change events or
+        // changes triggered by the node shutdown API.
+        // When the shutdown API is used the metadata is modified
+        // before the node is removed and then once again after
+        // the node has returned. In this situation the node change
+        // events become a no-op due to the checks against shutting
+        // down nodes and because reallocation has already been
+        // triggered by the node shutdown metadata changes.
+        //
+        // If the shutdown API is not used the node change events
+        // are sufficient to cause a reallocation.
+        //
+        // Shutdowns should be respected so that the service does not
+        // allocate models to a node that is about to leave the cluster
+        boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
+        if (event.nodesChanged() || nodesShutdownChanged) {
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
+
+            Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+            Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+
+            Set<String> exitingShutDownNodes;
+            if (nodesShutdownChanged) {
+                Set<String> previousShuttingDownNodes = nodesShuttingDown(event.previousState());
+
+                // Add nodes that where marked for shutdown in the previous state
+                // but are no longer marked as shutdown in the current state.
+                Set<String> returningShutDownNodes = Sets.difference(previousShuttingDownNodes, shuttingDownNodes);
+                addedNodes.addAll(returningShutDownNodes);
+
+                // and nodes that are marked for shutdown in this event only
+                exitingShutDownNodes = Sets.difference(shuttingDownNodes, previousShuttingDownNodes);
+                removedNodes.addAll(exitingShutDownNodes);
+            } else {
+                exitingShutDownNodes = Collections.emptySet();
+            }
+
             for (TrainedModelAllocation trainedModelAllocation : newMetadata.modelAllocations().values()) {
                 if (trainedModelAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
                     continue;
                 }
-                for (DiscoveryNode removed : nodesDelta.removedNodes()) {
-                    if (trainedModelAllocation.isRoutedToNode(removed.getId())) {
+                for (var nodeId : exitingShutDownNodes) {
+                    if (trainedModelAllocation.isRoutedToNode(nodeId)) {
                         return true;
                     }
                 }
-                for (DiscoveryNode added : nodesDelta.addedNodes()) {
-                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(added)
-                        && shuttingDownNodes.contains(added.getId()) == false) {
+
+                for (var nodeId : removedNodes) {
+                    if (trainedModelAllocation.isRoutedToNode(nodeId) && shuttingDownNodes.contains(nodeId) == false) {
+                        return true;
+                    }
+                }
+                for (var nodeId : addedNodes) {
+                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(event.state().nodes().get(nodeId))
+                        && shuttingDownNodes.contains(nodeId) == false) {
                         return true;
                     }
                 }

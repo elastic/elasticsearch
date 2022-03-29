@@ -102,7 +102,7 @@ public class AllocationStats implements ToXContentObject, Writeable {
             DiscoveryNode node,
             Long inferenceCount,
             Double avgInferenceTime,
-            Instant lastAccess,
+            @Nullable Instant lastAccess,
             Integer pendingCount,
             int errorCount,
             int rejectedExecutionCount,

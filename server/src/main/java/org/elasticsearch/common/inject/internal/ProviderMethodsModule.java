@@ -22,7 +22,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.Provides;
 import org.elasticsearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.util.Modules;
 
@@ -30,12 +29,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and
@@ -97,13 +92,11 @@ public final class ProviderMethodsModule implements Module {
         Errors errors = new Errors(method);
 
         // prepare the parameter providers
-        Set<Dependency<?>> dependencies = new HashSet<>();
         List<Provider<?>> parameterProviders = new ArrayList<>();
         List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
         Annotation[][] parameterAnnotations = method.getParameterAnnotations();
         for (int i = 0; i < parameterTypes.size(); i++) {
             Key<?> key = getKey(errors, parameterTypes.get(i), method, parameterAnnotations[i]);
-            dependencies.add(Dependency.get(key));
             parameterProviders.add(binder.getProvider(key));
         }
 
@@ -117,7 +110,7 @@ public final class ProviderMethodsModule implements Module {
             binder.addError(message);
         }
 
-        return new ProviderMethod<>(key, method, delegate, unmodifiableSet(dependencies), parameterProviders, scopeAnnotation);
+        return new ProviderMethod<>(key, method, delegate, parameterProviders, scopeAnnotation);
     }
 
     <T> Key<T> getKey(Errors errors, TypeLiteral<T> type, Member member, Annotation[] annotations) {

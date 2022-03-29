@@ -9,7 +9,7 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-testClusters.register('leader-cluster') {
+def leadCluster = testClusters.register('leader-cluster') {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'

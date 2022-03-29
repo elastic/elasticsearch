@@ -32,9 +32,11 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -178,14 +180,20 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                     }
                 }
 
-                // hack transactions to avoid the 'custom' type
+            // These attributes don't apply to HTTP spans. The APM server can infer a number of things
+            // when "http." attributes are present
+            if (traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http.")) == false) {
+                // hack transactions to avoid the 'custom' transaction type
                 // this one is not part of OTel semantic attributes
                 spanBuilder.setAttribute("type", "elasticsearch");
-
                 // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
                 // also allows to set destination resource name in map
                 spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
                 spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
+            }
+
+            // spanBuilder.setAttribute(SemanticAttributes.DB_SYSTEM, "elasticsearch");
+            // spanBuilder.setAttribute(SemanticAttributes.DB_NAME, clusterService.getNodeName());
 
                 // this will duplicate the "resource attributes" that are defined globally
                 // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
@@ -205,13 +213,54 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
                 spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
 
-                // Ignore the result here, we don't need to restore the threadContext
-                threadContext.removeRequestHeaders(TRACE_HEADERS);
-                threadContext.putHeader(spanHeaders);
+            threadContext.putHeader(spanHeaders);
 
-                return span;
-            });
+            // logGraphviz(span);
+
+            return span;
         });
+    }
+
+    private static final Set<String> CACHE = new HashSet<>();
+
+    @Override
+    public void onTraceException(Traceable traceable, Throwable throwable) {
+        final var span = spans.get(traceable.getSpanId());
+        if (span != null) {
+            span.recordException(throwable);
+        }
+    }
+
+    @Override
+    public void setAttribute(Traceable traceable, String key, boolean value) {
+        final var span = spans.get(traceable.getSpanId());
+        if (span != null) {
+            span.setAttribute(key, value);
+        }
+    }
+
+    @Override
+    public void setAttribute(Traceable traceable, String key, double value) {
+        final var span = spans.get(traceable.getSpanId());
+        if (span != null) {
+            span.setAttribute(key, value);
+        }
+    }
+
+    @Override
+    public void setAttribute(Traceable traceable, String key, long value) {
+        final var span = spans.get(traceable.getSpanId());
+        if (span != null) {
+            span.setAttribute(key, value);
+        }
+    }
+
+    @Override
+    public void setAttribute(Traceable traceable, String key, String value) {
+        final var span = spans.get(traceable.getSpanId());
+        if (span != null) {
+            span.setAttribute(key, value);
+        }
     }
 
     private boolean isSpanNameIncluded(String name) {
@@ -221,11 +270,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private Context getParentSpanContext() {
-        // Check for a parent context in the thread context
-        String traceParentHeader = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
-        String traceStateHeader = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+        // Check for a parent context in the thread context.
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String traceParentHeader = threadContext.getHeader("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+        final String traceStateHeader = threadContext.getHeader("parent_" + Task.TRACE_STATE);
+
         if (traceParentHeader != null) {
-            Map<String, String> traceContextMap = new HashMap<>();
+            final Map<String, String> traceContextMap = new HashMap<>(2);
             // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
             traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
             if (traceStateHeader != null) {
@@ -269,5 +320,43 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static boolean isSupportedContextKey(String key) {
         return TRACE_HEADERS.contains(key);
+    }
+
+    private static void logGraphviz(Span span) {
+        final String spanStr = span.toString();
+
+        int i = spanStr.indexOf("spanId=");
+        int j = spanStr.indexOf(",", i);
+        String spanId = spanStr.substring(i + 7, j);
+
+        String parentSpanId = null;
+        i = spanStr.indexOf("spanId=", j);
+        if (i > -1) {
+            j = spanStr.indexOf(",", i);
+            parentSpanId = spanStr.substring(i + 7, j);
+        }
+
+        i = spanStr.indexOf("name=", j);
+        j = spanStr.indexOf(",", i);
+        String spanName = spanStr.substring(i + 5, j);
+
+        if (CACHE.add(spanId)) {
+            Map<String, String> attrs = new HashMap<>();
+            attrs.put("label", spanName);
+            if (spanName.startsWith("internal:")) {
+                attrs.put("style", "filled");
+                attrs.put("fillcolor", "pink");
+            }
+            final String attrsString = attrs.entrySet()
+                .stream()
+                .map(each -> each.getKey() + "=\"" + each.getValue() + "\"")
+                .collect(Collectors.joining(","));
+            LOGGER.warn("BADGER: __{} [{}]", spanId, attrsString);
+        }
+
+        if (parentSpanId != null) {
+            LOGGER.warn("BADGER: __{} -> __{}", spanId, parentSpanId);
+        }
+
     }
 }

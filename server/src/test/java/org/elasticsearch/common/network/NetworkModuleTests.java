@@ -112,16 +112,17 @@ public class NetworkModuleTests extends ESTestCase {
         NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-                    Settings settings,
-                    ThreadPool threadPool,
-                    BigArrays bigArrays,
-                    PageCacheRecycler pageCacheRecycler,
-                    CircuitBreakerService circuitBreakerService,
-                    NamedXContentRegistry xContentRegistry,
-                    NetworkService networkService,
-                    HttpServerTransport.Dispatcher requestDispatcher,
-                    ClusterSettings clusterSettings,
-                    List<Tracer> tracers) {
+                Settings settings,
+                ThreadPool threadPool,
+                BigArrays bigArrays,
+                PageCacheRecycler pageCacheRecycler,
+                CircuitBreakerService circuitBreakerService,
+                NamedXContentRegistry xContentRegistry,
+                NetworkService networkService,
+                HttpServerTransport.Dispatcher requestDispatcher,
+                ClusterSettings clusterSettings,
+                List<Tracer> tracers
+            ) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -157,16 +158,17 @@ public class NetworkModuleTests extends ESTestCase {
 
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-                    Settings settings,
-                    ThreadPool threadPool,
-                    BigArrays bigArrays,
-                    PageCacheRecycler pageCacheRecycler,
-                    CircuitBreakerService circuitBreakerService,
-                    NamedXContentRegistry xContentRegistry,
-                    NetworkService networkService,
-                    HttpServerTransport.Dispatcher requestDispatcher,
-                    ClusterSettings clusterSettings,
-                    List<Tracer> tracers) {
+                Settings settings,
+                ThreadPool threadPool,
+                BigArrays bigArrays,
+                PageCacheRecycler pageCacheRecycler,
+                CircuitBreakerService circuitBreakerService,
+                NamedXContentRegistry xContentRegistry,
+                NetworkService networkService,
+                HttpServerTransport.Dispatcher requestDispatcher,
+                ClusterSettings clusterSettings,
+                List<Tracer> tracers
+            ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -200,16 +202,17 @@ public class NetworkModuleTests extends ESTestCase {
 
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-                    Settings settings,
-                    ThreadPool threadPool,
-                    BigArrays bigArrays,
-                    PageCacheRecycler pageCacheRecycler,
-                    CircuitBreakerService circuitBreakerService,
-                    NamedXContentRegistry xContentRegistry,
-                    NetworkService networkService,
-                    HttpServerTransport.Dispatcher requestDispatcher,
-                    ClusterSettings clusterSettings,
-                    List<Tracer> tracers) {
+                Settings settings,
+                ThreadPool threadPool,
+                BigArrays bigArrays,
+                PageCacheRecycler pageCacheRecycler,
+                CircuitBreakerService circuitBreakerService,
+                NamedXContentRegistry xContentRegistry,
+                NetworkService networkService,
+                HttpServerTransport.Dispatcher requestDispatcher,
+                ClusterSettings clusterSettings,
+                List<Tracer> tracers
+            ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);

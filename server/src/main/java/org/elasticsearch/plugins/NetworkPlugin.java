@@ -76,7 +76,8 @@ public interface NetworkPlugin {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers) {
+        List<Tracer> tracers
+    ) {
         return Collections.emptyMap();
     }
 }

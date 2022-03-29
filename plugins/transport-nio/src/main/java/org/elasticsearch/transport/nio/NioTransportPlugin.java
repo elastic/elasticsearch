@@ -86,16 +86,17 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
-            Settings settings,
-            ThreadPool threadPool,
-            BigArrays bigArrays,
-            PageCacheRecycler pageCacheRecycler,
-            CircuitBreakerService circuitBreakerService,
-            NamedXContentRegistry xContentRegistry,
-            NetworkService networkService,
-            HttpServerTransport.Dispatcher dispatcher,
-            ClusterSettings clusterSettings,
-            List<Tracer> tracers) {
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        List<Tracer> tracers
+    ) {
         return Collections.singletonMap(
             NIO_HTTP_TRANSPORT_NAME,
             () -> new NioHttpServerTransport(

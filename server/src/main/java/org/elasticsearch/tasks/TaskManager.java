@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -57,7 +58,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -75,7 +75,7 @@ public class TaskManager implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
-    private final List<String> taskHeaders;
+    private final String[] taskHeaders;
     private final ThreadPool threadPool;
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -100,7 +100,7 @@ public class TaskManager implements ClusterStateApplier {
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
-        this.taskHeaders = new ArrayList<>(taskHeaders);
+        this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
@@ -121,31 +121,34 @@ public class TaskManager implements ClusterStateApplier {
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
-        for (String key : taskHeaders) {
-            String httpHeader = threadContext.getHeader(key);
-            if (httpHeader != null) {
-                headerSize += key.length() * 2 + httpHeader.length() * 2;
-                if (headerSize > maxSize) {
-                    throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
-                }
-                headers.put(key, httpHeader);
-            }
-        }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
-        Objects.requireNonNull(task);
-        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
-        if (logger.isTraceEnabled()) {
-            logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
-        }
 
-        if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
-        } else {
-            Task previousTask = tasks.put(task.getId(), task);
-            assert previousTask == null;
-            taskTracer.onTaskRegistered(threadContext, task);
+        try (var ignored = threadContext.newTraceContext()) {
+            for (String key : taskHeaders) {
+                String httpHeader = threadContext.getHeader(key);
+                if (httpHeader != null) {
+                    headerSize += key.length() * 2 + httpHeader.length() * 2;
+                    if (headerSize > maxSize) {
+                        throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
+                    }
+                    headers.put(key, httpHeader);
+                }
+            }
+            Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+            Objects.requireNonNull(task);
+            assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+            if (logger.isTraceEnabled()) {
+                logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+            }
+
+            if (task instanceof CancellableTask) {
+                registerCancellableTask(task);
+            } else {
+                Task previousTask = tasks.put(task.getId(), task);
+                assert previousTask == null;
+                taskTracer.onTaskRegistered(threadContext, task);
+            }
+            return task;
         }
-        return task;
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -153,8 +156,7 @@ public class TaskManager implements ClusterStateApplier {
         TransportAction<Request, Response> action,
         Request request,
         Transport.Connection localConnection,
-        BiConsumer<Task, Response> onResponse,
-        BiConsumer<Task, Exception> onFailure
+        TaskListener<Response> taskListener
     ) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
@@ -162,34 +164,45 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = () -> {};
         }
-        final Task task;
-        try {
-            task = register(type, action.actionName, request);
-        } catch (TaskCancelledException e) {
-            unregisterChildNode.close();
-            throw e;
-        }
-        // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
-        action.execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
-                } finally {
-                    onResponse.accept(task, response);
-                }
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task;
+            try {
+                task = register(type, action.actionName, request);
+            } catch (TaskCancelledException e) {
+                unregisterChildNode.close();
+                throw e;
             }
+            // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
+            action.execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onResponse(task, response);
+                    }
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
-                } finally {
-                    onFailure.accept(task, e);
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onFailure(task, e);
+                    }
                 }
-            }
-        });
-        return task;
+
+                @Override
+                public String toString() {
+                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                }
+
+                private void release() {
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                }
+            });
+            return task;
+        }
     }
 
     private void registerCancellableTask(Task task) {
@@ -405,7 +418,7 @@ public class TaskManager implements ClusterStateApplier {
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }
-        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).collect(Collectors.toUnmodifiableList());
+        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).toList();
     }
 
     /**
@@ -740,7 +753,7 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     public List<String> getTaskHeaders() {
-        return taskHeaders;
+        return List.of(taskHeaders);
     }
 
     public TaskTracer getTaskTracer() {

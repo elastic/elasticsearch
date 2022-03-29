@@ -410,6 +410,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
         return new SubSearchContext(ctx);
     }
@@ -991,7 +992,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 source.put("doc_values", "true");
             }
 
-            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
+            IndexSettings indexSettings = createIndexSettings();
+            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext(indexSettings));
             FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.ROOT);
 
             MappedFieldType fieldType = mapper.fieldType();
@@ -1174,8 +1176,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static class MockParserContext extends MappingParserContext {
-        MockParserContext() {
-            super(null, null, null, Version.CURRENT, null, null, ScriptCompiler.NONE, null, null, null);
+        MockParserContext(IndexSettings indexSettings) {
+            super(null, null, null, Version.CURRENT, null, null, ScriptCompiler.NONE, null, indexSettings, null);
         }
 
         @Override

@@ -1516,6 +1516,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         throws InterruptedException {
         Random random = random();
         Set<String> indices = new HashSet<>();
+        builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
             indices.add(builder.request().index());
         }
@@ -2141,8 +2142,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> nodes = new HashSet<>();
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    ShardRouting shardRouting = indexShard.shard(copy);
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);

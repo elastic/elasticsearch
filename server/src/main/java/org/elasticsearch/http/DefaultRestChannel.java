@@ -136,6 +136,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
+            tracer.setAttribute(this, "http.status_code", restResponse.status().getStatus());
+            restResponse.getHeaders()
+                .forEach((key, values) -> tracer.setAttribute(this, "http.response.headers." + key, String.join("; ", values)));
+
             ActionListener<Void> listener = ActionListener.wrap(onFinish);
             tracer.onTraceEvent(this, "startResponse");
             httpChannel.sendResponse(httpResponse, listener);
@@ -180,12 +184,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     }
 
     @Override
-    public void startTrace(ThreadContext threadContext) {
+    public void startTrace() {
         this.tracer.onTraceStarted(threadContext, this);
     }
 
     @Override
     public void stopTrace() {
         this.tracer.onTraceStopped(this);
+    }
+
+    @Override
+    public void recordException(Throwable throwable) {
+        this.tracer.onTraceException(this, throwable);
     }
 }

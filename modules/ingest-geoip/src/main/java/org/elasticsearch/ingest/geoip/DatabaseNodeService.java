@@ -249,7 +249,7 @@ public final class DatabaseNodeService implements Closeable {
 
         // 2 types of threads:
         // 1) The thread that checks whether database should be retrieved / updated and creates (^) tmp file (cluster state applied thread)
-        // 2) the thread that downloads the db file, updates the databases map and then removes the tmp file
+        // 2) the thread that retrieves the db file from the .geoip_databases index, updates the databases map and then removes the tmp file
         // Thread 2 may have updated the databases map after thread 1 detects that there is no entry (or md5 mismatch) for a database.
         // If thread 2 then also removes the tmp file before thread 1 attempts to create it then we're about to retrieve the same database
         // twice. This check is here to avoid this:
@@ -261,7 +261,7 @@ public final class DatabaseNodeService implements Closeable {
         }
 
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
-        LOGGER.debug("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
+        LOGGER.info("retrieve geoip database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, databaseTmpGzFile);
         retrieveDatabase(
             databaseName,
             recordedMd5,
@@ -300,7 +300,7 @@ public final class DatabaseNodeService implements Closeable {
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to download database [{}]", databaseName), failure);
+                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve database [{}]", databaseName), failure);
                 try {
                     Files.deleteIfExists(databaseTmpFile);
                     Files.deleteIfExists(databaseTmpGzFile);

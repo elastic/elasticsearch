@@ -41,7 +41,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
@@ -158,7 +157,7 @@ class IndicesAndAliasesResolver {
         }
 
         // TODO: Shard level requests have wildcard expanded already and do not need go through this check
-        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).collect(Collectors.toList());
+        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).toList();
         if (wildcards.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "the action "
@@ -438,8 +437,8 @@ class IndicesAndAliasesResolver {
             final List<String> remote = map.entrySet()
                 .stream()
                 .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
-                .collect(Collectors.toList());
-            return new ResolvedIndices(local == null ? Collections.emptyList() : local, remote);
+                .toList();
+            return new ResolvedIndices(local == null ? List.of() : local, remote);
         }
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 
@@ -153,8 +152,9 @@ public record ActiveShardCount(int value) implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final Map.Entry<Integer, IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().entrySet()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.getValue()) == false) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
+                if (waitForActiveShards.enoughShardsActive(shardRouting) == false) {
                     // not enough active shard copies yet
                     return false;
                 }

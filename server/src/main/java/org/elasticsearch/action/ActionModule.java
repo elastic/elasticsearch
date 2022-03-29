@@ -457,7 +457,8 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        List<Tracer> tracers) {
+        List<Tracer> tracers
+    ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -501,10 +502,10 @@ public class ActionModule extends AbstractModule {
             }
         }
         mappingRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).toList()
         );
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
+            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);

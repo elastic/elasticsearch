@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,6 +57,26 @@ class HttpTracer {
 
     void onTraceEvent(RestChannel channel, String eventName) {
         this.tracers.forEach(t -> t.onTraceEvent(channel, eventName));
+    }
+
+    public void onTraceException(RestChannel channel, Throwable throwable) {
+        this.tracers.forEach(t -> t.onTraceException(channel, throwable));
+    }
+
+    void setAttribute(Traceable traceable, String key, boolean value) {
+        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+    }
+
+    void setAttribute(Traceable traceable, String key, double value) {
+        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+    }
+
+    void setAttribute(Traceable traceable, String key, long value) {
+        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+    }
+
+    void setAttribute(Traceable traceable, String key, String value) {
+        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
     }
 
     /**

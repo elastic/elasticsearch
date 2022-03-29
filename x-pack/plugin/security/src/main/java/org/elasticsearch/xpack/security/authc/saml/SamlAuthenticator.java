@@ -104,10 +104,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         final Assertion assertion = details.v1();
         final SamlNameId nameId = SamlNameId.forSubject(assertion.getSubject());
         final String session = getSessionIndex(assertion);
-        final List<SamlAttributes.SamlAttribute> attributes = details.v2()
-            .stream()
-            .map(SamlAttributes.SamlAttribute::new)
-            .collect(Collectors.toList());
+        final List<SamlAttributes.SamlAttribute> attributes = details.v2().stream().map(SamlAttributes.SamlAttribute::new).toList();
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             sb.append("The SAML Assertion contained the following attributes: \n");
@@ -299,7 +296,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             .filter(data -> data.getMethod().equals(METHOD_BEARER))
             .map(SubjectConfirmation::getSubjectConfirmationData)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
         if (confirmationData.size() != 1) {
             throw samlException(
                 "SAML Assertion subject contains [{}] bearer SubjectConfirmation, while exactly one was expected.",

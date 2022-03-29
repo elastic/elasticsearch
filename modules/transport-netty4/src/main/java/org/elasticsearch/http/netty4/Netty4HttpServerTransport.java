@@ -51,6 +51,7 @@ import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.NettyByteBufSizer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -149,7 +150,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        List<Tracer> tracers) {
+        List<Tracer> tracers
+    ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracers);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
@@ -305,6 +307,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         protected void initChannel(Channel ch) throws Exception {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
+            ch.pipeline().addLast("chunked_writer", new Netty4WriteThrottlingHandler());
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(

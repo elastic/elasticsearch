@@ -60,7 +60,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         return (Property) map.get(key);
     }
 
-    private void setupGenericLifecycleTest(boolean deletePipeilne, String field, String type, String value) throws Exception {
+    private void setupGenericLifecycleTest(boolean deletePipeline, String field, String type, String value) throws Exception {
         // Create source index:
         createSourceIndex("my-source-index");
 
@@ -133,7 +133,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         Object originalMatchValue = ((Map<?, ?>) response.get("_source")).get(field);
         assertThat(originalMatchValue, equalTo(value));
 
-        if (deletePipeilne) {
+        if (deletePipeline) {
             // delete the pipeline so the policies can be deleted
             client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));
         }

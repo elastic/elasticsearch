@@ -196,7 +196,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         // Only one model should be loaded, the other should be stopped
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(stoppedModelToLoad));
-        trainedModelAllocationNodeService.getTask(stoppedModelToLoad).stop("testing", ActionListener.wrap(r -> {}, e -> {}));
+        trainedModelAllocationNodeService.getTask(stoppedModelToLoad).stop("testing", ActionListener.noop());
         trainedModelAllocationNodeService.loadQueuedModels();
 
         assertBusy(() -> {

@@ -59,6 +59,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     public static final String PLUGIN_EXTENSION_NAME = "esplugin";
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
+    public static final String EXPLODED_BUNDLE_PLUGIN_TASK_NAME = "explodedBundlePlugin";
     public static final String EXPLODED_BUNDLE_CONFIG = "explodedBundleZip";
 
     @Override
@@ -207,9 +208,9 @@ public class PluginBuildPlugin implements Plugin<Project> {
         configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
-        var explodedBundle = project.getTasks().register("explodedBundlePlugin", Sync.class, sync -> {
+        var explodedBundle = project.getTasks().register(EXPLODED_BUNDLE_PLUGIN_TASK_NAME, Sync.class, sync -> {
             sync.with(bundleSpec);
-            sync.into(new File(project.getBuildDir(), "explodedBundle"));
+            sync.into(new File(project.getBuildDir(), "explodedBundle/" + extension.getName()));
         });
 
         // also make the exploded bundle available as a configuration (used when depending on this project)

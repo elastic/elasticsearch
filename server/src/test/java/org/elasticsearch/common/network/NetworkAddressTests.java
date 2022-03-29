@@ -49,8 +49,8 @@ public class NetworkAddressTests extends ESTestCase {
         assertEquals("127.0.0.1:9300", NetworkAddress.format(forge("localhost", "127.0.0.1"), new PortsRange("9300")));
         assertEquals("127.0.0.1:9300", NetworkAddress.format(forge(null, "127.0.0.1"), new PortsRange("9300")));
 
-        assertEquals("127.0.0.1:[9300-9400]", NetworkAddress.format(forge("localhost", "127.0.0.1"), new PortsRange("9300-9400")));
-        assertEquals("127.0.0.1:[9300-9400]", NetworkAddress.format(forge(null, "127.0.0.1"), new PortsRange("9300-9400")));
+        assertEquals("127.0.0.1:[9300-9399]", NetworkAddress.format(forge("localhost", "127.0.0.1"), new PortsRange("9300-9399")));
+        assertEquals("127.0.0.1:[9300-9399]", NetworkAddress.format(forge(null, "127.0.0.1"), new PortsRange("9300-9399")));
     }
 
     public void testFormatPortsRangeV6() throws Exception {
@@ -60,8 +60,8 @@ public class NetworkAddressTests extends ESTestCase {
         assertEquals("[::1]:9300", NetworkAddress.format(forge("localhost", "::1"), new PortsRange("9300")));
         assertEquals("[::1]:9300", NetworkAddress.format(forge(null, "::1"), new PortsRange("9300")));
 
-        assertEquals("[::1]:[9300-9400]", NetworkAddress.format(forge("localhost", "::1"), new PortsRange("9300-9400")));
-        assertEquals("[::1]:[9300-9400]", NetworkAddress.format(forge(null, "::1"), new PortsRange("9300-9400")));
+        assertEquals("[::1]:[9300-9399]", NetworkAddress.format(forge("localhost", "::1"), new PortsRange("9300-9399")));
+        assertEquals("[::1]:[9300-9399]", NetworkAddress.format(forge(null, "::1"), new PortsRange("9300-9399")));
     }
 
     public void testNoScopeID() throws Exception {
@@ -71,7 +71,7 @@ public class NetworkAddressTests extends ESTestCase {
 
         assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped(null, "::1", 5), 1234)));
         assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped("localhost", "::1", 5), 1234)));
-        assertEquals("[::1]:[9300-9400]", NetworkAddress.format(forgeScoped("localhost", "::1", 5), new PortsRange("9300-9400")));
+        assertEquals("[::1]:[9300-9399]", NetworkAddress.format(forgeScoped("localhost", "::1", 5), new PortsRange("9300-9399")));
     }
 
     /** Test that ipv4 address formatting round trips */

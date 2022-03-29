@@ -47,8 +47,4 @@ class MessageProcessor extends AbstractProcessor {
         return true;
     }
 
-    public static String getRootMessage(Throwable t) {
-        Throwable cause = t.getCause();
-        return cause == null ? t.toString() : getRootMessage(cause);
-    }
 }

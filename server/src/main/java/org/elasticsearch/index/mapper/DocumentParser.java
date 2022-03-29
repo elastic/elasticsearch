@@ -104,7 +104,7 @@ public final class DocumentParser {
         };
     }
 
-    private void throwOnLeftoverPathElements(String remainingPath) {
+    private static void throwOnLeftoverPathElements(String remainingPath) {
         throw new IllegalStateException("found leftover path elements: " + remainingPath);
     }
 

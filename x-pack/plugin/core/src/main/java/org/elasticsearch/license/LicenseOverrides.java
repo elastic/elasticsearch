@@ -10,7 +10,10 @@ package org.elasticsearch.license;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.Optional;
 
@@ -22,17 +25,23 @@ class LicenseOverrides {
 
     // This approach of just having everything in a hardcoded map is based on an assumption that we will need to do this very infrequently.
     // If this assumption proves incorrect, we should consider switching to another approach,
-    private static final Map<String, Date> LICENSE_OVERRIDES;
+    private static final Map<String, ZonedDateTime> LICENSE_OVERRIDES;
 
     static {
         // This value is not a "real" license ID, it is used for testing this code
         String TEST_LICENSE_ID_HASH = MessageDigests.toHexString(
             MessageDigests.sha256().digest("20f0e481-0bfa-4f63-938c-259a3fc6ec01".getBytes(StandardCharsets.UTF_8))
         );
-        LICENSE_OVERRIDES = Map.ofEntries(Map.entry(TEST_LICENSE_ID_HASH, new Date(42)));
+
+        LICENSE_OVERRIDES = Map.ofEntries(
+            Map.entry(
+                TEST_LICENSE_ID_HASH,
+                ZonedDateTime.ofStrict(LocalDateTime.of(1970, 1, 1, 0, 0, 42, 0), ZoneOffset.UTC, ZoneId.of("UTC"))
+            )
+        );
     }
 
-    static Optional<Date> overrideDateForLicense(String licenseUidHash) {
+    static Optional<ZonedDateTime> overrideDateForLicense(String licenseUidHash) {
         return Optional.ofNullable(LICENSE_OVERRIDES.get(licenseUidHash));
     }
 }

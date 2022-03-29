@@ -44,7 +44,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -228,7 +227,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static long getExpiryDate(License license) {
         String licenseUidHash = MessageDigests.toHexString(MessageDigests.sha256().digest(license.uid().getBytes(StandardCharsets.UTF_8)));
-        return LicenseOverrides.overrideDateForLicense(licenseUidHash).map(Date::getTime).orElse(license.expiryDate());
+        return LicenseOverrides.overrideDateForLicense(licenseUidHash)
+            .map(date -> date.toInstant().toEpochMilli())
+            .orElse(license.expiryDate());
     }
 
     /**

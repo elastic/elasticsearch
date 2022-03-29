@@ -124,7 +124,7 @@ public class LicenseServiceTests extends ESTestCase {
         License.LicenseType type = randomFrom(License.LicenseType.values());
         License testLicense = buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis());
 
-        assertThat(LicenseService.getExpiryDate(testLicense), equalTo(new Date(42).getTime()));
+        assertThat(LicenseService.getExpiryDate(testLicense), equalTo(new Date(42000L).getTime()));
     }
 
     /**

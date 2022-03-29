@@ -177,42 +177,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertResult(sourcePrivileges, future);
     }
 
-    public void testRetrieveActionNamePatternsInsteadOfPrivileges() throws Exception {
-        // test disabling caching
-        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        for (List<String> applications : List.<List<String>>of(
-            List.of("myapp"),
-            List.of("myapp*"),
-            List.of("myapp", "myapp*"),
-            List.of(),
-            List.of("*"),
-            List.of("myapp-2", "*")
-        )) {
-            Collection<String> actions = randomList(1, 4, () -> {
-                String actionName = randomAlphaOfLengthBetween(0, 3) + randomFrom("*", "/", ":") + randomAlphaOfLengthBetween(0, 3)
-                    + randomFrom("*", "/", ":", "");
-                ApplicationPrivilege.validateActionName(actionName);
-                return actionName;
-            });
-            Client mockClient = mock(Client.class);
-            SecurityIndexManager mockSecurityIndexManager = mock(SecurityIndexManager.class);
-            Settings settings = randomFrom(
-                Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build(),
-                Settings.EMPTY
-            );
-            NativePrivilegeStore store1 = new NativePrivilegeStore(
-                settings,
-                mockClient,
-                mockSecurityIndexManager,
-                new CacheInvalidatorRegistry()
-            );
-            store1.getPrivileges(applications, actions, future);
-            assertResult(emptyList(), future);
-            verifyNoInteractions(mockClient);
-            verifyNoInteractions(mockSecurityIndexManager);
-        }
-    }
-
     public void testGetMissingPrivilege() throws InterruptedException, ExecutionException, TimeoutException {
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(List.of("myapp"), List.of("admin"), future);
@@ -749,6 +713,42 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(map.get("app2"), iterableWithSize(1));
         assertThat(map.get("app1"), contains("admin"));
         assertThat(map.get("app2"), contains("all"));
+    }
+
+    public void testRetrieveActionNamePatternsInsteadOfPrivileges() throws Exception {
+        // test disabling caching
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        for (List<String> applications : List.<List<String>>of(
+            List.of("myapp"),
+            List.of("myapp*"),
+            List.of("myapp", "myapp*"),
+            List.of(),
+            List.of("*"),
+            List.of("myapp-2", "*")
+        )) {
+            Collection<String> actions = randomList(1, 4, () -> {
+                String actionName = randomAlphaOfLengthBetween(0, 3) + randomFrom("*", "/", ":") + randomAlphaOfLengthBetween(0, 3)
+                    + randomFrom("*", "/", ":", "");
+                ApplicationPrivilege.validateActionName(actionName);
+                return actionName;
+            });
+            Client mockClient = mock(Client.class);
+            SecurityIndexManager mockSecurityIndexManager = mock(SecurityIndexManager.class);
+            Settings settings = randomFrom(
+                Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build(),
+                Settings.EMPTY
+            );
+            NativePrivilegeStore store1 = new NativePrivilegeStore(
+                settings,
+                mockClient,
+                mockSecurityIndexManager,
+                new CacheInvalidatorRegistry()
+            );
+            store1.getPrivileges(applications, actions, future);
+            assertResult(emptyList(), future);
+            verifyNoInteractions(mockClient);
+            verifyNoInteractions(mockSecurityIndexManager);
+        }
     }
 
     public void testDeletePrivileges() throws Exception {

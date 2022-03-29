@@ -33,8 +33,8 @@ Version bwcVersion() {
   Version previousMinor = (BuildParams.bwcVersions.wireCompatible.reverse().find {
     it.before(current) && (it.minor < current.minor || it.major < current.major)
   })
-  // we want to test against the first revision of this minor series
-  return new Version(previousMinor.major, previousMinor.minor, 0)
+  // we stop oce we have the last version of the previous minor branch
+  return new Version(previousMinor.major, previousMinor.minor, previousMinor.revision)
 }
 
 String bwc = bwcVersion().toString()

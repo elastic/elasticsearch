@@ -8,9 +8,13 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -19,15 +23,18 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -139,5 +146,82 @@ public class MockSearchService extends SearchService {
     @Override
     protected void checkCancelled(SearchShardTask task) {
         super.checkCancelled(onCheckCancelled.apply(task));
+    }
+
+    /**
+     * Just the same as SearchService#executeQueryPhase, but for test purposes with option to omit executor#success() to make the query fail
+     */
+    public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener, boolean shouldFail) {
+        final IndexShard shard = getShard(request);
+        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
+            // check if we can shortcut the query phase entirely.
+            if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                assert orig.scroll() == null;
+                final CanMatchShardResponse canMatchResp;
+                try {
+                    ShardSearchRequest clone = new ShardSearchRequest(orig);
+                    canMatchResp = canMatch(clone, false);
+                } catch (Exception exc) {
+                    l.onFailure(exc);
+                    return;
+                }
+                if (canMatchResp.canMatch() == false) {
+                    l.onResponse(QuerySearchResult.nullInstance());
+                    return;
+                }
+            }
+            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task, shouldFail), l);
+        }));
+    }
+
+    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task, boolean shouldFail) throws Exception {
+        final ReaderContext readerContext = createOrGetReaderContext(request);
+        try (
+            Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
+            SearchContext context = createContext(readerContext, request, task, true)
+        ) {
+            final long afterQueryTime;
+            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                loadOrExecuteQueryPhase(request, context);
+                if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                    freeReaderContext(readerContext.id());
+                }
+                // if set to fail, then don't call the success method
+                afterQueryTime = !shouldFail ? executor.success() : 1;
+            }
+            if (request.numberOfShards() == 1) {
+                return executeFetchPhase(readerContext, context, afterQueryTime, shouldFail);
+            } else {
+                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+                final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
+                context.queryResult().setRescoreDocIds(rescoreDocIds);
+                readerContext.setRescoreDocIds(rescoreDocIds);
+                return context.queryResult();
+            }
+        } catch (Exception e) {
+            // execution exception can happen while loading the cache, strip it
+            if (e instanceof ExecutionException) {
+                //noinspection AssignmentToCatchBlockParameter
+                e = (e.getCause() == null || e.getCause() instanceof Exception)
+                    ? (Exception) e.getCause()
+                    : new ElasticsearchException(e.getCause());
+            }
+            throw e;
+        }
+    }
+
+    private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime, boolean shouldFail) {
+        try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)) {
+            shortcutDocIdsToLoad(context);
+            fetchPhase.execute(context);
+            if (reader.singleSession()) {
+                freeReaderContext(reader.id());
+            }
+            if (!shouldFail) {
+                executor.success();
+            }
+        }
+        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 }

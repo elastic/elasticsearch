@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,10 +31,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryCount;
         private long queryTimeInMillis;
         private long queryCurrent;
+        private long queryFailureCount;
 
         private long fetchCount;
         private long fetchTimeInMillis;
         private long fetchCurrent;
+        private long fetchFailureCount;
 
         private long scrollCount;
         private long scrollTimeInMillis;
@@ -51,9 +54,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long queryCount,
             long queryTimeInMillis,
             long queryCurrent,
+            long queryFailureCount,
             long fetchCount,
             long fetchTimeInMillis,
             long fetchCurrent,
+            long fetchFailureCount,
             long scrollCount,
             long scrollTimeInMillis,
             long scrollCurrent,
@@ -64,10 +69,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
+            this.queryFailureCount = queryFailureCount;
 
             this.fetchCount = fetchCount;
             this.fetchTimeInMillis = fetchTimeInMillis;
             this.fetchCurrent = fetchCurrent;
+            this.fetchFailureCount = fetchFailureCount;
 
             this.scrollCount = scrollCount;
             this.scrollTimeInMillis = scrollTimeInMillis;
@@ -82,10 +89,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
             queryCurrent = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                queryFailureCount = in.readVLong();
+            }
 
             fetchCount = in.readVLong();
             fetchTimeInMillis = in.readVLong();
             fetchCurrent = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                fetchFailureCount = in.readVLong();
+            }
 
             scrollCount = in.readVLong();
             scrollTimeInMillis = in.readVLong();
@@ -100,10 +113,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
             queryCurrent += stats.queryCurrent;
+            queryFailureCount += stats.queryFailureCount;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
             fetchCurrent += stats.fetchCurrent;
+            fetchFailureCount += stats.fetchFailureCount;
 
             scrollCount += stats.scrollCount;
             scrollTimeInMillis += stats.scrollTimeInMillis;
@@ -117,9 +132,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         public void addForClosingShard(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
+            queryFailureCount += stats.queryFailureCount;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
+            fetchFailureCount += stats.fetchFailureCount;
 
             scrollCount += stats.scrollCount;
             scrollTimeInMillis += stats.scrollTimeInMillis;
@@ -146,6 +163,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return queryCurrent;
         }
 
+        public long getQueryFailureCount() {
+            return queryFailureCount;
+        }
+
         public long getFetchCount() {
             return fetchCount;
         }
@@ -160,6 +181,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         public long getFetchCurrent() {
             return fetchCurrent;
+        }
+
+        public long getFetchFailureCount() {
+            return fetchFailureCount;
         }
 
         public long getScrollCount() {
@@ -203,10 +228,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
             out.writeVLong(queryCurrent);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeVLong(queryFailureCount);
+            }
 
             out.writeVLong(fetchCount);
             out.writeVLong(fetchTimeInMillis);
             out.writeVLong(fetchCurrent);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeVLong(fetchFailureCount);
+            }
 
             out.writeVLong(scrollCount);
             out.writeVLong(scrollTimeInMillis);
@@ -222,10 +253,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
+            builder.field(Fields.QUERY_FAILURE_TOTAL, queryFailureCount);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
+            builder.field(Fields.FETCH_FAILURE_TOTAL, fetchFailureCount);
 
             builder.field(Fields.SCROLL_TOTAL, scrollCount);
             builder.humanReadableField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, getScrollTime());
@@ -338,10 +371,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String QUERY_TIME = "query_time";
         static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";
         static final String QUERY_CURRENT = "query_current";
+        static final String QUERY_FAILURE_TOTAL = "query_failure_total";
         static final String FETCH_TOTAL = "fetch_total";
         static final String FETCH_TIME = "fetch_time";
         static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";
         static final String FETCH_CURRENT = "fetch_current";
+        static final String FETCH_FAILURE_TOTAL = "fetch_failure_total";
         static final String SCROLL_TOTAL = "scroll_total";
         static final String SCROLL_TIME = "scroll_time";
         static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";

@@ -173,19 +173,19 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
 
         try {
-            assertBusy(() -> {
-                ensureYellow(allowedIndex);
-                verifyDocuments(allowedIndex, 5, "*:*");
-            }, 30, TimeUnit.SECONDS);
+            assertBusy(() -> ensureYellow(allowedIndex), 30, TimeUnit.SECONDS);
+            assertBusy(() -> verifyDocuments(allowedIndex, 5, "*:*"), 30, TimeUnit.SECONDS);
             assertThat(indexExists(disallowedIndex), is(false));
-            assertBusy(() -> {
-                verifyCcrMonitoring(allowedIndex, allowedIndex);
-                verifyAutoFollowMonitoring();
-            }, 30, TimeUnit.SECONDS);
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 30, TimeUnit.SECONDS);
+            assertBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring, 30, TimeUnit.SECONDS);
         } finally {
             // Cleanup by deleting auto follow pattern and pause following:
-            assertOK(client().performRequest(new Request("DELETE", "/_ccr/auto_follow/test_pattern")));
-            pauseFollow(client(), allowedIndex);
+            try {
+                deleteAutoFollowPattern("test_pattern");
+                pauseFollow(allowedIndex);
+            } catch (Throwable e) {
+                logger.warn("Failed to cleanup after the test", e);
+            }
         }
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Shard level fetch request used with search. Holds indices taken from the original search request
@@ -38,7 +38,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         OriginalIndices originalIndices,
         ShardSearchContextId id,
         ShardSearchRequest shardSearchRequest,
-        ArrayList<Integer> docIds,
+        List<Integer> docIds,
         ScoreDoc lastEmittedDoc,
         RescoreDocIds rescoreDocIds,
         AggregatedDfs aggregatedDfs

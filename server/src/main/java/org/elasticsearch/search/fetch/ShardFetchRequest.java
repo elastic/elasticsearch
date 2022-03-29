@@ -24,7 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,25 +33,22 @@ import java.util.Map;
  */
 public class ShardFetchRequest extends TransportRequest {
 
-    private ShardSearchContextId contextId;
+    private final ShardSearchContextId contextId;
 
-    private int[] docIds;
-
-    private int size;
+    private final int[] docIds;
 
     private ScoreDoc lastEmittedDoc;
 
-    public ShardFetchRequest(ShardSearchContextId contextId, ArrayList<Integer> docIds, ScoreDoc lastEmittedDoc) {
+    public ShardFetchRequest(ShardSearchContextId contextId, List<Integer> docIds, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
-        this.docIds = docIds.stream().mapToInt(i -> i).toArray();
-        this.size = docIds.size();
+        this.docIds = docIds.stream().mapToInt(Integer::intValue).toArray();
         this.lastEmittedDoc = lastEmittedDoc;
     }
 
     public ShardFetchRequest(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
-        size = in.readVInt();
+        int size = in.readVInt();
         docIds = new int[size];
         for (int i = 0; i < size; i++) {
             docIds[i] = in.readVInt();
@@ -70,9 +67,9 @@ public class ShardFetchRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         contextId.writeTo(out);
-        out.writeVInt(size);
-        for (int i = 0; i < size; i++) {
-            out.writeVInt(docIds[i]);
+        out.writeVInt(docIds.length);
+        for (int docId : docIds) {
+            out.writeVInt(docId);
         }
         if (lastEmittedDoc == null) {
             out.writeByte((byte) 0);
@@ -94,7 +91,7 @@ public class ShardFetchRequest extends TransportRequest {
     }
 
     public int docIdsSize() {
-        return size;
+        return docIds.length;
     }
 
     public ScoreDoc lastEmittedDoc() {
@@ -108,7 +105,7 @@ public class ShardFetchRequest extends TransportRequest {
 
     @Override
     public String getDescription() {
-        return "id[" + contextId + "], size[" + size + "], lastEmittedDoc[" + lastEmittedDoc + "]";
+        return "id[" + contextId + "], size[" + docIds.length + "], lastEmittedDoc[" + lastEmittedDoc + "]";
     }
 
     @Nullable

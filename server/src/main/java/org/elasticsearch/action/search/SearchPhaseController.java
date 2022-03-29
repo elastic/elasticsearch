@@ -233,10 +233,10 @@ public final class SearchPhaseController {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public ArrayList<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
-        ArrayList<Integer>[] docIdsToLoad = (ArrayList<Integer>[]) new ArrayList[numShards];
+    public List<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        List<Integer>[] docIdsToLoad = (ArrayList<Integer>[]) new ArrayList[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            ArrayList<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
+            List<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
                 shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new ArrayList<>();
             }

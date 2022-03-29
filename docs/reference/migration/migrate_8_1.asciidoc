@@ -98,10 +98,6 @@ with the correct key.
 ====
 // end::notable-breaking-changes[]
 
-[discrete]
-[[deprecations_81_rest_api]]
-==== REST API deprecations
-
 [[deprecate_index_include_frozen_request_parameter_in_sql_api]]
 .Deprecate `index_include_frozen` request parameter in `_sql` API
 [%collapsible]

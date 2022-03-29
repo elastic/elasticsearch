@@ -25,6 +25,9 @@ Machine Learning::
 * Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
 * Reallocate model deployments on node shutdown events {es-pull}85310[#85310]
 
+Mapping::
+* Do not fail on duplicated content field filters {es-pull}85382[#85382]
+
 Search::
 * Increase store ref before analyzing disk usage {es-pull}84774[#84774]
 * Limit concurrent shard requests in disk usage API {es-pull}84900[#84900] (issue: {es-issue}84779[#84779])

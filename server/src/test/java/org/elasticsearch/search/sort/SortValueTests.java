@@ -164,29 +164,54 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         final SortValue barBytesRef = SortValue.from(new BytesRef("bar"));
         final SortValue valueless = SortValue.valueless();
         final List<SortValue> values = List.of(
-            maxLong, minLong, negativeLong, zeroLong, positiveLong, //Long
-            negativeNan, positiveNan, maxDouble, minDouble, negativeDouble, zeroDouble, positiveDouble, //Double
-            emptyBytesRef, fooBytesRef, barBytesRef, //BytesRef
-            valueless //Valueless
+            maxLong,
+            minLong,
+            negativeLong,
+            zeroLong,
+            positiveLong,
+            negativeNan,
+            positiveNan,
+            maxDouble,
+            minDouble,
+            negativeDouble,
+            zeroDouble,
+            positiveDouble,
+            emptyBytesRef,
+            fooBytesRef,
+            barBytesRef,
+            valueless
         );
 
-        final List<SortValue> sortedValues = values.stream()
-            .sorted(Comparator.naturalOrder())
-            .collect(Collectors.toList());
+        final List<SortValue> sortedValues = values.stream().sorted(Comparator.naturalOrder()).collect(Collectors.toList());
 
         /**
          * `negativeNan` and `positiveNan` are instances of
          * {@link org.elasticsearch.search.sort.SortValue.ValuelessSortValue}
          * the same of {@link SortValue#valueless()}.
          */
-        assertThat(sortedValues, equalTo(
-            List.of(
-                emptyBytesRef, fooBytesRef, barBytesRef, //BytesRef
-                negativeDouble, zeroDouble, minDouble, positiveDouble, maxDouble, minLong, //Double
-                negativeLong, zeroLong, positiveLong, maxLong, //Long
-                negativeNan, positiveNan, valueless //Valueless
+        assertThat(
+            sortedValues,
+            equalTo(
+                List.of(
+                    emptyBytesRef,
+                    fooBytesRef,
+                    barBytesRef,
+                    negativeDouble,
+                    zeroDouble,
+                    minDouble,
+                    positiveDouble,
+                    maxDouble,
+                    minLong,
+                    negativeLong,
+                    zeroLong,
+                    positiveLong,
+                    maxLong,
+                    negativeNan,
+                    positiveNan,
+                    valueless
+                )
             )
-        ));
+        );
     }
 
     public void testBytes() {

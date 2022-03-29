@@ -22,11 +22,11 @@ public class LifecycleExecutionStateUtils {
     private LifecycleExecutionStateUtils() {}
 
     /**
-     * Given a cluster state, index, and lifecycle state, return a new cluster state where
+     * Given a cluster state, index, and lifecycle state, returns a cluster state where
      * the lifecycle state will be associated with the given index.
      *
-     * The index associated with the passed-in index metadata must already exist in the cluster state,
-     * this method cannot be used to add an index.
+     * The passed-in index must already be present in the cluster state, this method cannot
+     * be used to add an index.
      *
      *  See also {@link Metadata#withLifecycleState}.
      */

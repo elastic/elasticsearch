@@ -24,6 +24,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -52,7 +55,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
             case 0 -> SortValue.from(randomDouble());
             case 1 -> SortValue.from(randomLong());
             case 2 -> SortValue.from(new BytesRef(randomAlphaOfLength(5)));
-            case 3 -> SortValue.empty();
+            case 3 -> SortValue.valueless();
             default -> throw new AssertionError();
         };
     }
@@ -74,7 +77,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public void testFormatEmpty() {
-        assertThat(SortValue.empty().format(DocValueFormat.RAW), equalTo(""));
+        assertThat(SortValue.valueless().format(DocValueFormat.RAW), equalTo(""));
     }
 
     public void testToXContentDouble() {
@@ -97,7 +100,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public void testToXContentEmpty() {
-        assertThat(toXContent(SortValue.empty(), DocValueFormat.RAW), equalTo("{\"test\"}"));
+        assertThat(toXContent(SortValue.valueless(), DocValueFormat.RAW), equalTo("{\"test\"}"));
     }
 
     public void testCompareDifferentTypes() {
@@ -117,12 +120,12 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
      * See {@link org.elasticsearch.search.sort.SortValue#compareTo}.
      */
     public void testCompareToEmpty() {
-        assertThat(SortValue.from(1.0), lessThan(SortValue.empty()));
-        assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.empty()));
-        assertThat(SortValue.from(Double.NaN), lessThan(SortValue.empty()));
-        assertThat(SortValue.from(1), greaterThan(SortValue.empty()));
-        assertThat(SortValue.from(Long.MIN_VALUE), greaterThan(SortValue.empty()));
-        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(1.0), lessThan(SortValue.valueless()));
+        assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.valueless()));
+        assertThat(SortValue.from(Double.NaN), equalTo(SortValue.valueless()));
+        assertThat(SortValue.from(1), lessThan(SortValue.valueless()));
+        assertThat(SortValue.from(Long.MIN_VALUE), lessThan(SortValue.valueless()));
+        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.valueless()));
     }
 
     public void testCompareDoubles() {
@@ -140,7 +143,50 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public void testCompareEmpty() {
-        assertThat(SortValue.empty(), equalTo(SortValue.empty()));
+        assertThat(SortValue.valueless(), equalTo(SortValue.valueless()));
+    }
+
+    public void testSortValueOrdering() {
+        final SortValue maxLong = SortValue.from(Long.MAX_VALUE);
+        final SortValue minLong = SortValue.from(Long.MIN_VALUE);
+        final SortValue negativeLong = SortValue.from(-12L);
+        final SortValue zeroLong = SortValue.from(0L);
+        final SortValue positiveLong = SortValue.from(110L);
+        final SortValue negativeNan = SortValue.from(-Double.NaN);
+        final SortValue positiveNan = SortValue.from(Double.NaN);
+        final SortValue maxDouble = SortValue.from(Double.MAX_VALUE);
+        final SortValue minDouble = SortValue.from(Double.MIN_VALUE);
+        final SortValue negativeDouble = SortValue.from(-30.5D);
+        final SortValue zeroDouble = SortValue.from(0.0D);
+        final SortValue positiveDouble = SortValue.from(18.97D);
+        final SortValue emptyBytesRef = SortValue.from(new BytesRef(""));
+        final SortValue fooBytesRef = SortValue.from(new BytesRef("Foo"));
+        final SortValue barBytesRef = SortValue.from(new BytesRef("bar"));
+        final SortValue valueless = SortValue.valueless();
+        final List<SortValue> values = List.of(
+            maxLong, minLong, negativeLong, zeroLong, positiveLong, //Long
+            negativeNan, positiveNan, maxDouble, minDouble, negativeDouble, zeroDouble, positiveDouble, //Double
+            emptyBytesRef, fooBytesRef, barBytesRef, //BytesRef
+            valueless //Valueless
+        );
+
+        final List<SortValue> sortedValues = values.stream()
+            .sorted(Comparator.naturalOrder())
+            .collect(Collectors.toList());
+
+        /**
+         * `negativeNan` and `positiveNan` are instances of
+         * {@link org.elasticsearch.search.sort.SortValue.ValuelessSortValue}
+         * the same of {@link SortValue#valueless()}.
+         */
+        assertThat(sortedValues, equalTo(
+            List.of(
+                emptyBytesRef, fooBytesRef, barBytesRef, //BytesRef
+                negativeDouble, zeroDouble, minDouble, positiveDouble, maxDouble, minLong, //Double
+                negativeLong, zeroLong, positiveLong, maxLong, //Long
+                negativeNan, positiveNan, valueless //Valueless
+            )
+        ));
     }
 
     public void testBytes() {

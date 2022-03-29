@@ -25,12 +25,15 @@ import java.util.List;
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
-    private static final SortValue EMPTY_SORT_VALUE = new EmptySortValue();
+    private static final SortValue VALUELESS_SORT_VALUE = new ValuelessSortValue();
 
     /**
      * Get a {@linkplain SortValue} for a double.
      */
     public static SortValue from(double d) {
+        if (Double.isNaN(d)) {
+            return new ValuelessSortValue();
+        }
         return new DoubleSortValue(d);
     }
 
@@ -52,8 +55,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     /**
      * Get a {@linkplain SortValue} for data which cannot be sorted.
      */
-    public static SortValue empty() {
-        return EMPTY_SORT_VALUE;
+    public static SortValue valueless() {
+        return VALUELESS_SORT_VALUE;
     }
 
     /**
@@ -64,7 +67,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
             new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
             new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new),
             new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new),
-            new NamedWriteableRegistry.Entry(SortValue.class, EmptySortValue.NAME, EmptySortValue::new)
+            new NamedWriteableRegistry.Entry(SortValue.class, ValuelessSortValue.NAME, ValuelessSortValue::new)
         );
     }
 
@@ -349,14 +352,26 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
     }
 
-    private static class EmptySortValue extends SortValue {
+    private static class ValuelessSortValue extends SortValue {
 
-        public static final String NAME = "empty";
+        /**
+         * The name `valueless` is chosen carefully to make sure
+         * that sorting different `SortValue`s results in objects
+         * of type `ValuelessSortValue` to be sorted after everything
+         * else. This is to be consistent with how `Double.NaN` is
+         * sorted when sorting double values. This is necessary
+         * as a result of comparison being done using the `NAME`
+         * returned by {@ValuelessSortValue#getWritableName}.
+         * See {@link SortValue#compareTo(SortValue)} and
+         * {@link SortValue#compareToSameType(SortValue)} for
+         * more details.
+         */
+        public static final String NAME = "valueless";
         private static final String EMPTY_STRING = "";
 
-        private EmptySortValue() {}
+        private ValuelessSortValue() {}
 
-        private EmptySortValue(StreamInput ignoredIn) {}
+        private ValuelessSortValue(StreamInput ignoredIn) {}
 
         @Override
         public String getWriteableName() {

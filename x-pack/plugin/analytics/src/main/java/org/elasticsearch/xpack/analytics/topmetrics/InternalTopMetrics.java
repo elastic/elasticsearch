@@ -177,12 +177,12 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             throw new IllegalArgumentException("unknown metric [" + key + "]");
         }
         if (topMetrics.isEmpty()) {
-            return SortValue.empty();
+            return SortValue.valueless();
         }
 
         MetricValue value = topMetrics.get(0).metricValues.get(index);
         if (value == null) {
-            return SortValue.empty();
+            return SortValue.valueless();
         }
 
         return value.getValue();

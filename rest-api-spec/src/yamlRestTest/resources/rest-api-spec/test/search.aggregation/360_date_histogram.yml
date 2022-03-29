@@ -214,6 +214,7 @@ setup:
   - match: { aggregations.date_histogram.buckets.2.key_as_string: "2015-01-01T13:10:00.000+01:00" }
   - match: { aggregations.date_histogram.buckets.2.key: 1420114200000 }
 
+---
 "Multi-value date histogram":
   - skip:
       version: " - 8.1.99"

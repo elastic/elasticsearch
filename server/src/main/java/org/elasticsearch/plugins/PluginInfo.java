@@ -173,7 +173,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         final String esVersionString = propsMap.remove("elasticsearch.version");
-        if (esVersionString == null) {
+        if (Strings.hasText(esVersionString) == false) {
             throw new IllegalArgumentException("property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
         final Version esVersion = Version.fromString(esVersionString);
@@ -181,7 +181,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (javaVersionString == null) {
             throw new IllegalArgumentException("property [java.version] is missing for plugin [" + name + "]");
         }
-        JarHell.checkVersionFormat(javaVersionString);
+        JarHell.checkJavaVersion("plugin " + name, javaVersionString);
 
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;

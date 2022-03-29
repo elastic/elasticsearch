@@ -32,7 +32,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         assumeTrue("test is disabled, probably because this is windows", enabled);
 
         int oldEsPort = Integer.parseInt(System.getProperty(portPropertyName));
-        boolean indexDeleted = false;
+        boolean success = false;
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {
                 Request createIndex = new Request("PUT", "/test");
@@ -93,14 +93,15 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 for (int i = 0; i < DOCS; i++) {
                     assertThat(result, containsString("\"_id\" : \"testdoc" + i + "\""));
                 }
-                oldEs.performRequest(new Request("DELETE", "/test"));
-                indexDeleted = true;
+                success = true;
             } finally {
-                if (indexDeleted == false) {
-                    try {
-                        oldEs.performRequest(new Request("DELETE", "/test"));
-                    } catch (Exception deleteException) {
-                        logger.warn("Exception deleting index", deleteException);
+                try {
+                    oldEs.performRequest(new Request("DELETE", "/test"));
+                } catch (Exception deleteException) {
+                    logger.warn("Exception deleting index", deleteException);
+                    if (success) {
+                        // Since the test completed successfully, the delete should not fail
+                        throw deleteException;
                     }
                 }
             }

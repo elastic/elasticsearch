@@ -125,7 +125,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
-    // Force implementations to override sortOrder and sort each subclass by type first
+    // Force implementations to override compareToDifferentType and sort each subclass by type first
     protected abstract int compareToDifferentType();
 
     /**

@@ -126,9 +126,9 @@ public final class Numbers {
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
      *  value and {@code coerce} is false. */
-    public static Long toLong(String stringValue, boolean coerce) {
+    public static long toLong(String stringValue, boolean coerce) {
         try {
-            return Long.valueOf(stringValue);
+            return Long.parseLong(stringValue);
         } catch (NumberFormatException e) {
             // we will try again with BigDecimal
         }

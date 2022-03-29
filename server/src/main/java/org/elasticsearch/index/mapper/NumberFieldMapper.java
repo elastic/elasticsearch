@@ -1098,7 +1098,7 @@ public class NumberFieldMapper extends FieldMapper {
          * Converts an Object to a {@code long} by checking it against known
          * types and checking its range.
          */
-        public static Long objectToLong(Object value, boolean coerce) {
+        public static long objectToLong(Object value, boolean coerce) {
             if (value instanceof Long) {
                 return (Long) value;
             }

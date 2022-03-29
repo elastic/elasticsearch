@@ -75,9 +75,12 @@ public class ParallelDetector {
                 });
 
                 _defaultParallel = Integer.parseInt(stdout.toString().trim());
-            } else {
+            }
+
+            if (_defaultParallel == null || _defaultParallel < 1) {
                 _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
             }
+
         }
 
         return Math.min(_defaultParallel, project.getGradle().getStartParameter().getMaxWorkerCount());

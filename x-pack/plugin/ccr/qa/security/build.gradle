@@ -18,7 +18,7 @@ def leadCluster = testClusters.register('leader-cluster') {
     user username: "test_ccr", role: "ccruser"
 }
 
-testClusters.register('follow-cluster') {
+def followCluster = testClusters.register('follow-cluster') {
     testDistribution = 'DEFAULT'
     setting 'cluster.remote.leader_cluster.seeds', {
       "\"${leadCluster.get().getAllTransportPortURI().join(",")}\""
@@ -36,11 +36,11 @@ tasks.register('leader-cluster', RestIntegTestTask) {
   systemProperty 'tests.target_cluster', 'leader'
 }
 
-def followerClusterTestTask = tasks.register('follow-cluster', RestIntegTestTask) {
+tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
   useCluster leadCluster
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'tests.leader_host', leadCluster.map(c-> c.getAllHttpSocketURI().get(0))
 }
 
-tasks.named("check").configure { dependsOn(followerClusterTestTask) }
+tasks.named("check").configure { dependsOn('follow-cluster') }

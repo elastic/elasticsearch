@@ -20,7 +20,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -233,7 +232,7 @@ public class ClusterFormationFailureHelper {
             assert requiredNodes <= realNodeIds.size() : nodeIds;
 
             if (nodeIds.size() == 1) {
-                if (nodeIds.contains(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)) {
+                if (nodeIds.contains(VotingConfiguration.STALE_STATE_CONFIG_NODE_ID)) {
                     return "one or more nodes that have already participated as master-eligible nodes in the cluster but this node was "
                         + "not master-eligible the last time it joined the cluster";
                 } else {

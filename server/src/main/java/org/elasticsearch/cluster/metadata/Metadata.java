@@ -299,6 +299,46 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         );
     }
 
+    /**
+     * @return a copy of this {@link Metadata} with most of the global components removed since these need not be persisted on data nodes.
+     */
+    public Metadata forDataNodePersistence() {
+        final var builder = Metadata.builder(
+            new Metadata(
+                clusterUUID,
+                clusterUUIDCommitted,
+                version,
+                CoordinationMetadata.builder(coordinationMetadata)
+                    .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.STALE_STATE_CONFIG)
+                    .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.STALE_STATE_CONFIG)
+                    .build(),
+                Settings.EMPTY,
+                Settings.EMPTY,
+                Settings.EMPTY,
+                DiffableStringMap.EMPTY,
+                0,
+                0,
+                ImmutableOpenMap.of(),
+                ImmutableOpenMap.of(),
+                ImmutableOpenMap.of(),
+                EMPTY_METADATA.customs,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                Collections.emptySortedMap(),
+                Collections.emptyMap(),
+                Version.CURRENT
+            )
+        );
+        for (final var indexMetadata : indices.values()) {
+            builder.put(indexMetadata.forDataNodePersistence(), false);
+        }
+        return builder.build();
+    }
+
     public long version() {
         return this.version;
     }

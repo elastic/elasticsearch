@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 
@@ -823,7 +822,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         assertThat(
             new ClusterFormationState(
                 Settings.EMPTY,
-                state(localNode, GatewayMetaState.STALE_STATE_CONFIG_NODE_ID),
+                state(localNode, VotingConfiguration.STALE_STATE_CONFIG_NODE_ID),
                 emptyList(),
                 emptyList(),
                 0L,

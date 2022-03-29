@@ -444,11 +444,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 .coordinationMetadata();
             assertThat(
                 persistedCoordinationMetadata.getLastAcceptedConfiguration(),
-                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+                equalTo(CoordinationMetadata.VotingConfiguration.STALE_STATE_CONFIG)
             );
             assertThat(
                 persistedCoordinationMetadata.getLastCommittedConfiguration(),
-                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+                equalTo(CoordinationMetadata.VotingConfiguration.STALE_STATE_CONFIG)
             );
 
             persistedState.markLastAcceptedStateAsCommitted();
@@ -471,11 +471,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             persistedCoordinationMetadata = persistedClusterStateService.loadBestOnDiskState(false).metadata.coordinationMetadata();
             assertThat(
                 persistedCoordinationMetadata.getLastAcceptedConfiguration(),
-                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+                equalTo(CoordinationMetadata.VotingConfiguration.STALE_STATE_CONFIG)
             );
             assertThat(
                 persistedCoordinationMetadata.getLastCommittedConfiguration(),
-                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+                equalTo(CoordinationMetadata.VotingConfiguration.STALE_STATE_CONFIG)
             );
             assertTrue(persistedClusterStateService.loadBestOnDiskState(false).metadata.clusterUUIDCommitted());
 

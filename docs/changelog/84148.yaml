@@ -1,0 +1,5 @@
+pr: 84148
+summary: Drop unnecessary global metadata on data nodes
+area: Cluster Coordination
+type: enhancement
+issues: []

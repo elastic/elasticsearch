@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.slice;
 
-import com.carrotsearch.hppc.BitMixer;
+import org.apache.lucene.util.hppc.BitMixer;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;

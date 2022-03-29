@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.BitMixer;
+import org.apache.lucene.util.hppc.BitMixer;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;

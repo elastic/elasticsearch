@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import com.carrotsearch.hppc.BitMixer;
+import org.apache.lucene.util.hppc.BitMixer;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -76,7 +76,7 @@ public final class RandomSamplingQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) {
-                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash, seed));
+                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash ^ seed));
                 int maxDoc = context.reader().maxDoc();
                 return new ConstantScoreScorer(
                     this,

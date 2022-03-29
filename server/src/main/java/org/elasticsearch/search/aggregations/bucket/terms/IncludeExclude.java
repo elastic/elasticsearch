@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.BitMixer;
+import org.apache.lucene.util.hppc.BitMixer;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 

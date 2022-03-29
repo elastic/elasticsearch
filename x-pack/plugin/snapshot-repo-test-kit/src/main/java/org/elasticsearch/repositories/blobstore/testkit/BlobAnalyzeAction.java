@@ -438,7 +438,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         private void cancelReadsCleanUpAndReturnFailure(Exception exception) {
-            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.wrap(() -> {}));
+            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
             cleanUpAndReturnFailure(exception);
         }
 

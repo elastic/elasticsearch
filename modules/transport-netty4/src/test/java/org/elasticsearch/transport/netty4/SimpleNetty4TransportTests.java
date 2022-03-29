@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -96,10 +95,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {
-        assumeTrue(
-            "setting default keepalive options not supported on this platform",
-            (IOUtils.LINUX || IOUtils.MAC_OS_X) && JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0
-        );
+        assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
             MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)

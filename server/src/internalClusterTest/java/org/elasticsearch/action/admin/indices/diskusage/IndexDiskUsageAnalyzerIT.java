@@ -13,28 +13,34 @@ import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -48,7 +54,10 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EngineTestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(EngineTestPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
     }
 
     private static final Set<ShardId> failOnFlushShards = Sets.newConcurrentHashSet();
@@ -280,6 +289,75 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             IndexDiskUsageStats stats = resp.getStats().get(index);
             assertThat(stats.getIndexSizeInBytes(), greaterThan(0L));
             assertThat(stats.total().totalBytes(), greaterThan(0L));
+        }
+    }
+
+    public void testFailingTargetShards() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String indexName = "test-index";
+        int numberOfShards = between(1, 5);
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put("index.routing.rebalance.enable", "none")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .get();
+        int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            int value = randomIntBetween(1, 10);
+            final XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("english_text", English.intToEnglish(value))
+                .field("value", value)
+                .endObject();
+            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+        }
+        final Index index = resolveIndex(indexName);
+        final List<ShardId> failingShards = randomSubsetOf(
+            between(1, numberOfShards),
+            IntStream.range(0, numberOfShards).mapToObj(n -> new ShardId(index, n)).toList()
+        );
+        final AtomicInteger failedShards = new AtomicInteger();
+        final AtomicInteger successfulShards = new AtomicInteger();
+        try {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.addRequestHandlingBehavior(AnalyzeIndexDiskUsageAction.NAME + "[s]", (handler, request, channel, task) -> {
+                    AnalyzeDiskUsageShardRequest shardRequest = (AnalyzeDiskUsageShardRequest) request;
+                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                    logger.info("--> handling shard request {} on node {}", shardRequest.shardId(), node);
+                    ShardId shardId = shardRequest.shardId();
+                    if (failingShards.contains(shardId)) {
+                        IndexShard indexShard = indicesService.getShardOrNull(shardId);
+                        assertNotNull("No shard found for shard " + shardId, indexShard);
+                        logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
+                        indexShard.close("test", randomBoolean());
+                        failedShards.incrementAndGet();
+                    } else {
+                        successfulShards.incrementAndGet();
+                    }
+                    handler.messageReceived(request, channel, task);
+                });
+            }
+            AnalyzeIndexDiskUsageResponse resp = client().execute(
+                AnalyzeIndexDiskUsageAction.INSTANCE,
+                new AnalyzeIndexDiskUsageRequest(new String[] { indexName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+            ).actionGet();
+            assertThat(failedShards.get(), equalTo(failingShards.size()));
+            assertThat(resp.getTotalShards(), equalTo(numberOfShards));
+            assertThat(resp.getFailedShards(), equalTo(failedShards.get()));
+            assertThat(resp.getSuccessfulShards(), equalTo(resp.getTotalShards() - resp.getFailedShards()));
+            assertThat(successfulShards.get(), equalTo(numberOfShards - failedShards.get()));
+            assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.clearAllRules();
+            }
         }
     }
 

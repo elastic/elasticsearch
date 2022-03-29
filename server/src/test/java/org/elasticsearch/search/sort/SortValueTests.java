@@ -48,10 +48,11 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     @Override
     protected SortValue createTestInstance() {
-        return switch (between(0, 2)) {
+        return switch (between(0, 3)) {
             case 0 -> SortValue.from(randomDouble());
             case 1 -> SortValue.from(randomLong());
             case 2 -> SortValue.from(new BytesRef(randomAlphaOfLength(5)));
+            case 3 -> SortValue.empty();
             default -> throw new AssertionError();
         };
     }
@@ -70,6 +71,10 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     public void testFormatLong() {
         assertThat(SortValue.from(1).format(DocValueFormat.RAW), equalTo("1"));
         assertThat(SortValue.from(1).format(STRICT_DATE_TIME), equalTo("1970-01-01T00:00:00.001Z"));
+    }
+
+    public void testFormatEmpty() {
+        assertThat(SortValue.empty().format(DocValueFormat.RAW), equalTo(""));
     }
 
     public void testToXContentDouble() {
@@ -91,6 +96,10 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         );
     }
 
+    public void testToXContentEmpty() {
+        assertThat(toXContent(SortValue.empty(), DocValueFormat.RAW), equalTo("{\"test\"}"));
+    }
+
     public void testCompareDifferentTypes() {
         assertThat(SortValue.from(1.0), lessThan(SortValue.from(1)));
         assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.from(Long.MIN_VALUE)));
@@ -100,6 +109,20 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(SortValue.from(1), greaterThan(SortValue.from(new BytesRef("cat"))));
         assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.from(1.0)));
         assertThat(SortValue.from(1.0), greaterThan(SortValue.from(new BytesRef("cat"))));
+    }
+
+    /**
+     * When comparing different types ordering takes place according to the writable name.
+     * This is the reason why "long" is greater than "empty" and "double" is less than "empty".
+     * See {@link org.elasticsearch.search.sort.SortValue#compareTo}.
+     */
+    public void testCompareToEmpty() {
+        assertThat(SortValue.from(1.0), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(Double.NaN), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(1), greaterThan(SortValue.empty()));
+        assertThat(SortValue.from(Long.MIN_VALUE), greaterThan(SortValue.empty()));
+        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.empty()));
     }
 
     public void testCompareDoubles() {
@@ -114,6 +137,10 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(SortValue.from(r), equalTo(SortValue.from(r)));
         assertThat(SortValue.from(r), lessThan(SortValue.from(r + 1)));
         assertThat(SortValue.from(r), greaterThan(SortValue.from(r - 1)));
+    }
+
+    public void testCompareEmpty() {
+        assertThat(SortValue.empty(), equalTo(SortValue.empty()));
     }
 
     public void testBytes() {

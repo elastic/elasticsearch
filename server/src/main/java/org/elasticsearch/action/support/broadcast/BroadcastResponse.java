@@ -39,10 +39,10 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     private static final ParseField FAILED_FIELD = new ParseField("failed");
     private static final ParseField FAILURES_FIELD = new ParseField("failures");
 
-    private int totalShards;
-    private int successfulShards;
-    private int failedShards;
-    private DefaultShardOperationFailedException[] shardFailures = EMPTY;
+    private final int totalShards;
+    private final int successfulShards;
+    private final int failedShards;
+    private final DefaultShardOperationFailedException[] shardFailures;
 
     @SuppressWarnings("unchecked")
     protected static <T extends BroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
@@ -62,8 +62,6 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
     }
 
-    public BroadcastResponse() {}
-
     public BroadcastResponse(StreamInput in) throws IOException {
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
@@ -74,6 +72,8 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
             for (int i = 0; i < size; i++) {
                 shardFailures[i] = readShardOperationFailed(in);
             }
+        } else {
+            shardFailures = EMPTY;
         }
     }
 

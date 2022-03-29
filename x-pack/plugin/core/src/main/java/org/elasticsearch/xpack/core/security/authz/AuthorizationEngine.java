@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * <p>
@@ -349,7 +348,7 @@ public interface AuthorizationEngine {
          * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
          */
         @Nullable
-        public String getFailureContext(Predicate<String> isRestrictedIndex) {
+        public String getFailureContext(RestrictedIndices restrictedIndices) {
             return null;
         }
 
@@ -383,22 +382,22 @@ public interface AuthorizationEngine {
         }
 
         @Override
-        public String getFailureContext(Predicate<String> isRestrictedIndex) {
+        public String getFailureContext(RestrictedIndices restrictedIndices) {
             if (isGranted()) {
                 return null;
             } else {
-                return getFailureDescription(indicesAccessControl.getDeniedIndices(), isRestrictedIndex);
+                return getFailureDescription(indicesAccessControl.getDeniedIndices(), restrictedIndices);
             }
         }
 
-        public static String getFailureDescription(Collection<String> deniedIndices, Predicate<String> isRestrictedIndex) {
+        public static String getFailureDescription(Collection<String> deniedIndices, RestrictedIndices restrictedNames) {
             if (deniedIndices.isEmpty()) {
                 return null;
             }
             final StringBuilder regularIndices = new StringBuilder();
             final StringBuilder restrictedIndices = new StringBuilder();
             for (String index : deniedIndices) {
-                final StringBuilder builder = isRestrictedIndex.test(index) ? restrictedIndices : regularIndices;
+                final StringBuilder builder = restrictedNames.isRestricted(index) ? restrictedIndices : regularIndices;
                 if (builder.isEmpty() == false) {
                     builder.append(',');
                 }

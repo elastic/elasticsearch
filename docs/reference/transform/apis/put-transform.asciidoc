@@ -19,36 +19,37 @@ Instantiates a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, `index`.
+* destination index: `read`, `create_index`, `index`. If a `retention_policy` is configured, the `delete` privilege is
+  also required.
 
 [[put-transform-desc]]
 == {api-description-title}
 
-This API defines a {transform}, which copies data from source indices, 
+This API defines a {transform}, which copies data from source indices,
 transforms it, and persists it into an entity-centric destination index. If you
 choose to use the pivot method for your {transform}, the entities are defined by
 the set of `group_by` fields in the `pivot` object. If you choose to use the
 latest method, the entities are defined by the `unique_key` field values in the
 `latest` object.
 
-You can also think of the destination index as a two-dimensional tabular data 
-structure (known as a {dataframe}). The ID for each document in the {dataframe} 
-is generated from a hash of the entity, so there is a unique row per entity. For 
+You can also think of the destination index as a two-dimensional tabular data
+structure (known as a {dataframe}). The ID for each document in the {dataframe}
+is generated from a hash of the entity, so there is a unique row per entity. For
 more information, see <<transforms>>.
 
-When the {transform} is created, a series of validations occur to ensure its 
-success. For example, there is a check for the existence of the source indices 
-and a check that the destination index is not part of the source index pattern. 
+When the {transform} is created, a series of validations occur to ensure its
+success. For example, there is a check for the existence of the source indices
+and a check that the destination index is not part of the source index pattern.
 You can use the `defer_validation` parameter to skip these checks.
 
-Deferred validations are always run when the {transform} is started, with the 
-exception of privilege checks. When {es} {security-features} are enabled, the 
-{transform} remembers which roles the user that created it had at the time of 
-creation and uses those same roles. If those roles do not have the required 
-privileges on the source and destination indices, the {transform} fails when it 
+Deferred validations are always run when the {transform} is started, with the
+exception of privilege checks. When {es} {security-features} are enabled, the
+{transform} remembers which roles the user that created it had at the time of
+creation and uses those same roles. If those roles do not have the required
+privileges on the source and destination indices, the {transform} fails when it
 attempts unauthorized operations.
 
 IMPORTANT: You must use {kib} or this API to create a {transform}. Do not add a

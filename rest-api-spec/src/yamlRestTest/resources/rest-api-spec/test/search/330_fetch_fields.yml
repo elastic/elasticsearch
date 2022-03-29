@@ -95,6 +95,10 @@ setup:
 
 ---
 "Test disable source from text":
+  - skip:
+      version: " - 8.1.99"
+      reason: "error message changed in 8.2"
+
   - do:
       indices.create:
         index:  test

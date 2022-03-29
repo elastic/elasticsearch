@@ -55,7 +55,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
             case 0 -> SortValue.from(randomDouble());
             case 1 -> SortValue.from(randomLong());
             case 2 -> SortValue.from(new BytesRef(randomAlphaOfLength(5)));
-            case 3 -> SortValue.valueless();
+            case 3 -> SortValue.empty();
             default -> throw new AssertionError();
         };
     }
@@ -77,7 +77,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public void testFormatEmpty() {
-        assertThat(SortValue.valueless().format(DocValueFormat.RAW), equalTo(""));
+        assertThat(SortValue.empty().format(DocValueFormat.RAW), equalTo(""));
     }
 
     public void testToXContentDouble() {
@@ -100,7 +100,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public void testToXContentEmpty() {
-        assertThat(toXContent(SortValue.valueless(), DocValueFormat.RAW), equalTo("{\"test\"}"));
+        assertThat(toXContent(SortValue.empty(), DocValueFormat.RAW), equalTo("{\"test\"}"));
     }
 
     public void testCompareDifferentTypes() {
@@ -120,12 +120,12 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
      * See {@link org.elasticsearch.search.sort.SortValue#compareTo}.
      */
     public void testCompareToEmpty() {
-        assertThat(SortValue.from(1.0), lessThan(SortValue.valueless()));
-        assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.valueless()));
-        assertThat(SortValue.from(Double.NaN), equalTo(SortValue.valueless()));
-        assertThat(SortValue.from(1), lessThan(SortValue.valueless()));
-        assertThat(SortValue.from(Long.MIN_VALUE), lessThan(SortValue.valueless()));
-        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.valueless()));
+        assertThat(SortValue.from(1.0), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(Double.NaN), equalTo(SortValue.empty()));
+        assertThat(SortValue.from(1), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(Long.MIN_VALUE), lessThan(SortValue.empty()));
+        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.empty()));
     }
 
     public void testCompareDoubles() {
@@ -143,7 +143,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public void testCompareEmpty() {
-        assertThat(SortValue.valueless(), equalTo(SortValue.valueless()));
+        assertThat(SortValue.empty(), equalTo(SortValue.empty()));
     }
 
     public void testSortValueOrdering() {
@@ -162,7 +162,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         final SortValue emptyBytesRef = SortValue.from(new BytesRef(""));
         final SortValue fooBytesRef = SortValue.from(new BytesRef("Foo"));
         final SortValue barBytesRef = SortValue.from(new BytesRef("bar"));
-        final SortValue valueless = SortValue.valueless();
+        final SortValue valueless = SortValue.empty();
         final List<SortValue> values = List.of(
             maxLong,
             minLong,
@@ -187,7 +187,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         /**
          * `negativeNan` and `positiveNan` are instances of
          * {@link org.elasticsearch.search.sort.SortValue.ValuelessSortValue}
-         * the same of {@link SortValue#valueless()}.
+         * the same of {@link SortValue#empty()}.
          */
         assertThat(
             sortedValues,

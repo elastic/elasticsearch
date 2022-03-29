@@ -19,20 +19,23 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
-    private static final SortValue VALUELESS_SORT_VALUE = new ValuelessSortValue();
+    private static final Comparator<SortValue> TYPE_COMPARATOR = Comparator.comparing(SortValue::compareToDifferentType);
+    private static final Comparator<SortValue> VALUE_COMPARATOR = TYPE_COMPARATOR.thenComparing(SortValue::compareToSameType);
+    private static final SortValue EMPTY_SORT_VALUE = new EmptySortValue();
 
     /**
      * Get a {@linkplain SortValue} for a double.
      */
     public static SortValue from(double d) {
         if (Double.isNaN(d)) {
-            return new ValuelessSortValue();
+            return new EmptySortValue();
         }
         return new DoubleSortValue(d);
     }
@@ -55,8 +58,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     /**
      * Get a {@linkplain SortValue} for data which cannot be sorted.
      */
-    public static SortValue valueless() {
-        return VALUELESS_SORT_VALUE;
+    public static SortValue empty() {
+        return EMPTY_SORT_VALUE;
     }
 
     /**
@@ -67,7 +70,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
             new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
             new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new),
             new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new),
-            new NamedWriteableRegistry.Entry(SortValue.class, ValuelessSortValue.NAME, ValuelessSortValue::new)
+            new NamedWriteableRegistry.Entry(SortValue.class, EmptySortValue.NAME, EmptySortValue::new)
         );
     }
 
@@ -77,16 +80,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     @Override
     public final int compareTo(SortValue other) {
-        /*
-         * It might make sense to try and compare doubles to longs
-         * *carefully* to get a real sort. but it might not. For now
-         * we sort all doubles before all longs.
-         */
-        int typeCompare = getWriteableName().compareTo(other.getWriteableName());
-        if (typeCompare != 0) {
-            return typeCompare;
-        }
-        return compareToSameType(other);
+        return VALUE_COMPARATOR.compare(this, other);
     }
 
     /**
@@ -131,6 +125,9 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
+    // Force implementations to override sortOrder and sort each subclass by type first
+    protected abstract int compareToDifferentType();
+
     /**
      * Return this {@linkplain SortValue} as a boxed {@linkplain Number}
      * or {@link Double#NaN} if it isn't a number. Or if it is actually
@@ -140,6 +137,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class DoubleSortValue extends SortValue {
         public static final String NAME = "double";
+        private static final int SORT_VALUE = -2;
 
         private final double key;
 
@@ -202,6 +200,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int compareToDifferentType() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return key;
         }
@@ -209,6 +212,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class LongSortValue extends SortValue {
         public static final String NAME = "long";
+        private static final int SORT_VALUE = -1;
 
         private final long key;
 
@@ -271,6 +275,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int compareToDifferentType() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return key;
         }
@@ -278,6 +287,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class BytesSortValue extends SortValue {
         public static final String NAME = "bytes";
+        private static final int SORT_VALUE = -3;
 
         private final BytesRef key;
 
@@ -347,31 +357,25 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int compareToDifferentType() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return Double.NaN;
         }
     }
 
-    private static class ValuelessSortValue extends SortValue {
+    private static class EmptySortValue extends SortValue {
 
-        /**
-         * The name `valueless` is chosen carefully to make sure
-         * that sorting different `SortValue`s results in objects
-         * of type `ValuelessSortValue` to be sorted after everything
-         * else. This is to be consistent with how `Double.NaN` is
-         * sorted when sorting double values. This is necessary
-         * as a result of comparison being done using the `NAME`
-         * returned by {@ValuelessSortValue#getWritableName}.
-         * See {@link SortValue#compareTo(SortValue)} and
-         * {@link SortValue#compareToSameType(SortValue)} for
-         * more details.
-         */
-        public static final String NAME = "valueless";
+        public static final String NAME = "empty";
         private static final String EMPTY_STRING = "";
+        private int sortValue = 0;
 
-        private ValuelessSortValue() {}
+        private EmptySortValue() {}
 
-        private ValuelessSortValue(StreamInput ignoredIn) {}
+        private EmptySortValue(StreamInput ignoredIn) {}
 
         @Override
         public String getWriteableName() {
@@ -414,6 +418,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String toString() {
             return EMPTY_STRING;
+        }
+
+        @Override
+        public int compareToDifferentType() {
+            return sortValue;
         }
 
         @Override

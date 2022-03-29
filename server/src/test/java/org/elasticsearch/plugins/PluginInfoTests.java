@@ -136,14 +136,8 @@ public class PluginInfoTests extends ESTestCase {
             "version",
             "1.0"
         );
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginInfo.readFromProperties(pluginDir));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "version string must be a sequence of nonnegative decimal integers separated"
-                    + " by \".\"'s and may have leading zeros but was 1.7.0_80"
-            )
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), equalTo("Invalid version string: '1.7.0_80'"));
     }
 
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {

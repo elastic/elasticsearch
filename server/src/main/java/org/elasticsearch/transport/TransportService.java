@@ -723,34 +723,11 @@ public class TransportService extends AbstractLifecycleComponent
                 // unwrap the connection and keep track of the connection to the proxy node instead of the proxy connection.
                 final Transport.Connection unwrappedConn = unwrapConnection(connection);
                 final Releasable unregisterChildNode = taskManager.registerChildConnection(request.getParentTask().getId(), unwrappedConn);
-                delegate = new TransportResponseHandler<>() {
-                    @Override
-                    public void handleResponse(T response) {
-                        unregisterChildNode.close();
-                        handler.handleResponse(response);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        unregisterChildNode.close();
-                        handler.handleException(exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return handler.executor();
-                    }
-
-                    @Override
-                    public T read(StreamInput in) throws IOException {
-                        return handler.read(in);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
-                    }
-                };
+                if (unregisterChildNode == null) {
+                    delegate = handler;
+                } else {
+                    delegate = new UnregisterChildTransportResponseHandler<>(unregisterChildNode, handler, action);
+                }
             } else {
                 delegate = handler;
             }
@@ -1618,4 +1595,32 @@ public class TransportService extends AbstractLifecycleComponent
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // we can remove this whole block in v9
     }
 
+    private record UnregisterChildTransportResponseHandler<T extends TransportResponse> (
+        Releasable unregisterChildNode,
+        TransportResponseHandler<T> handler,
+        String action
+    ) implements TransportResponseHandler<T> {
+
+        @Override
+        public void handleResponse(T response) {
+            unregisterChildNode.close();
+            handler.handleResponse(response);
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            unregisterChildNode.close();
+            handler.handleException(exp);
+        }
+
+        @Override
+        public String executor() {
+            return handler.executor();
+        }
+
+        @Override
+        public T read(StreamInput in) throws IOException {
+            return handler.read(in);
+        }
+    }
 }

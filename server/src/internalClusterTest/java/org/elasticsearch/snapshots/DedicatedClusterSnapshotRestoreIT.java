@@ -867,7 +867,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
-        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback(){
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public boolean validateClusterForming() {
                 // skip this step since BusyMasterServiceDisruption prevents the master queue from ever emptying

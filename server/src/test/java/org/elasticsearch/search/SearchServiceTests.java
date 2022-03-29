@@ -356,7 +356,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             result
                         );
                         SearchPhaseResult searchPhaseResult = result.get();
-                        ArrayList<Integer> intCursors = new ArrayList<>(1);
+                        List<Integer> intCursors = new ArrayList<>(1);
                         intCursors.add(0);
                         ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getContextId(), intCursors, null/* not a scroll */);
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
 
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;

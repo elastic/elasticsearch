@@ -9,7 +9,6 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.hppc.BitMixer;
-
 import org.elasticsearch.core.Releasables;
 
 /**

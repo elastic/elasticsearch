@@ -261,14 +261,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
         final int maxIndices = 10;
-        Comparator<String> comparePrioritiesAscendingComparator = Comparator.comparingInt(index -> clusterMetadata.index(index).priority());
-        // Reversing it because the higher the priority number, the higher the priority:
-        Comparator<String> comparePrioritiesDescendingComparator = comparePrioritiesAscendingComparator.reversed();
-        Comparator<String> comparePrioritiesThenNameComparaotr = comparePrioritiesDescendingComparator.thenComparing(index -> index);
-        String truncatedIndicesString = indices.stream()
-            .sorted(comparePrioritiesThenNameComparaotr)
-            .limit(maxIndices)
-            .collect(joining(", "));
+        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
+        Comparator<String> priorityThenNameComparator = Comparator.comparingInt((String index) -> clusterMetadata.index(index).priority())
+            .reversed()
+            .thenComparing(Comparator.naturalOrder());
+        String truncatedIndicesString = indices.stream().sorted(priorityThenNameComparator).limit(maxIndices).collect(joining(", "));
         if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
         }

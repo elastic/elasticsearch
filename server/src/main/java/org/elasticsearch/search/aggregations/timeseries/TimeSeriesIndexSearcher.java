@@ -66,6 +66,12 @@ public class TimeSeriesIndexSearcher {
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
+            } else {
+                // Even though we will not walk through this aggregation as a part of normal processing
+                // this is needed to trigger actions in some bucketCollectors that bypass the normal iteration logic
+                // for example, global aggregator triggers a separate iterator that ignores the query but still needs
+                // to know all leaves
+                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null));
             }
         }
 

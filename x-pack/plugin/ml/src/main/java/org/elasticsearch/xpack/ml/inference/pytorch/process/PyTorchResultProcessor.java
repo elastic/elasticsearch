@@ -28,7 +28,7 @@ import java.util.function.LongSupplier;
 
 public class PyTorchResultProcessor {
 
-    public record RecentStats(long requestsProcessed, double avgInferenceTime) {}
+    public record RecentStats(long requestsProcessed, Double avgInferenceTime) {}
 
     public record ResultStats(
         LongSummaryStatistics timingStats,
@@ -161,14 +161,14 @@ public class PyTorchResultProcessor {
 
         if (rs == null) {
             // no results processed in the previous period
-            rs = new RecentStats(0L, 0.0);
+            rs = new RecentStats(0L, null);
         }
 
         return new ResultStats(
             new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
             errorCount,
             pendingResults.size(),
-            Instant.ofEpochMilli(lastResultTimeMs),
+            lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
             this.peakThroughput,
             rs
         );

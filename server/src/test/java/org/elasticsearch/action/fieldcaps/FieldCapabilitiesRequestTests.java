@@ -115,8 +115,8 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             request -> request.indexFilter(request.indexFilter() != null ? request.indexFilter().boost(2) : QueryBuilders.matchAllQuery())
         );
         mutators.add(request -> request.runtimeFields(Collections.singletonMap("other_key", "other_value")));
-        mutators.add(request -> request.filters(request.filters().length == 0 ? new String[]{ "-metadata" } : Strings.EMPTY_ARRAY));
-        mutators.add(request -> request.types(request.types().length == 0 ? new String[]{ "keyword" } : Strings.EMPTY_ARRAY));
+        mutators.add(request -> request.filters(request.filters().length == 0 ? new String[] { "-metadata" } : Strings.EMPTY_ARRAY));
+        mutators.add(request -> request.types(request.types().length == 0 ? new String[] { "keyword" } : Strings.EMPTY_ARRAY));
 
         FieldCapabilitiesRequest mutatedInstance = copyInstance(instance);
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);

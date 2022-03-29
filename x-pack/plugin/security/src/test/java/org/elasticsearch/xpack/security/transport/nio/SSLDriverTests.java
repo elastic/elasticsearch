@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
@@ -31,7 +30,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
@@ -172,18 +170,11 @@ public class SSLDriverTests extends ESTestCase {
             serverProtocols = new String[] { "TLSv1.2" };
             clientProtocols = new String[] { "TLSv1.1" };
             expectedMessageMatcher = is("org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)");
-        } else if (JavaVersion.current().compareTo(JavaVersion.parse("16")) >= 0) {
+        } else {
             // JDK16 https://jdk.java.net/16/release-notes does not permit protocol TLSv1.1 OOB
             serverProtocols = new String[] { "TLSv1.3" };
             clientProtocols = new String[] { "TLSv1.2" };
             expectedMessageMatcher = is("The client supported protocol versions [TLSv1.2] are not accepted by server preferences [TLS13]");
-        } else {
-            serverProtocols = new String[] { "TLSv1.2" };
-            clientProtocols = new String[] { "TLSv1.1" };
-            expectedMessageMatcher = anyOf(
-                is("No appropriate protocol (protocol is disabled or cipher suites are inappropriate)"),
-                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]")
-            );
         }
 
         serverEngine.setEnabledProtocols(serverProtocols);
@@ -236,10 +227,7 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     public void testCloseDuringHandshakeJDK11() throws Exception {
-        assumeTrue(
-            "this tests ssl engine for JDK11",
-            JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0 && inFipsJvm() == false
-        );
+        assumeTrue("this tests ssl engine for JDK11", inFipsJvm() == false);
         SSLContext sslContext = getSSLContext();
         SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
         SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
@@ -274,39 +262,6 @@ public class SSLDriverTests extends ESTestCase {
 
         sendNonApplicationWrites(clientDriver);
         serverDriver.read(networkReadBuffer, applicationBuffer);
-    }
-
-    public void testCloseDuringHandshakePreJDK11() throws Exception {
-        assumeTrue("this tests ssl engine for pre-JDK11", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
-        SSLContext sslContext = getSSLContext();
-        SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
-        SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
-
-        clientDriver.init();
-        serverDriver.init();
-
-        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
-        sendHandshakeMessages(clientDriver, serverDriver);
-        sendHandshakeMessages(serverDriver, clientDriver);
-
-        assertFalse(clientDriver.readyForApplicationData());
-        assertFalse(serverDriver.readyForApplicationData());
-
-        serverDriver.initiateClose();
-        assertTrue(serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
-        assertFalse(serverDriver.isClosed());
-        sendNonApplicationWrites(serverDriver);
-        // We are immediately fully closed due to SSLEngine inconsistency
-        assertTrue(serverDriver.isClosed());
-        // This should not throw exception yet as the SSLEngine will not UNWRAP data while attempting to WRAP
-        clientDriver.read(networkReadBuffer, applicationBuffer);
-        sendNonApplicationWrites(clientDriver);
-        SSLException sslException = expectThrows(SSLException.class, () -> clientDriver.read(networkReadBuffer, applicationBuffer));
-        assertEquals("Received close_notify during handshake", sslException.getMessage());
-        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
-        sendNonApplicationWrites(clientDriver);
-        serverDriver.read(networkReadBuffer, applicationBuffer);
-        assertTrue(clientDriver.isClosed());
     }
 
     private void failedCloseAlert(SSLDriver sendDriver, SSLDriver receiveDriver, List<String> messages) throws SSLException {

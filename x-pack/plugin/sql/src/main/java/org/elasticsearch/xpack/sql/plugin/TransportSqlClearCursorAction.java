@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,7 +28,7 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.findNodeOlderThanLocalNode;
+import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 import static org.elasticsearch.xpack.sql.action.SqlClearCursorAction.NAME;
 
 public class TransportSqlClearCursorAction extends HandledTransportAction<SqlClearCursorRequest, SqlClearCursorResponse> {
@@ -34,6 +36,8 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
     private final ClusterService clusterService;
+
+    private static final Logger log = LogManager.getLogger(TransportSqlClearCursorAction.class);
 
     @Inject
     public TransportSqlClearCursorAction(
@@ -63,20 +67,24 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         TransportService transportService,
         ClusterService clusterService
     ) {
-        try {
-            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.getCursor(), planExecutor.writeableRegistry());
-
-            planExecutor.cleanCursor(
-                decoded.v1(),
-                ActionListener.wrap(success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure)
-            );
-        } catch (QlVersionMismatchException e) {
-            transportService.sendRequest(
-                findNodeOlderThanLocalNode(clusterService),
+        executeRequestWithRetryAttempt(clusterService, listener::onFailure, onFailure -> {
+            try {
+                Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.getCursor(), planExecutor.writeableRegistry());
+                planExecutor.cleanCursor(
+                    decoded.v1(),
+                    ActionListener.wrap(success -> listener.onResponse(new SqlClearCursorResponse(success)), onFailure)
+                );
+            } catch (QlVersionMismatchException e) {
+                onFailure.accept(e);
+            }
+        },
+            node -> transportService.sendRequest(
+                node,
                 SqlClearCursorAction.NAME,
                 request,
                 new ActionListenerResponseHandler<>(listener, SqlClearCursorResponse::new, ThreadPool.Names.SAME)
-            );
-        }
+            ),
+            log
+        );
     }
 }

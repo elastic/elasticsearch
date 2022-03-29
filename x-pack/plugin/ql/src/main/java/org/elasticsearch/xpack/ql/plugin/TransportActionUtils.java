@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.xpack.ql.QlVersionMismatchException;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.function.Consumer;
@@ -38,12 +39,19 @@ public final class TransportActionUtils {
         queryRunner.accept(e -> {
             // the search request likely ran on nodes with different versions of ES
             // we will retry on a node with an older version that should generate a backwards compatible _search request
-            if (e instanceof SearchPhaseExecutionException
-                && ((SearchPhaseExecutionException) e).getCause() instanceof VersionMismatchException) {
+            if (e instanceof QlVersionMismatchException
+                || (e instanceof SearchPhaseExecutionException && e.getCause() instanceof VersionMismatchException)) {
                 if (log.isDebugEnabled()) {
                     log.debug("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
                 }
-                DiscoveryNode candidateNode = findNodeOlderThanLocalNode(clusterService);
+                DiscoveryNode candidateNode = null;
+                DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
+                for (DiscoveryNode node : clusterService.state().nodes()) {
+                    if (node != localNode && node.getVersion().before(localNode.getVersion())) {
+                        candidateNode = node;
+                        break;
+                    }
+                }
                 if (candidateNode != null) {
                     if (log.isDebugEnabled()) {
                         log.debug(
@@ -69,16 +77,6 @@ public final class TransportActionUtils {
             }
             queryRunner.accept(onFailure);
         }
-    }
-
-    public static DiscoveryNode findNodeOlderThanLocalNode(ClusterService clusterService) {
-        DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
-        for (DiscoveryNode node : clusterService.state().nodes()) {
-            if (node != localNode && node.getVersion().before(localNode.getVersion())) {
-                return node;
-            }
-        }
-        return null;
     }
 
 }

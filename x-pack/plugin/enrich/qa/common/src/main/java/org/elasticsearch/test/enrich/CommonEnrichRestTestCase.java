@@ -133,6 +133,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         Object originalMatchValue = ((Map<?, ?>) response.get("_source")).get(field);
         assertThat(originalMatchValue, equalTo(value));
 
+        assertNotEquals("host", field);
+
         if (deletePipeline) {
             // delete the pipeline so the policies can be deleted
             client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));

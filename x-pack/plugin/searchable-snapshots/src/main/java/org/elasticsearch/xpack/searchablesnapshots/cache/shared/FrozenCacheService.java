@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
@@ -759,36 +760,42 @@ public class FrozenCacheService implements Releasable {
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
 
                 for (SparseFileTracker.Gap gap : gaps) {
-                    executor.execute(new AbstractRunnable() {
+                    try {
+                        executor.execute(new AbstractRunnable() {
 
-                        @Override
-                        protected void doRun() throws Exception {
-                            if (CacheFileRegion.this.tryIncRef() == false) {
-                                throw new AlreadyClosedException("Cache file channel has been released and closed");
+                            @Override
+                            protected void doRun() throws Exception {
+                                if (CacheFileRegion.this.tryIncRef() == false) {
+                                    throw new AlreadyClosedException("Cache file channel has been released and closed");
+                                }
+                                try {
+                                    ensureOpen();
+                                    final long start = gap.start();
+                                    assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
+                                    writer.fillCacheRange(
+                                        fileChannel,
+                                        physicalStartOffset() + gap.start(),
+                                        gap.start(),
+                                        gap.end() - gap.start(),
+                                        progress -> gap.onProgress(start + progress)
+                                    );
+                                    writeCount.increment();
+                                } finally {
+                                    decRef();
+                                }
+                                gap.onCompletion();
                             }
-                            try {
-                                ensureOpen();
-                                final long start = gap.start();
-                                assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
-                                writer.fillCacheRange(
-                                    fileChannel,
-                                    physicalStartOffset() + gap.start(),
-                                    gap.start(),
-                                    gap.end() - gap.start(),
-                                    progress -> gap.onProgress(start + progress)
-                                );
-                                writeCount.increment();
-                            } finally {
-                                decRef();
-                            }
-                            gap.onCompletion();
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            gap.onFailure(e);
-                        }
-                    });
+                            @Override
+                            public void onFailure(Exception e) {
+                                gap.onFailure(e);
+                            }
+                        });
+                    } catch (Exception e) {
+                        logger.error(() -> new ParameterizedMessage("unexpected exception when submitting task to fill gap [{}]", gap), e);
+                        assert false : e;
+                        gap.onFailure(e);
+                    }
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, decrementRef, e);

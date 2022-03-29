@@ -22,16 +22,20 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
 public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
     private static final String TESTS_CLUSTER = "tests.cluster";
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
+    private static final String TESTS_CLUSTER_READINESS = "tests.cluster.readiness";
+
     private ProviderFactory providerFactory;
 
     @Inject
@@ -64,6 +68,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER, () -> String.join(",", cluster.getAllHttpSocketURI()));
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
+                runnerNonInputProperties.systemProperty(TESTS_CLUSTER_READINESS, () -> String.join(",", cluster.getAllReadinessPortURI()));
             } else {
                 if (systemProperty(TESTS_CLUSTER) == null || systemProperty(TESTS_CLUSTER_NAME) == null) {
                     throw new IllegalArgumentException(
@@ -83,14 +88,13 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(t ->
         // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
-            TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
-            t.dependsOn(bundle);
             if (GradleUtils.isModuleProject(project.getPath())) {
-                t.getClusters().forEach(c -> c.module(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+                var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
+                t.getClusters().forEach(c -> c.module(bundle));
             } else {
-                t.getClusters().forEach(c -> c.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+                var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+                t.getClusters().forEach(c -> c.plugin(bundle));
             }
-
         }));
     }
 

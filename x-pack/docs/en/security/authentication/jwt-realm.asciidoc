@@ -9,35 +9,29 @@ See <<external-workflow-requirements>>.
 
 TIP: If the external workflow does not exist, use `api` tokens instead.
 
-TIP: If the workflow is Open ID Connect, but {es} is the OIDC RP, use `oidc` realm instead of 'jwt' realm.
-     Only use `jwt` realm if {es} is external to the OIDC workflow.
+TIP: If the external workflow is Open ID Connect, and {es} is the OIDC RP, use `oidc` realm instead.
 
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
 
-Consider the scenario of a workflow that is completely separate from {es}.
-In that workflow, end-users authenticate to a third-party application via a third-party authentication service.
+Consider workflows that are completely separate from {es}.
+They can be Open ID Connect, bespoke, or other, as long as they use JWS JWTs for an `identification token`.
+In those workflows, end-users interact with a third-party application, and authenticate via a third-party authentication application.
 
-The end-user authenticates to the authentication service, and various tokens are issued.
-One of the tokens is an `identification token`, and it is issued to the third-party application or end-user.
-The third-party application performs actions on behalf of the end-user, and the `identification token` identifies the end-user.
+Different tokens are created within those workflows for authentication, authorization, and identification.
+Reusing the authentication or authorization tokens outside of those workflows may not be desirable.
+However, reusing the `identification token` is possible.
 
-IMPORTANT: Separate tokens are used in external workflow for authentication and authorization.
-           The `identification token` is only used for identifying the end-user.
+JWT realm allows reusing the `identification token` for {es} authentication and authorization.
+JWT format is similar to Open ID Connect (OIDC) ID Tokens, with some differences. See <<jwt-validation>>.
 
 [[jwt-authentication-requirements]]
 ==== JWT Authentication Requirements
 
-Two credentials are required by JWT realms, a client credential and an end-user credential.
-The client and end-user are separate entities, so both must be authenticated.
+Two credentials are required by JWT realms, a client credential and an end-user identity token.
+Both must be validated separately, because the external client and end-user are separate entities.
 
-JWT realms allow repurposing an identification token for {es} authentication and authorization.
-The external workflow can be Open ID Connect or bespoke.
-JWT format and validation are similar to Open ID Connect (OIDC) ID Tokens, with some differences.
-See <<jwt-validation>>.
-
-The client is separate from the end-user. JWT realms require the external client to authenticate as well.
-See <<client-authentication>>.
+See <<client-authentication>> and <<jwt-validation>>.
 
 [[client-authentication]]
 ==== Client authentication

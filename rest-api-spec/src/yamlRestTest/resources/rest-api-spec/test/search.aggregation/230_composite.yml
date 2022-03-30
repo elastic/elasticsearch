@@ -70,7 +70,7 @@ setup:
             properties:
               date:
                 type: date
-                format: "yyyy-MM-dd HH:mm:ss"
+                format: "YYYY-MM-dd HH:mm:ss"
 
   - do:
       index:
@@ -1591,7 +1591,7 @@ setup:
                   - datefield:
                       date_histogram:
                         field: date
-                        format: "yyyy-MM-dd HH:mm:ss"
+                        format: "YYYY-MM-dd HH:mm:ss"
                         calendar_interval: hour
                         time_zone: Asia/Jakarta
             date_histogram_no__tz:
@@ -1601,7 +1601,7 @@ setup:
                   - datefield:
                       date_histogram:
                         field: date
-                        format: "yyyy-MM-dd HH:mm:ss"
+                        format: "YYYY-MM-dd HH:mm:ss"
                         calendar_interval: hour
 
   - match: { hits.total.value: 10 }

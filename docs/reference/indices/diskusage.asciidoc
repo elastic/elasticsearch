@@ -100,7 +100,9 @@ The API returns:
             "norms": "2.3kb",
             "norms_in_bytes": 2356,
             "term_vectors": "2.2kb",
-            "term_vectors_in_bytes": 2310
+            "term_vectors_in_bytes": 2310,
+            "knn_vectors": "0b",
+            "knn_vectors_in_bytes": 0
         },
         "fields": {
             "_id": {
@@ -119,7 +121,9 @@ The API returns:
                 "norms": "0b",
                 "norms_in_bytes": 0,
                 "term_vectors": "0b",
-                "term_vectors_in_bytes": 0
+                "term_vectors_in_bytes": 0,
+                "knn_vectors": "0b",
+                "knn_vectors_in_bytes": 0
             },
             "_primary_term": {...},
             "_seq_no": {...},
@@ -137,7 +141,9 @@ The API returns:
                 "norms": "0b",
                 "norms_in_bytes": 0,
                 "term_vectors": "0b",
-                "term_vectors_in_bytes": 0
+                "term_vectors_in_bytes": 0,
+                "knn_vectors": "0b",
+                "knn_vectors_in_bytes": 0
             },
             "context": {
                 "total": "28.6mb",
@@ -155,7 +161,9 @@ The API returns:
                 "norms": "2.3kb",
                 "norms_in_bytes": 2356,
                 "term_vectors": "2.2kb",
-                "term_vectors_in_bytes": 2310
+                "term_vectors_in_bytes": 2310,
+                "knn_vectors": "0b",
+                "knn_vectors_in_bytes": 0
             },
             "context.keyword": {...},
             "message": {...},

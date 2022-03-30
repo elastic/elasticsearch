@@ -1,0 +1,6 @@
+pr: 85399
+summary: Fix pagination during rolling upgrade
+area: SQL
+type: bug
+issues:
+ - 83726

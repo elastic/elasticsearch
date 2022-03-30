@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;

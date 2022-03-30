@@ -83,7 +83,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
-    private Map<String, Object> sourceAsMap;
 
     private OpType opType = OpType.INDEX;
 
@@ -112,6 +111,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     private Map<String, String> dynamicTemplates = Map.of();
+
+    private Object rawTimestamp;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -347,17 +348,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        if (sourceAsMap == null) {
-            sourceAsMap = XContentHelper.convertToMap(source, false, contentType).v2();
-        }
-        return sourceAsMap;
-    }
-
-    /**
-     * return null if source not convert to source map
-     */
-    public Map<String, Object> getSourceAsMapOrNull() {
-        return sourceAsMap;
+        return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
     /**
@@ -379,9 +370,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
-            IndexRequest indexRequest = source(builder);
-            this.sourceAsMap = (Map<String, Object>) source;
-            return indexRequest;
+            return source(builder);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -453,7 +442,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest source(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
-        this.sourceAsMap = null;
         return this;
     }
 
@@ -775,5 +763,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public Map<String, String> getDynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public Object getRawTimestamp() {
+        return rawTimestamp;
+    }
+
+    public void setRawTimestamp(Object rawTimestamp) {
+        this.rawTimestamp = rawTimestamp;
     }
 }

@@ -169,9 +169,9 @@ index without timestamp:
 ---
 index without timestamp with pipeline:
   - do:
-      catch: /Error extracting data stream timestamp field\:\ \[@timestamp\] not found/
+      catch: /Error extracting data stream timestamp field\:\ failed to parse date field \[wrong_format\] with format \[strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis\]/
       index:
         index: k8s
         pipeline: my_pipeline
         body:
-          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"@timestamp": "wrong_format", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'

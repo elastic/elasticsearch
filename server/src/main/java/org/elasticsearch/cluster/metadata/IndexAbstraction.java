@@ -383,9 +383,9 @@ public interface IndexAbstraction {
             }
 
             Instant timestamp;
-            Map<String, Object> sourceMap = request.getSourceAsMapOrNull();
-            if (sourceMap != null) {
-                timestamp = getTimeStampFromSourceMap(sourceMap);
+            Object rawTimestamp = request.getRawTimestamp();
+            if (rawTimestamp != null) {
+                timestamp = getTimeStampFromRaw(rawTimestamp);
             } else {
                 timestamp = getTimestampFromParser(request.source(), request.getContentType());
             }
@@ -416,24 +416,17 @@ public interface IndexAbstraction {
             return result;
         }
 
-        static Instant getTimeStampFromSourceMap(Map<String, Object> sourceMap) {
-            assert sourceMap != null;
-            Object timestamp = sourceMap.get(TimestampField.FIXED_TIMESTAMP_FIELD);
-            if (timestamp == null) {
-                throw new IllegalArgumentException(
-                    "Error extracting data stream timestamp field: [" + TimestampField.FIXED_TIMESTAMP_FIELD + "] not found"
-                );
-            }
+        static Instant getTimeStampFromRaw(Object rawTimestamp) {
             try {
-                if (timestamp instanceof Long lTimestamp) {
+                if (rawTimestamp instanceof Long lTimestamp) {
                     return Instant.ofEpochMilli(lTimestamp);
-                } else if (timestamp instanceof String sTimestamp) {
+                } else if (rawTimestamp instanceof String sTimestamp) {
                     return DateFormatters.from(TIMESTAMP_FORMATTER.parse(sTimestamp), TIMESTAMP_FORMATTER.locale()).toInstant();
                 } else {
-                    throw new IllegalArgumentException("timestamp [" + timestamp + "] type [" + timestamp.getClass() + "] error");
+                    throw new IllegalArgumentException("timestamp [" + rawTimestamp + "] type [" + rawTimestamp.getClass() + "] error");
                 }
             } catch (Exception e) {
-                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+                throw new IllegalArgumentException("Error get data stream timestamp field: " + e.getMessage(), e);
             }
         }
 

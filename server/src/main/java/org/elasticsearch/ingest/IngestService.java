@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -880,6 +881,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 handler.accept(null);
             }
         });
+        postExecute(ingestDocument, indexRequest);
+    }
+
+    private void postExecute(IngestDocument ingestDocument, IndexRequest indexRequest) {
+        // cache timestamp from ingest source map
+        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (rawTimestamp != null) {
+            indexRequest.setRawTimestamp(rawTimestamp);
+        }
     }
 
     @Override

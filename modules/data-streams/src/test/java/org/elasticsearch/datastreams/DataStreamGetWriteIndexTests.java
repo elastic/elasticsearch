@@ -50,7 +50,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -319,11 +318,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         assertThat(ia, notNullValue());
         IndexRequest indexRequest = new IndexRequest(name);
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
-        if (randomBoolean()) {
-            indexRequest.source(Map.of("@timestamp", timestamp));
-        } else {
-            indexRequest.source("{\"@timestamp\": \"" + timestamp + "\"}", XContentType.JSON);
-        }
+        indexRequest.source(Map.of("@timestamp", timestamp));
         return ia.getWriteIndex(indexRequest, state.getMetadata());
     }
 

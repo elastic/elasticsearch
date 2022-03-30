@@ -378,8 +378,13 @@ public class AuthorizationService {
 
     private String buildRunAsDeniedContext(Authentication authentication) {
         final User authUser = authentication.getUser().authenticatedUser();
-        // TODO check run as is available
-        return "([%s] does not have permission to run as [%s])".formatted(authUser.principal(), authentication.getUser().principal());
+        if (authUser.isRunAs() == false) {
+            return "because run as user is not set";
+        }
+        return "because [%s] does not have permission to run as [%s]".formatted(
+            authUser.principal(),
+            authentication.getUser().principal()
+        );
     }
 
     private void authorizeAction(
@@ -882,47 +887,49 @@ public class AuthorizationService {
             }
         }
 
-        final AuthorizationDenialMessage.Builder builder = AuthorizationDenialMessage.builder(
+        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(
             authUser.principal(),
             authentication.isAuthenticatedWithServiceAccount(),
             action
         );
 
+        // check for run as
         if (authentication.getUser().isRunAs()) {
-            builder.setRunAsUserPrincipal(authentication.getUser().principal());
+            denialInfoBuilder.runAsUserPrincipal(authentication.getUser().principal());
         }
-
+        // check for authentication by API key
         if (authentication.isAuthenticatedAsApiKey()) {
-            builder.setApiKeyId((String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            assert apiKeyId != null : "api key id must be present in the metadata";
+            denialInfoBuilder.apiKeyId(apiKeyId);
         }
 
         // The run-as user is always from a realm. So it must have roles that can be printed.
         // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
         // roles, but privileges)
         if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
-            builder.setRoles(authentication.getUser().roles());
+            denialInfoBuilder.roles(authentication.getUser().roles());
         }
 
         if (context != null) {
-            builder.setContext(context);
+            denialInfoBuilder.context(context);
         }
 
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
             Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
             if (privileges != null && privileges.size() > 0) {
-                builder.setGrantingClusterPrivileges(privileges);
+                denialInfoBuilder.grantingClusterPrivileges(privileges);
             }
         } else if (isIndexAction(action)) {
             Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
             if (privileges != null && privileges.size() > 0) {
-                builder.setGrantingIndexPrivileges(privileges);
+                denialInfoBuilder.grantingIndexPrivileges(privileges);
             }
         }
 
-        AuthorizationDenialMessage message = builder.createAuthorizationDenialMessage();
-
-        logger.debug(message::asLogMessage);
-        return authorizationError(message.asExceptionMessage(), cause);
+        final AuthorizationDenialInfo denialInfo = denialInfoBuilder.build();
+        logger.debug(denialInfo::toFullMessage);
+        return authorizationError(denialInfo.toFullMessage(), cause);
     }
 
     private class AuthorizationResultListener<T extends AuthorizationResult> implements ActionListener<T> {

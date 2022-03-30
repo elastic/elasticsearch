@@ -13,7 +13,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
-record AuthorizationDenialMessage(
+record AuthorizationDenialInfo(
     String userPrincipal,
     Boolean isAuthenticatedWithServiceAccount,
     String action,
@@ -29,15 +29,11 @@ record AuthorizationDenialMessage(
         return new Builder(userPrincipal, isAuthenticatedWithServiceAccount, action);
     }
 
-    String asLogMessage() {
-        return asMessage(true);
+    String toFullMessage() {
+        return toMessage(true);
     }
 
-    String asExceptionMessage() {
-        return asMessage(false);
-    }
-
-    private String asMessage(Boolean includeSensitiveFields) {
+    private String toMessage(Boolean includeSensitiveFields) {
         String userText = (isAuthenticatedWithServiceAccount ? "service account" : "user") + " [" + userPrincipal + "]";
 
         if (runAsUserPrincipal != null) {
@@ -67,8 +63,8 @@ record AuthorizationDenialMessage(
 
         if (includeSensitiveFields && grantingIndexPrivileges != null) {
             message = message
-                + ", this action is granted by the cluster privileges ["
-                + collectionToCommaDelimitedString(grantingClusterPrivileges)
+                + ", this action is granted by the index privileges ["
+                + collectionToCommaDelimitedString(grantingIndexPrivileges)
                 + "]";
         }
 
@@ -92,8 +88,8 @@ record AuthorizationDenialMessage(
             this.isAuthenticatedWithServiceAccount = isAuthenticatedWithServiceAccount;
         }
 
-        AuthorizationDenialMessage createAuthorizationDenialMessage() {
-            return new AuthorizationDenialMessage(
+        AuthorizationDenialInfo build() {
+            return new AuthorizationDenialInfo(
                 userPrincipal,
                 isAuthenticatedWithServiceAccount,
                 action,
@@ -106,33 +102,32 @@ record AuthorizationDenialMessage(
             );
         }
 
-        public Builder setRunAsUserPrincipal(String runAsUserPrincipal) {
+        public Builder runAsUserPrincipal(String runAsUserPrincipal) {
             this.runAsUserPrincipal = runAsUserPrincipal;
             return this;
         }
 
-        public Builder setApiKeyId(String apiKeyId) {
-            assert apiKeyId != null : "api key id must be present in the metadata";
+        public Builder apiKeyId(String apiKeyId) {
             this.apiKeyId = apiKeyId;
             return this;
         }
 
-        public Builder setRoles(String[] roles) {
+        public Builder roles(String[] roles) {
             this.roles = roles;
             return this;
         }
 
-        public Builder setContext(String context) {
+        public Builder context(String context) {
             this.context = context;
             return this;
         }
 
-        public Builder setGrantingClusterPrivileges(Collection<String> grantingClusterPrivileges) {
+        public Builder grantingClusterPrivileges(Collection<String> grantingClusterPrivileges) {
             this.grantingClusterPrivileges = grantingClusterPrivileges;
             return this;
         }
 
-        public Builder setGrantingIndexPrivileges(Collection<String> grantingIndexPrivileges) {
+        public Builder grantingIndexPrivileges(Collection<String> grantingIndexPrivileges) {
             this.grantingIndexPrivileges = grantingIndexPrivileges;
             return this;
         }

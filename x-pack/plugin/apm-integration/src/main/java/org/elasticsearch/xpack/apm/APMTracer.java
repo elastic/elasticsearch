@@ -16,6 +16,8 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -37,8 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +47,8 @@ import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.xpack.apm.APM.TRACE_HEADERS;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
+
+    private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
 
     static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
     static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
@@ -57,7 +59,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         NodeScope
     );
 
-    private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
     private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -108,12 +109,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     @Override
     protected void doStop() {
         destroyApmServices();
-        try {
-            final boolean stopped = shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
-            assert stopped : "did not stop tracing within timeout";
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Override
@@ -133,12 +128,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private void destroyApmServices() {
-        var services = this.services;
         this.services = null;
-        if (services == null) {
-            return;
-        }
-        spans.clear();// discard in-flight spans
+        this.spans.clear();// discard in-flight spans
     }
 
     @Override
@@ -152,74 +143,71 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
-            return AccessController.doPrivileged((PrivilegedAction<Span>) () -> {
-                // services might be in shutdown state by this point, but this is handled by the open telemetry internally
-                final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
-                Context parentContext = getParentSpanContext();
-                if (parentContext != null) {
-                    spanBuilder.setParent(parentContext);
+        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<Span>) () -> {
+            // services might be in shutdown state by this point, but this is handled by the open telemetry internally
+            final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
+            Context parentContext = getParentSpanContext();
+            if (parentContext != null) {
+                spanBuilder.setParent(parentContext);
+            }
+
+            for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+                final Object value = entry.getValue();
+                if (value instanceof String) {
+                    spanBuilder.setAttribute(entry.getKey(), (String) value);
+                } else if (value instanceof Long) {
+                    spanBuilder.setAttribute(entry.getKey(), (Long) value);
+                } else if (value instanceof Integer) {
+                    spanBuilder.setAttribute(entry.getKey(), (Integer) value);
+                } else if (value instanceof Double) {
+                    spanBuilder.setAttribute(entry.getKey(), (Double) value);
+                } else if (value instanceof Boolean) {
+                    spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
+                } else {
+                    throw new IllegalArgumentException(
+                        "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                    );
                 }
+            }
 
-                for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
-                    final Object value = entry.getValue();
-                    if (value instanceof String) {
-                        spanBuilder.setAttribute(entry.getKey(), (String) value);
-                    } else if (value instanceof Long) {
-                        spanBuilder.setAttribute(entry.getKey(), (Long) value);
-                    } else if (value instanceof Integer) {
-                        spanBuilder.setAttribute(entry.getKey(), (Integer) value);
-                    } else if (value instanceof Double) {
-                        spanBuilder.setAttribute(entry.getKey(), (Double) value);
-                    } else if (value instanceof Boolean) {
-                        spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
-                    } else {
-                        throw new IllegalArgumentException(
-                            "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
-                        );
-                    }
-                }
+            // These attributes don't apply to HTTP spans. The APM server can infer a number of things
+            // when "http." attributes are present
+            if (traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http.")) == false) {
+                // hack transactions to avoid the 'custom' transaction type
+                // this one is not part of OTel semantic attributes
+                spanBuilder.setAttribute("type", "elasticsearch");
+                // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
+                // also allows to set destination resource name in map
+                spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
+                spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
+            }
 
-                // These attributes don't apply to HTTP spans. The APM server can infer a number of things
-                // when "http." attributes are present
-                if (traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http.")) == false) {
-                    // hack transactions to avoid the 'custom' transaction type
-                    // this one is not part of OTel semantic attributes
-                    spanBuilder.setAttribute("type", "elasticsearch");
-                    // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
-                    // also allows to set destination resource name in map
-                    spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
-                    spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
-                }
+            // spanBuilder.setAttribute(SemanticAttributes.DB_SYSTEM, "elasticsearch");
+            // spanBuilder.setAttribute(SemanticAttributes.DB_NAME, clusterService.getNodeName());
 
-                // spanBuilder.setAttribute(SemanticAttributes.DB_SYSTEM, "elasticsearch");
-                // spanBuilder.setAttribute(SemanticAttributes.DB_NAME, clusterService.getNodeName());
+            // this will duplicate the "resource attributes" that are defined globally
+            // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
+            // 7.16.
+            spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+            spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
 
-                // this will duplicate the "resource attributes" that are defined globally
-                // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
-                // 7.16.
-                spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-                spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
+            final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+            if (xOpaqueId != null) {
+                spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
+            }
+            final Span span = spanBuilder.startSpan();
 
-                final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-                if (xOpaqueId != null) {
-                    spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
-                }
+            final Map<String, String> spanHeaders = new HashMap<>();
+            final Context contextForNewSpan = Context.current().with(span);
+            services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
+            spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
 
-                final Span span = spanBuilder.startSpan();
+            threadContext.putHeader(spanHeaders);
 
-                final Map<String, String> spanHeaders = new HashMap<>();
-                final Context contextForNewSpan = Context.current().with(span);
-                services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
-                spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
+            // logGraphviz(span);
 
-                threadContext.putHeader(spanHeaders);
-
-                // logGraphviz(span);
-
-                return span;
-            });
-        });
+            return span;
+        }));
     }
 
     private static final Set<String> CACHE = new HashSet<>();

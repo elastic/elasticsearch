@@ -1557,7 +1557,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
         if (mapping != null) {
-            entity += ",\"mappings\" : {" + mapping + "}";
+            if (mapping.trim().startsWith("{")) {
+                entity += ",\"mappings\" : " + mapping + "";
+            } else {
+                entity += ",\"mappings\" : {" + mapping + "}";
+            }
         }
         if (aliases != null) {
             entity += ",\"aliases\": {" + aliases + "}";

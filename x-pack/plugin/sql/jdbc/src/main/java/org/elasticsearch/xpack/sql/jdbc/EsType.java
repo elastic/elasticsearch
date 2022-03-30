@@ -32,6 +32,7 @@ public enum EsType implements SQLType {
     TIME(Types.TIME),
     DATETIME(Types.TIMESTAMP),
     IP(Types.VARCHAR),
+    VERSION(Types.VARCHAR),
     INTERVAL_YEAR(ExtraTypes.INTERVAL_YEAR),
     INTERVAL_MONTH(ExtraTypes.INTERVAL_MONTH),
     INTERVAL_YEAR_TO_MONTH(ExtraTypes.INTERVAL_YEAR_MONTH),

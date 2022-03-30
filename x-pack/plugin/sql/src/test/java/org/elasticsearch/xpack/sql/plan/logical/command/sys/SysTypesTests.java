@@ -94,6 +94,7 @@ public class SysTypesTests extends ESTestCase {
             "IP",
             "KEYWORD",
             "TEXT",
+            "VERSION",
             "BOOLEAN",
             "DATE",
             "TIME",
@@ -194,12 +195,14 @@ public class SysTypesTests extends ESTestCase {
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(3, r.size());
+            assertEquals(4, r.size());
             assertEquals("IP", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("KEYWORD", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("TEXT", r.column(0));
+            assertTrue(r.advanceRow());
+            assertEquals("VERSION", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }
 }

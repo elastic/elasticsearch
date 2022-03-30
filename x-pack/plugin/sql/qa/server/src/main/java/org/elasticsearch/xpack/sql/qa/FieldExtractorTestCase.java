@@ -401,6 +401,34 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *    "version_field": {
+     *       "type": "version",
+     *    }
+     */
+    public void testVersionField() throws IOException {
+        String query = "SELECT version_field FROM test";
+        String actualValue = "2.11.4";
+        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        boolean enableSource = randomBoolean(); // enable _source at index level
+
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
+        indexProps.put("_source", enableSource);
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        createIndexWithFieldTypeAndProperties("version", fieldProps, explicitSourceSetting ? indexProps : null);
+        index("{\"version_field\":\"" + actualValue + "\"}");
+
+        if (explicitSourceSetting == false || enableSource) {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("columns", asList(columnInfo("plain", "version_field", "version", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("rows", singletonList(singletonList(actualValue)));
+            assertResponse(expected, runSql(query));
+        } else {
+            expectSourceDisabledError(query);
+        }
+    }
+
+    /*
      *    "geo_point_field": {
      *       "type": "geo_point",
      *       "ignore_malformed": true/false

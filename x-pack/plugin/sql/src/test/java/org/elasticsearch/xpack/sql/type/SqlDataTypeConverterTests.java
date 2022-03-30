@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -772,6 +773,24 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+    }
+
+    public void testStringToVersion() {
+        Converter conversion = converterFor(KEYWORD, VERSION);
+        assertNull(conversion.convert(null));
+        assertEquals("2.1.4", conversion.convert("2.1.4"));
+        assertEquals("2.1.4-SNAPSHOT", conversion.convert("2.1.4-SNAPSHOT"));
+    }
+
+    public void testVersionToString() {
+        Source s = new Source(Location.EMPTY, "2.1.4");
+        Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
+        Converter ipToString = converterFor(VERSION, KEYWORD);
+        assertEquals("2.1.4", ipToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", ipToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter stringToIp = converterFor(KEYWORD, VERSION);
+        assertEquals("2.1.4", ipToString.convert(stringToIp.convert(new Literal(s, "2.1.4", KEYWORD))));
+        assertEquals("2.1.4-SNAPSHOT", ipToString.convert(stringToIp.convert(new Literal(s2, "2.1.4-SNAPSHOT", KEYWORD))));
     }
 
     private DataType randomInterval() {

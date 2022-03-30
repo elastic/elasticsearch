@@ -363,6 +363,11 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where ip_addr == 0");
     }
 
+    public void testVersion() {
+        final IndexResolution idxr = loadIndexResolution("mapping-version.json");
+        accept(idxr, "foo where version_number == \"2.1.4\"");
+    }
+
     public void testJoin() {
         final IndexResolution idxr = loadIndexResolution("mapping-join.json");
         accept(idxr, "foo where serial_event_id == 0");

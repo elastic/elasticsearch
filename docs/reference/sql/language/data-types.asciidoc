@@ -28,6 +28,7 @@ s|SQL precision
 | <<binary, `binary`>>                     | binary          | VARBINARY   | 2,147,483,647
 | <<date, `date`>>                         | datetime        | TIMESTAMP   | 29
 | <<ip, `ip`>>                             | ip              | VARCHAR     | 39
+| <<version, `version`>>                   | version         | VARCHAR     | 32,766
 
 4+h| Complex types
 

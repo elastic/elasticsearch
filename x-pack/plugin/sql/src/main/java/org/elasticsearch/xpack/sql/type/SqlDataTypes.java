@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
@@ -362,6 +363,9 @@ public class SqlDataTypes {
         if (dataType == IP) {
             return JDBCType.VARCHAR;
         }
+        if (dataType == VERSION) {
+            return JDBCType.VARCHAR;
+        }
         if (dataType == BINARY) {
             return JDBCType.BINARY;
         }
@@ -488,6 +492,9 @@ public class SqlDataTypes {
         if (dataType == IP) {
             return dataType.size();
         }
+        if (dataType == VERSION) {
+            return dataType.size();
+        }
         if (dataType == BINARY) {
             return dataType.size();
         }
@@ -606,6 +613,9 @@ public class SqlDataTypes {
             return 34;
         }
         if (dataType == IP) {
+            return dataType.size();
+        }
+        if (dataType == VERSION) {
             return dataType.size();
         }
         if (dataType == BINARY) {

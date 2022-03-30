@@ -62,6 +62,7 @@ public abstract class GroupByKey extends Agg {
             } else if (script.outputType() == IP) {
                 builder.userValuetypeHint(ValueType.IP);
             }
+            // TODO hint for VERSION
         }
         // field based
         else {

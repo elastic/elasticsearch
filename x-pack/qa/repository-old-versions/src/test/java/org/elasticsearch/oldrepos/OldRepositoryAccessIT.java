@@ -25,9 +25,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
-import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
@@ -47,6 +45,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -367,17 +366,19 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertDocs("restored_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as full copy searchable snapshot
-        RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
-            .mountSnapshot(
-                new MountSnapshotRequest(repoName, snapshotName, indexName).storage(MountSnapshotRequest.Storage.FULL_COPY)
-                    .renamedIndex("mounted_full_copy_" + indexName)
-                    .indexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
-                    .waitForCompletion(true),
-                RequestOptions.DEFAULT
-            );
-        assertNotNull(mountSnapshotResponse.getRestoreInfo());
-        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
-        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
+        Request mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
+        mountRequest.setJsonEntity(
+            "{\"index\": \""
+                + indexName
+                + "\",\"renamed_index\": \"mounted_full_copy_"
+                + indexName
+                + "\",\"index_settings\": {\"index.number_of_replicas\": 1}}"
+        );
+        mountRequest.addParameter("wait_for_completion", "true");
+        ObjectPath mountResponse = ObjectPath.createFromResponse(client().performRequest(mountRequest));
+        assertNotNull(mountResponse.evaluate("snapshot"));
+        assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.total"));
+        assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.successful"));
 
         ensureGreen("mounted_full_copy_" + indexName);
 
@@ -385,16 +386,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as shared cache searchable snapshot
-        mountSnapshotResponse = client.searchableSnapshots()
-            .mountSnapshot(
-                new MountSnapshotRequest(repoName, snapshotName, indexName).storage(MountSnapshotRequest.Storage.SHARED_CACHE)
-                    .renamedIndex("mounted_shared_cache_" + indexName)
-                    .waitForCompletion(true),
-                RequestOptions.DEFAULT
-            );
-        assertNotNull(mountSnapshotResponse.getRestoreInfo());
-        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
-        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
+        mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
+        mountRequest.setJsonEntity("{\"index\": \"" + indexName + "\",\"renamed_index\": \"mounted_shared_cache_" + indexName + "\"}");
+        mountRequest.addParameter("wait_for_completion", "true");
+        mountRequest.addParameter("storage", "shared_cache");
+        mountResponse = ObjectPath.createFromResponse(client().performRequest(mountRequest));
+        assertNotNull(mountResponse.evaluate("snapshot"));
+        assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.total"));
+        assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.successful"));
 
         // run a search against the index
         assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);

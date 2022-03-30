@@ -101,7 +101,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         assertResponse(runQuery(index, query));
     }
 
-    protected void assertResponse(EqlSearchResponse response) {
+    private void assertResponse(EqlSearchResponse response) {
         Hits hits = response.hits();
         if (hits.events() != null) {
             assertEvents(hits.events());
@@ -112,7 +112,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
+    private EqlSearchResponse runQuery(String index, String query) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(index, query);
 
         request.eventCategoryField(eventCategory());
@@ -127,7 +127,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return runRequest(eqlClient(), request);
     }
 
-    protected EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
+    private EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
         int timeout = Math.toIntExact(timeout().millis());
 
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
@@ -143,7 +143,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return eqlClient.search(request, optionsBuilder.setRequestConfig(config).build());
     }
 
-    protected EqlClient eqlClient() {
+    private EqlClient eqlClient() {
         return highLevelClient().eql();
     }
 
@@ -154,7 +154,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return highLevelClient;
     }
 
-    protected void assertEvents(List<Event> events) {
+    private void assertEvents(List<Event> events) {
         assertNotNull(events);
         logger.debug("Events {}", new Object() {
             public String toString() {
@@ -198,7 +198,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return ids;
     }
 
-    protected void assertSequences(List<Sequence> sequences) {
+    private void assertSequences(List<Sequence> sequences) {
         List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).toList();
         assertEvents(events);
         List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).toList();

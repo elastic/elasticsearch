@@ -25,17 +25,17 @@ attempting to access a resource, {es} assumes that these users are distinct and
 doesn't allow resources to be shared between them.
 
 However, there are cases where the same user can authenticate with
-different realms and need to share the same set of resources across the realms.
+different realms and needs to share the same set of resources across the realms.
 For example, an <<ldap-realm,LDAP realm>> and a <<saml-realm,SAML realm>> can
 be backed by the same directory service. Additionally,
 <<configuring-authorization-delegation,authorization delegation>> allows one
 realm to delegate authorization to another realm. If both realms authenticate
-users with the same `username`, it is reasonable to treat these users to
-be the same user.
+users with the same `username`, it is reasonable to treat these users as the
+same end-user identity from a resource ownership point of view.
 
 With security domains, you can configure multiple realms to be under the same
 domain, users can authenticate with any of the realms and have access to the
-same set of resources regardless of which realm authenticating from,
+same set of resources regardless of which realm they authenticated with,
 (provided those realms are under the same domain).
 For example, a single <<user-profile,user profile>> is
 associated to the user, enabling user preferences, notifications, and other

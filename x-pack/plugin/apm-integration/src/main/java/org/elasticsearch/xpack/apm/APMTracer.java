@@ -261,8 +261,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private Context getParentSpanContext() {
         // Check for a parent context in the thread context.
         final ThreadContext threadContext = threadPool.getThreadContext();
-        final String traceParentHeader = threadContext.getHeader("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-        final String traceStateHeader = threadContext.getHeader("parent_" + Task.TRACE_STATE);
+        final String traceParentHeader = threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+        final String traceStateHeader = threadContext.getTransient("parent_" + Task.TRACE_STATE);
 
         if (traceParentHeader != null) {
             final Map<String, String> traceContextMap = new HashMap<>(2);

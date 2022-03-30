@@ -15,6 +15,7 @@ esplugin {
   description 'Provides APM integration for Elasticsearch'
   classname 'org.elasticsearch.xpack.apm.APM'
   extendedPlugins = ['x-pack-core']
+  javaOpts = "-javaagent:modules/apm-integration/elastic-apm-agent-${versions.apm_agent}.jar"
 }
 
 dependencies {

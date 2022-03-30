@@ -199,12 +199,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final String javaOpts = propsMap.remove("java.opts");
 
-        if (type != PluginType.BOOTSTRAP && Strings.isNullOrEmpty(javaOpts) == false) {
-            throw new IllegalArgumentException(
-                "[java.opts] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
-            );
-        }
-
         boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
 
         if (propsMap.isEmpty() == false) {
@@ -355,8 +349,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns any additional JVM command-line options that this plugin adds. Only applies to
-     * plugins whose <code>type</code> is "bootstrap".
+     * Returns any additional JVM command-line options that this plugin adds.
      *
      * @return any additional JVM options.
      */
@@ -385,9 +378,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("has_native_controller", hasNativeController);
             builder.field("licensed", isLicensed);
             builder.field("type", type);
-            if (type == PluginType.BOOTSTRAP) {
-                builder.field("java_opts", javaOpts);
-            }
+            builder.field("java_opts", javaOpts);
         }
         builder.endObject();
 
@@ -450,11 +441,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix)
             .append("Type: ")
             .append(type)
+            .append("\n")
+            .append(prefix)
+            .append("Java Opts: ")
+            .append(javaOpts)
             .append("\n");
-
-        if (type == PluginType.BOOTSTRAP) {
-            information.append(prefix).append("Java Opts: ").append(javaOpts).append("\n");
-        }
 
         information.append(prefix)
             .append("Extended Plugins: ")

@@ -122,6 +122,15 @@ final class JvmOptionsParser {
     private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
         throws InterruptedException, IOException, JvmOptionsFileParserException {
 
+        final Path esHome = Path.of(System.getenv("ES_HOME"));
+        if (Files.notExists(esHome)) {
+            throw new RuntimeException("ES_HOME not set or doesn't exist");
+        }
+        Path modules = esHome.resolve("modules");
+        if (Files.notExists(modules) || Files.isDirectory(modules) == false) {
+            throw new RuntimeException("ES_HOME does not point to a valid installation - [modules] not found or not a directory");
+        }
+
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 
         if (esJavaOpts != null) {
@@ -135,7 +144,7 @@ final class JvmOptionsParser {
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
-        final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(plugins);
+        final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(modules, plugins);
 
         final List<String> finalJvmOptions = new ArrayList<>(
             systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + bootstrapOptions.size()

@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 /**
  * This class looks for plugins whose "type" is "bootstrap". Such plugins
@@ -28,27 +28,32 @@ public class BootstrapJvmOptions {
 
     private BootstrapJvmOptions() {}
 
-    public static List<String> bootstrapJvmOptions(Path plugins) throws IOException {
+    public static List<String> bootstrapJvmOptions(Path modules, Path plugins) throws IOException {
+        if (Files.isDirectory(modules) == false) {
+            throw new IllegalArgumentException("Modules path " + modules + " must be a directory");
+        }
+
         if (Files.isDirectory(plugins) == false) {
             throw new IllegalArgumentException("Plugins path " + plugins + " must be a directory");
         }
 
+        final List<PluginInfo> modulesInfo = getPluginInfo(modules);
         final List<PluginInfo> pluginInfo = getPluginInfo(plugins);
 
-        return generateOptions(pluginInfo);
+        return generateOptions(modulesInfo, pluginInfo);
     }
 
     // Find all plugins and return their jars and descriptors.
     private static List<PluginInfo> getPluginInfo(Path plugins) throws IOException {
         final List<PluginInfo> pluginInfo = new ArrayList<>();
 
-        final List<Path> pluginDirs = Files.list(plugins).collect(Collectors.toList());
+        final List<Path> pluginDirs = Files.list(plugins).toList();
 
         for (Path pluginDir : pluginDirs) {
             final List<String> jarFiles = new ArrayList<>();
             final Properties props = new Properties();
 
-            final List<Path> pluginFiles = Files.list(pluginDir).collect(Collectors.toList());
+            final List<Path> pluginFiles = Files.list(pluginDir).toList();
             for (Path pluginFile : pluginFiles) {
                 final String lowerCaseName = pluginFile.getFileName().toString().toLowerCase(Locale.ROOT);
 
@@ -72,33 +77,33 @@ public class BootstrapJvmOptions {
     }
 
     // package-private for testing
-    static List<String> generateOptions(List<PluginInfo> pluginInfo) {
+    static List<String> generateOptions(List<PluginInfo> modulesInfo, List<PluginInfo> pluginInfo) {
         final List<String> bootstrapJars = new ArrayList<>();
-        final List<String> bootstrapOptions = new ArrayList<>();
+        final List<String> extraJavaOptions = new ArrayList<>();
 
-        for (PluginInfo info : pluginInfo) {
+        // Add any additional Java CLI options. This could contain any number of options,
+        // but we don't attempt to split them up as all JVM options are concatenated together
+        // anyway
+
+        final Consumer<PluginInfo> infoConsumer = info -> {
             final String type = info.properties.getProperty("type", "isolated").toLowerCase(Locale.ROOT);
-
             if (type.equals("bootstrap")) {
                 bootstrapJars.addAll(info.jarFiles);
-
-                // Add any additional Java CLI options. This could contain any number of options,
-                // but we don't attempt to split them up as all JVM options are concatenated together
-                // anyway
-                final String javaOpts = info.properties.getProperty("java.opts", "");
-                if (javaOpts.isBlank() == false) {
-                    bootstrapOptions.add(javaOpts);
-                }
             }
+            final String javaOpts = info.properties.getProperty("java.opts", "");
+            if (javaOpts.isBlank() == false) {
+                extraJavaOptions.add(javaOpts);
+            }
+        };
+
+        modulesInfo.forEach(infoConsumer);
+        pluginInfo.forEach(infoConsumer);
+
+        if (bootstrapJars.isEmpty() == false) {
+            extraJavaOptions.add("-Xbootclasspath/a:" + String.join(":", bootstrapJars));
         }
 
-        if (bootstrapJars.isEmpty()) {
-            return List.of();
-        }
-
-        bootstrapOptions.add("-Xbootclasspath/a:" + String.join(":", bootstrapJars));
-
-        return bootstrapOptions;
+        return extraJavaOptions;
     }
 
     // package-private for testing

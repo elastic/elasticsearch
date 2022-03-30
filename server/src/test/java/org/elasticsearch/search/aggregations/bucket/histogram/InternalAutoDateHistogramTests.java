@@ -489,8 +489,9 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         byte[] bytes = Base64.getDecoder()
             .decode(
                 "BG5hbWUKAAYBCAFa6AcEAAAAAQAAAAUAAAAKAAAAHgFzBnNlY29uZAEHAVrg1AMEAAAAAQAAAAUAAAAKAAA"
-                    + "AHgFtBm1pbnV0ZQEGAVqA3dsBAwAAAAEAAAADAAAADAFoBGhvdXIBBQFagLiZKQIAAAABAAAABwFkA2RheQEEAVqAkPvTCQIAAAABAAAAAwFNBW1vbnRoAQIB"
-                    + "WoDYxL11BgAAAAEAAAAFAAAACgAAABQAAAAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                    + "AHgFtBm1pbnV0ZQEGAVqA3dsBAwAAAAEAAAADAAAADAFoBGhvdXIBBQFagLiZKQIAAAABAAAABwFk"
+                    + "A2RheQEEAVqAkPvTCQIAAAABAAAAAwFNBW1vbnRoAQIBWoDYxL11BgAAAAEAAAAFAAAACgAAABQAA"
+                    + "AAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
             );
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
             in.setVersion(Version.V_8_1_1);

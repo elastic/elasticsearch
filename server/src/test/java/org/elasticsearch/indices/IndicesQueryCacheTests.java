@@ -166,7 +166,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats.getMissCount());
 
         cache.close(); // this triggers some assertions
-        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 
     public void testUseNonProductionSettings() throws Exception {
@@ -189,7 +189,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
                 settings.put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomLongBetween(1, 10_000));
             }
             try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
-                assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
+                assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
             }
         }
     }
@@ -316,7 +316,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats2.getMemorySizeInBytes());
 
         cache.close(); // this triggers some assertions
-        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 
     // Make sure the cache behaves correctly when a segment that is associated
@@ -371,7 +371,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard2);
 
         cache.close(); // this triggers some assertions
-        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 
     private static class DummyWeight extends Weight {
@@ -446,6 +446,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close();
-        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 }

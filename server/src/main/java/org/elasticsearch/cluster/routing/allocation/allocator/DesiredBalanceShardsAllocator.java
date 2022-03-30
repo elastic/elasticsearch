@@ -40,7 +40,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
-                if (desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, () -> isFresh(desiredBalanceInput))) {
+                if (desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh)) {
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.wrap(() -> {}));
                 }
             }

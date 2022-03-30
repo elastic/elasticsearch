@@ -1564,7 +1564,7 @@ public class Security extends Plugin
         final boolean extractClientCertificate;
         if (enabled && HTTP_SSL_ENABLED.get(settings)) {
             final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+            extractClientCertificate = SSLService.isSSLClientAuthEnabled(httpSSLConfig);
         } else {
             extractClientCertificate = false;
         }

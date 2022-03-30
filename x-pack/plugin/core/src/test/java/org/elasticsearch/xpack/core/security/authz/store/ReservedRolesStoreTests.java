@@ -932,6 +932,50 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
         });
 
+        // read-only datastream for csp indices
+        Arrays.asList("logs-cis_kubernetes_benchmark.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
+        Arrays.asList("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
+            .forEach(indexName -> {
+                logger.info("index name [{}]", indexName);
+                final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+                // Allow indexing
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
+                // Allow create and delete index
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+
+                // Implied by the overall view_index_metadata and monitor privilege
+                assertViewIndexMetadata(kibanaRole, indexName);
+                assertThat(
+                    kibanaRole.indices()
+                        .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8))
+                        .test(indexAbstraction),
+                    is(true)
+                );
+            });
+
         // Ensure privileges necessary for ILM policies in APM & Endpoint packages
         Arrays.asList(
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),

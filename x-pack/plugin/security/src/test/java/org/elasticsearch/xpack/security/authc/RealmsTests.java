@@ -27,7 +27,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -804,9 +803,6 @@ public class RealmsTests extends ESTestCase {
             OpenIdConnectRealmSettings.TYPE,
             JwtRealmSettings.TYPE
         );
-        if (XPackSettings.JWT_REALM_FEATURE_FLAG_ENABLED == false) {
-            platinumRealms.remove(JwtRealmSettings.TYPE);
-        }
         final String selectedRealmType = randomFrom(platinumRealms);
         factories.put(selectedRealmType, config -> new DummyRealm(config));
         final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(selectedRealmType);

@@ -286,7 +286,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             /**
              * A shard exists/existed in a node only if shard state file exists in the node
              */
-            private boolean shardExistsInNode(final NodeGatewayStartedShards response) {
+            private static boolean shardExistsInNode(final NodeGatewayStartedShards response) {
                 return response.storeException() != null || response.allocationId() != null;
             }
 

@@ -551,7 +551,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
-    private void callClusterStateListener(
+    private static void callClusterStateListener(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<? extends ClusterStateListener> listeners

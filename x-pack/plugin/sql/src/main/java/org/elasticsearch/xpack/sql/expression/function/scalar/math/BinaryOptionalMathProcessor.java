@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -23,17 +24,8 @@ public class BinaryOptionalMathProcessor implements Processor {
 
     public enum BinaryOptionalMathOperation implements BiFunction<Number, Number, Number> {
 
-        ROUND((l, r) -> {
-            double tenAtScale = Math.pow(10., r.longValue());
-            double middleResult = l.doubleValue() * tenAtScale;
-            int sign = middleResult > 0 ? 1 : -1;
-            return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
-        }),
-        TRUNCATE((l, r) -> {
-            double tenAtScale = Math.pow(10., r.longValue());
-            double g = l.doubleValue() * tenAtScale;
-            return (((l.doubleValue() < 0) ? Math.ceil(g) : Math.floor(g)) / tenAtScale);
-        });
+        ROUND((n, precision) -> Maths.round(n, precision)),
+        TRUNCATE((n, precision) -> Maths.truncate(n, precision));
 
         private final BiFunction<Number, Number, Number> process;
 

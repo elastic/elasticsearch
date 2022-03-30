@@ -8,9 +8,6 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -29,14 +26,12 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
 
@@ -99,6 +94,11 @@ public class IndicesQueryCacheTests extends ESTestCase {
                 return true;
             }
         };
+    }
+
+    private void assertNonProductionSettingWarning() {
+        assertCriticalWarnings("[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch" +
+            " and will be removed in a future release.");
     }
 
     public void testBasics() throws IOException {
@@ -170,62 +170,30 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats.getMissCount());
 
         cache.close(); // this triggers some assertions
+        assertNonProductionSettingWarning();
     }
 
     public void testUseNonProductionSettings() throws Exception {
-        Logger logger = LogManager.getLogger(IndicesQueryCache.class);
-        // Use non-production setting
-        String message = "[indices.queries.cache.all_segments] setting shouldn't be enabled in production environments. "
-            + "The setting will be removed in a future version";
-        {
-            MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            try {
-                Loggers.addAppender(logger, appender);
-                Settings.Builder settings = Settings.builder();
-                settings.put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true);
-                if (randomBoolean()) {
-                    settings.put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomLongBetween(1, 10_000));
-                }
-                appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
-                        "non-production setting",
-                        IndicesQueryCache.class.getName(),
-                        Level.WARN,
-                        message
-                    )
-                );
-                try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
-                    appender.assertAllExpectationsMatched();
-                }
-            } finally {
-                Loggers.removeAppender(logger, appender);
-            }
-        }
         // Use production setting
         {
-            MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            try {
-                Loggers.addAppender(logger, appender);
-                Settings.Builder settings = Settings.builder();
-                if (randomBoolean()) {
-                    settings.put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomLongBetween(1, 10_000))
-                        .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), false);
-                }
-                appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
-                        "non-production setting",
-                        IndicesQueryCache.class.getName(),
-                        Level.WARN,
-                        message
-                    )
-                );
-                try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
-                    appender.assertAllExpectationsMatched();
-                }
-            } finally {
-                Loggers.removeAppender(logger, appender);
+            Settings.Builder settings = Settings.builder();
+            if (randomBoolean()) {
+                settings.put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomLongBetween(1, 10_000));
+            }
+            try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
+                ensureNoWarnings();
+            }
+            ensureNoWarnings();
+        }
+        // Use non production setting
+        {
+            Settings.Builder settings = Settings.builder();
+            settings.put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), randomBoolean());
+            if (randomBoolean()) {
+                settings.put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomLongBetween(1, 10_000));
+            }
+            try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
+                assertNonProductionSettingWarning();
             }
         }
     }
@@ -352,6 +320,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats2.getMemorySizeInBytes());
 
         cache.close(); // this triggers some assertions
+        assertNonProductionSettingWarning();
     }
 
     // Make sure the cache behaves correctly when a segment that is associated
@@ -406,6 +375,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard2);
 
         cache.close(); // this triggers some assertions
+        assertNonProductionSettingWarning();
     }
 
     private static class DummyWeight extends Weight {
@@ -480,5 +450,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close();
+        assertNonProductionSettingWarning();
     }
 }

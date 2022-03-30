@@ -796,7 +796,7 @@ public class IndicesService extends AbstractLifecycleComponent
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             });
             closeables.add(indicesFieldDataCache);
-            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(Settings.EMPTY);
+            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService(

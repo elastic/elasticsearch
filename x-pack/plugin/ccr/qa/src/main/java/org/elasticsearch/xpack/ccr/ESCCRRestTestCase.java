@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -276,12 +277,12 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertThat(nodes.size(), equalTo(1));
         Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
         Map<?, ?> nodeTasks = (Map<?, ?>) node.get("tasks");
-        var ccrNodeTasks = new HashSet<CcrNodeTask>();
+        HashSet<CcrNodeTask> ccrNodeTasks = new HashSet<CcrNodeTask>();
         for (Map.Entry<?, ?> entry : nodeTasks.entrySet()) {
             Map<?, ?> nodeTask = (Map<?, ?>) entry.getValue();
             String action = (String) nodeTask.get("action");
             if (action.startsWith("xpack/ccr/shard_follow_task")) {
-                var status = (Map<?, ?>) nodeTask.get("status");
+                Map<?, ?> status = (Map<?, ?>) nodeTask.get("status");
                 ccrNodeTasks.add(
                     new CcrNodeTask(
                         (String) status.get("remote_cluster"),
@@ -295,7 +296,52 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return ccrNodeTasks;
     }
 
-    protected record CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {}
+    protected class CcrNodeTask {
+        private final String remoteCluster;
+        private final String leaderIndex;
+        private final String followerIndex;
+        private final int shardId;
+
+        public CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {
+            this.remoteCluster = remoteCluster;
+            this.leaderIndex = leaderIndex;
+            this.followerIndex = followerIndex;
+            this.shardId = shardId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            CcrNodeTask that = (CcrNodeTask) o;
+            return Objects.equals(remoteCluster, that.remoteCluster)
+                && Objects.equals(leaderIndex, that.leaderIndex)
+                && Objects.equals(followerIndex, that.followerIndex)
+                && shardId == that.shardId;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(remoteCluster, leaderIndex, followerIndex, shardId);
+        }
+
+        @Override
+        public String toString() {
+            return "CcrNodeTask{remoteCluster='"
+                + remoteCluster
+                + "', leaderIndex='"
+                + leaderIndex
+                + "', followerIndex='"
+                + followerIndex
+                + "', shardId="
+                + shardId
+                + '}';
+        }
+    }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
         createIndex(name, settings, "");

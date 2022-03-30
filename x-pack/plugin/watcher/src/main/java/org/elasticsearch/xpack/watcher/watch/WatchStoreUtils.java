@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 
 public class WatchStoreUtils {
 
     /**
-     * Method to get indexmetadata of a index, that potentially is behind an alias.
+     * Method to get indexmetadata of a index, that potentially is behind an alias or data stream.
      *
      * @param name Name of the index or the alias
      * @param metadata Metadata to search for the name
-     * @return IndexMetadata of the concrete index
+     * @return IndexMetadata of the concrete index. If this alias or data stream has a writable index, this one is returned
      * @throws IllegalStateException If an alias points to two indices
      * @throws IndexNotFoundException If no index exists
      */
@@ -28,11 +29,18 @@ public class WatchStoreUtils {
             return null;
         }
 
-        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indexAbstraction.getIndices().size() > 1) {
+        if ((indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX
+            && indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)
+            && indexAbstraction.getIndices().size() > 1
+            && indexAbstraction.getWriteIndex() == null) {
             throw new IllegalStateException("Alias [" + name + "] points to more than one index");
         }
 
-        return metadata.index(indexAbstraction.getIndices().get(0));
+        Index concreteIndex = indexAbstraction.getWriteIndex();
+        if (concreteIndex == null) {
+            concreteIndex = indexAbstraction.getIndices().get(indexAbstraction.getIndices().size() - 1);
+        }
+        return metadata.index(concreteIndex);
     }
 
 }

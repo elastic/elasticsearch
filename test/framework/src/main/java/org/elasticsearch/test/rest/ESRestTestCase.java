@@ -1557,14 +1557,20 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
         if (mapping != null) {
+            if (settings != null) {
+                entity += ",";
+            }
             if (mapping.trim().startsWith("{")) {
-                entity += ",\"mappings\" : " + mapping + "";
+                entity += "\"mappings\" : " + mapping + "";
             } else {
-                entity += ",\"mappings\" : {" + mapping + "}";
+                entity += "\"mappings\" : {" + mapping + "}";
             }
         }
         if (aliases != null) {
-            entity += ",\"aliases\": {" + aliases + "}";
+            if (settings != null || mapping != null) {
+                entity += ",";
+            }
+            entity += "\"aliases\": {" + aliases + "}";
         }
         entity += "}";
         request.setJsonEntity(entity);

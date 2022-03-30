@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -331,4 +332,26 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     protected abstract Number randomNumber();
 
+    public void testSyntheticSourceWithoutDocValues() throws IOException {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            minimalMapping(b);
+            b.field("doc_values", false);
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values")
+        );
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                b -> b.field("type", "keyword").field("doc_values", false)
+            )
+        );
+    }
 }

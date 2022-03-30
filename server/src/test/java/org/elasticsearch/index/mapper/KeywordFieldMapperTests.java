@@ -618,4 +618,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        String v = randomAlphaOfLength(5);
+        return new SyntheticSourceExample(v, '"' + v + '"', this::minimalMapping);
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
+                b -> b.field("type", "keyword").field("doc_values", false)
+            )
+        );
+    }
 }

@@ -87,4 +87,10 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
             );
         }
     }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        Number n = randomNumber();
+        return new SyntheticSourceExample(n, n.toString(), this::minimalMapping);
+    }
 }

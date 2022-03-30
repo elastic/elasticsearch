@@ -16,6 +16,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -1517,5 +1519,93 @@ public class NumberFieldMapper extends FieldMapper {
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
         }
+    }
+
+    @Override
+    public void validateSyntheticSource() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+    }
+
+    @Override public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        if (fieldType().numericType().isFloatingPoint()) {
+            return syntheticDoubleFieldLoader(fdLookup);
+        }
+        return syntheticLongFieldLoader(fdLookup);
+    }
+
+    private SourceLoader.SyntheticFieldLoader syntheticDoubleFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        SortedDoublesIndexFieldData fd = (SortedDoublesIndexFieldData) fdLookup.apply(fieldType());
+        return new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Leaf leaf(LeafReaderContext ctx) {
+                SortedNumericDoubleValues leaf = fd.load(ctx).getDoubleValues();
+                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
+                    @Override
+                    public void advanceToDoc(int docId) throws IOException {
+                        hasValue = leaf.advanceExact(docId);
+                    }
+
+                    @Override
+                    public boolean hasValue() {
+                        return hasValue;
+                    }
+
+                    @Override
+                    public void load(XContentBuilder b) throws IOException {
+                        if (leaf.docValueCount() == 1) {
+                            b.field(simpleName(), leaf.nextValue());
+                            return;
+                        }
+                        b.startArray(simpleName());
+                        for (int i = 0; i < leaf.docValueCount(); i++) {
+                            b.value(leaf.nextValue());
+                        }
+                        b.endArray();
+                    }
+                };
+            }
+        };
+    }
+
+    private SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        SortedNumericIndexFieldData fd = (SortedNumericIndexFieldData) fdLookup.apply(fieldType());
+        return new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Leaf leaf(LeafReaderContext ctx) {
+                SortedNumericDocValues leaf = fd.load(ctx).getLongValues();
+                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
+                    @Override
+                    public void advanceToDoc(int docId) throws IOException {
+                        hasValue = leaf.advanceExact(docId);
+                    }
+
+                    @Override
+                    public boolean hasValue() {
+                        return hasValue;
+                    }
+
+                    @Override
+                    public void load(XContentBuilder b) throws IOException {
+                        if (leaf.docValueCount() == 1) {
+                            b.field(simpleName(), leaf.nextValue());
+                            return;
+                        }
+                        b.startArray(simpleName());
+                        for (int i = 0; i < leaf.docValueCount(); i++) {
+                            b.value(leaf.nextValue());
+                        }
+                        b.endArray();
+                    }
+                };
+            }
+        };
     }
 }

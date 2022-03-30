@@ -38,12 +38,14 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -762,5 +764,47 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "] was ["
             + mapper.typeName()
             + "].";
+    }
+
+    public final void testSyntheticSource() throws IOException {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject();
+        }));
+        MappedFieldType ft = mapper.mappers().getFieldType("field");
+        String expected = String.format(Locale.ROOT, """
+            {"field":%s}""", syntheticSourceExample.result);
+        assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
+    }
+
+    protected static record SyntheticSourceExample(
+        Object inputValue,
+        String result,
+        CheckedConsumer<XContentBuilder, IOException> mapping
+    ) {}
+
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        assumeTrue("not supported", false);
+        return null;
+    }
+
+    public final void testSyntheticSourceInvalid() throws IOException {
+        for (SyntheticSourceInvalidExample example : syntheticSourceInvalidExamples()) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+                b.startObject("field");
+                example.mapping.accept(b);
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), example.error);
+        }
+    }
+
+    protected static record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        assumeTrue("not supported", false);
+        return null;
     }
 }

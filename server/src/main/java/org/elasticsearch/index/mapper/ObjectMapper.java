@@ -499,6 +499,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @Override
+    public void validateSyntheticSource() {
+        for (Mapper sub : this) {
+            sub.validateSyntheticSource();
+        }
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
         List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
         for (Mapper sub : this) {

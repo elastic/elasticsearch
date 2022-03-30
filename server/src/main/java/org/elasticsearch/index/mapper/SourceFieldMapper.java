@@ -216,4 +216,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }
+
+    public boolean isSynthetic() {
+        return synthetic;
+    }
 }

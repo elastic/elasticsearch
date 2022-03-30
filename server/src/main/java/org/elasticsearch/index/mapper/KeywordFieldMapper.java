@@ -902,6 +902,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > ignoreAbove) {
             context.addIgnoredField(name());
+            // NOCOMMIT fail on synthetic source?
             return;
         }
 
@@ -994,6 +995,15 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public void validateSyntheticSource() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
         SortedSetOrdinalsIndexFieldData fd = (SortedSetOrdinalsIndexFieldData) fdLookup.apply(fieldType());
         return new SourceLoader.SyntheticFieldLoader() {
@@ -1003,11 +1013,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
                     private boolean hasValue;
 
-                    @Override public void advanceToDoc(int docId) throws IOException {
+                    @Override
+                    public void advanceToDoc(int docId) throws IOException {
                         hasValue = leaf.advanceExact(docId);
                     }
 
-                    @Override public boolean hasValue() {
+                    @Override
+                    public boolean hasValue() {
                         return hasValue;
                     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
@@ -643,5 +644,30 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
         return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
+
+    protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            iw.addDocument(mapper.parse(source(build)).rootDoc());
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SourceLoader loader = mapper.sourceMapper()
+                    .newSourceLoader(
+                        ft -> ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+                        mapper.mapping().getRoot()
+                    );
+                return loader.leaf(reader.leaves().get(0)).source(null, 0).utf8ToString();
+            }
+        }
+    }
+
+    protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        return topMapping(b -> {
+            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("properties");
+            buildFields.accept(b);
+            b.endObject();
+        });
     }
 }

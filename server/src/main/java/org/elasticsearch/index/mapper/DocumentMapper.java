@@ -90,6 +90,9 @@ public class DocumentMapper {
                 );
             }
         }
+        if (sourceMapper().isSynthetic()) {
+            mapping().getRoot().validateSyntheticSource();
+        }
         settings.getMode().validateMapping(mappingLookup);
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");

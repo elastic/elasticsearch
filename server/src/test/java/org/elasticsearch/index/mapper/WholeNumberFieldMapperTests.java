@@ -100,4 +100,9 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         registerDimensionChecks(checker);
     }
 
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        Number n = randomNumber();
+        return new SyntheticSourceExample(n, Long.toString(n.longValue()), this::minimalMapping);
+    }
 }

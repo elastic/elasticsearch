@@ -93,7 +93,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
-import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
@@ -883,53 +882,51 @@ public class AuthorizationService {
             }
         }
 
-        String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
-            + " ["
-            + authUser.principal()
-            + "]";
-        // check for run as
+        final AuthorizationDenialMessage.AuthorizationDenialMessageBuilder builder =
+            new AuthorizationDenialMessage.AuthorizationDenialMessageBuilder(
+                authUser.principal(),
+                authentication.isAuthenticatedWithServiceAccount(),
+                action
+            );
+
         if (authentication.getUser().isRunAs()) {
-            userText = userText + " run as [" + authentication.getUser().principal() + "]";
+            builder.setRunAsUserPrincipal(authentication.getUser().principal());
         }
-        // check for authentication by API key
+
         if (authentication.isAuthenticatedAsApiKey()) {
-            final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            // TODO can we get rid of this?
             assert apiKeyId != null : "api key id must be present in the metadata";
-            userText = "API key id [" + apiKeyId + "] of " + userText;
+            builder.setApiKeyId(apiKeyId);
         }
 
         // The run-as user is always from a realm. So it must have roles that can be printed.
         // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
         // roles, but privileges)
         if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
-            userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
+            builder.setRoles(authentication.getUser().roles());
         }
 
-        String message = "action [" + action + "] is unauthorized for " + userText;
         if (context != null) {
-            message = message + " " + context;
+            builder.setContext(context);
         }
 
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
-            final Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
-            if (privileges != null && privileges.size() > 0) {
-                message = message
-                    + ", this action is granted by the cluster privileges ["
-                    + collectionToCommaDelimitedString(privileges)
-                    + "]";
+            Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
+            if (privileges != null && privileges.isEmpty() == false) {
+                builder.setGrantingClusterPrivileges(privileges);
             }
         } else if (isIndexAction(action)) {
-            final Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
-            if (privileges != null && privileges.size() > 0) {
-                message = message
-                    + ", this action is granted by the index privileges ["
-                    + collectionToCommaDelimitedString(privileges)
-                    + "]";
+            Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+            if (privileges != null && privileges.isEmpty() == false) {
+                builder.setGrantingIndexPrivileges(privileges);
             }
         }
 
-        logger.debug(message);
-        return authorizationError(message, cause);
+        AuthorizationDenialMessage message = builder.createAuthorizationDenialMessage();
+
+        logger.debug(message::asLogMessage);
+        return authorizationError(message.asExceptionMessage(), cause);
     }
 
     private class AuthorizationResultListener<T extends AuthorizationResult> implements ActionListener<T> {

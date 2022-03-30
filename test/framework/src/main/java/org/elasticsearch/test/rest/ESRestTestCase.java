@@ -1155,6 +1155,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = client.performRequest(refreshRequest);
         return RefreshResponse.fromXContent(toParser(response));
     }
+
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }

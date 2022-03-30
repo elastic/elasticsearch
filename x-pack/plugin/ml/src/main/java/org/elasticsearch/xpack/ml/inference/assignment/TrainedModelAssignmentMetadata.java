@@ -123,7 +123,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_2_0;
+        return Version.V_8_3_0;
     }
 
     @Override
@@ -210,10 +210,6 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
             return SimpleDiffable.readDiffFrom(TrainedModelAssignment::new, in);
         }
 
-        static Diff<TrainedModelAssignment> readFromOld(final StreamInput in) throws IOException {
-            return SimpleDiffable.readDiffFrom(TrainedModelAssignment::new, in);
-        }
-
         public TrainedModeAssignmentDiff(TrainedModelAssignmentMetadata before, TrainedModelAssignmentMetadata after) {
             this.modelRoutingEntries = DiffableUtils.diff(
                 before.modelRoutingEntries,
@@ -257,7 +253,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.V_8_2_0;
+            return Version.V_8_3_0;
         }
 
         @Override

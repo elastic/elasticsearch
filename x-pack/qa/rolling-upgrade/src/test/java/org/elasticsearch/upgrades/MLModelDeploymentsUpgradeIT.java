@@ -72,7 +72,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_2_0)) {
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_0)) {
                     waitForDeploymentStarted(modelId);
                     assertInfer(modelId);
                     assertInfer(modelId);
@@ -86,7 +86,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
 
-                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_2_0)) {
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_0)) {
                     waitForDeploymentStarted(modelId);
                     assertInfer(modelId);
                 } else {

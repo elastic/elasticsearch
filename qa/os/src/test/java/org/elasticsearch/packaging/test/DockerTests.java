@@ -1266,9 +1266,13 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that readiness listener works
      */
-    public void testReadiness() throws Exception {
+    public void testReadiness001() throws Exception {
         assertFalse(readinessProbe(9399));
-        runContainer(distribution(), builder().envVar("readiness.port", "9399").envVar("discovery.type", "single-node"));
+        // Disabling security so we wait for green
+        installation = runContainer(
+            distribution(),
+            builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
+        );
         waitForElasticsearch(installation);
         assertTrue(readinessProbe(9399));
     }

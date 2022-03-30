@@ -868,7 +868,7 @@ public class AuthorizationService {
             }
         }
 
-        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)
+        final AuthorizationDeniedInfo.Builder denialInfoBuilder = AuthorizationDeniedInfo.builder(authentication, action)
             .withApiKeyId()
             .withRunAsUserPrincipal()
             .withContext("because user unauthorized to run as target user");
@@ -892,7 +892,7 @@ public class AuthorizationService {
             }
         }
 
-        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)
+        final AuthorizationDeniedInfo.Builder denialInfoBuilder = AuthorizationDeniedInfo.builder(authentication, action)
             .withApiKeyId()
             .withRunAsUserPrincipal()
             .withRoles()

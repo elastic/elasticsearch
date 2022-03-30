@@ -11,7 +11,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
@@ -185,7 +184,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             request.toXContent(builder, null);
             restRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
             Response restResponse = restClient.getLowLevelClient().performRequest(restRequest);
-            AcknowledgedResponse response = CreateIndexResponse.fromXContent(responseAsParser(restResponse));
+            AcknowledgedResponse response = AcknowledgedResponse.fromXContent(responseAsParser(restResponse));
             assertThat(response.isAcknowledged(), is(true));
         }
 

@@ -1,0 +1,5 @@
+pr: 85501
+summary: Better error message for run-as denials
+area: Authorization
+type: enhancement
+issues: []

@@ -8,12 +8,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -493,5 +496,64 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
+        for (Mapper sub : this) {
+            SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader(fdLookup);
+            if (subLoader != null) {
+                fields.add(subLoader);
+            }
+        }
+        return new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Leaf leaf(LeafReaderContext ctx) {
+                List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
+                for (SourceLoader.SyntheticFieldLoader field : fields) {
+                    leaves.add(field.leaf(ctx));
+                }
+                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    @Override
+                    public void advanceToDoc(int docId) throws IOException {
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            leaf.advanceToDoc(docId);
+                        }
+                    }
+
+                    @Override
+                    public boolean hasValue() {
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            if (leaf.hasValue()) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    public void load(XContentBuilder b) throws IOException {
+                        boolean started = false;
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            if (leaf.hasValue()) {
+                                if (false == started) {
+                                    started = true;
+                                    startSyntheticField(b);
+                                }
+                                leaf.load(b);
+                            }
+                        }
+                        if (started) {
+                            b.endObject();
+                        }
+                    }
+                };
+            }
+        };
+    }
+
+    protected void startSyntheticField(XContentBuilder b) throws IOException {
+        b.startObject(simpleName());
     }
 }

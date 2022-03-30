@@ -41,6 +41,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -69,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
@@ -988,5 +991,40 @@ public final class KeywordFieldMapper extends FieldMapper {
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        SortedSetOrdinalsIndexFieldData fd = (SortedSetOrdinalsIndexFieldData) fdLookup.apply(fieldType());
+        return new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Leaf leaf(LeafReaderContext ctx) {
+                SortedBinaryDocValues leaf = fd.load(ctx).getBytesValues();
+                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
+                    @Override public void advanceToDoc(int docId) throws IOException {
+                        hasValue = leaf.advanceExact(docId);
+                    }
+
+                    @Override public boolean hasValue() {
+                        return hasValue;
+                    }
+
+                    @Override
+                    public void load(XContentBuilder b) throws IOException {
+                        if (leaf.docValueCount() == 1) {
+                            b.field(simpleName(), leaf.nextValue().utf8ToString());
+                            return;
+                        }
+                        b.startArray(simpleName());
+                        for (int i = 0; i < leaf.docValueCount(); i++) {
+                            b.value(leaf.nextValue().utf8ToString());
+                        }
+                        b.endArray();
+                    }
+                };
+            }
+        };
     }
 }

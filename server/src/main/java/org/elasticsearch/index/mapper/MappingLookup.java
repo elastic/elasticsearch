@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -405,6 +406,11 @@ public final class MappingLookup {
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
+    }
+
+    public SourceLoader newSourceLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(fdLookup, mapping.getRoot());
     }
 
     /**

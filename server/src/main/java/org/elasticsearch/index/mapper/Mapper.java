@@ -9,13 +9,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
-
     public abstract static class Builder {
 
         protected final String name;
@@ -66,6 +67,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
+
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
+        return null;
+    }
 
     @Override
     public String toString() {

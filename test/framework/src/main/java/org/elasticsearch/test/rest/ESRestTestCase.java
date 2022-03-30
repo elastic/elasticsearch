@@ -1552,6 +1552,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         String entity = "{";
         if (settings != null) {
             entity += "\"settings\": " + Strings.toString(settings);
+            if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+                expectSoftDeletesWarning(request, name);
+            }
         }
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
@@ -1560,9 +1563,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             entity += ",\"aliases\": {" + aliases + "}";
         }
         entity += "}";
-        if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            expectSoftDeletesWarning(request, name);
-        }
         request.setJsonEntity(entity);
         Response response = client.performRequest(request);
         return CreateIndexResponse.fromXContent(toParser(response));

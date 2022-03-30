@@ -276,7 +276,6 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final TransformClient transformClient = new TransformClient(this);
-    private final EqlClient eqlClient = new EqlClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -383,20 +382,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public TransformClient transform() {
         return transformClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic EQL APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/eql.html">
-     *     EQL APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public final EqlClient eql() {
-        return eqlClient;
     }
 
     /**

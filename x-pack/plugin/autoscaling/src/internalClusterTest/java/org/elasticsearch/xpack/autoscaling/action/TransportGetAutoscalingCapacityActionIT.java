@@ -11,7 +11,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -66,7 +66,7 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
                     + "*\"reason_summary\"*\"reason_details\"*]"
             )
         );
-        AppenderUtils.addAppender(subjectLogger, appender);
+        AppenderSupport.provider().addAppender(subjectLogger, appender);
         try {
             GetAutoscalingCapacityAction.Response capacity = capacity();
             AutoscalingCapacity currentCapacity = capacity.results().get("test").currentCapacity();
@@ -77,7 +77,7 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            AppenderUtils.removeAppender(subjectLogger, appender);
+            AppenderSupport.provider().removeAppender(subjectLogger, appender);
         }
     }
 

@@ -43,7 +43,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -1276,7 +1276,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         );
         mockAppender.start();
         final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
-        AppenderUtils.addAppender(logger, mockAppender);
+        AppenderSupport.provider().addAppender(logger, mockAppender);
         try {
             final String index1 = "index-1";
             final String index2 = "index-2";
@@ -1291,7 +1291,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             clusterAdmin().prepareDeleteSnapshot(repoName, snapshot1, snapshot2).get();
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, mockAppender);
+            AppenderSupport.provider().removeAppender(logger, mockAppender);
             mockAppender.stop();
         }
     }

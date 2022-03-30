@@ -22,7 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -177,14 +177,14 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             )
         );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
-        AppenderUtils.addAppender(targetLogger, mockAppender);
+        AppenderSupport.provider().addAppender(targetLogger, mockAppender);
 
         try {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(targetLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(targetLogger, mockAppender);
             mockAppender.stop();
         }
     }

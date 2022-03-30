@@ -31,7 +31,7 @@ import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -196,7 +196,7 @@ final class Bootstrap {
                 public void run() {
                     try {
                         IOUtils.close(node, spawner);
-                        LogConfigurator.shutdown();
+                        LoggingBootstrapSupport.provider().shutdown();
                         if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
                             throw new IllegalStateException(
                                 "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
@@ -315,10 +315,10 @@ final class Bootstrap {
         Path configFile = environment.configFile();
         Path logsFile = environment.logsFile();
 
-        LogConfigurator.init();
-        LogConfigurator.setNodeName(nodeName);
+        LoggingBootstrapSupport.provider().init();
+        LoggingBootstrapSupport.provider().setNodeName(nodeName);
         try {
-            LogConfigurator.configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
+            LoggingBootstrapSupport.provider().configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -333,7 +333,7 @@ final class Bootstrap {
         try {
             final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
-                LogConfigurator.consoleAppender().accept(LogConfigurator.ConsoleAppenderMode.DISABLE);
+                LoggingBootstrapSupport.provider().consoleAppender().accept(LoggingBootstrapSupport.ConsoleAppenderMode.DISABLE);
                 sysOutCloser.run();
             }
 
@@ -382,7 +382,7 @@ final class Bootstrap {
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             if (foreground) {
-                LogConfigurator.consoleAppender().accept(LogConfigurator.ConsoleAppenderMode.DISABLE);
+                LoggingBootstrapSupport.provider().consoleAppender().accept(LoggingBootstrapSupport.ConsoleAppenderMode.DISABLE);
             }
             Logger logger = LogManager.getLogger(Bootstrap.class);
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
@@ -412,7 +412,7 @@ final class Bootstrap {
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
             if (foreground) {
-                LogConfigurator.consoleAppender().accept(LogConfigurator.ConsoleAppenderMode.ENABLE);
+                LoggingBootstrapSupport.provider().consoleAppender().accept(LoggingBootstrapSupport.ConsoleAppenderMode.ENABLE);
             }
 
             throw e;

@@ -41,7 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -444,7 +444,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 "allocated an empty primary*"
             )
         );
-        AppenderUtils.addAppender(actionLogger, dryRunMockLog);
+        AppenderSupport.provider().addAppender(actionLogger, dryRunMockLog);
 
         AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
         ClusterRerouteResponse dryRunResponse = client().admin()
@@ -462,7 +462,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         dryRunMockLog.assertAllExpectationsMatched();
         dryRunMockLog.stop();
-        AppenderUtils.removeAppender(actionLogger, dryRunMockLog);
+        AppenderSupport.provider().removeAppender(actionLogger, dryRunMockLog);
 
         MockLogAppender allocateMockLog = new MockLogAppender();
         allocateMockLog.start();
@@ -482,7 +482,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 "allocated an empty primary*" + nodeName2 + "*"
             )
         );
-        AppenderUtils.addAppender(actionLogger, allocateMockLog);
+        AppenderSupport.provider().addAppender(actionLogger, allocateMockLog);
 
         AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
         AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
@@ -501,7 +501,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         allocateMockLog.assertAllExpectationsMatched();
         allocateMockLog.stop();
-        AppenderUtils.removeAppender(actionLogger, allocateMockLog);
+        AppenderSupport.provider().removeAppender(actionLogger, allocateMockLog);
     }
 
     public void testClusterRerouteWithBlocks() {

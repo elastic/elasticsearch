@@ -22,7 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -173,7 +173,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             appender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
                     "locally-triggered close message",
@@ -205,7 +205,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
         }
     }

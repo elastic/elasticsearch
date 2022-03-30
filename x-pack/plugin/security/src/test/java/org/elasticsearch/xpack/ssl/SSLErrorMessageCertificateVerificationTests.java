@@ -25,7 +25,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -127,7 +127,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
         try (MockWebServer webServer = initWebServer(sslService); SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()) {
-            AppenderUtils.addAppender(diagnosticLogger, mockAppender);
+            AppenderSupport.provider().addAppender(diagnosticLogger, mockAppender);
 
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
                 .replace('/', platformFileSeparator());
@@ -167,7 +167,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             // You should be able to check the log output for the text that was logged and compare to the regex above.
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(diagnosticLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(diagnosticLogger, mockAppender);
             mockAppender.stop();
         }
     }

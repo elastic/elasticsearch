@@ -28,7 +28,7 @@ public class JsonLoggerTests extends ESTestCase {
     // @Override
     // public void setUp() throws Exception {
     // super.setUp();
-    // LogConfigurator.registerErrorListener();
+    // BootstrapSupport.provider().registerErrorListener();
     // setupLogging("json_layout");
     // }
     //
@@ -627,7 +627,7 @@ public class JsonLoggerTests extends ESTestCase {
     // Path configFile = environment.configFile();
     // Path logsFile = environment.logsFile();
     //
-    // LogConfigurator.configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
+    // BootstrapSupport.provider().configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
     //
     // }
     //

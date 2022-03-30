@@ -19,7 +19,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -134,7 +134,7 @@ public class FsHealthServiceTests extends ESTestCase {
         mockAppender.start();
 
         Logger logger = LogManager.getLogger(FsHealthService.class);
-        AppenderUtils.addAppender(logger, mockAppender);
+        AppenderSupport.provider().addAppender(logger, mockAppender);
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
@@ -155,7 +155,7 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            AppenderUtils.removeAppender(logger, mockAppender);
+            AppenderSupport.provider().removeAppender(logger, mockAppender);
             mockAppender.stop();
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);

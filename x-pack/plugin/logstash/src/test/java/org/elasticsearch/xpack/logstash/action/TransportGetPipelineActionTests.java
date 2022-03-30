@@ -22,7 +22,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -90,7 +90,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
         };
 
         try (Client client = getMockClient(multiGetResponse)) {
-            AppenderUtils.addAppender(logger, mockLogAppender);
+            AppenderSupport.provider().addAppender(logger, mockLogAppender);
             TransportGetPipelineAction action = new TransportGetPipelineAction(
                 mock(TransportService.class),
                 mock(ActionFilters.class),
@@ -98,7 +98,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             );
             action.doExecute(null, request, testActionListener);
         } finally {
-            AppenderUtils.removeAppender(logger, mockLogAppender);
+            AppenderSupport.provider().removeAppender(logger, mockLogAppender);
             mockLogAppender.stop();
         }
     }

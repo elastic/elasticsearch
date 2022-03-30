@@ -22,7 +22,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -568,7 +568,7 @@ public class RealmsTests extends ESTestCase {
 
         final Logger realmsLogger = LogManager.getLogger(Realms.class);
         final MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(realmsLogger, appender);
+        AppenderSupport.provider().addAppender(realmsLogger, appender);
         appender.start();
 
         when(licenseState.statusDescription()).thenReturn("mock license");
@@ -587,7 +587,7 @@ public class RealmsTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            AppenderUtils.removeAppender(realmsLogger, appender);
+            AppenderSupport.provider().removeAppender(realmsLogger, appender);
         }
 
         final List<String> unlicensedRealmNames = realms.getUnlicensedRealms().stream().map(r -> r.name()).collect(Collectors.toList());

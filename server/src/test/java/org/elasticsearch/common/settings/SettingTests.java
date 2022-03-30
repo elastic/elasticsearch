@@ -19,7 +19,7 @@ import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -1351,14 +1351,14 @@ public class SettingTests extends ESTestCase {
         mockLogAppender.start();
         final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
         try {
-            AppenderUtils.addAppender(logger, mockLogAppender);
+            AppenderSupport.provider().addAppender(logger, mockLogAppender);
             settings.updateIndexMetadata(
                 newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
             );
 
             mockLogAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, mockLogAppender);
+            AppenderSupport.provider().removeAppender(logger, mockLogAppender);
             mockLogAppender.stop();
         }
     }

@@ -23,10 +23,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.logging.core.MockLogAppender.LoggingExpectation;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -285,19 +285,19 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
 
-        LogLevelUtil.setLevel(checkpointProviderLogger, Level.DEBUG);
+        LogLevelSupport.provider().setLevel(checkpointProviderLogger, Level.DEBUG);
         mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
         try {
-            AppenderUtils.addAppender(checkpointProviderLogger, mockLogAppender);
+            AppenderSupport.provider().addAppender(checkpointProviderLogger, mockLogAppender);
             codeBlock.run();
             mockLogAppender.assertAllExpectationsMatched();
             transformAuditor.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(checkpointProviderLogger, mockLogAppender);
+            AppenderSupport.provider().removeAppender(checkpointProviderLogger, mockLogAppender);
             mockLogAppender.stop();
         }
     }

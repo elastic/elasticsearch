@@ -10,5 +10,21 @@ package org.elasticsearch.logging.core;
 
 public interface Filter {
 
-    org.apache.logging.log4j.core.Filter.Result filter(LogEvent logEvent);
+    Result filter(LogEvent logEvent);
+    public Filter.Result filterMessage(org.elasticsearch.logging.Message message);
+
+    enum Result {
+        /**
+         * The event will be processed without further filtering based on the log Level.
+         */
+        ACCEPT,
+        /**
+         * No decision could be made, further filtering should occur.
+         */
+        NEUTRAL,
+        /**
+         * The event should not be processed.
+         */
+        DENY;
+    }
 }

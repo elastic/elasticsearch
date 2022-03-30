@@ -26,7 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -247,7 +247,7 @@ public class InboundHandlerTests extends ESTestCase {
             )
         );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        AppenderUtils.addAppender(inboundHandlerLogger, mockAppender);
+        AppenderSupport.provider().addAppender(inboundHandlerLogger, mockAppender);
 
         try {
             final AtomicBoolean isClosed = new AtomicBoolean();
@@ -269,7 +269,7 @@ public class InboundHandlerTests extends ESTestCase {
             assertNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(inboundHandlerLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -278,7 +278,7 @@ public class InboundHandlerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        AppenderUtils.addAppender(inboundHandlerLogger, mockAppender);
+        AppenderSupport.provider().addAppender(inboundHandlerLogger, mockAppender);
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
         try {
@@ -341,7 +341,7 @@ public class InboundHandlerTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(inboundHandlerLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }

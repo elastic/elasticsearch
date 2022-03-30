@@ -8,18 +8,16 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.impl.LoggerImpl;
+import org.elasticsearch.logging.spi.LogManagerFactory;
 
 public class LogManager {
 
     public static Logger getLogger(final String name) {
-        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(name);
-        return new LoggerImpl(logger);
+        return LogManagerFactory.provider().getLogger(name);
     }
 
     public static Logger getLogger(final Class<?> clazz) {
-        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(clazz);
-        return new LoggerImpl(logger);
+        return LogManagerFactory.provider().getLogger(clazz);
     }
 
     private LogManager() {}

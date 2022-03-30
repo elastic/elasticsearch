@@ -22,4 +22,5 @@ public interface ESMapMessage extends Message {
 
     String getMessagePattern();
 
+    String get(String key);
 }

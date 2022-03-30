@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -192,12 +192,12 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            AppenderUtils.addAppender(timerLogger, mockAppender);
+            AppenderSupport.provider().addAppender(timerLogger, mockAppender);
             mockAppender.addExpectation(expectation);
             checker.accept(List.of());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(timerLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(timerLogger, mockAppender);
             mockAppender.stop();
         }
     }

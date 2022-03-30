@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.node.Node;
@@ -162,14 +162,14 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         ) {
 
             Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-            AppenderUtils.addAppender(clusterLogger, mockAppender);
+            AppenderSupport.provider().addAppender(clusterLogger, mockAppender);
             try {
                 other.beforeTest(random());
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());
             } finally {
-                AppenderUtils.removeAppender(clusterLogger, mockAppender);
+                AppenderSupport.provider().removeAppender(clusterLogger, mockAppender);
                 mockAppender.stop();
             }
         }

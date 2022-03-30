@@ -13,7 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
@@ -727,7 +727,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            AppenderUtils.addAppender(samlLogger, mockAppender);
+            AppenderSupport.provider().addAppender(samlLogger, mockAppender);
 
             mockAppender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
@@ -755,7 +755,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             assertThat(exception.getMessage(), containsString("required audience"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(samlLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(samlLogger, mockAppender);
             mockAppender.stop();
         }
     }

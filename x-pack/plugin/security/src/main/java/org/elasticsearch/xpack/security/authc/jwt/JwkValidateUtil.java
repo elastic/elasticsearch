@@ -19,8 +19,8 @@ import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;

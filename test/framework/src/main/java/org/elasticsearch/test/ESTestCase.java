@@ -73,8 +73,9 @@ import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.impl.HeaderWarningAppender;
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.core.HeaderWarningAppender;
+import org.elasticsearch.logging.spi.AppenderSupport;
+import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -199,7 +200,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
-        LogConfigurator.loadLog4jPlugins();
+        LoggingBootstrapSupport.provider().loadLog4jPlugins();
 
         // for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
         // Logger leakLogger = LogManager.getLogger(leakLoggerName);
@@ -377,14 +378,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public void setHeaderWarningAppender() {
         this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
-        this.headerWarningAppender.start();
-        // Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+//        this.headerWarningAppender.start(); // TODO PG start?
+         AppenderSupport.provider().addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
     }
 
     @After
     public void removeHeaderWarningAppender() {
         if (this.headerWarningAppender != null) {
-            // Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+            AppenderSupport.provider().removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
         }
     }

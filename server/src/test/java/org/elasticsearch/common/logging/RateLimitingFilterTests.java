@@ -11,7 +11,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.logging.DeprecationCategory;
-import org.elasticsearch.logging.impl.DeprecatedMessage;
+import org.elasticsearch.logging.DeprecatedMessage;
 import org.elasticsearch.logging.impl.RateLimitingFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;

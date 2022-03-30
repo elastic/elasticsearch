@@ -17,7 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -211,7 +211,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
         } finally {
-            AppenderUtils.removeAppender(unlicensedRealmsLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(unlicensedRealmsLogger, mockAppender);
             mockAppender.stop();
         }
     }

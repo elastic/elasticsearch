@@ -10,7 +10,7 @@ package org.elasticsearch.benchmark.fs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -47,7 +47,7 @@ public class AvailableIndexFoldersBenchmark {
         String[] paths = new String[] { path.toString() };
         nodePath = new NodeEnvironment.NodePath(path);
 
-        LogConfigurator.setNodeName("test");
+        LoggingBootstrapSupport.provider().setNodeName("test");
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths)

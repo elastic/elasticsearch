@@ -2928,7 +2928,7 @@ public class InternalEngineTests extends EngineTestCase {
     // final Logger iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.Engine.IFD");
     //
     // Loggers.addAppender(iwIFDLogger, mockAppender);
-    // LogLevelUtil.setLevel(iwIFDLogger, Level.DEBUG);
+    // LogLevelSupport.provider().setLevel(iwIFDLogger, Level.DEBUG);
     //
     // try {
     // // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2939,7 +2939,7 @@ public class InternalEngineTests extends EngineTestCase {
     // assertFalse(mockAppender.sawIndexWriterIFDMessage);
     //
     // // Again, with TRACE, which should only log IndexWriter IFD output:
-    // LogLevelUtil.setLevel(iwIFDLogger, Level.TRACE);
+    // LogLevelSupport.provider().setLevel(iwIFDLogger, Level.TRACE);
     // engine.index(indexForDoc(doc));
     // engine.flush();
     // assertFalse(mockAppender.sawIndexWriterMessage);
@@ -2948,7 +2948,7 @@ public class InternalEngineTests extends EngineTestCase {
     // } finally {
     // Loggers.removeAppender(iwIFDLogger, mockAppender);
     // mockAppender.stop();
-    // LogLevelUtil.setLevel(iwIFDLogger, (Level) null);
+    // LogLevelSupport.provider().setLevel(iwIFDLogger, (Level) null);
     // }
     // }
 

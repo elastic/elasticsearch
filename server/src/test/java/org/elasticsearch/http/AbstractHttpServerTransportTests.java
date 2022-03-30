@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -358,7 +358,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
             try {
                 appender.start();
-                AppenderUtils.addAppender(LogManager.getLogger(traceLoggerName), appender);
+                AppenderSupport.provider().addAppender(LogManager.getLogger(traceLoggerName), appender);
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
@@ -429,7 +429,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
                 appender.assertAllExpectationsMatched();
             } finally {
-                AppenderUtils.removeAppender(LogManager.getLogger(traceLoggerName), appender);
+                AppenderSupport.provider().removeAppender(LogManager.getLogger(traceLoggerName), appender);
                 appender.stop();
             }
         }
@@ -450,7 +450,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             )
         );
         final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
-        AppenderUtils.addAppender(inboundHandlerLogger, mockAppender);
+        AppenderSupport.provider().addAppender(inboundHandlerLogger, mockAppender);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
@@ -509,7 +509,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(inboundHandlerLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }

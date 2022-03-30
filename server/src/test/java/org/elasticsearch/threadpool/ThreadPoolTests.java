@@ -15,7 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 
@@ -92,7 +92,7 @@ public class ThreadPoolTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         try {
-            AppenderUtils.addAppender(threadPoolLogger, appender);
+            AppenderSupport.provider().addAppender(threadPoolLogger, appender);
             appender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
                     "expected warning for absolute clock",
@@ -118,7 +118,7 @@ public class ThreadPoolTests extends ESTestCase {
             thread.interrupt();
             thread.join();
         } finally {
-            AppenderUtils.removeAppender(threadPoolLogger, appender);
+            AppenderSupport.provider().removeAppender(threadPoolLogger, appender);
             appender.stop();
         }
     }
@@ -128,7 +128,7 @@ public class ThreadPoolTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         try {
-            AppenderUtils.addAppender(threadPoolLogger, appender);
+            AppenderSupport.provider().addAppender(threadPoolLogger, appender);
 
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
             long relativeNanos = randomLong(); // overflow should still be handled correctly
@@ -192,7 +192,7 @@ public class ThreadPoolTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
         } finally {
-            AppenderUtils.removeAppender(threadPoolLogger, appender);
+            AppenderSupport.provider().removeAppender(threadPoolLogger, appender);
             appender.stop();
         }
     }
@@ -271,7 +271,7 @@ public class ThreadPoolTests extends ESTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         try {
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             appender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
                     "expected warning for slow task",
@@ -299,7 +299,7 @@ public class ThreadPoolTests extends ESTestCase {
             threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), ThreadPool.Names.SAME);
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
             assertTrue(terminate(threadPool));
         }

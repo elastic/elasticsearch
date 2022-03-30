@@ -33,7 +33,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -263,13 +263,13 @@ public class RolloverIT extends ESIntegTestCase {
                 "*test_index*"
             )
         );
-        AppenderUtils.addAppender(allocationServiceLogger, appender);
+        AppenderSupport.provider().addAppender(allocationServiceLogger, appender);
 
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
 
         appender.assertAllExpectationsMatched();
         appender.stop();
-        AppenderUtils.removeAppender(allocationServiceLogger, appender);
+        AppenderSupport.provider().removeAppender(allocationServiceLogger, appender);
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-000002"));

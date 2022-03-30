@@ -28,7 +28,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -149,7 +149,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         );
 
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
-        AppenderUtils.addAppender(clusterLogger, mockAppender);
+        AppenderSupport.provider().addAppender(clusterLogger, mockAppender);
         try {
             currentTimeMillis = randomLongBetween(0L, Long.MAX_VALUE / 2);
             clusterApplierService.runOnApplierThread(
@@ -190,7 +190,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             });
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            AppenderUtils.removeAppender(clusterLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -227,7 +227,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         );
 
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
-        AppenderUtils.addAppender(clusterLogger, mockAppender);
+        AppenderSupport.provider().addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
@@ -295,7 +295,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             });
             latch.await();
         } finally {
-            AppenderUtils.removeAppender(clusterLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();

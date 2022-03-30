@@ -8,7 +8,7 @@
 package org.elasticsearch.logging.core;
 
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.impl.testing.MockLogAppenderImpl;
+import org.elasticsearch.logging.spi.AppenderSupport;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
@@ -23,7 +23,11 @@ public class MockLogAppender {
 
     private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
     private final List<LoggingExpectation> expectations;
-    MockLogAppenderImpl impl;
+    Appender appender;
+
+    public Appender getLog4jAppender() {
+        return appender;
+    }
 
     public MockLogAppender() throws IllegalAccessException {
         /*
@@ -32,7 +36,7 @@ public class MockLogAppender {
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
-        impl = new MockLogAppenderImpl(expectations);
+        appender =  AppenderSupport.provider().createMockLogAppender(expectations);
     }
 
     public static LoggingExpectation createUnseenEventExpectation(String name, String logger, Level level, String message) {
@@ -79,11 +83,11 @@ public class MockLogAppender {
     }
 
     public void start() {
-        impl.start();
+        /*impl.start();*/
     }
 
     public void stop() {
-        impl.stop();
+       /* impl.stop();*/
     }
 
     public void assertAllExpectationsMatched() {

@@ -15,9 +15,9 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -102,8 +102,8 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        AppenderUtils.addAppender(logger, appender);
-        LogLevelUtil.setLevel(logger, Level.DEBUG);
+        AppenderSupport.provider().addAppender(logger, appender);
+        LogLevelSupport.provider().setLevel(logger, Level.DEBUG);
 
         try {
             appender.addExpectation(
@@ -121,9 +121,9 @@ public class OperatorPrivilegesTests extends ESTestCase {
             );
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
-            LogLevelUtil.setLevel(logger, (Level) null);
+            LogLevelSupport.provider().setLevel(logger, (Level) null);
         }
 
         // Will mark empty for non-operator user
@@ -220,8 +220,8 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        AppenderUtils.addAppender(logger, appender);
-        LogLevelUtil.setLevel(logger, Level.DEBUG);
+        AppenderSupport.provider().addAppender(logger, appender);
+        LogLevelSupport.provider().setLevel(logger, Level.DEBUG);
 
         try {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
@@ -237,9 +237,9 @@ public class OperatorPrivilegesTests extends ESTestCase {
             verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
-            LogLevelUtil.setLevel(logger, (Level) null);
+            LogLevelSupport.provider().setLevel(logger, (Level) null);
         }
     }
 

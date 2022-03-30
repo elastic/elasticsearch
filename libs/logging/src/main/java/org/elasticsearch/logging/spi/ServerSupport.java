@@ -8,7 +8,12 @@
 
 package org.elasticsearch.logging.spi;
 
+import org.elasticsearch.logging.locator.ServerSupportLocator;
+
 public interface ServerSupport {
+    ServerSupport INSTANCE = ServerSupportLocator.INSTANCE;
+
+     byte[] quoteAsUTF8(String line) ;
 
     /** Return a tuple, where the first element is the node name, and second is the cluster Id (in string form). */
     String nodeId();

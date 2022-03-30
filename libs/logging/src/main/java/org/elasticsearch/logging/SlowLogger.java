@@ -8,17 +8,19 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.impl.ESLogMessage;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
+import org.elasticsearch.logging.spi.MessageFactory;
 
 import java.util.Map;
 
 public class SlowLogger {
+    private static final MessageFactory provider = MessageFactory.provider();
+
     private Logger logger;
 
     public SlowLogger(String name) {
         this.logger = LogManager.getLogger(name);
-        LogLevelUtil.setLevel(this.logger, Level.TRACE);
+        LogLevelSupport.provider().setLevel(this.logger, Level.TRACE);
     }
 
     public static SlowLogger getLogger(String name) {
@@ -26,18 +28,18 @@ public class SlowLogger {
     }
 
     public void warn(Map<String, Object> fields) {
-        logger.warn(new ESLogMessage().withFields(fields));
+        logger.warn(provider.createMapMessage().withFields(fields));// TODO PG
     }
 
     public void info(Map<String, Object> fields) {
-        logger.info(new ESLogMessage().withFields(fields));
+        logger.info(provider.createMapMessage().withFields(fields));
     }
 
     public void debug(Map<String, Object> fields) {
-        logger.debug(new ESLogMessage().withFields(fields));
+        logger.debug(provider.createMapMessage().withFields(fields));
     }
 
     public void trace(Map<String, Object> fields) {
-        logger.trace(new ESLogMessage().withFields(fields));
+        logger.trace(provider.createMapMessage().withFields(fields));
     }
 }

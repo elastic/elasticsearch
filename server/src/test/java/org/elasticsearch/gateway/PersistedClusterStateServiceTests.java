@@ -56,7 +56,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -1536,7 +1536,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         mockAppender.start();
         mockAppender.addExpectation(expectation);
         Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
-        AppenderUtils.addAppender(classLogger, mockAppender);
+        AppenderSupport.provider().addAppender(classLogger, mockAppender);
 
         try {
             if (previousState == null) {
@@ -1545,7 +1545,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
         } finally {
-            AppenderUtils.removeAppender(classLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(classLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();

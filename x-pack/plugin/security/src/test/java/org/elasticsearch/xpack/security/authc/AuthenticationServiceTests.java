@@ -51,7 +51,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -405,7 +405,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            AppenderUtils.addAppender(unlicensedRealmsLogger, mockAppender);
+            AppenderSupport.provider().addAppender(unlicensedRealmsLogger, mockAppender);
             mockAppender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
                     "unlicensed realms",
@@ -453,7 +453,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             assertThat(completed.get(), is(true));
         } finally {
-            AppenderUtils.removeAppender(unlicensedRealmsLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(unlicensedRealmsLogger, mockAppender);
             mockAppender.stop();
         }
     }

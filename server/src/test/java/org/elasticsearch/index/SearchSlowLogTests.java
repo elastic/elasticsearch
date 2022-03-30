@@ -20,7 +20,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -51,15 +51,15 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("trace_appender");
         // appender.start();
-        AppenderUtils.addAppender(queryLog, appender);
-        AppenderUtils.addAppender(fetchLog, appender);
+        AppenderSupport.provider().addAppender(queryLog, appender);
+        AppenderSupport.provider().addAppender(fetchLog, appender);
     }
 
     @AfterClass
     public static void cleanup() {
         // appender.stop();
-        AppenderUtils.removeAppender(queryLog, appender);
-        AppenderUtils.removeAppender(fetchLog, appender);
+        AppenderSupport.provider().removeAppender(queryLog, appender);
+        AppenderSupport.provider().removeAppender(fetchLog, appender);
     }
 
     @Override

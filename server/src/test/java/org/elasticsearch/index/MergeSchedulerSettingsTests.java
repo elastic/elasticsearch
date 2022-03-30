@@ -15,11 +15,11 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.core.Appender;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.Filter;
 import org.elasticsearch.logging.core.Layout;
 import org.elasticsearch.logging.core.LogEvent;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
@@ -77,8 +77,8 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         // mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
-        AppenderUtils.addAppender(settingsLogger, mockAppender);
-        LogLevelUtil.setLevel(settingsLogger, Level.TRACE);
+        AppenderSupport.provider().addAppender(settingsLogger, mockAppender);
+        LogLevelSupport.provider().setLevel(settingsLogger, Level.TRACE);
         try {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -97,9 +97,9 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             assertTrue(mockAppender.sawUpdateAutoThrottle);
             assertEquals(settings.getMergeSchedulerConfig().isAutoThrottle(), false);
         } finally {
-            AppenderUtils.removeAppender(settingsLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(settingsLogger, mockAppender);
             // mockAppender.stop();
-            LogLevelUtil.setLevel(settingsLogger, (Level) null);
+            LogLevelSupport.provider().setLevel(settingsLogger, (Level) null);
         }
     }
 
@@ -108,8 +108,8 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         // mockAppender.start();
         final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
-        AppenderUtils.addAppender(settingsLogger, mockAppender);
-        LogLevelUtil.setLevel(settingsLogger, Level.TRACE);
+        AppenderSupport.provider().addAppender(settingsLogger, mockAppender);
+        LogLevelSupport.provider().setLevel(settingsLogger, Level.TRACE);
         try {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -129,9 +129,9 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             // Make sure we log the change:
             assertTrue(mockAppender.sawUpdateMaxThreadCount);
         } finally {
-            AppenderUtils.removeAppender(settingsLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(settingsLogger, mockAppender);
             // mockAppender.stop();
-            LogLevelUtil.setLevel(settingsLogger, (Level) null);
+            LogLevelSupport.provider().setLevel(settingsLogger, (Level) null);
         }
     }
 

@@ -40,9 +40,9 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
@@ -670,9 +670,9 @@ public class SecurityTests extends ESTestCase {
 
     public void testSecurityRestHandlerWrapperCanBeInstalled() throws IllegalAccessException {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
-        LogLevelUtil.setLevel(amLogger, Level.DEBUG);
+        LogLevelSupport.provider().setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(amLogger, appender);
+        AppenderSupport.provider().addAppender(amLogger, appender);
         appender.start();
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
@@ -713,16 +713,16 @@ public class SecurityTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
             appender.stop();
-            AppenderUtils.removeAppender(amLogger, appender);
+            AppenderSupport.provider().removeAppender(amLogger, appender);
         }
     }
 
     public void testSecurityStatusMessageInLog() throws Exception {
         final Logger mockLogger = LogManager.getLogger(Security.class);
         boolean securityEnabled = true;
-        LogLevelUtil.setLevel(mockLogger, Level.INFO);
+        LogLevelSupport.provider().setLevel(mockLogger, Level.INFO);
         final MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(mockLogger, appender);
+        AppenderSupport.provider().addAppender(mockLogger, appender);
         appender.start();
 
         Settings.Builder settings = Settings.builder().put("path.home", createTempDir());
@@ -745,7 +745,7 @@ public class SecurityTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            AppenderUtils.removeAppender(mockLogger, appender);
+            AppenderSupport.provider().removeAppender(mockLogger, appender);
         }
     }
 

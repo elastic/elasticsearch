@@ -23,6 +23,7 @@ configure(subprojects - project('elasticsearch-log4j')) {
         Project depProject = dep.dependencyProject
         if (depProject != null
           && false == depProject.path.equals(':libs:elasticsearch-x-content')
+          && false == depProject.path.equals(':libs:elasticsearch-logging')
           && false == depProject.path.equals(':libs:elasticsearch-core')
           && false == depProject.path.equals(':libs:elasticsearch-cli')
           && depProject.path.startsWith(':libs')

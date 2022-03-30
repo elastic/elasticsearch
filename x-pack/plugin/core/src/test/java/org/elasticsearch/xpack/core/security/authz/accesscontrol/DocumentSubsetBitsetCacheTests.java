@@ -44,8 +44,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
 import org.elasticsearch.logging.core.MockLogAppender;
+import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
@@ -207,7 +207,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            AppenderUtils.addAppender(cacheLogger, mockAppender);
+            AppenderSupport.provider().addAppender(cacheLogger, mockAppender);
             mockAppender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
                     "[bitset too big]",
@@ -232,7 +232,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(cacheLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(cacheLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -255,7 +255,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            AppenderUtils.addAppender(cacheLogger, mockAppender);
+            AppenderSupport.provider().addAppender(cacheLogger, mockAppender);
             mockAppender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
                     "[cache full]",
@@ -278,7 +278,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(cacheLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(cacheLogger, mockAppender);
             mockAppender.stop();
         }
     }

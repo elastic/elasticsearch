@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
  * should not change across all log lines
  *
  * Note that this won't pass for nodes in clusters that don't have the node name defined in elasticsearch.yml <strong>and</strong> start
- * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by <code>LogConfigurator.setNodeName</code>.
+ * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by <code>BootstrapSupport.provider().setNodeName</code>.
  */
 public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     /**

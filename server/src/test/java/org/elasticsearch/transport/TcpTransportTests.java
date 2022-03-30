@@ -23,7 +23,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -581,7 +581,7 @@ public class TcpTransportTests extends ESTestCase {
         try {
             appender.start();
 
-            AppenderUtils.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+            AppenderSupport.provider().addAppender(LogManager.getLogger(TcpTransport.class), appender);
             for (MockLogAppender.LoggingExpectation expectation : expectations) {
                 appender.addExpectation(expectation);
             }
@@ -621,7 +621,7 @@ public class TcpTransportTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
         } finally {
-            AppenderUtils.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
+            AppenderSupport.provider().removeAppender(LogManager.getLogger(TcpTransport.class), appender);
             appender.stop();
             ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }

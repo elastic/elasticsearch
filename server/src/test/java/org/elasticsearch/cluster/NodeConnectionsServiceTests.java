@@ -29,7 +29,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -338,7 +338,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
-            AppenderUtils.addAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+            AppenderSupport.provider().addAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode)) {
                     appender.addExpectation(
@@ -380,7 +380,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             runTasksUntil(deterministicTaskQueue, CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+            AppenderSupport.provider().removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
             appender.stop();
         }
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
@@ -395,7 +395,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         appender = new MockLogAppender();
         try {
             appender.start();
-            AppenderUtils.addAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+            AppenderSupport.provider().addAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode) && newTargetNodes.get(targetNode.getId()) != null) {
                     appender.addExpectation(
@@ -477,7 +477,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+            AppenderSupport.provider().removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
             appender.stop();
         }
     }

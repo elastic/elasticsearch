@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -120,14 +120,14 @@ public class SettingsFilterTests extends ESTestCase {
         throws IllegalAccessException {
         Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(testLogger, appender);
+        AppenderSupport.provider().addAppender(testLogger, appender);
         try {
             appender.start();
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(testLogger, appender);
+            AppenderSupport.provider().removeAppender(testLogger, appender);
         }
     }
 

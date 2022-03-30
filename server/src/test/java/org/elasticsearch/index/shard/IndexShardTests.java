@@ -106,7 +106,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -3400,7 +3400,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
-        AppenderUtils.addAppender(LogManager.getLogger(IndexShard.class), appender);
+        AppenderSupport.provider().addAppender(LogManager.getLogger(IndexShard.class), appender);
         try {
             appender.addExpectation(
                 MockLogAppender.createSeenEventExpectation(
@@ -3429,7 +3429,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(LogManager.getLogger(IndexShard.class), appender);
+            AppenderSupport.provider().removeAppender(LogManager.getLogger(IndexShard.class), appender);
             appender.stop();
         }
 

@@ -19,7 +19,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.SlowLogger;
-import org.elasticsearch.logging.StringBuilders;
+import org.elasticsearch.logging.spi.StringBuildersSupport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -194,11 +194,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb = new StringBuilder(trim);
-                StringBuilders.escapeJson(sb, 0);
+                StringBuildersSupport.escapeJson(sb, 0);
                 map.put("elasticsearch.slowlog.source", sb.toString());
             } catch (IOException e) {
                 StringBuilder sb = new StringBuilder("_failed_to_convert_[" + e.getMessage() + "]");
-                StringBuilders.escapeJson(sb, 0);
+                StringBuildersSupport.escapeJson(sb, 0);
                 map.put("elasticsearch.slowlog.source", sb.toString());
                 /*
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this

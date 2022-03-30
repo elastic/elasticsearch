@@ -19,7 +19,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -131,12 +131,12 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         );
 
         final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);
-        AppenderUtils.addAppender(taskLogger, mockAppender);
+        AppenderSupport.provider().addAppender(taskLogger, mockAppender);
         try {
             task.onFailure(new RuntimeException("test exception"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(taskLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(taskLogger, mockAppender);
             mockAppender.stop();
         }
     }

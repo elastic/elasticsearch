@@ -12,7 +12,7 @@ import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -30,16 +30,16 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        AppenderUtils.addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
-        AppenderUtils.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-        AppenderUtils.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+        AppenderSupport.provider().addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
+        AppenderSupport.provider().addAppender(LogManager.getLogger(TransportLogger.class), appender);
+        AppenderSupport.provider().addAppender(LogManager.getLogger(TcpTransport.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        AppenderUtils.removeAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
-        AppenderUtils.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        AppenderUtils.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
+        AppenderSupport.provider().removeAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
+        AppenderSupport.provider().removeAppender(LogManager.getLogger(TransportLogger.class), appender);
+        AppenderSupport.provider().removeAppender(LogManager.getLogger(TcpTransport.class), appender);
         appender.stop();
         super.tearDown();
     }

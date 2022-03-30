@@ -16,7 +16,7 @@ module org.elasticsearch.xpack.plugin.security {
     requires org.elasticsearch.ssl.config;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xpack.plugin.core;
-    requires org.apache.logging.log4j;
+  //  requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.queries;
     requires org.apache.lucene.sandbox;

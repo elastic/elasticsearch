@@ -8,11 +8,7 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.impl.DeprecatedMessage;
-import org.elasticsearch.logging.impl.ESLogMessage;
-import org.elasticsearch.logging.impl.HeaderWarningAppender;
-import org.elasticsearch.logging.impl.RateLimitingFilter;
-import org.elasticsearch.logging.impl.ServerSupportImpl;
+import org.elasticsearch.logging.spi.ServerSupport;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -26,10 +22,10 @@ import java.util.List;
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
  * Logs are emitted at the custom {@link #CRITICAL} level, and routed wherever they need to go using log4j. For example,
- * to disk using a rolling file appender, or added as a response header using {@link HeaderWarningAppender}.
+ * to disk using a rolling file appender, or added as a response header using {x@link HeaderWarningAppender}. //TODO PG
  * <p>
  * Deprecation messages include a <code>key</code>, which is used for rate-limiting purposes. The log4j configuration
- * uses {@link RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
+ * uses {x@link RateLimitingFilter}//TODO PG to prevent the same message being logged repeatedly in a short span of time. This
  * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
  * message limiting.
  */
@@ -116,14 +112,14 @@ public final class DeprecationLogger {
     private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
         assert category != DeprecationCategory.COMPATIBLE_API
             : "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
-        String opaqueId = ServerSupportImpl.INSTANCE.getXOpaqueIdHeader();
-        String productOrigin = ServerSupportImpl.INSTANCE.getProductOriginHeader();
-        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
+        String opaqueId = ServerSupport.INSTANCE.getXOpaqueIdHeader();
+        String productOrigin = ServerSupport.INSTANCE.getProductOriginHeader();
+        Message deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
         doPrivilegedLog(level, deprecationMessage);
         return this;
     }
 
-    private void doPrivilegedLog(Level level, ESLogMessage deprecationMessage) {
+    private void doPrivilegedLog(Level level, Message deprecationMessage) {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             logger.log(level, deprecationMessage);
             return null;
@@ -150,9 +146,9 @@ public final class DeprecationLogger {
      */
 
     public DeprecationLogger compatible(final Level level, final String key, final String msg, final Object... params) {
-        String opaqueId = ServerSupportImpl.INSTANCE.getXOpaqueIdHeader();
-        String productOrigin = ServerSupportImpl.INSTANCE.getProductOriginHeader();
-        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, productOrigin, msg, params);
+        String opaqueId = ServerSupport.INSTANCE.getXOpaqueIdHeader();
+        String productOrigin = ServerSupport.INSTANCE.getProductOriginHeader();
+        Message deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, productOrigin, msg, params);
         logger.log(level, deprecationMessage);
         return this;
     }

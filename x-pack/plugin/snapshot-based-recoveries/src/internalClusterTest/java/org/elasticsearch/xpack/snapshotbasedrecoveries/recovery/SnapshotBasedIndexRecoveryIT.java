@@ -50,7 +50,7 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -338,7 +338,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         final var mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
         try {
-            AppenderUtils.addAppender(recoverySourceHandlerLogger, mockLogAppender);
+            AppenderSupport.provider().addAppender(recoverySourceHandlerLogger, mockLogAppender);
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected warn log about restore failure",
@@ -361,7 +361,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             mockLogAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(recoverySourceHandlerLogger, mockLogAppender);
+            AppenderSupport.provider().removeAppender(recoverySourceHandlerLogger, mockLogAppender);
             mockLogAppender.stop();
         }
 
@@ -624,7 +624,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             final var mockLogAppender = new MockLogAppender();
             mockLogAppender.start();
             try {
-                AppenderUtils.addAppender(recoverySourceHandlerLogger, mockLogAppender);
+                AppenderSupport.provider().addAppender(recoverySourceHandlerLogger, mockLogAppender);
                 mockLogAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
                         "expected debug log about restore cancellation",
@@ -646,7 +646,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 assertBusy(mockLogAppender::assertAllExpectationsMatched);
             } finally {
-                AppenderUtils.removeAppender(recoverySourceHandlerLogger, mockLogAppender);
+                AppenderSupport.provider().removeAppender(recoverySourceHandlerLogger, mockLogAppender);
                 mockLogAppender.stop();
             }
 

@@ -46,9 +46,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
@@ -898,9 +898,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         IntStream.range(0, cacheSize).forEach(i -> apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>()));
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
-        LogLevelUtil.setLevel(logger, Level.TRACE);
+        LogLevelSupport.provider().setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(logger, appender);
+        AppenderSupport.provider().addAppender(logger, appender);
         appender.start();
 
         try {
@@ -947,8 +947,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            LogLevelUtil.setLevel(logger, Level.INFO);
-            AppenderUtils.removeAppender(logger, appender);
+            LogLevelSupport.provider().setLevel(logger, Level.INFO);
+            AppenderSupport.provider().removeAppender(logger, appender);
         }
     }
 
@@ -963,9 +963,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String apiKeyId = randomAlphaOfLength(22);
 
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
-        LogLevelUtil.setLevel(logger, Level.TRACE);
+        LogLevelSupport.provider().setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(logger, appender);
+        AppenderSupport.provider().addAppender(logger, appender);
         appender.start();
 
         try {
@@ -987,8 +987,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            LogLevelUtil.setLevel(logger, Level.INFO);
-            AppenderUtils.removeAppender(logger, appender);
+            LogLevelSupport.provider().setLevel(logger, Level.INFO);
+            AppenderSupport.provider().removeAppender(logger, appender);
         }
     }
 
@@ -1000,9 +1000,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         apiKeyAuthCache.put(randomAlphaOfLength(20), new ListenableFuture<>());
         apiKeyAuthCache.put(randomAlphaOfLength(21), new ListenableFuture<>());
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
-        LogLevelUtil.setLevel(logger, Level.TRACE);
+        LogLevelSupport.provider().setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        AppenderUtils.addAppender(logger, appender);
+        AppenderSupport.provider().addAppender(logger, appender);
         appender.start();
 
         try {
@@ -1061,8 +1061,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
-            LogLevelUtil.setLevel(logger, Level.INFO);
-            AppenderUtils.removeAppender(logger, appender);
+            LogLevelSupport.provider().setLevel(logger, Level.INFO);
+            AppenderSupport.provider().removeAppender(logger, appender);
         }
     }
 

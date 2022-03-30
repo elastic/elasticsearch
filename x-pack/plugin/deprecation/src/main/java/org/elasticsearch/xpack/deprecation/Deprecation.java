@@ -107,7 +107,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
         );
         templateRegistry.initialize();
 
-        final RateLimitingFilter rateLimitingFilterForIndexing = RateLimitingFilter.createRateLimitingFilter();
+        final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
         // enable on start.
         rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
         clusterService.getClusterSettings()

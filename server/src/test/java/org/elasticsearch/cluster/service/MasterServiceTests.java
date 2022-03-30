@@ -38,7 +38,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -393,7 +393,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        AppenderUtils.addAppender(clusterLogger, mockAppender);
+        AppenderSupport.provider().addAppender(clusterLogger, mockAppender);
         try (MasterService masterService = createMasterService(true)) {
             masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
@@ -458,7 +458,7 @@ public class MasterServiceTests extends ESTestCase {
             }, ClusterStateTaskExecutor.unbatched());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            AppenderUtils.removeAppender(clusterLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -1067,7 +1067,7 @@ public class MasterServiceTests extends ESTestCase {
         );
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        AppenderUtils.addAppender(clusterLogger, mockAppender);
+        AppenderSupport.provider().addAppender(clusterLogger, mockAppender);
         try (
             MasterService masterService = new MasterService(
                 Settings.builder()
@@ -1239,7 +1239,7 @@ public class MasterServiceTests extends ESTestCase {
             }, ClusterStateTaskExecutor.unbatched());
             latch.await();
         } finally {
-            AppenderUtils.removeAppender(clusterLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();
@@ -1547,7 +1547,7 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.start();
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        AppenderUtils.addAppender(clusterLogger, mockAppender);
+        AppenderSupport.provider().addAppender(clusterLogger, mockAppender);
         try (MasterService masterService = createMasterService(true)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
 
@@ -1652,7 +1652,7 @@ public class MasterServiceTests extends ESTestCase {
             assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
 
         } finally {
-            AppenderUtils.removeAppender(clusterLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
     }

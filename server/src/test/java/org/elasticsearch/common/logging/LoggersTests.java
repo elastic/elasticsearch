@@ -12,7 +12,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ public class LoggersTests extends ESTestCase {
         // appender.start();
         final Logger testLogger = LogManager.getLogger(LoggersTests.class);
         // Loggers.addAppender(testLogger, appender); TODO PG
-        LogLevelUtil.setLevel(testLogger, Level.TRACE);
+        LogLevelSupport.provider().setLevel(testLogger, Level.TRACE);
 
         Throwable ex = randomException();
         testLogger.error(() -> Message.createParameterizedMessage("an error message"), ex);

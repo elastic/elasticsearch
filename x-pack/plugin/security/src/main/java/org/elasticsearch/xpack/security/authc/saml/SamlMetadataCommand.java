@@ -142,7 +142,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // OpenSAML prints a lot of _stuff_ at info level, that really isn't needed in a command line tool.
-        // LogLevelUtil.setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
+        // LogLevelSupport.provider().setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
 
         final Logger logger = LogManager.getLogger(getClass());
         SamlUtils.initialize(logger);

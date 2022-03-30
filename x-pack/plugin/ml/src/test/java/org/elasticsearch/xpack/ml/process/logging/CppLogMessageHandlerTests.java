@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.process.logging;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -382,15 +382,15 @@ public class CppLogMessageHandlerTests extends ESTestCase {
 
     private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId) throws IOException {
         Logger cppMessageLogger = LogManager.getLogger(CppLogMessageHandler.class);
-        AppenderUtils.addAppender(cppMessageLogger, mockAppender);
+        AppenderSupport.provider().addAppender(cppMessageLogger, mockAppender);
 
         Level oldLevel = cppMessageLogger.getLevel();
-        LogLevelUtil.setLevel(cppMessageLogger, level);
+        LogLevelSupport.provider().setLevel(cppMessageLogger, level);
         try (CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)) {
             handler.tailStream();
         } finally {
-            AppenderUtils.removeAppender(cppMessageLogger, mockAppender);
-            LogLevelUtil.setLevel(cppMessageLogger, oldLevel);
+            AppenderSupport.provider().removeAppender(cppMessageLogger, mockAppender);
+            LogLevelSupport.provider().setLevel(cppMessageLogger, oldLevel);
             mockAppender.stop();
         }
 

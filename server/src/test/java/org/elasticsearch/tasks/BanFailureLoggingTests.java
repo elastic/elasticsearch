@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -171,8 +171,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             MockLogAppender appender = new MockLogAppender();
             appender.start();
             resources.add(appender::stop);
-            AppenderUtils.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
-            resources.add(() -> AppenderUtils.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
+            AppenderSupport.provider().addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
+            resources.add(() -> AppenderSupport.provider().removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
 
             for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
                 appender.addExpectation(expectation);

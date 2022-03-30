@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.logging.impl.DeprecatedMessage.KEY_FIELD_NAME;
+import static org.elasticsearch.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.xpack.deprecation.DeprecationTestUtils.DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;

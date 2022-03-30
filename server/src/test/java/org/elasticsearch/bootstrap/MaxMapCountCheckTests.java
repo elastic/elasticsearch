@@ -16,7 +16,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
@@ -145,11 +145,11 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     e -> ioException == e
                 )
             );
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             assertThat(check.getMaxMapCount(logger), equalTo(-1L));
             appender.assertAllExpectationsMatched();
             verify(reader).close();
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
         }
 
@@ -169,11 +169,11 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
                 )
             );
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             assertThat(check.getMaxMapCount(logger), equalTo(-1L));
             appender.assertAllExpectationsMatched();
             verify(reader).close();
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
         }
 

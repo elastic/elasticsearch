@@ -24,7 +24,7 @@ import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
@@ -56,7 +56,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void setUp() throws Exception {
         assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         super.setUp();
-        LogConfigurator.registerErrorListener();
+        LoggingBootstrapSupport.provider().registerErrorListener();
     }
 
     @Override
@@ -279,7 +279,7 @@ public class EvilLoggerTests extends ESTestCase {
 
     public void testNoNodeNameInPatternWarning() throws IOException, UserException {
         String nodeName = randomAlphaOfLength(16);
-        LogConfigurator.setNodeName(nodeName);
+        LoggingBootstrapSupport.provider().setNodeName(nodeName);
         setupLogging("no_node_name");
         final String path = System.getProperty("es.logs.base_path")
             + System.getProperty("file.separator")
@@ -328,7 +328,7 @@ public class EvilLoggerTests extends ESTestCase {
         Path configFile = environment.configFile();
         Path logsFile = environment.logsFile();
 
-        LogConfigurator.configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
+        LoggingBootstrapSupport.provider().configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {

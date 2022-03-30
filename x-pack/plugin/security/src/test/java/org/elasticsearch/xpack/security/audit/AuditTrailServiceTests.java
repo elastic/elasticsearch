@@ -11,7 +11,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -70,7 +70,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
         Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
-        AppenderUtils.addAppender(auditTrailServiceLogger, mockLogAppender);
+        AppenderSupport.provider().addAppender(auditTrailServiceLogger, mockLogAppender);
         when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.values()));
         if (isAuditingAllowed) {
             mockLogAppender.addExpectation(
@@ -99,14 +99,14 @@ public class AuditTrailServiceTests extends ESTestCase {
             service.get();
         }
         mockLogAppender.assertAllExpectationsMatched();
-        AppenderUtils.removeAppender(auditTrailServiceLogger, mockLogAppender);
+        AppenderSupport.provider().removeAppender(auditTrailServiceLogger, mockLogAppender);
     }
 
     public void testNoLogRecentlyWhenLicenseProhibitsAuditing() throws Exception {
         MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
         Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
-        AppenderUtils.addAppender(auditTrailServiceLogger, mockLogAppender);
+        AppenderSupport.provider().addAppender(auditTrailServiceLogger, mockLogAppender);
         service.nextLogInstantAtomic.set(randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now()));
         mockLogAppender.addExpectation(
             MockLogAppender.createUnseenEventExpectation(
@@ -120,7 +120,7 @@ public class AuditTrailServiceTests extends ESTestCase {
             service.get();
         }
         mockLogAppender.assertAllExpectationsMatched();
-        AppenderUtils.removeAppender(auditTrailServiceLogger, mockLogAppender);
+        AppenderSupport.provider().removeAppender(auditTrailServiceLogger, mockLogAppender);
     }
 
     public void testAuthenticationFailed() throws Exception {

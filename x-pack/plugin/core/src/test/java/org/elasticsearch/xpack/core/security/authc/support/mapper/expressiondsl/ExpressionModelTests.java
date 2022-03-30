@@ -11,9 +11,9 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.internal.LogLevelUtil;
+import org.elasticsearch.logging.spi.AppenderSupport;
+import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.junit.Before;
@@ -26,7 +26,7 @@ public class ExpressionModelTests extends ESTestCase {
 
     @Before
     public void enableDebugLogging() {
-        LogLevelUtil.setLevel(LogManager.getLogger(ExpressionModel.class), Level.DEBUG);
+        LogLevelSupport.provider().setLevel(LogManager.getLogger(ExpressionModel.class), Level.DEBUG);
     }
 
     public void testCheckFailureAgainstUndefinedFieldLogsMessage() throws Exception {
@@ -73,14 +73,14 @@ public class ExpressionModelTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         try {
-            AppenderUtils.addAppender(modelLogger, mockAppender);
+            AppenderSupport.provider().addAppender(modelLogger, mockAppender);
             expectations.forEach(mockAppender::addExpectation);
 
             body.run();
 
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(modelLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(modelLogger, mockAppender);
             mockAppender.stop();
         }
     }

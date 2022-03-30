@@ -23,7 +23,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -237,13 +237,13 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
 
         try {
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(Collections.singletonList(hostname));
 
             assertThat(transportAddresses, empty());
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
         }
     }
@@ -316,13 +316,13 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
 
         try {
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2"));
 
             assertThat(transportAddresses, hasSize(1));
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
             latch.countDown();
         }
@@ -440,7 +440,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
 
         try {
-            AppenderUtils.addAppender(logger, appender);
+            AppenderSupport.provider().addAppender(logger, appender);
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(
                 Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301")
             );
@@ -449,7 +449,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
             appender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, appender);
+            AppenderSupport.provider().removeAppender(logger, appender);
             appender.stop();
         }
     }

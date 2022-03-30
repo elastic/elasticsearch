@@ -25,7 +25,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
@@ -898,7 +898,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         mockAppender.start();
         final Logger logger = LogManager.getLogger(FileRestoreContext.class);
-        AppenderUtils.addAppender(logger, mockAppender);
+        AppenderSupport.provider().addAppender(logger, mockAppender);
         try {
             final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
                 .setIndices(indexName)
@@ -908,7 +908,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(logger, mockAppender);
+            AppenderSupport.provider().removeAppender(logger, mockAppender);
             mockAppender.stop();
         }
     }

@@ -15,7 +15,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // @Override
     // public void setUp() throws Exception {
     // super.setUp();
-    // LogConfigurator.registerErrorListener();
+    // BootstrapSupport.provider().registerErrorListener();
     // }
     //
     // @Override
@@ -31,7 +31,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // final Path configDir = getDataPath("config");
     // final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
     // final Environment environment = new Environment(settings, configDir);
-    // LogConfigurator.configure(environment);
+    // BootstrapSupport.provider().configure(environment);
     //
     // {
     // final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -69,7 +69,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // .put("logger.level", level)
     // .build();
     // final Environment environment = new Environment(settings, configDir);
-    // LogConfigurator.configure(environment);
+    // BootstrapSupport.provider().configure(environment);
     //
     // final String loggerName = "test";
     // final Logger logger = LogManager.getLogger(loggerName);
@@ -84,7 +84,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // .put("logger.test_resolve_order", "TRACE")
     // .build();
     // final Environment environment = new Environment(settings, configDir);
-    // LogConfigurator.configure(environment);
+    // BootstrapSupport.provider().configure(environment);
     //
     // // args should overwrite whatever is in the config
     // final String loggerName = "test_resolve_order";
@@ -96,13 +96,13 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // final Path configDir = getDataPath("hierarchy");
     // final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
     // final Environment environment = new Environment(settings, configDir);
-    // LogConfigurator.configure(environment);
+    // BootstrapSupport.provider().configure(environment);
     //
     // assertThat(LogManager.getLogger("x").getLevel(), equalTo(Level.TRACE));
     // assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
     //
     // final Level level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-    // LogLevelUtil.setLevel(LogManager.getLogger("x"), level);
+    // LogLevelSupport.provider().setLevel(LogManager.getLogger("x"), level);
     //
     // assertThat(LogManager.getLogger("x").getLevel(), equalTo(level));
     // assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(level));
@@ -112,7 +112,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // final Path configDir = getDataPath("does_not_exist");
     // final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
     // final Environment environment = new Environment(settings, configDir);
-    // UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment));
+    // UserException e = expectThrows(UserException.class, () -> BootstrapSupport.provider().configure(environment));
     // assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
     // }
     //
@@ -128,7 +128,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     // .put("logger.bar", barLevel.name())
     // .build();
     // final Environment environment = new Environment(settings, configDir);
-    // LogConfigurator.configure(environment);
+    // BootstrapSupport.provider().configure(environment);
     //
     // final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
     // final Configuration config = ctx.getConfiguration();

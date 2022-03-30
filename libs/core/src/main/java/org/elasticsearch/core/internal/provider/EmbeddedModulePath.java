@@ -145,6 +145,11 @@ final class EmbeddedModulePath {
      */
     static ModuleDescriptor descriptorForAutomatic(Path path) {
         String moduleName = moduleNameFromManifestOrNull(path);
+        if(moduleName == null && path.endsWith("log4j2-ecs-layout-1.2.0.jar")){
+            moduleName= "log4j2.ecs.layout";
+        }if(moduleName == null && path.endsWith("ecs-logging-core-1.2.0.jar")){
+            moduleName= "ecs.logging.core";
+        }
         if (moduleName == null) {
             throw new FindException("automatic module without a manifest name is not supported, for:" + path);
         }

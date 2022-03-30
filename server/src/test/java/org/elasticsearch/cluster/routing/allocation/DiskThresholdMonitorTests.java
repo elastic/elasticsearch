@@ -37,7 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -916,14 +916,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
 
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        AppenderUtils.addAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderSupport.provider().addAppender(diskThresholdMonitorLogger, mockAppender);
 
         for (int i = between(1, 3); i >= 0; i--) {
             monitor.onNewInfo(clusterInfo(diskUsages));
         }
 
         mockAppender.assertAllExpectationsMatched();
-        AppenderUtils.removeAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderSupport.provider().removeAppender(diskThresholdMonitorLogger, mockAppender);
         mockAppender.stop();
     }
 
@@ -963,12 +963,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
 
         Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        AppenderUtils.addAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderSupport.provider().addAppender(diskThresholdMonitorLogger, mockAppender);
 
         monitor.onNewInfo(clusterInfo(diskUsages));
 
         mockAppender.assertAllExpectationsMatched();
-        AppenderUtils.removeAppender(diskThresholdMonitorLogger, mockAppender);
+        AppenderSupport.provider().removeAppender(diskThresholdMonitorLogger, mockAppender);
         mockAppender.stop();
     }
 

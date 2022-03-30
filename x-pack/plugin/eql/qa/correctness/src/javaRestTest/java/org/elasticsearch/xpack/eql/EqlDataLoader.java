@@ -24,7 +24,7 @@ import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,7 +40,7 @@ public class EqlDataLoader {
 
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+        PluginManager.addPackage(LoggingBootstrapSupport.provider().class.getPackage().getName());
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("admin", "admin-password"));
         try (

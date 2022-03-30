@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 
 public class JsonLogsTestSetup {
     private static boolean initialized = false;
 
     public static void init() {
         if (initialized == false) {
-            LogConfigurator.setNodeName("sample-name");
+            LoggingBootstrapSupport.provider().setNodeName("sample-name");
             initialized = true;
         }
     }

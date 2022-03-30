@@ -30,7 +30,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -324,7 +324,7 @@ public class OutboundHandlerTests extends ESTestCase {
             )
         );
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
-        AppenderUtils.addAppender(outboundHandlerLogger, mockAppender);
+        AppenderSupport.provider().addAppender(outboundHandlerLogger, mockAppender);
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
         try {
@@ -344,7 +344,7 @@ public class OutboundHandlerTests extends ESTestCase {
             f.get();
             mockAppender.assertAllExpectationsMatched();
         } finally {
-            AppenderUtils.removeAppender(outboundHandlerLogger, mockAppender);
+            AppenderSupport.provider().removeAppender(outboundHandlerLogger, mockAppender);
             mockAppender.stop();
         }
     }

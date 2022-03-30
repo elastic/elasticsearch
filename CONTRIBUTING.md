@@ -435,7 +435,7 @@ do by declaring a static field of the class. For example:
 
 In rare situations you may want to configure your `Logger` slightly
 differently, perhaps specifying a different class or maybe using one of the
-methods on `org.elasticsearch.common.logging.Loggers` instead.
+methods on `org.elasticsearch.common.logging.org.elasticsearch.logging.impl.Loggers` instead.
 
 If the log message includes values from your code then you must use use
 placeholders rather than constructing the string yourself using simple

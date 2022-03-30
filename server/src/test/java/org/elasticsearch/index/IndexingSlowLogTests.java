@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -57,13 +57,13 @@ public class IndexingSlowLogTests extends ESTestCase {
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("trace_appender");
         // appender.start();
-        AppenderUtils.addAppender(testLogger1, appender);
+        AppenderSupport.provider().addAppender(testLogger1, appender);
     }
 
     @AfterClass
     public static void cleanup() {
         // appender.stop();
-        AppenderUtils.removeAppender(testLogger1, appender);
+        AppenderSupport.provider().removeAppender(testLogger1, appender);
     }
 
     public void testLevelPrecedence() {

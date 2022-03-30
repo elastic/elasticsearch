@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.core.AppenderUtils;
+import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -34,12 +34,12 @@ public class TransportLoggerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        AppenderUtils.addAppender(LogManager.getLogger(TransportLogger.class), appender);
+        AppenderSupport.provider().addAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        AppenderUtils.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
+        AppenderSupport.provider().removeAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.stop();
         super.tearDown();
     }

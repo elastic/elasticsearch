@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.spi.ServerSupport;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 /* SPI for logging support. */
 public class ServerSupportImpl implements ServerSupport {
@@ -42,6 +43,12 @@ public class ServerSupportImpl implements ServerSupport {
     }
 
     // --
+
+    //TODO PG not ideal.. maybe we can have some similar impl in some util?
+    @Override
+    public byte[] quoteAsUTF8(String line) {
+        return JsonStringEncoder.getInstance().quoteAsUTF8(line);
+    }
 
     @Override
     public String nodeId() {

@@ -126,13 +126,6 @@ public class BwcVersions {
         return unreleased.get(version);
     }
 
-    /**
-     * Returns the current version
-     */
-    public VersionPair currentVersion() {
-        return currentVersion;
-    }
-
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
         filterSupportedVersions(
             getUnreleased().stream().filter(version -> version.equals(currentVersion.elasticsearch) == false).collect(Collectors.toList())

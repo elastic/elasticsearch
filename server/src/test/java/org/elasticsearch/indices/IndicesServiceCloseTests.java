@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -54,8 +53,10 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return CollectionUtils.appendToCopy(super.filteredWarnings(),
-            "[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch and will be removed in a future release.");
+        return CollectionUtils.appendToCopy(
+            super.filteredWarnings(),
+            "[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     private Node startNode() throws NodeValidationException {

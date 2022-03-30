@@ -27,6 +27,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -94,12 +95,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
                 return true;
             }
         };
-    }
-
-    private void assertNonProductionSettingWarning() {
-        assertCriticalWarnings(
-            "[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch" + " and will be removed in a future release."
-        );
     }
 
     public void testBasics() throws IOException {
@@ -171,7 +166,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats.getMissCount());
 
         cache.close(); // this triggers some assertions
-        assertNonProductionSettingWarning();
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 
     public void testUseNonProductionSettings() throws Exception {
@@ -194,7 +189,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
                 settings.put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomLongBetween(1, 10_000));
             }
             try (IndicesQueryCache ignored = new IndicesQueryCache(settings.build())) {
-                assertNonProductionSettingWarning();
+                assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
             }
         }
     }
@@ -321,7 +316,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats2.getMemorySizeInBytes());
 
         cache.close(); // this triggers some assertions
-        assertNonProductionSettingWarning();
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 
     // Make sure the cache behaves correctly when a segment that is associated
@@ -376,7 +371,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard2);
 
         cache.close(); // this triggers some assertions
-        assertNonProductionSettingWarning();
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 
     private static class DummyWeight extends Weight {
@@ -451,6 +446,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close();
-        assertNonProductionSettingWarning();
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING });
     }
 }

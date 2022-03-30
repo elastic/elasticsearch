@@ -137,9 +137,9 @@ public class RollupActionGroupConfig implements Writeable, ToXContentObject {
         final ActionRequestValidationException validationException
     ) {
         dateHistogram.validateMappings(fieldCapsResponse, validationException);
-        if (histogram != null) {
-            histogram.validateMappings(fieldCapsResponse, validationException);
-        }
+//        if (histogram != null) {
+//            histogram.validateMappings(fieldCapsResponse, validationException);
+//        }
         if (terms != null) {
             terms.validateMappings(fieldCapsResponse, validationException);
         }

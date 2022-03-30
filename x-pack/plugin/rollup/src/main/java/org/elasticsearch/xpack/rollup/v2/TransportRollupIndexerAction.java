@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.client.internal.Client;
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexService;
@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
@@ -48,8 +46,6 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     RollupIndexerAction.Response,
     RollupIndexerAction.ShardRequest,
     RollupIndexerAction.ShardResponse> {
-
-    private static final int SORTER_RAM_SIZE_MB = 100;
 
     private final Client client;
     private final ClusterService clusterService;
@@ -88,10 +84,16 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         if (concreteIndices.length > 1) {
             throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
         }
-        // Random routing to limit request to a single shard
-        String routing = Integer.toString(Randomness.get().nextInt(1000));
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, null);
+
+        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
+            .searchShards(clusterState, concreteIndices, null, null);
+        for (ShardIterator group : groups) {
+            // fails fast if any non-active groups
+            if (group.size() == 0) {
+                throw new NoShardAvailableActionException(group.shardId());
+            }
+        }
+        return groups;
     }
 
     @Override
@@ -123,8 +125,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             indexService,
             request.shardId(),
             request.getRollupConfig(),
-            tmpIndexName,
-            SORTER_RAM_SIZE_MB
+            tmpIndexName
         );
         indexer.execute();
         return new RollupIndexerAction.ShardResponse(request.shardId());

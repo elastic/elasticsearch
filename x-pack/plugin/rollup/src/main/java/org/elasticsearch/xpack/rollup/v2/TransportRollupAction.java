@@ -40,8 +40,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -60,6 +64,7 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -132,15 +137,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(originalIndexName)
             .fields(request.getRollupConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        // Add the source index name and UUID to the rollup index metadata. If the original index is a rollup index itself,
-        // we will add the name and UUID of the raw index that we initially rolled up.
         IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
-        String sourceIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(originalIndexMetadata.getSettings())
-            ? IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(originalIndexMetadata.getSettings())
-            : originalIndexName;
-        String sourceIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(originalIndexMetadata.getSettings())
-            ? IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(originalIndexMetadata.getSettings())
-            : originalIndexMetadata.getIndexUUID();
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
             "rollup",
@@ -188,15 +185,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         currentState,
                         createIndexClusterStateUpdateRequest,
                         true,
-                        (builder, indexMetadata) -> builder.put(
-                            IndexMetadata.builder(indexMetadata)
-                                .settings(
-                                    Settings.builder()
-                                        .put(indexMetadata.getSettings())
-                                        .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
-                                        .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
-                                )
-                        )
+                        (builder, indexMetadata) -> builder.put(copyIndexMetadata(originalIndexMetadata, indexMetadata))
                     );
                 }
 
@@ -263,6 +252,58 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     /**
+     * Copy index metadata from the original index the rollup index.
+     */
+    private IndexMetadata.Builder copyIndexMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata rollupIndexMetadata) {
+        String sourceIndexName = sourceIndexMetadata.getIndex().getName();
+        IndexMode indexMode = IndexSettings.MODE.get(sourceIndexMetadata.getSettings());
+        if (indexMode != IndexMode.TIME_SERIES) {
+            throw new IllegalArgumentException(
+                "Rollup requires setting ["
+                    + IndexSettings.MODE.getKey()
+                    + "="
+                    + IndexMode.TIME_SERIES
+                    + "] for index ["
+                    + sourceIndexName
+                    + "]"
+            );
+        }
+
+        /*
+         * Add the source index name and UUID to the rollup index metadata.
+         * If the original index is a rollup index itself, we will add the name and UUID
+         * of the first index that we initially rolled up.
+         */
+        String originalIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(sourceIndexMetadata.getSettings())
+            ? IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(sourceIndexMetadata.getSettings())
+            : sourceIndexName;
+        String originalIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(sourceIndexMetadata.getSettings())
+            ? IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(sourceIndexMetadata.getSettings())
+            : sourceIndexMetadata.getIndexUUID();
+
+        // Copy time series index settings from original index
+        List<String> indexRoutingPath = sourceIndexMetadata.getRoutingPaths();
+        Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(sourceIndexMetadata.getSettings());
+        Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(sourceIndexMetadata.getSettings());
+
+        return IndexMetadata.builder(rollupIndexMetadata)
+            // Copy numbers of shards and replicas from source index
+            .numberOfShards(sourceIndexMetadata.getNumberOfShards())
+            .numberOfReplicas(sourceIndexMetadata.getNumberOfReplicas())
+            .settings(
+                Settings.builder()
+                    .put(rollupIndexMetadata.getSettings())
+                    .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), originalIndexName)
+                    .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), originalIndexUuid)
+                    // Add the time series index settings
+                    .put(IndexSettings.MODE.getKey(), indexMode)
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), indexRoutingPath)
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime.toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime.toString())
+            );
+    }
+
+    /**
      * Configure the dynamic templates to always map strings to the keyword field type.
      */
     private static XContentBuilder getDynamicTemplates(XContentBuilder builder) throws IOException {
@@ -313,14 +354,23 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
         }
 
+        // TODO: Set the correct field types for dimensions
+        for (String termField : config.getGroupConfig().getTerms().getFields()) {
+            builder.startObject(termField)
+                .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
+                .endObject();
+        }
+
         List<MetricConfig> metricConfigs = config.getMetricsConfig();
         for (MetricConfig metricConfig : metricConfigs) {
-            List<String> metrics = FieldMetricsProducer.normalizeMetrics(metricConfig.getMetrics());
+            List<String> metrics = MetricFieldProducer.normalizeMetrics(metricConfig.getMetrics());
             String defaultMetric = metrics.contains("value_count") ? "value_count" : metrics.get(0);
             builder.startObject(metricConfig.getField())
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
                 .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, TimeSeriesParams.MetricType.gauge)
                 .endObject();
         }
 

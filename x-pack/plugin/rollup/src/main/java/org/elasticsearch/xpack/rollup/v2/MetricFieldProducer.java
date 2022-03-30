@@ -11,13 +11,16 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-class FieldMetricsProducer {
+class MetricFieldProducer {
+
     final String fieldName;
     final List<Metric> metrics;
 
-    FieldMetricsProducer(String fieldName, List<Metric> metrics) {
+    MetricFieldProducer(String fieldName, List<Metric> metrics) {
         this.fieldName = fieldName;
         this.metrics = metrics;
     }
@@ -135,8 +138,8 @@ class FieldMetricsProducer {
         }
     }
 
-    static List<FieldMetricsProducer> buildMetrics(List<MetricConfig> metricsConfigs) {
-        final List<FieldMetricsProducer> fields = new ArrayList<>();
+    static Map<String, MetricFieldProducer> buildMetrics(List<MetricConfig> metricsConfigs) {
+        final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         if (metricsConfigs != null) {
             for (MetricConfig metricConfig : metricsConfigs) {
                 final List<String> normalizedMetrics = normalizeMetrics(metricConfig.getMetrics());
@@ -151,11 +154,14 @@ class FieldMetricsProducer {
                             default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
                         }
                     }
-                    fields.add(new FieldMetricsProducer(metricConfig.getField(), Collections.unmodifiableList(list)));
+                    fields.put(
+                        metricConfig.getField(),
+                        new MetricFieldProducer(metricConfig.getField(), Collections.unmodifiableList(list))
+                    );
                 }
             }
         }
-        return Collections.unmodifiableList(fields);
+        return Collections.unmodifiableMap(fields);
     }
 
     static List<String> normalizeMetrics(List<String> metrics) {

@@ -23,17 +23,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -65,6 +64,7 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -78,16 +78,21 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69799")
+//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-    private String index;
-    private String rollupIndex;
+    public static final String FIELD_TIMESTAMP = "@timestamp";
+    public static final String FIELD_CATEGORICAL_1 = "categorical_1";
+    public static final String FIELD_NUMERIC_1 = "numeric_1";
+    public static final String FIELD_NUMERIC_2 = "numeric_2";
+
+    public static final TermsGroupConfig ROLLUP_TERMS_CONFIG = new TermsGroupConfig(FIELD_CATEGORICAL_1);
+    public static final long MAX_NUM_BUCKETS = 30;
+
+    private String index, rollupIndex;
     private long startTime;
     private int docCount;
-
-    private String timestampFieldName = "@timestamp";
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -105,65 +110,44 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         index = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(10, 1000);
+        docCount = randomIntBetween(10, 500);
 
         client().admin()
             .indices()
             .prepareCreate(index)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_CATEGORICAL_1))
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+                    .build()
+            )
             .setMapping(
-                "date_1",
+                FIELD_TIMESTAMP,
                 "type=date",
-                "numeric_1",
-                "type=double",
-                "numeric_2",
-                "type=float",
-                "numeric_nonaggregatable",
-                "type=double,doc_values=false",
-                "categorical_1",
-                "type=keyword"
+                FIELD_CATEGORICAL_1,
+                "type=keyword,time_series_dimension=true",
+                FIELD_NUMERIC_1,
+                "type=double,time_series_metric=gauge",
+                FIELD_NUMERIC_2,
+                "type=float,time_series_metric=gauge"
             )
             .get();
     }
 
-    public void testRollupShardIndexerCleansTempFiles() throws IOException {
-        // create rollup config and index documents into source index
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
-        bulkIndex(sourceSupplier);
-
-        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        Index srcIndex = resolveIndex(index);
-        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
-        IndexShard shard = indexService.getShard(0);
-
-        // re-use source index as temp index for test
-        RollupShardIndexer indexer = new RollupShardIndexer(client(), indexService, shard.shardId(), config, index, 2);
-        indexer.execute();
-        // assert that files are deleted
-        assertThat(indexer.tmpFilesDeleted, equalTo(indexer.tmpFiles));
-    }
-
     public void testCannotRollupToExistingIndex() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
@@ -173,10 +157,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("max")))
         );
         assertTrue(client().admin().indices().prepareCreate(".rolluptmp-" + rollupIndex).get().isAcknowledged());
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(index, rollupIndex, config));
@@ -184,16 +168,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
             .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
         client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.noop());
@@ -205,34 +189,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsGrouping() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testHistogramGrouping() throws IOException {
-        long interval = randomLongBetween(1, 1000);
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDoubleBetween(0.0, 10000.0, true))
-            .field("numeric_2", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, new HistogramGroupConfig(interval, "numeric_1"), null),
-            Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
@@ -240,15 +206,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testMaxMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
@@ -256,15 +223,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testMinMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("min")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("min")))
         );
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
@@ -272,15 +240,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testValueCountMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("value_count")))
         );
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
@@ -288,51 +257,37 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testAvgMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
             // Use integers to ensure that avg is comparable between rollup and original
-            .field("numeric_1", randomInt())
+            .field(FIELD_NUMERIC_1, randomInt())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("avg")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("avg")))
         );
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
         assertRollupIndex(config, index, rollupIndex);
     }
 
-    public void testValidationCheck() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            // use integers to ensure that avg is comparable between rollup and original
-            .field("numeric_nonaggregatable", randomInt())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_nonaggregatable", Collections.singletonList("avg")))
-        );
-        bulkIndex(sourceSupplier);
-        Exception e = expectThrows(Exception.class, () -> rollup(index, rollupIndex, config));
-        assertThat(e.getMessage(), containsString("The field [numeric_nonaggregatable] must be aggregatable"));
-    }
-
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO")
     public void testRollupDatastream() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(timestampFieldName);
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         String dataStreamName = createDataStream();
 
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field(timestampFieldName, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count")))
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, Collections.singletonList("value_count")))
         );
         bulkIndex(dataStreamName, sourceSupplier);
 
@@ -345,19 +300,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
-        RollupActionDateHistogramGroupConfig randomConfig = ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig(random());
-        if (randomConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
-            return new RollupActionDateHistogramGroupConfig.FixedInterval(field, randomConfig.getInterval(), randomConfig.getTimeZone());
-        }
-        if (randomConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
-            return new RollupActionDateHistogramGroupConfig.CalendarInterval(field, randomConfig.getInterval(), randomConfig.getTimeZone());
-        }
-        throw new IllegalStateException("invalid RollupActionDateHistogramGroupConfig class type");
+        return new RollupActionDateHistogramGroupConfig.FixedInterval(field, ConfigTestHelpers.randomInterval(), "UTC");
     }
 
     private String randomDateForInterval(DateHistogramInterval interval) {
-        final long maxNumBuckets = 10;
-        final long endTime = startTime + maxNumBuckets * interval.estimateMillis();
+        long endTime = startTime + MAX_NUM_BUCKETS * interval.estimateMillis();
         return DATE_FORMATTER.formatMillis(randomLongBetween(startTime, endTime));
     }
 
@@ -427,6 +374,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
             indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.name")
         );
+        assertEquals("time_series", indexSettingsResp.getSetting(rollupIndexName, "index.mode"));
 
         // Assert field mappings
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
@@ -538,8 +486,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template idxTemplate = new Template(null, new CompressedXContent("""
-            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
-            """.formatted(timestampFieldName)), null);
+            {"properties":{"%s":{"type":"date"}, "%s":{"type":"keyword"}}}
+            """.formatted(FIELD_TIMESTAMP, FIELD_CATEGORICAL_1)), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,

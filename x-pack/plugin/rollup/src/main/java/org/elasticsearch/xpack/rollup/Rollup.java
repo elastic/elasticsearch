@@ -157,7 +157,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
                 new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
                 new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
-                //  Rollup / Downsampling
+                // Rollup / Downsampling
                 new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class),
                 new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class)
             )

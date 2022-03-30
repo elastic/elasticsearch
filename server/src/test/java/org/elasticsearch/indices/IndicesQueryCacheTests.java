@@ -97,8 +97,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
     }
 
     private void assertNonProductionSettingWarning() {
-        assertCriticalWarnings("[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch" +
-            " and will be removed in a future release.");
+        assertCriticalWarnings(
+            "[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch" + " and will be removed in a future release."
+        );
     }
 
     public void testBasics() throws IOException {

@@ -119,7 +119,7 @@ public class RestTasksAction extends AbstractCatAction {
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
-    private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
+    private static void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
         table.startRow();
         String nodeId = taskInfo.taskId().getNodeId();
         DiscoveryNode node = discoveryNodes.get(nodeId);

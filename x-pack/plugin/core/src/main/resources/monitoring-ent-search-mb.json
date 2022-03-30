@@ -7,6 +7,7 @@
   },
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "enterprisesearch": {
           "properties": {
@@ -714,7 +715,8 @@
       }
     },
     "settings": {
-      "index.mapping.total_fields.limit": 2000
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
   "data_stream": {}

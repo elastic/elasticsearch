@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
@@ -35,7 +34,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +46,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {

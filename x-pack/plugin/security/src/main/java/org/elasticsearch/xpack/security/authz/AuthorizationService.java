@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
@@ -364,7 +363,7 @@ public class AuthorizationService {
                             authzInfo.getAuthenticatedUserAuthorizationInfo()
                         );
                     }
-                    listener.onFailure(denialException(authentication, action, request, buildRunAsDeniedContext(authentication), null));
+                    listener.onFailure(runAsDenialException(authentication, action));
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
@@ -374,17 +373,6 @@ public class AuthorizationService {
         } else {
             authorizeAction(requestInfo, requestId, authzInfo, listener);
         }
-    }
-
-    private String buildRunAsDeniedContext(Authentication authentication) {
-        final User authUser = authentication.getUser().authenticatedUser();
-        if (authUser.isRunAs() == false) {
-            return "because run as user is not set";
-        }
-        return "because [%s] does not have permission to run as [%s]".formatted(
-            authUser.principal(),
-            authentication.getUser().principal()
-        );
     }
 
     private void authorizeAction(
@@ -842,7 +830,7 @@ public class AuthorizationService {
         return new IllegalArgumentException(message);
     }
 
-    private static boolean isIndexAction(String action) {
+    static boolean isIndexAction(String action) {
         return IndexPrivilege.ACTION_MATCHER.test(action);
     }
 
@@ -872,6 +860,24 @@ public class AuthorizationService {
         return denialException(authentication, action, request, null, cause);
     }
 
+    private ElasticsearchSecurityException runAsDenialException(Authentication authentication, String action) {
+        // Special case for anonymous user
+        if (isAnonymousEnabled && anonymousUser.equals(authentication.getUser().authenticatedUser())) {
+            if (anonymousAuthzExceptionEnabled == false) {
+                return authcFailureHandler.authenticationRequired(action, threadContext);
+            }
+        }
+
+        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)
+            .withApiKeyId()
+            .withRunAsUserPrincipal()
+            .withContext("because user unauthorized to run as target user");
+
+        final String message = denialInfoBuilder.build().toMessage();
+        logger.debug(message);
+        return authorizationError(message);
+    }
+
     private ElasticsearchSecurityException denialException(
         Authentication authentication,
         String action,
@@ -879,57 +885,23 @@ public class AuthorizationService {
         @Nullable String context,
         Exception cause
     ) {
-        final User authUser = authentication.getUser().authenticatedUser();
         // Special case for anonymous user
-        if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
+        if (isAnonymousEnabled && anonymousUser.equals(authentication.getUser().authenticatedUser())) {
             if (anonymousAuthzExceptionEnabled == false) {
                 return authcFailureHandler.authenticationRequired(action, threadContext);
             }
         }
 
-        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(
-            authUser.principal(),
-            authentication.isAuthenticatedWithServiceAccount(),
-            action
-        );
+        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)
+            .withApiKeyId()
+            .withRunAsUserPrincipal()
+            .withRoles()
+            .withContext(context)
+            .withGrantingPrivilegeInfo(request);
 
-        // check for run as
-        if (authentication.getUser().isRunAs()) {
-            denialInfoBuilder.runAsUserPrincipal(authentication.getUser().principal());
-        }
-        // check for authentication by API key
-        if (authentication.isAuthenticatedAsApiKey()) {
-            String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            assert apiKeyId != null : "api key id must be present in the metadata";
-            denialInfoBuilder.apiKeyId(apiKeyId);
-        }
-
-        // The run-as user is always from a realm. So it must have roles that can be printed.
-        // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
-        // roles, but privileges)
-        if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
-            denialInfoBuilder.roles(authentication.getUser().roles());
-        }
-
-        if (context != null) {
-            denialInfoBuilder.context(context);
-        }
-
-        if (ClusterPrivilegeResolver.isClusterAction(action)) {
-            Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
-            if (privileges != null && privileges.size() > 0) {
-                denialInfoBuilder.grantingClusterPrivileges(privileges);
-            }
-        } else if (isIndexAction(action)) {
-            Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
-            if (privileges != null && privileges.size() > 0) {
-                denialInfoBuilder.grantingIndexPrivileges(privileges);
-            }
-        }
-
-        final AuthorizationDenialInfo denialInfo = denialInfoBuilder.build();
-        logger.debug(denialInfo::toFullMessage);
-        return authorizationError(denialInfo.toFullMessage(), cause);
+        final String message = denialInfoBuilder.build().toMessage();
+        logger.debug(message);
+        return authorizationError(message, cause);
     }
 
     private class AuthorizationResultListener<T extends AuthorizationResult> implements ActionListener<T> {

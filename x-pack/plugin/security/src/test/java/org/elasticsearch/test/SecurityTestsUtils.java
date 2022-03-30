@@ -59,7 +59,28 @@ public class SecurityTestsUtils {
         );
     }
 
-    public static void assertThrowsAuthorizationExceptionRunAs(
+    public static void assertThrowsAuthorizationExceptionRunAsDenied(
+        LuceneTestCase.ThrowingRunnable throwingRunnable,
+        String action,
+        String user,
+        String runAs
+    ) {
+        assertThrowsAuthorizationException(
+            "Expected authorization failure for user=[" + user + "], run-as=[" + runAs + "], action=[" + action + "]",
+            throwingRunnable,
+            containsString(
+                "["
+                    + action
+                    + "] is unauthorized for user ["
+                    + user
+                    + "] run as ["
+                    + runAs
+                    + "] because user unauthorized to run as target user"
+            )
+        );
+    }
+
+    public static void assertThrowsAuthorizationExceptionRunAsUnauthorizedAction(
         LuceneTestCase.ThrowingRunnable throwingRunnable,
         String action,
         String user,

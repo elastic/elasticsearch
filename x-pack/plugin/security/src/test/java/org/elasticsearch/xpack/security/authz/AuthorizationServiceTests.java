@@ -192,7 +192,8 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
-import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsUnauthorizedAction;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
@@ -1681,7 +1682,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("run as me", null, new User("test user", "admin")));
         assertNotEquals(authentication.getUser().authenticatedUser(), authentication);
-        assertThrowsAuthorizationExceptionRunAs(
+        assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, "indices:a", request),
             "indices:a",
             "test user",
@@ -1699,7 +1700,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Authentication authentication = new Authentication(user, new RealmRef("foo", "bar", "baz"), null);
         authentication.writeToContext(threadContext);
         assertNotEquals(user.authenticatedUser(), user);
-        assertThrowsAuthorizationExceptionRunAs(
+        assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, AuthenticateAction.NAME, request),
             AuthenticateAction.NAME,
             "test user",
@@ -1729,7 +1730,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("can run as", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        assertThrowsAuthorizationExceptionRunAs(
+        assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, "indices:a", request),
             "indices:a",
             "test user",
@@ -1774,7 +1775,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        assertThrowsAuthorizationExceptionRunAs(
+        assertThrowsAuthorizationExceptionRunAsUnauthorizedAction(
             () -> authorize(authentication, "indices:a", request),
             "indices:a",
             "test user",

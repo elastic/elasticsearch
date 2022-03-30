@@ -8,10 +8,17 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collection;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+import static org.elasticsearch.xpack.security.authz.AuthorizationService.isIndexAction;
 
 record AuthorizationDenialInfo(
     String userPrincipal,
@@ -25,15 +32,11 @@ record AuthorizationDenialInfo(
     Collection<String> grantingIndexPrivileges
 ) {
 
-    static Builder builder(String userPrincipal, Boolean isAuthenticatedWithServiceAccount, String action) {
-        return new Builder(userPrincipal, isAuthenticatedWithServiceAccount, action);
+    static Builder builder(Authentication authentication, String action) {
+        return new Builder(authentication, action);
     }
 
-    String toFullMessage() {
-        return toMessage(true);
-    }
-
-    private String toMessage(Boolean includeSensitiveFields) {
+    String toMessage() {
         String userText = (isAuthenticatedWithServiceAccount ? "service account" : "user") + " [" + userPrincipal + "]";
 
         if (runAsUserPrincipal != null) {
@@ -44,7 +47,7 @@ record AuthorizationDenialInfo(
             userText = "API key id [" + apiKeyId + "] of " + userText;
         }
 
-        if (includeSensitiveFields && roles != null) {
+        if (roles != null) {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(roles) + "]";
         }
 
@@ -54,14 +57,14 @@ record AuthorizationDenialInfo(
             message = message + " " + context;
         }
 
-        if (includeSensitiveFields && grantingClusterPrivileges != null) {
+        if (grantingClusterPrivileges != null) {
             message = message
                 + ", this action is granted by the cluster privileges ["
                 + collectionToCommaDelimitedString(grantingClusterPrivileges)
                 + "]";
         }
 
-        if (includeSensitiveFields && grantingIndexPrivileges != null) {
+        if (grantingIndexPrivileges != null) {
             message = message
                 + ", this action is granted by the index privileges ["
                 + collectionToCommaDelimitedString(grantingIndexPrivileges)
@@ -72,6 +75,7 @@ record AuthorizationDenialInfo(
     }
 
     static class Builder {
+        private final Authentication authentication;
         private final String userPrincipal;
         private final Boolean isAuthenticatedWithServiceAccount;
         private final String action;
@@ -82,10 +86,11 @@ record AuthorizationDenialInfo(
         private Collection<String> grantingClusterPrivileges;
         private Collection<String> grantingIndexPrivileges;
 
-        Builder(String userPrincipal, Boolean isAuthenticatedWithServiceAccount, String action) {
-            this.userPrincipal = userPrincipal;
+        Builder(Authentication authentication, String action) {
+            this.authentication = authentication;
             this.action = action;
-            this.isAuthenticatedWithServiceAccount = isAuthenticatedWithServiceAccount;
+            this.userPrincipal = authentication.getUser().authenticatedUser().principal();
+            this.isAuthenticatedWithServiceAccount = authentication.isAuthenticatedWithServiceAccount();
         }
 
         AuthorizationDenialInfo build() {
@@ -102,33 +107,50 @@ record AuthorizationDenialInfo(
             );
         }
 
-        public Builder runAsUserPrincipal(String runAsUserPrincipal) {
-            this.runAsUserPrincipal = runAsUserPrincipal;
+        public Builder withRunAsUserPrincipal() {
+            User user = authentication.getUser();
+            if (user.isRunAs()) {
+                this.runAsUserPrincipal = user.principal();
+            }
             return this;
         }
 
-        public Builder apiKeyId(String apiKeyId) {
-            this.apiKeyId = apiKeyId;
+        public Builder withApiKeyId() {
+            if (authentication.isAuthenticatedAsApiKey()) {
+                String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                assert apiKeyId != null : "api key id must be present in the metadata";
+                this.apiKeyId = apiKeyId;
+            }
             return this;
         }
 
-        public Builder roles(String[] roles) {
-            this.roles = roles;
+        public Builder withRoles() {
+            // The run-as user is always from a realm. So it must have roles that can be printed.
+            // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
+            // roles, but privileges)
+            if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
+                roles = authentication.getUser().roles();
+            }
             return this;
         }
 
-        public Builder context(String context) {
+        public Builder withGrantingPrivilegeInfo(TransportRequest request) {
+            if (ClusterPrivilegeResolver.isClusterAction(action)) {
+                Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
+                if (privileges != null && privileges.size() > 0) {
+                    grantingClusterPrivileges = privileges;
+                }
+            } else if (isIndexAction(action)) {
+                Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+                if (privileges != null && privileges.size() > 0) {
+                    grantingIndexPrivileges = privileges;
+                }
+            }
+            return this;
+        }
+
+        public Builder withContext(String context) {
             this.context = context;
-            return this;
-        }
-
-        public Builder grantingClusterPrivileges(Collection<String> grantingClusterPrivileges) {
-            this.grantingClusterPrivileges = grantingClusterPrivileges;
-            return this;
-        }
-
-        public Builder grantingIndexPrivileges(Collection<String> grantingIndexPrivileges) {
-            this.grantingIndexPrivileges = grantingIndexPrivileges;
             return this;
         }
     }

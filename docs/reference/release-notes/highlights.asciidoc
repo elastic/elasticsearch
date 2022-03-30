@@ -1,9 +1,6 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
-
 // tag::notable-highlights[]
 {es} 7.17 is a compatibility release for the 7.17 Elastic Stack and contains
 no major enhancements.
@@ -12,8 +9,10 @@ no major enhancements.
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
 
+
 // Add previous release to the list
 Other versions:
+
 {ref-bare}/7.16/release-highlights.html[7.16]
 | {ref-bare}/7.15/release-highlights.html[7.15]
 | {ref-bare}/7.14/release-highlights.html[7.14]
@@ -31,3 +30,14 @@ Other versions:
 | {ref-bare}/7.2/release-highlights-7.2.0.html[7.2]
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
+
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
+// tag::notable-highlights[]
+// [discrete]
+// === Heading
+//
+// Description.
+// end::notable-highlights[]
+
+

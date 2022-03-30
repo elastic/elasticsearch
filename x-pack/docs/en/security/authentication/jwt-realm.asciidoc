@@ -186,11 +186,11 @@ These settings are for {es}.
 
 [source,yml]
 --------------------------------------------------
+xpack.security.authc.realms.jwt.jwt8.order: 8
+xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
 xpack.security.authc.realms.jwt.jwt8.allowed_audiences: [aud8]
 xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms: [HS256]
-xpack.security.authc.realms.jwt.jwt8.order: 8
 xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
-xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
 xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SHARED_SECRET
 --------------------------------------------------
 

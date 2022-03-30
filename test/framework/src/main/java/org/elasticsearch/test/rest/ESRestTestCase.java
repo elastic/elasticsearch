@@ -2056,4 +2056,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static BytesReference toBytes(Response response) throws IOException {
         return new BytesArray(EntityUtils.toByteArray(response.getEntity()));
     }
+
+    protected static Map<?, ?> toMap(Response response) throws IOException {
+        return XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), false);
+    }
+
 }

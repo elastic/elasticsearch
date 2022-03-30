@@ -1,0 +1,12 @@
+pr: 75274
+summary: Remove RAM accounting from segments
+area: Monitoring
+type: "enhancement, breaking"
+issues: []
+breaking:
+  title: Remove RAM accounting from segments
+  area: Monitoring
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

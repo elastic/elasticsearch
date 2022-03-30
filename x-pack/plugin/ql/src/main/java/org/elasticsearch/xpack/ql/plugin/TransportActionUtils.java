@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlVersionMismatchException;
 import org.elasticsearch.xpack.ql.util.Holder;
 
@@ -87,7 +88,11 @@ public final class TransportActionUtils {
         Logger log
     ) {
         if (log.isDebugEnabled()) {
-            log.debug("Version mismatch detected: {}", exception.getMessage());
+            log.debug(
+                "Version mismatch detected: [{}]. Looking for node with matching version [{}] for retry.",
+                exception.getMessage(),
+                exception.getInputVersion()
+            );
         }
 
         DiscoveryNode candidateNode = findNodeWithVersionOtherThanLocalNode(clusterService, exception.getInputVersion());
@@ -119,7 +124,7 @@ public final class TransportActionUtils {
     private static DiscoveryNode findNodeWithVersionOtherThanLocalNode(ClusterService clusterService, Version expectedVersion) {
         DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
         if (expectedVersion.equals(localNode.getVersion())) {
-            return null;
+            throw new QlIllegalArgumentException("Local node is already on expected version {}.", expectedVersion);
         }
 
         for (DiscoveryNode node : clusterService.state().nodes()) {

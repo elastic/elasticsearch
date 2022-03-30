@@ -10,8 +10,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
-import org.elasticsearch.client.security.CreateTokenRequest;
-import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.GetApiKeyRequest;
@@ -61,26 +59,6 @@ public final class SecurityClient {
             SecurityRequestConverters::clearRealmCache,
             options,
             ClearRealmCacheResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Creates an OAuth2 token.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
-     * the docs</a> for more.
-     *
-     * @param request the request for the token
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the create token call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public CreateTokenResponse createToken(CreateTokenRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::createToken,
-            options,
-            CreateTokenResponse::fromXContent,
             emptySet()
         );
     }

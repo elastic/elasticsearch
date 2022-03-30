@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,12 +29,14 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
@@ -228,6 +231,66 @@ public class TestSecurityClient {
         execute(request);
     }
 
+    /**
+     * Uses the REST API to create a new access token via a password grant
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
+     */
+    public OAuth2Token createToken(UsernamePasswordToken grant) throws IOException {
+        return createToken("""
+            {
+              "grant_type":"password",
+              "username":"%s",
+              "password":"%s"
+            }
+            """.formatted(grant.principal(), grant.credentials()));
+    }
+
+    /**
+     * Uses the REST API to create a new access token via a refresh_token grant
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
+     */
+    public OAuth2Token refreshToken(String refreshToken) throws IOException {
+        return createToken("""
+            {
+              "grant_type":"refresh_token",
+              "refresh_token":"%s"
+            }
+            """.formatted(refreshToken));
+    }
+
+    /**
+     * Uses the REST API to create a new access token via a refresh_token grant
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
+     */
+    public OAuth2Token clientCredentialsToken() throws IOException {
+        return createToken("""
+            {
+              "grant_type":"client_credentials"
+            }
+            """);
+    }
+
+    private OAuth2Token createToken(String requestBody) throws IOException {
+        final String endpoint = "/_security/oauth2/token";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setJsonEntity(requestBody);
+        final Map<String, Object> responseBody = entityAsMap(execute(request));
+        return new OAuth2Token(
+            (String) responseBody.get("access_token"),
+            Optional.ofNullable((String) responseBody.get("refresh_token")),
+            ObjectPath.eval("authentication.username", responseBody)
+        );
+    }
+
+    private OAuth2Token toToken(Response response) throws IOException {
+        final Map<String, Object> body = entityAsMap(response);
+        return new OAuth2Token(
+            (String) body.get("access_token"),
+            Optional.ofNullable((String) body.get("refresh_token")),
+            ObjectPath.eval("authentication.username", body)
+        );
+    }
+
     private static String toJson(Map<String, Object> map) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
         final BytesReference bytes = BytesReference.bytes(builder);
@@ -250,6 +313,14 @@ public class TestSecurityClient {
     private Response execute(Request request) throws IOException {
         request.setOptions(options);
         return this.client.performRequest(request);
+    }
+
+    public record OAuth2Token(String accessToken, Optional<String> refreshToken, String principal) {
+
+        @Nullable
+        public String getRefreshToken() {
+            return refreshToken.orElse(null);
+        }
     }
 
 }

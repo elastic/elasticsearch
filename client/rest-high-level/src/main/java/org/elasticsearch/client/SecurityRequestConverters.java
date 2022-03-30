@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
-import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -42,12 +41,6 @@ final class SecurityRequestConverters {
             params.putParam("usernames", Strings.collectionToCommaDelimitedString(clearRealmCacheRequest.getUsernames()));
             request.addParameters(params.asMap());
         }
-        return request;
-    }
-
-    static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
-        request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

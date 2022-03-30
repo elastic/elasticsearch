@@ -114,7 +114,7 @@ public class JoinValidationService {
     }
 
     public void validateJoin(DiscoveryNode discoveryNode, ActionListener<TransportResponse.Empty> listener) {
-        if (discoveryNode.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (discoveryNode.getVersion().onOrAfter(Version.V_8_3_0)) {
             if (executeRefs.tryIncRef()) {
                 try {
                     execute(new JoinValidation(discoveryNode, listener));
@@ -254,7 +254,7 @@ public class JoinValidationService {
 
         @Override
         protected void doRun() throws Exception {
-            assert discoveryNode.getVersion().onOrAfter(Version.V_8_2_0) : discoveryNode.getVersion();
+            assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
             final var cachedBytes = statesByVersion.get(discoveryNode.getVersion());
             final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
             assert bytes.hasReferences() : "already closed";

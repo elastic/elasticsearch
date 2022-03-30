@@ -29,7 +29,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
             // recent versions send a BytesTransportRequest containing the compressed state
             final var bytes = in.readReleasableBytesReference();
             final var version = in.getVersion();
@@ -72,7 +72,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().before(Version.V_8_2_0);
+        assert out.getVersion().before(Version.V_8_3_0);
         super.writeTo(out);
         stateSupplier.get().writeTo(out);
     }

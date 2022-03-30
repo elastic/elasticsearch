@@ -22,10 +22,15 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -35,6 +40,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -109,6 +116,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -1141,6 +1149,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(refreshRequest);
     }
 
+    protected static RefreshResponse refresh(String index) throws IOException {
+        return refresh(client(), index);
+    }
+
+    protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
+        Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
+        Response response = client.performRequest(refreshRequest);
+        return RefreshResponse.fromXContent(toParser(response));
+    }
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
@@ -1511,17 +1528,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         adminClient().performRequest(request);
     }
 
-    protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, null);
+    protected static CreateIndexResponse createIndex(String name) throws IOException {
+        return createIndex(name, null, null, null);
     }
 
-    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        createIndex(name, settings, mapping, null);
+    protected static CreateIndexResponse createIndex(String name, Settings settings) throws IOException {
+        return createIndex(name, settings, null, null);
     }
 
-    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
+        return createIndex(client, name, settings, null, null);
+    }
+
+    protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
+        return createIndex(name, settings, mapping, null);
+    }
+
+    protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        return createIndex(client(), name, settings, mapping, aliases);
+    }
+
+    public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
+        throws IOException {
         Request request = new Request("PUT", "/" + name);
-        String entity = "{\"settings\": " + Strings.toString(settings);
+        String entity = "{";
+        if (settings != null) {
+            entity += "\"settings\": " + Strings.toString(settings);
+        }
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
@@ -1533,16 +1566,18 @@ public abstract class ESRestTestCase extends ESTestCase {
             expectSoftDeletesWarning(request, name);
         }
         request.setJsonEntity(entity);
-        client().performRequest(request);
+        Response response = client.performRequest(request);
+        return CreateIndexResponse.fromXContent(toParser(response));
     }
 
-    protected static void deleteIndex(String name) throws IOException {
-        deleteIndex(client(), name);
+    protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
+        return deleteIndex(client(), name);
     }
 
-    protected static void deleteIndex(RestClient restClient, String name) throws IOException {
+    protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        restClient.performRequest(request);
+        Response response = restClient.performRequest(request);
+        return AcknowledgedResponse.fromXContent(toParser(response));
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -2014,5 +2049,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
         }
+    }
+
+    protected static XContentParser toParser(Response response) throws IOException {
+        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, toBytes(response), XContentType.JSON);
+    }
+
+    protected static BytesReference toBytes(Response response) throws IOException {
+        return new BytesArray(EntityUtils.toByteArray(response.getEntity()));
     }
 }

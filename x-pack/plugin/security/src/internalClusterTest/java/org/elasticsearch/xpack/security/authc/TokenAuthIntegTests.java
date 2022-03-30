@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -37,6 +38,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -218,7 +220,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 assertThat(invalidateResponseTwo.getPreviouslyInvalidatedTokens(), equalTo(0));
                 assertThat(invalidateResponseTwo.getErrors(), empty());
             }
-            restClient.indices().refresh(new RefreshRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
+            Request refreshRequest = new Request("POST", "/" + SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            restClient.getLowLevelClient().performRequest(refreshRequest);
             SearchResponse searchResponse = restClient.search(
                 new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)

@@ -77,19 +77,19 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user-dls");
         assertOK(submitResp);
         SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user-dls");
-        assertThat(hits, arrayContainingInAnyOrder(new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
+        assertThat(hits, arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
             @Override
             public boolean matches(Object actual) {
                 SearchHit hit = (SearchHit) actual;
                 return "index".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
             }
-        }, new CustomMatcher<SearchHit>("\"index\" doc 2 matcher") {
+        }, new CustomMatcher<>("\"index\" doc 2 matcher") {
             @Override
             public boolean matches(Object actual) {
                 SearchHit hit = (SearchHit) actual;
                 return "index".equals(hit.getIndex()) && "2".equals(hit.getId()) && "boo".equals(hit.getSourceAsMap().get("baz"));
             }
-        }, new CustomMatcher<SearchHit>("\"index-user2\" doc 1 matcher") {
+        }, new CustomMatcher<>("\"index-user2\" doc 1 matcher") {
             @Override
             public boolean matches(Object actual) {
                 SearchHit hit = (SearchHit) actual;
@@ -274,13 +274,13 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             assertOK(dlsResp);
             assertThat(
                 getSearchHits(extractResponseId(dlsResp), "user-dls"),
-                arrayContainingInAnyOrder(new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
+                arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
                     @Override
                     public boolean matches(Object actual) {
                         SearchHit hit = (SearchHit) actual;
                         return "index".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
                     }
-                }, new CustomMatcher<SearchHit>("\"index\" doc 2 matcher") {
+                }, new CustomMatcher<>("\"index\" doc 2 matcher") {
                     @Override
                     public boolean matches(Object actual) {
                         SearchHit hit = (SearchHit) actual;
@@ -294,7 +294,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     }
 
     static String extractResponseId(Response response) throws IOException {
-        Map<String, Object> map = toMap(response);
+        Map<?, ?> map = toMap(response);
         return (String) map.get("id");
     }
 
@@ -342,14 +342,6 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         final Request request = new Request("DELETE", "/_async_search/" + id);
         setRunAsHeader(request, user);
         return client().performRequest(request);
-    }
-
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 
     static void setRunAsHeader(Request request, String user) {

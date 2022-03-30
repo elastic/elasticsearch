@@ -38,8 +38,14 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_NO_FAILURES = Decision.single(Decision.Type.YES, NAME, "shard has no previous failures");
 
+    private static final Decision YES_SIMULATING = Decision.single(Decision.Type.YES, NAME, "previous failures ignored when simulating");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (allocation.isSimulating()) {
+            return YES_SIMULATING;
+        }
+
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.getNumFailedAllocations();
         if (numFailedAllocations > 0) {

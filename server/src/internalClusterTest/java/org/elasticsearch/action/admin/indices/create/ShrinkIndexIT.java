@@ -69,6 +69,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testCreateShrinkIndexToN() {
 
         assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);

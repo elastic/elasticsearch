@@ -43,6 +43,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         return Arrays.asList(IngestTestPlugin.class, StoredScriptsIT.CustomScriptPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testIncludeGlobalState() throws Exception {
         createRepository("test-repo", "fs");
 

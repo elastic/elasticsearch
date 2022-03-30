@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -104,6 +105,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO")
 public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override

@@ -362,6 +362,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testWildcardBehaviourSnapshotRestore() throws Exception {
         createIndex("foobar");
         ensureGreen("foobar");

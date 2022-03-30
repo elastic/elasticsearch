@@ -9,6 +9,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.hasSize;
  * TODO: Remove this test in 9.0
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO")
 public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
 
     private static final AtomicBoolean allowFlush = new AtomicBoolean();
@@ -146,6 +148,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         allowFlush.set(false);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();

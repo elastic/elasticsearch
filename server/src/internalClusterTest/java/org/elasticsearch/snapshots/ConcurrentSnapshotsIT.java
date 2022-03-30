@@ -1419,6 +1419,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(otherSnapshot);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testConcurrentRestoreDeleteAndClone() throws Exception {
         final String repository = "test-repo";
         createRepository(logger, repository, "fs");

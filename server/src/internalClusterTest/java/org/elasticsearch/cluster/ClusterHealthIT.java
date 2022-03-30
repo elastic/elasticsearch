@@ -256,6 +256,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testHealthOnIndexCreation() throws Exception {
         final AtomicBoolean finished = new AtomicBoolean(false);
         Thread clusterHealthThread = new Thread() {

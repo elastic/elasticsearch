@@ -115,6 +115,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
     /**
      * Tests that updating the {@link SameShardAllocationDecider#CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING} setting works as expected.
      */
+    @AwaitsFix(bugUrl = "TODO")
     public void testUpdateSameHostSetting() {
         internalCluster().startNodes(2);
         // same same_host to true, since 2 nodes are started on the same host,

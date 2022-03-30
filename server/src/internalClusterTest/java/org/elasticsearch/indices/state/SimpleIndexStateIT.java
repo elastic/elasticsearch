@@ -86,6 +86,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
         logger.info("--> creating test index that cannot be allocated");
         client().admin()

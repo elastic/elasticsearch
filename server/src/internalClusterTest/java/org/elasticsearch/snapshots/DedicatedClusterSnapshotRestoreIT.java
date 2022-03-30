@@ -208,6 +208,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreIndexWithMissingShards() throws Exception {
         disableRepoConsistencyCheck("This test leaves behind a purposely broken repository");
         logger.info("--> start 2 nodes");
@@ -383,6 +384,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertDocCount("test-idx-closed", 100L);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNodes(2);

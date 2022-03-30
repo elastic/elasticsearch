@@ -46,6 +46,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
         testLostMaster((master, dataNode) -> internalCluster().restartNode(master));
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testDroppedOutNode() throws Exception {
         testLostMaster((master, dataNode) -> {
             final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(

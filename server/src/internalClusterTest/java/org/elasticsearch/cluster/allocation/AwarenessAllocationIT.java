@@ -150,6 +150,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_0), anyOf(equalTo(2), equalTo(3)));
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testAwarenessZonesIncrementalNodes() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")

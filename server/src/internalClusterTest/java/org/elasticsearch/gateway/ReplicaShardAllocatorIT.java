@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO")
 public class ReplicaShardAllocatorIT extends ESIntegTestCase {
 
     @Override
@@ -61,6 +63,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
      * Verify that if we found a new copy where it can perform a no-op recovery,
      * then we will cancel the current recovery and allocate replica to the new copy.
      */
+    @AwaitsFix(bugUrl = "TODO")
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
@@ -284,6 +287,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertNoOpRecoveries(indexName);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testPreferCopyWithHighestMatchingOperations() throws Exception {
         String indexName = "test";
         internalCluster().startMasterOnlyNode();

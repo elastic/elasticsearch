@@ -119,6 +119,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        // assert allocation.debugDecision() == false; set to true when called via the reroute API
+        assert allocation.ignoreDisable() == false;
+
         if (allocation.routingNodes().size() == 0) {
             failAllocationOfNewPrimaries(allocation);
             return;

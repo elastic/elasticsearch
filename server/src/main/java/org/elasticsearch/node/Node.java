@@ -541,8 +541,9 @@ public class Node implements Closeable {
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext(),
-                systemIndices
+                threadPool,
+                systemIndices,
+                rerouteServiceReference::get
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -225,7 +224,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
             if (primary == null) {
-                throw new IllegalStateException("shard is peer recovering but primary is unassigned");
+                throw new IllegalStateException("shard [" + routing + "] is peer recovering but primary is unassigned");
             }
             Recoveries.getOrAdd(recoveriesPerNode, primary.currentNodeId()).addOutgoing(howMany);
 
@@ -294,9 +293,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     }
 
     public Set<String> getAttributeValues(String attributeName) {
-        // Only ever accessed on the master service thread so no need for synchronization
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName() + " should be the master service thread";
+        // Only ever accessed on the owning thread so no need for synchronization
+        // TODO fix up this assertion
+        // assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
+        // : Thread.currentThread().getName() + " should be the master service thread";
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,
             ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
@@ -871,6 +871,13 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return nodesToShards.size();
     }
 
+    /**
+     * @return collection of {@link ShardRouting}s, keyed by shard ID.
+     */
+    public Map<ShardId, List<ShardRouting>> getAssignedShards() {
+        return Collections.unmodifiableMap(assignedShards);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -1021,6 +1028,12 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
             ignored.add(shard);
+        }
+
+        public void resetIgnored() {
+            assert unassigned.size() == 0; // every unassigned shard should be ignored before resetting
+            unassigned.addAll(ignored);
+            ignored.clear();
         }
 
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {

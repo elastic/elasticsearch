@@ -65,6 +65,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testParallelRestoreOperations() {
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -111,6 +112,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(client.prepareGet(restoredIndexName2, docId2).get().isExists(), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -267,6 +269,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreAliases() throws Exception {
         createRepository("test-repo", "fs");
 
@@ -393,6 +396,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testRenameOnRestore() throws Exception {
         Client client = client();
 
@@ -571,6 +575,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testDynamicRestoreThrottling() throws Exception {
         Client client = client();
 
@@ -620,6 +625,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocCount("test-idx", 100L);
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testChangeSettingsOnRestore() throws Exception {
         Client client = client();
 

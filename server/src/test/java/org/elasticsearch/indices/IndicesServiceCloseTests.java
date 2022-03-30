@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -38,6 +40,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -48,6 +51,12 @@ import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class IndicesServiceCloseTests extends ESTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return CollectionUtils.appendToCopy(super.filteredWarnings(),
+            "[indices.queries.cache.all_segments] setting was deprecated in Elasticsearch and will be removed in a future release.");
+    }
 
     private Node startNode() throws NodeValidationException {
         final Path tempDir = createTempDir();

@@ -274,7 +274,6 @@ public class RestHighLevelClient implements Closeable {
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
-    private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final TransformClient transformClient = new TransformClient(this);
@@ -357,15 +356,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final IndicesClient indices() {
         return indicesClient;
-    }
-
-    /**
-     * Provides a {@link IngestClient} which can be used to access the Ingest API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
-     */
-    public final IngestClient ingest() {
-        return ingestClient;
     }
 
     /**

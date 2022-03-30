@@ -45,10 +45,11 @@ public class InternalSettingsPreparer {
         Supplier<String> defaultNodeName
     ) {
         Path configDir = findConfigDir(configPath, input, properties);
+        Path configFile = configDir.resolve("elasticsearch.yml");
 
         Settings.Builder output = Settings.builder(); // start with a fresh output
 
-        loadConfigWithSubstitutions(output, configDir, System::getenv);
+        loadConfigWithSubstitutions(output, configFile, System::getenv);
         loadOverrides(output, properties);
         output.put(input);
         replaceForcedSettings(output);
@@ -80,8 +81,8 @@ public class InternalSettingsPreparer {
         return PathUtils.get(esHome).resolve("config");
     }
 
-    static void loadConfigWithSubstitutions(Settings.Builder output, Path configDir, Function<String, String> substitutions) {
-        Path configFile = configDir.resolve("elasticsearch.yml");
+    static void loadConfigWithSubstitutions(Settings.Builder output, Path configFile, Function<String, String> substitutions) {
+
         if (Files.exists(configFile) == false) {
             return;
         }

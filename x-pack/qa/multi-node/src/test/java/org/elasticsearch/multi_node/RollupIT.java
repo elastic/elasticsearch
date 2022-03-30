@@ -121,12 +121,12 @@ public class RollupIT extends ESRestTestCase {
                 ]
             }""".formatted(pageSize));
 
-        Map<?, ?> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
+        var createRollupJobResponse = responseAsMap(client().performRequest(createRollupJobRequest));
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // start the rollup job
         final Request startRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_start");
-        Map<?, ?> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
+        var startRollupJobResponse = responseAsMap(client().performRequest(startRollupJobRequest));
         assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
         assertRollUpJob("rollup-job-test");
@@ -146,7 +146,7 @@ public class RollupIT extends ESRestTestCase {
 
         // Refresh the rollup index to make sure all newly indexed docs are searchable
         final Request refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
-        toMap(client().performRequest(refreshRollupIndex));
+        client().performRequest(refreshRollupIndex);
 
         String jsonRequestBody = """
             {
@@ -175,12 +175,12 @@ public class RollupIT extends ESRestTestCase {
         Request request = new Request("GET", "rollup-docs/_search");
         request.setJsonEntity(jsonRequestBody);
         Response liveResponse = client().performRequest(request);
-        Map<?, ?> liveBody = toMap(liveResponse);
+        var liveBody = responseAsMap(liveResponse);
 
         request = new Request("GET", "results-rollup/_rollup_search");
         request.setJsonEntity(jsonRequestBody);
         Response rollupResponse = client().performRequest(request);
-        Map<?, ?> rollupBody = toMap(rollupResponse);
+        var rollupBody = responseAsMap(rollupResponse);
 
         // Do the live agg results match the rollup agg results?
         assertThat(
@@ -191,7 +191,7 @@ public class RollupIT extends ESRestTestCase {
         request = new Request("GET", "rollup-docs/_rollup_search");
         request.setJsonEntity(jsonRequestBody);
         Response liveRollupResponse = client().performRequest(request);
-        Map<?, ?> liveRollupBody = toMap(liveRollupResponse);
+        var liveRollupBody = responseAsMap(liveRollupResponse);
 
         // Does searching the live index via rollup_search work match the live search?
         assertThat(
@@ -208,7 +208,7 @@ public class RollupIT extends ESRestTestCase {
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
-        Map<?, ?> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
+        var getRollupJobResponse = responseAsMap(client().performRequest(getRollupJobRequest));
         Map<?, ?> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
             assertThat(ObjectPath.eval("status.job_state", job), is(oneOf(states)));
@@ -218,7 +218,7 @@ public class RollupIT extends ESRestTestCase {
         final Request taskRequest = new Request("GET", "_tasks");
         taskRequest.addParameter("detailed", "true");
         taskRequest.addParameter("actions", "xpack/rollup/*");
-        Map<?, ?> taskResponse = toMap(client().performRequest(taskRequest));
+        var taskResponse = responseAsMap(client().performRequest(taskRequest));
         Map<String, Object> taskResponseNodes = (Map<String, Object>) taskResponse.get("nodes");
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();
         Map<String, Object> taskResponseTasks = (Map<String, Object>) taskResponseNode.get("tasks");
@@ -227,7 +227,7 @@ public class RollupIT extends ESRestTestCase {
 
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
-        Map<?, ?> clusterStateResponse = toMap(client().performRequest(clusterStateRequest));
+        var clusterStateResponse = responseAsMap(client().performRequest(clusterStateRequest));
         List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
         boolean hasRollupTask = false;

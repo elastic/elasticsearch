@@ -1153,7 +1153,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
-        return RefreshResponse.fromXContent(toParser(response));
+        return RefreshResponse.fromXContent(responseAsParser(response));
     }
 
     private void waitForPendingRollupTasks() throws Exception {
@@ -1575,7 +1575,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         entity += "}";
         request.setJsonEntity(entity);
         Response response = client.performRequest(request);
-        return CreateIndexResponse.fromXContent(toParser(response));
+        return CreateIndexResponse.fromXContent(responseAsParser(response));
     }
 
     protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
@@ -1585,7 +1585,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
-        return AcknowledgedResponse.fromXContent(toParser(response));
+        return AcknowledgedResponse.fromXContent(responseAsParser(response));
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1698,6 +1698,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
         assertNotNull(responseEntity);
         return responseEntity;
+    }
+
+    protected static XContentParser responseAsParser(Response response) throws IOException {
+        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
+    }
+
+    protected static BytesReference responseAsBytes(Response response) throws IOException {
+        return new BytesArray(EntityUtils.toByteArray(response.getEntity()));
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
@@ -2057,18 +2065,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
         }
-    }
-
-    protected static XContentParser toParser(Response response) throws IOException {
-        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, toBytes(response), XContentType.JSON);
-    }
-
-    protected static BytesReference toBytes(Response response) throws IOException {
-        return new BytesArray(EntityUtils.toByteArray(response.getEntity()));
-    }
-
-    protected static Map<?, ?> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), false);
     }
 
 }

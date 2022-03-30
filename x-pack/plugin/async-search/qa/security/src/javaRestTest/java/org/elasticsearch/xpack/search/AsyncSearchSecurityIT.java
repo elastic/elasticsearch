@@ -294,7 +294,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     }
 
     static String extractResponseId(Response response) throws IOException {
-        Map<?, ?> map = toMap(response);
+        var map = responseAsMap(response);
         return (String) map.get("id");
     }
 
@@ -357,7 +357,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         request.addParameter("keep_alive", between(1, 5) + "m");
         final Response response = client().performRequest(request);
         assertOK(response);
-        return (String) toMap(response).get("id");
+        return (String) responseAsMap(response).get("id");
     }
 
     static Response submitAsyncSearchWithPIT(String pit, String query, TimeValue waitForCompletion, String user) throws IOException {

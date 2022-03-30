@@ -213,7 +213,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                     """.formatted(i));
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
-                Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) toMap(rsp).get("hits")).get("hits")).get(0);
+                var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {

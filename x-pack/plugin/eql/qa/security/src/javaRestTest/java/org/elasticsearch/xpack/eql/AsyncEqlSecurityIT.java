@@ -94,7 +94,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     }
 
     static String extractResponseId(Response response) throws IOException {
-        Map<?, ?> map = toMap(response);
+        var map = responseAsMap(response);
         return (String) map.get("id");
     }
 

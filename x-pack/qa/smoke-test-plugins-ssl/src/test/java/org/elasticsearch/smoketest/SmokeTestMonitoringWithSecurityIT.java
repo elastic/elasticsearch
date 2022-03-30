@@ -191,7 +191,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         Request templateRequest = new Request("GET", "/_index_template/" + MONITORING_PATTERN);
         assertBusy(() -> {
             try {
-                Map<?, ?> response = toMap(client.getLowLevelClient().performRequest(templateRequest));
+                var response = responseAsMap(client.getLowLevelClient().performRequest(templateRequest));
                 List<?> templates = ObjectPath.evaluate(response, "index_templates");
                 assertThat(templates.size(), greaterThanOrEqualTo(2));
             } catch (Exception e) {

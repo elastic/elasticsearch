@@ -185,7 +185,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             request.toXContent(builder, null);
             restRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
             Response restResponse = restClient.getLowLevelClient().performRequest(restRequest);
-            AcknowledgedResponse response = CreateIndexResponse.fromXContent(toParser(restResponse));
+            AcknowledgedResponse response = CreateIndexResponse.fromXContent(responseAsParser(restResponse));
             assertThat(response.isAcknowledged(), is(true));
         }
 

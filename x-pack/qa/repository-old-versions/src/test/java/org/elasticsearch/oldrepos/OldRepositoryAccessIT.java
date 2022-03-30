@@ -327,7 +327,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         String restoredIndex = "restored_" + indexName;
         RestClient llClient = client.getLowLevelClient();
-        Map<?, ?> response = toMap(llClient.performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
+        var response = responseAsMap(llClient.performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
         Map<?, ?> mapping = ObjectPath.evaluate(response, restoredIndex + ".mapping");
         logger.info("mapping for {}: {}", restoredIndex, mapping);
         assertThat(mapping, hasKey("_meta"));
@@ -451,7 +451,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             Request putMappingRequest = new Request("PUT", "/" + index + "/_mapping");
             putMappingRequest.setEntity(new StringEntity(Strings.toString(mappingBuilder), ContentType.APPLICATION_JSON));
             Response response = client.getLowLevelClient().performRequest(putMappingRequest);
-            assertTrue(AcknowledgedResponse.fromXContent(toParser(response)).isAcknowledged());
+            assertTrue(AcknowledgedResponse.fromXContent(responseAsParser(response)).isAcknowledged());
 
             // search using reverse sort on val
             searchResponse = client.search(
@@ -496,6 +496,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     static ShardsAcknowledgedResponse closeIndex(RestClient client, String index) throws IOException {
         Request request = new Request("POST", "/" + index + "/_close");
         Response response = client.performRequest(request);
-        return ShardsAcknowledgedResponse.fromXContent(toParser(response));
+        return ShardsAcknowledgedResponse.fromXContent(responseAsParser(response));
     }
 }

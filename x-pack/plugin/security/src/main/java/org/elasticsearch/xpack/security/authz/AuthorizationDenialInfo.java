@@ -20,7 +20,7 @@ import java.util.Collection;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.isIndexAction;
 
-record AuthorizationDeniedInfo(
+record AuthorizationDenialInfo(
     String userPrincipal,
     Boolean isAuthenticatedWithServiceAccount,
     String action,
@@ -93,8 +93,8 @@ record AuthorizationDeniedInfo(
             this.isAuthenticatedWithServiceAccount = authentication.isAuthenticatedWithServiceAccount();
         }
 
-        AuthorizationDeniedInfo build() {
-            return new AuthorizationDeniedInfo(
+        AuthorizationDenialInfo build() {
+            return new AuthorizationDenialInfo(
                 userPrincipal,
                 isAuthenticatedWithServiceAccount,
                 action,

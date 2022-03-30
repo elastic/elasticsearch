@@ -113,7 +113,7 @@ public final class ProviderMethodsModule implements Module {
         return new ProviderMethod<>(key, method, delegate, parameterProviders, scopeAnnotation);
     }
 
-    <T> Key<T> getKey(Errors errors, TypeLiteral<T> type, Member member, Annotation[] annotations) {
+    static <T> Key<T> getKey(Errors errors, TypeLiteral<T> type, Member member, Annotation[] annotations) {
         Annotation bindingAnnotation = Annotations.findBindingAnnotation(errors, member, annotations);
         return bindingAnnotation == null ? Key.get(type) : Key.get(type, bindingAnnotation);
     }

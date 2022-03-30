@@ -92,6 +92,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85471")
     public void testShutdownReadinessService() throws Exception {
         // Get a node from the cluster and find its readiness port
         Request getNodes = new Request("GET", "_nodes");

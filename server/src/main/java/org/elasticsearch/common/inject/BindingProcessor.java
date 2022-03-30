@@ -183,7 +183,7 @@ class BindingProcessor extends AbstractProcessor {
         Annotations.checkForMisplacedScopeAnnotations(key.getRawType(), source, errors);
     }
 
-    <T> UntargettedBindingImpl<T> invalidBinding(InjectorImpl injector, Key<T> key, Object source) {
+    static <T> UntargettedBindingImpl<T> invalidBinding(InjectorImpl injector, Key<T> key, Object source) {
         return new UntargettedBindingImpl<>(injector, key, source);
     }
 

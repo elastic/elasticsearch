@@ -141,7 +141,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     /**
      * Removes temporary file realm user from users and roles file
      */
-    private void cleanup(Terminal terminal, Environment env, String username) throws Exception {
+    private static void cleanup(Terminal terminal, Environment env, String username) throws Exception {
         final Path passwordFile = FileUserPasswdStore.resolveFile(env);
         final Path rolesFile = FileUserRolesStore.resolveFile(env);
         final List<String> errorMessages = new ArrayList<>();
@@ -176,7 +176,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         attributesChecker.check(terminal);
     }
 
-    private void ensureFileRealmEnabled(Settings settings) throws Exception {
+    private static void ensureFileRealmEnabled(Settings settings) throws Exception {
         final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
         Map<RealmConfig.RealmIdentifier, Settings> fileRealmSettings = realms.entrySet()
             .stream()

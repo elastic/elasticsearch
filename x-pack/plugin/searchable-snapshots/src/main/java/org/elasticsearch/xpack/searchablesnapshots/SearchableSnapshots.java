@@ -582,7 +582,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             ) };
     }
 
-    private Settings getIndexSettings() {
+    private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -592,7 +592,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .build();
     }
 
-    private XContentBuilder getIndexMappings() {
+    private static XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {

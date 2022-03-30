@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import com.carrotsearch.hppc.LongHashSet;
-
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
@@ -93,12 +91,12 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int[] expectedCounts = new int[ranges.length];
         final int maxDoc = randomIntBetween(5, 10);
         for (int doc = 0; doc < maxDoc; ++doc) {
-            LongHashSet ordinalSet = new LongHashSet();
+            Set<Long> ordinalSet = new HashSet<>();
             final int numValues = randomInt(maxNumValuesPerDoc);
             while (ordinalSet.size() < numValues) {
-                ordinalSet.add(random().nextInt(terms.length));
+                ordinalSet.add(random().nextLong(terms.length));
             }
-            final long[] ords = ordinalSet.toArray();
+            final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
             values.ords = ords;
 
@@ -194,12 +192,12 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int[] expectedCounts = new int[ranges.length];
         final int maxDoc = randomIntBetween(5, 10);
         for (int doc = 0; doc < maxDoc; ++doc) {
-            LongHashSet ordinalSet = new LongHashSet();
+            Set<Long> ordinalSet = new HashSet<>();
             final int numValues = randomInt(maxNumValuesPerDoc);
             while (ordinalSet.size() < numValues) {
-                ordinalSet.add(random().nextInt(terms.length));
+                ordinalSet.add(random().nextLong(terms.length));
             }
-            final long[] ords = ordinalSet.toArray();
+            final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
             values.ords = ords;
 

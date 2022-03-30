@@ -61,16 +61,16 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         index("index", "0", "foo", "bar");
         index("index", "1", "bar", "baz");
         index("index", "2", "baz", "boo");
-        refresh("index");
+        refresh(adminClient(), "index");
 
         createIndex("index-user1", Settings.EMPTY);
         index("index-user1", "0", "foo", "bar");
-        refresh("index-user1");
+        refresh(adminClient(), "index-user1");
 
         createIndex("index-user2", Settings.EMPTY);
         index("index-user2", "0", "foo", "bar");
         index("index-user2", "1", "bar", "baz");
-        refresh("index-user2");
+        refresh(adminClient(), "index-user2");
     }
 
     public void testWithDlsAndFls() throws Exception {
@@ -313,10 +313,6 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
-    }
-
-    static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     static Response get(String index, String id, String user) throws IOException {

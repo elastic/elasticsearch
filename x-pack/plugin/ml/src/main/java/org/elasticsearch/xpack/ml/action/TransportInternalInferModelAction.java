@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -103,8 +103,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private boolean isAllocatedModel(String modelId) {
-        TrainedModelAllocationMetadata trainedModelAllocationMetadata = TrainedModelAllocationMetadata.fromState(clusterService.state());
-        return trainedModelAllocationMetadata.isAllocated(modelId);
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
+        return trainedModelAssignmentMetadata.isAssigned(modelId);
     }
 
     private void getModelAndInfer(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {

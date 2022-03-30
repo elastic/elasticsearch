@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -70,10 +71,13 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-
-                waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
-                assertInfer(modelId);
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_2_0)) {
+                    waitForDeploymentStarted(modelId);
+                    assertInfer(modelId);
+                    assertInfer(modelId);
+                } else {
+                    ensureDeploymentExistsAndIsStartedOrFailed(modelId);
+                }
             }
             case UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -81,8 +85,12 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
 
-                waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_2_0)) {
+                    waitForDeploymentStarted(modelId);
+                    assertInfer(modelId);
+                } else {
+                    ensureDeploymentExistsAndIsStartedOrFailed(modelId);
+                }
                 stopDeployment(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -110,6 +118,27 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 equalTo("fully_allocated")
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureDeploymentExistsAndIsStartedOrFailed(String modelId) throws Exception {
+        assertBusy(() -> {
+            var response = getTrainedModelStats(modelId);
+            Map<String, Object> map = entityAsMap(response);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            var stat = stats.get(0);
+            assertThat(
+                stat.toString(),
+                XContentMapValues.extractValue("deployment_stats.allocation_status.state", stat),
+                anyOf(equalTo("fully_allocated"), equalTo("started"))
+            );
+            assertThat(
+                stat.toString(),
+                XContentMapValues.extractValue("deployment_stats.state", stat),
+                anyOf(equalTo("started"), equalTo("failed"))
+            );
         }, 30, TimeUnit.SECONDS);
     }
 

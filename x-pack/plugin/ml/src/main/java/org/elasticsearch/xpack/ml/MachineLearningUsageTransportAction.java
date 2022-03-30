@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -351,7 +351,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
         for (var stats : statsResponse.getResources().results()) {
-            AllocationStats deploymentStats = stats.getDeploymentStats();
+            AssignmentStats deploymentStats = stats.getDeploymentStats();
             if (deploymentStats == null) {
                 continue;
             }

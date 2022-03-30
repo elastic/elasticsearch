@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -96,6 +97,36 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
+
+    public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
+        assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
+
+        final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
+
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                setupDeployment(modelId);
+                assertInfer(modelId);
+            }
+            case MIXED -> {
+                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
+                    request.addParameter("wait_for_status", "yellow");
+                    request.addParameter("timeout", "70s");
+                }));
+                stopDeployment(modelId);
+            }
+            case UPGRADED -> {
+                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
+                    request.addParameter("wait_for_status", "yellow");
+                    request.addParameter("timeout", "70s");
+                }));
+                assertThatTrainedModelAssignmentMetadataIsEmpty("upgrade-deployment-test-stop-mixed-cluster");
+
+            }
+            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+    }
+
 
     private void setupDeployment(String modelId) throws IOException {
         createTrainedModel(modelId);
@@ -209,6 +240,28 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
         Request request = new Request("POST", endpoint);
         client().performRequest(request);
+    }
+
+    private void assertThatTrainedModelAssignmentMetadataIsEmpty(String modelId) throws IOException {
+        Request getTrainedModelAssignmentMetadataRequest = new Request(
+            "GET",
+            "_cluster/state?filter_path=metadata.trained_model_assignment." + modelId
+        );
+        Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        assertThat(
+            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
+            containsString("{}")
+        );
+
+        getTrainedModelAssignmentMetadataRequest = new Request(
+            "GET",
+            "_cluster/state?filter_path=metadata.trained_model_allocation"
+        );
+        getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        assertThat(
+            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
+            equalTo("{}")
+        );
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {

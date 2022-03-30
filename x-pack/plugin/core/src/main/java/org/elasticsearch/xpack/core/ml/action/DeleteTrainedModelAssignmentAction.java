@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class DeleteTrainedModelAssignmentAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteTrainedModelAssignmentAction INSTANCE = new DeleteTrainedModelAssignmentAction();
-    public static final String NAME = "cluster:internal/xpack/ml/model_assignment/delete";
+    public static final String NAME = "cluster:internal/xpack/ml/model_allocation/delete";
 
     private DeleteTrainedModelAssignmentAction() {
         super(NAME, AcknowledgedResponse::readFrom);

@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public class UpdateTrainedModelAssignmentStateAction extends ActionType<AcknowledgedResponse> {
     public static final UpdateTrainedModelAssignmentStateAction INSTANCE = new UpdateTrainedModelAssignmentStateAction();
-    public static final String NAME = "cluster:internal/xpack/ml/model_assignment/update";
+    public static final String NAME = "cluster:internal/xpack/ml/model_allocation/update";
 
     private UpdateTrainedModelAssignmentStateAction() {
         super(NAME, AcknowledgedResponse::readFrom);

@@ -812,5 +812,15 @@ public class PyTorchModelIT extends ESRestTestCase {
             EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
             containsString("\"trained_model_assignment\":{}")
         );
+
+        getTrainedModelAssignmentMetadataRequest = new Request(
+            "GET",
+            "_cluster/state?filter_path=metadata.trained_model_allocation"
+        );
+        getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        assertThat(
+            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
+            equalTo("{}")
+        );
     }
 }

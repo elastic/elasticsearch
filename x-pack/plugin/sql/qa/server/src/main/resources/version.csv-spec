@@ -1,0 +1,69 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests for VERSION fields
+//
+
+selectAll
+SELECT * FROM apps ORDER BY id;
+
+  id  |  name     |  version
+------+-----------+---------
+1     |aaaaa      |1.0.0
+2     |bbbbb      |2.1.14
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+5     |eeeee      |1.11.0
+6     |fffff      |5.2.9
+;
+
+filterByVersion
+SELECT * FROM apps WHERE version = '2.12.0';
+
+  id  |  name     |  version
+------+-----------+---------
+4     |ddddd      |2.12.0
+;
+
+projectionVersion
+SELECT version FROM apps WHERE id = 3;
+
+ version
+---------
+2.3.4
+;
+
+
+versionRange1
+SELECT * FROM apps WHERE version > '2.2' ORDER BY id;
+
+  id  |  name     |  version
+------+-----------+---------
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+6     |fffff      |5.2.9
+;
+
+versionRange2
+SELECT * FROM apps WHERE version >= '2.3.4' ORDER BY id;
+
+  id  |  name     |  version
+------+-----------+---------
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+6     |fffff      |5.2.9
+;
+
+
+orderByVersion
+SELECT * FROM apps ORDER BY version;
+
+  id  |  name     |  version
+------+-----------+---------
+1     |aaaaa      |1.0.0
+5     |eeeee      |1.11.0
+2     |bbbbb      |2.1.14
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+6     |fffff      |5.2.9
+;

@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
     private final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
-    private final Set<String> runtimeFieldNames = new HashSet<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -81,7 +80,6 @@ final class FieldTypeLookup {
         for (MappedFieldType fieldType : RuntimeField.collectFieldTypes(runtimeFields).values()) {
             // this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            runtimeFieldNames.add(fieldType.name());
         }
     }
 
@@ -104,10 +102,6 @@ final class FieldTypeLookup {
             return fieldType;
         }
         return getDynamicField(field);
-    }
-
-    boolean isRuntimeField(String field) {
-        return runtimeFieldNames.contains(field);
     }
 
     // for testing

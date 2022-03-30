@@ -106,7 +106,7 @@ public class FeatureFactoryTests extends ESTestCase {
         final int x = randomIntBetween(2, (1 << z) - 1);
         final int y = randomIntBetween(2, (1 << z) - 1);
         final int extent = randomIntBetween(1 << 8, 1 << 14);
-        final int padPixels = randomIntBetween(0, extent);
+        final int padPixels = randomIntBetween(0, extent - 1);
         final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);

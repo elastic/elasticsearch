@@ -18,17 +18,30 @@ keyword:
       index:
         index:   test
         id:      1
-        refresh: true
         body:
           kwd: foo
 
   - do:
-      search:
+      index:
+        index:   test
+        id:      2
+        body:
+          kwd: bar
+
+
+  - do:
+      mget:
         index: test
         body:
-          query:
-            ids:
-              values: [1]
+          ids:    [1, 2]
+  - match: {docs.0._index: "test"}
+  - match: {docs.0._id: "1"}
   - match:
-      hits.hits.0._source:
+      docs.0._source:
         kwd: foo
+
+  - match: {docs.1._index: "test"}
+  - match: {docs.1._id: "2"}
+  - match:
+      docs.1._source:
+        kwd: bar

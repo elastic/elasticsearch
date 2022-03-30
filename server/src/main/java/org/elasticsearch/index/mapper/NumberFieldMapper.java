@@ -15,6 +15,8 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
@@ -33,7 +35,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -375,6 +376,16 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
             }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                    @Override
+                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                        b.value(HalfFloatPoint.sortableShortToHalfFloat((short) value));
+                    }
+                };
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -501,6 +512,16 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
             }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                    @Override
+                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                        b.value(NumericUtils.sortableIntToFloat((int) value));
+                    }
+                };
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
@@ -605,6 +626,16 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
             }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                    @Override
+                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                        b.value(NumericUtils.sortableLongToDouble(value));
+                    }
+                };
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -677,6 +708,11 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), ByteDocValuesField::new);
             }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -744,6 +780,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), ShortDocValuesField::new);
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -881,6 +922,11 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), IntegerDocValuesField::new);
             }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -986,6 +1032,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), LongDocValuesField::new);
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
         };
 
@@ -1197,6 +1248,17 @@ public class NumberFieldMapper extends FieldMapper {
          */
         public double reduceToStoredPrecision(double value) {
             return ((Number) value).doubleValue();
+        }
+
+        abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName);
+
+        private static SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(String fieldName, String fieldSimpleName) {
+            return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                @Override
+                protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    b.value(value);
+                }
+            };
         }
     }
 
@@ -1522,90 +1584,56 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void validateSyntheticSource() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
+        return type.syntheticFieldLoader(name(), simpleName());
     }
 
-    @Override public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
-        if (fieldType().numericType().isFloatingPoint()) {
-            return syntheticDoubleFieldLoader(fdLookup);
+    public abstract static class NumericSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+
+        protected NumericSyntheticFieldLoader(String name, String simpleName) {
+            this.name = name;
+            this.simpleName = simpleName;
         }
-        return syntheticLongFieldLoader(fdLookup);
-    }
 
-    private SourceLoader.SyntheticFieldLoader syntheticDoubleFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
-        SortedDoublesIndexFieldData fd = (SortedDoublesIndexFieldData) fdLookup.apply(fieldType());
-        return new SourceLoader.SyntheticFieldLoader() {
-            @Override
-            public Leaf leaf(LeafReaderContext ctx) {
-                SortedNumericDoubleValues leaf = fd.load(ctx).getDoubleValues();
-                return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                    private boolean hasValue;
+        @Override
+        public Leaf leaf(LeafReader reader) throws IOException {
+            SortedNumericDocValues leaf = DocValues.getSortedNumeric(reader, name);
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private boolean hasValue;
 
-                    @Override
-                    public void advanceToDoc(int docId) throws IOException {
-                        hasValue = leaf.advanceExact(docId);
+                @Override
+                public void advanceToDoc(int docId) throws IOException {
+                    hasValue = leaf.advanceExact(docId);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return hasValue;
+                }
+
+                @Override
+                public void load(XContentBuilder b) throws IOException {
+                    if (leaf.docValueCount() == 1) {
+                        b.field(simpleName);
+                        loadNextValue(b, leaf.nextValue());
+                        return;
                     }
-
-                    @Override
-                    public boolean hasValue() {
-                        return hasValue;
+                    b.startArray(simpleName);
+                    for (int i = 0; i < leaf.docValueCount(); i++) {
+                        loadNextValue(b, leaf.nextValue());
                     }
+                    b.endArray();
+                }
+            };
+        }
 
-                    @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        if (leaf.docValueCount() == 1) {
-                            b.field(simpleName(), leaf.nextValue());
-                            return;
-                        }
-                        b.startArray(simpleName());
-                        for (int i = 0; i < leaf.docValueCount(); i++) {
-                            b.value(leaf.nextValue());
-                        }
-                        b.endArray();
-                    }
-                };
-            }
-        };
-    }
-
-    private SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
-        SortedNumericIndexFieldData fd = (SortedNumericIndexFieldData) fdLookup.apply(fieldType());
-        return new SourceLoader.SyntheticFieldLoader() {
-            @Override
-            public Leaf leaf(LeafReaderContext ctx) {
-                SortedNumericDocValues leaf = fd.load(ctx).getLongValues();
-                return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                    private boolean hasValue;
-
-                    @Override
-                    public void advanceToDoc(int docId) throws IOException {
-                        hasValue = leaf.advanceExact(docId);
-                    }
-
-                    @Override
-                    public boolean hasValue() {
-                        return hasValue;
-                    }
-
-                    @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        if (leaf.docValueCount() == 1) {
-                            b.field(simpleName(), leaf.nextValue());
-                            return;
-                        }
-                        b.startArray(simpleName());
-                        for (int i = 0; i < leaf.docValueCount(); i++) {
-                            b.value(leaf.nextValue());
-                        }
-                        b.endArray();
-                    }
-                };
-            }
-        };
+        protected abstract void loadNextValue(XContentBuilder b, long value) throws IOException;
     }
 }

@@ -779,6 +779,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
+    // TODO multi-valued synthetic source
+
     protected static record SyntheticSourceExample(
         Object inputValue,
         String result,

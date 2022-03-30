@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,7 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_source";
@@ -210,9 +208,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
-    public <T> SourceLoader newSourceLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup, RootObjectMapper root) {
+    public <T> SourceLoader newSourceLoader(RootObjectMapper root) {
         if (synthetic) {
-            return new SourceLoader.Synthetic(fdLookup, root);
+            return new SourceLoader.Synthetic(root);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

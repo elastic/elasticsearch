@@ -391,7 +391,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public SourceLoader newSourceLoader() {
-        return mappingLookup.newSourceLoader(this::getForField);
+        return mappingLookup.newSourceLoader();
     }
 
     /**

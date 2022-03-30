@@ -8,27 +8,25 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.function.Function;
 
 public interface SourceLoader {
     interface Leaf {
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
     }
 
-    Leaf leaf(LeafReaderContext ctx);
+    Leaf leaf(LeafReader reader) throws IOException;
 
     SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
         @Override
-        public Leaf leaf(LeafReaderContext ctx) {
+        public Leaf leaf(LeafReader reader) {
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) {
@@ -41,13 +39,13 @@ public interface SourceLoader {
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
 
-        Synthetic(Function<MappedFieldType, IndexFieldData<?>> fdLookup, RootObjectMapper root) {
-            loader = root.syntheticFieldLoader(fdLookup);
+        Synthetic(RootObjectMapper root) {
+            loader = root.syntheticFieldLoader();
         }
 
         @Override
-        public Leaf leaf(LeafReaderContext ctx) {
-            SyntheticFieldLoader.Leaf leaf = loader.leaf(ctx);
+        public Leaf leaf(LeafReader reader) throws IOException {
+            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
@@ -67,11 +65,13 @@ public interface SourceLoader {
     }
 
     interface SyntheticFieldLoader {
-        Leaf leaf(LeafReaderContext ctx);
+        Leaf leaf(LeafReader reader) throws IOException;
 
         interface Leaf {
             void advanceToDoc(int docId) throws IOException;
+
             boolean hasValue();
+
             void load(XContentBuilder b) throws IOException;
         }
     }

@@ -150,7 +150,7 @@ public class FetchPhase {
                         } else {
                             fieldReader = currentReaderContext.reader()::document;
                         }
-                        leafSourceLoader = sourceLoader.leaf(currentReaderContext);
+                        leafSourceLoader = sourceLoader.leaf(currentReaderContext.reader());
                         for (FetchSubPhaseProcessor processor : processors) {
                             processor.setNextReader(currentReaderContext);
                         }

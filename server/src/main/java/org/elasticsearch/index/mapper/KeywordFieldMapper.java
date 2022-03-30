@@ -13,9 +13,11 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
@@ -23,6 +25,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -41,7 +44,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -71,7 +73,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
@@ -995,21 +996,16 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void validateSyntheticSource() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Function<MappedFieldType, IndexFieldData<?>> fdLookup) {
-        SortedSetOrdinalsIndexFieldData fd = (SortedSetOrdinalsIndexFieldData) fdLookup.apply(fieldType());
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public Leaf leaf(LeafReaderContext ctx) {
-                SortedBinaryDocValues leaf = fd.load(ctx).getBytesValues();
+            public Leaf leaf(LeafReader reader) throws IOException {
+                SortedSetDocValues leaf = DocValues.getSortedSet(reader, name());
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
                     private boolean hasValue;
 
@@ -1025,13 +1021,17 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                     @Override
                     public void load(XContentBuilder b) throws IOException {
-                        if (leaf.docValueCount() == 1) {
-                            b.field(simpleName(), leaf.nextValue().utf8ToString());
+                        long first = leaf.nextOrd();
+                        long next = leaf.nextOrd();
+                        if (next == SortedSetDocValues.NO_MORE_ORDS) {
+                            b.field(simpleName(), leaf.lookupOrd(first).utf8ToString());
                             return;
                         }
                         b.startArray(simpleName());
-                        for (int i = 0; i < leaf.docValueCount(); i++) {
-                            b.value(leaf.nextValue().utf8ToString());
+                        b.value(leaf.lookupOrd(first).utf8ToString());
+                        b.value(leaf.lookupOrd(next).utf8ToString());
+                        while ((next = leaf.nextOrd()) != DocIdSetIterator.NO_MORE_DOCS) {
+                            b.value(leaf.lookupOrd(next).utf8ToString());
                         }
                         b.endArray();
                     }

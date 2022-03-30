@@ -652,12 +652,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             iw.addDocument(mapper.parse(source(build)).rootDoc());
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceLoader loader = mapper.sourceMapper()
-                    .newSourceLoader(
-                        ft -> ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-                        mapper.mapping().getRoot()
-                    );
-                return loader.leaf(reader.leaves().get(0)).source(null, 0).utf8ToString();
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
+                return loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
             }
         }
     }

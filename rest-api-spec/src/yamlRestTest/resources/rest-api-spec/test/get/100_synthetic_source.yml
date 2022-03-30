@@ -23,12 +23,13 @@ keyword:
           kwd: foo
 
   - do:
-      search:
+      get:
         index: test
-        body:
-          query:
-            ids:
-              values: [1]
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
   - match:
-      hits.hits.0._source:
+      _source:
         kwd: foo

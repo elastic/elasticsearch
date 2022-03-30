@@ -101,7 +101,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected GetResponse shardOperation(GetRequest request, ShardId shardId) {
+    protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
 

@@ -48,22 +48,50 @@ public final class Numbers {
         return bytesToLong(bytes.bytes, bytes.offset);
     }
 
-    public static byte[] intToBytes(int val) {
-        byte[] arr = new byte[4];
-        BIG_ENDIAN_INT.set(arr, 0, val);
-        return arr;
-    }
-
     /**
      * Converts an int to a byte array.
      *
      * @param val The int to convert to a byte array
      * @return The byte array converted
      */
+    public static byte[] intToBytes(int val) {
+        byte[] arr = new byte[4];
+        intToBytes(arr, 0, val);
+        return arr;
+    }
+
+    /**
+     * Converts an int to a byte array, using an existing array.
+     *
+     * @param arr The byte array to write the int value in big endian layout
+     * @param offset The offset where in the array to write to
+     * @param val The int to convert to a byte array
+     */
+    public static void intToBytes(byte[] arr, int offset, int val) {
+        BIG_ENDIAN_INT.set(arr, offset, val);
+    }
+
+    /**
+     * Converts a short to a byte array.
+     *
+     * @param val The short to convert to a byte array
+     * @return The byte array converted
+     */
     public static byte[] shortToBytes(int val) {
         byte[] arr = new byte[2];
-        BIG_ENDIAN_SHORT.set(arr, 0, (short) val);
+        shortToBytes(arr, 0, val);
         return arr;
+    }
+
+    /**
+     * Converts a short to a byte array, using an existing array.
+     *
+     * @param arr The byte array to write the short value in big endian layout
+     * @param offset The offset where in the array to write to
+     * @param val The short to convert to a byte array
+     */
+    public static void shortToBytes(byte[] arr, int offset, int val) {
+        BIG_ENDIAN_SHORT.set(arr, offset, (short) val);
     }
 
     /**
@@ -74,8 +102,19 @@ public final class Numbers {
      */
     public static byte[] longToBytes(long val) {
         byte[] arr = new byte[8];
-        BIG_ENDIAN_LONG.set(arr, 0, val);
+        longToBytes(arr, 0, val);
         return arr;
+    }
+
+    /**
+     * Converts a long to a byte array, using an existing array.
+     *
+     * @param arr The byte array to write the short value in big endian layout
+     * @param offset The offset where in the array to write to
+     * @param val The long to convert to a byte array
+     */
+    public static void longToBytes(byte[] arr, int offset, long val) {
+        BIG_ENDIAN_LONG.set(arr, offset, val);
     }
 
     /**

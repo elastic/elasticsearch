@@ -534,7 +534,6 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
     public void testTermsAggs() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
@@ -542,7 +541,6 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, CCSDuelIT::assertAggs);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
     public void testTermsAggsWithProfile() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();

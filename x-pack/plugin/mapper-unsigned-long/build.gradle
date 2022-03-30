@@ -17,7 +17,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 esplugin {
   name 'unsigned-long'
   description 'Module for the unsigned long field type'
-  classname 'org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
+  classname 'org.elasticsearch.mapper.unsigned_long/org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 archivesBaseName = 'x-pack-unsigned-long'
@@ -27,6 +27,10 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-module,-exports,-missing-explicit-ctor") // qualified export target module not found
 }
 
 restResources {

@@ -6,17 +6,9 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
+module org.elasticsearch.painless.spi {
+    requires org.elasticsearch.server;
 
-group = 'org.elasticsearch.plugin'
-archivesBaseName = 'elasticsearch-scripting-painless-spi'
-
-dependencies {
-  compileOnly project(":server")
-  testImplementation project(":test:framework")
-}
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports")
+    exports org.elasticsearch.painless.spi;
+    exports org.elasticsearch.painless.spi.annotation;
 }

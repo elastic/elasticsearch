@@ -98,12 +98,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         this.scriptService = scriptService;
     }
 
-    private String getNameFromId(String id) {
+    private static String getNameFromId(String id) {
         assert id.startsWith(ID_PREFIX);
         return id.substring(ID_PREFIX.length());
     }
 
-    private String getIdForName(String name) {
+    private static String getIdForName(String name) {
         return ID_PREFIX + name;
     }
 
@@ -157,7 +157,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
     }
 
-    protected ExpressionRoleMapping buildMapping(String id, BytesReference source) {
+    protected static ExpressionRoleMapping buildMapping(String id, BytesReference source) {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentType.JSON.xContent()
@@ -332,7 +332,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
     }
 
-    private void reportStats(ActionListener<Map<String, Object>> listener, List<ExpressionRoleMapping> mappings) {
+    private static void reportStats(ActionListener<Map<String, Object>> listener, List<ExpressionRoleMapping> mappings) {
         Map<String, Object> usageStats = new HashMap<>();
         usageStats.put("size", mappings.size());
         usageStats.put("enabled", mappings.stream().filter(ExpressionRoleMapping::isEnabled).count());

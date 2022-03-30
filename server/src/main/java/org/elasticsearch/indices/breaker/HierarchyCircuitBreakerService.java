@@ -218,7 +218,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         clusterSettings.addSettingsUpdateConsumer(
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             this::setTotalCircuitBreakerLimit,
-            this::validateTotalCircuitBreakerLimit
+            HierarchyCircuitBreakerService::validateTotalCircuitBreakerLimit
         );
         clusterSettings.addSettingsUpdateConsumer(
             FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -255,7 +255,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
+    private static void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         BreakerSettings newParentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             byteSizeValue.getBytes(),

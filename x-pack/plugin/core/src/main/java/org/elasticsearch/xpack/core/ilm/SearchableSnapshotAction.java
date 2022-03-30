@@ -344,7 +344,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     /**
      * Resolves the prefix to be used for the mounted index depending on the provided key
      */
-    String getRestoredIndexPrefix(StepKey currentKey) {
+    static String getRestoredIndexPrefix(StepKey currentKey) {
         if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return PARTIAL_RESTORED_INDEX_PREFIX;
         } else {
@@ -353,7 +353,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     // Resolves the storage type depending on which phase the index is in
-    MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
+    static MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
         if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
         } else {

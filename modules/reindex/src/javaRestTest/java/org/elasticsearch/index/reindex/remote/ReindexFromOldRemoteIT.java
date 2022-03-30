@@ -100,7 +100,8 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 } catch (Exception deleteException) {
                     logger.warn("Exception deleting index", deleteException);
                     if (success) {
-                        // Since the test completed successfully, the delete should not fail
+                        // When the test succeeds the delete should not fail. So if it unexpectandly fails
+                        // here, we propogate it.
                         throw deleteException;
                     }
                 }

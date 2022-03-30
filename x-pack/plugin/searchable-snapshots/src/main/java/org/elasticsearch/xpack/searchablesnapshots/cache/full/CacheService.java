@@ -481,7 +481,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param cacheFile the evicted instance
      */
-    private void onCacheFileEviction(CacheFile cacheFile) {
+    private static void onCacheFileEviction(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
     }
 

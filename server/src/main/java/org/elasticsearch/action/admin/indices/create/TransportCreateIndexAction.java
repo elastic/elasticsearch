@@ -96,17 +96,17 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final boolean isSystemIndex = mainDescriptor != null;
         final boolean isManagedSystemIndex = isSystemIndex && mainDescriptor.isAutomaticallyManaged();
         if (mainDescriptor != null && mainDescriptor.isNetNew()) {
-            final SystemIndexAccessLevel systemIndexAccessLevel = systemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
+            final SystemIndexAccessLevel systemIndexAccessLevel = SystemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
             if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
                 if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
                     if (systemIndices.getProductSystemIndexNamePredicate(threadPool.getThreadContext()).test(indexName) == false) {
-                        throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                        throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                     }
                 } else {
                     // BACKWARDS_COMPATIBLE_ONLY should never be a possibility here, it cannot be returned from getSystemIndexAccessLevel
                     assert systemIndexAccessLevel == SystemIndexAccessLevel.NONE
                         : "Expected no system index access but level is " + systemIndexAccessLevel;
-                    throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                    throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                 }
             }
         }
@@ -171,7 +171,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             .waitForActiveShards(request.waitForActiveShards());
     }
 
-    private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+    private static CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
         CreateIndexRequest request,
         String cause,
         SystemIndexDescriptor descriptor

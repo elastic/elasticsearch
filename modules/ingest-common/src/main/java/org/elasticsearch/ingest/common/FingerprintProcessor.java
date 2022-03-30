@@ -346,7 +346,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
 
         @Override
         public String getAlgorithm() {
-            return mh.getAlgorithm();
+            return Murmur3Hasher.getAlgorithm();
         }
     }
 

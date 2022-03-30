@@ -193,7 +193,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
-            private void handleException(
+            private static void handleException(
                 final ShardId followerShardId,
                 final String retentionLeaseId,
                 final ShardId leaderShardId,

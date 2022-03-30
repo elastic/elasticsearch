@@ -56,7 +56,7 @@ public class FollowingEngine extends InternalEngine {
         return engineConfig;
     }
 
-    private void preFlight(final Operation operation) {
+    private static void preFlight(final Operation operation) {
         assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new ElasticsearchStatusException(

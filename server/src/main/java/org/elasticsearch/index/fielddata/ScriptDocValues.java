@@ -428,7 +428,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
         }
 
-        protected String bytesToString(BytesRef bytesRef) {
+        protected static String bytesToString(BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }
 

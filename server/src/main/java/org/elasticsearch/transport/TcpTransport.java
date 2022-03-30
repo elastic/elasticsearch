@@ -335,7 +335,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // This allows transport implementations to potentially override specific connection profiles. This
     // primarily exists for the test implementations.
-    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+    protected static ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
         return connectionProfile;
     }
 
@@ -745,7 +745,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected void onServerException(TcpServerChannel channel, Exception e) {
+    protected static void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
             logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
         } else {

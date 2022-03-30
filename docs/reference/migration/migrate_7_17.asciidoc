@@ -9,9 +9,6 @@ your application to {es} 7.17.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[7.17.2-SNAPSHOT]
-
-
 [discrete]
 [[breaking-changes-7.17]]
 === Breaking changes

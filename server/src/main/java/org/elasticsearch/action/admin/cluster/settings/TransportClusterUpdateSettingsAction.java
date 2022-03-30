@@ -105,7 +105,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
      *                                        archived settings that have been set to null.
      * @return true if all settings are clear blocks or archived settings.
      */
-    private boolean checkClearedBlockAndArchivedSettings(final Settings settings, final Set<String> clearedBlockAndArchivedSettings) {
+    private static boolean checkClearedBlockAndArchivedSettings(
+        final Settings settings,
+        final Set<String> clearedBlockAndArchivedSettings
+    ) {
         for (String key : settings.keySet()) {
             if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)) {
                 if (Metadata.SETTING_READ_ONLY_SETTING.get(settings)) {

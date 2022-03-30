@@ -172,7 +172,7 @@ class FieldCapabilitiesFetcher {
         return true;
     }
 
-    private boolean canMatchShard(
+    private static boolean canMatchShard(
         ShardId shardId,
         QueryBuilder indexFilter,
         long nowInMillis,

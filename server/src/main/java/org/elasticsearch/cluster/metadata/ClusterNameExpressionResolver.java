@@ -23,8 +23,6 @@ import java.util.stream.Collectors;
  */
 public final class ClusterNameExpressionResolver {
 
-    private final WildcardExpressionResolver wildcardResolver = new WildcardExpressionResolver();
-
     /**
      * Resolves the provided cluster expression to matching cluster names. Supports exact or wildcard matches.
      * Throws {@link NoSuchRemoteClusterException} in case there are no registered remote clusters matching the provided expression.
@@ -34,11 +32,11 @@ public final class ClusterNameExpressionResolver {
      * @return the resolved cluster aliases.
      * @throws NoSuchRemoteClusterException if there are no remote clusters matching the provided expression
      */
-    public List<String> resolveClusterNames(Set<String> remoteClusters, String clusterExpression) {
+    public static List<String> resolveClusterNames(Set<String> remoteClusters, String clusterExpression) {
         if (remoteClusters.contains(clusterExpression)) {
             return Collections.singletonList(clusterExpression);
         } else if (Regex.isSimpleMatchPattern(clusterExpression)) {
-            return wildcardResolver.resolve(remoteClusters, clusterExpression);
+            return WildcardExpressionResolver.resolve(remoteClusters, clusterExpression);
         } else {
             throw new NoSuchRemoteClusterException(clusterExpression);
         }
@@ -46,7 +44,7 @@ public final class ClusterNameExpressionResolver {
 
     private static class WildcardExpressionResolver {
 
-        private List<String> resolve(Set<String> remoteClusters, String clusterExpression) {
+        private static List<String> resolve(Set<String> remoteClusters, String clusterExpression) {
             if (isTrivialWildcard(clusterExpression)) {
                 return resolveTrivialWildcard(remoteClusters);
             }
@@ -59,11 +57,11 @@ public final class ClusterNameExpressionResolver {
             }
         }
 
-        private boolean isTrivialWildcard(String clusterExpression) {
+        private static boolean isTrivialWildcard(String clusterExpression) {
             return Regex.isMatchAllPattern(clusterExpression);
         }
 
-        private List<String> resolveTrivialWildcard(Set<String> remoteClusters) {
+        private static List<String> resolveTrivialWildcard(Set<String> remoteClusters) {
             return new ArrayList<>(remoteClusters);
         }
 

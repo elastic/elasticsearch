@@ -108,7 +108,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected abstract boolean resolveIndex(Request request);
 
-    protected ClusterBlockException checkGlobalBlock(ClusterState state) {
+    protected static ClusterBlockException checkGlobalBlock(ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 

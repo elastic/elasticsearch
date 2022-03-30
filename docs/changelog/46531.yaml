@@ -1,0 +1,6 @@
+pr: 46531
+summary: XContentParser shouldn't lose data from floating-point numbers
+area: Infra/Core
+type: bug
+issues:
+ - 46261

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
-import java.util.Objects;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
@@ -25,6 +24,11 @@ record AuthorizationDenialMessage(
     Collection<String> grantingClusterPrivileges,
     Collection<String> grantingIndexPrivileges
 ) {
+
+    static Builder builder(String userPrincipal, Boolean isAuthenticatedWithServiceAccount, String action) {
+        return new Builder(userPrincipal, isAuthenticatedWithServiceAccount, action);
+    }
+
     String asLogMessage() {
         return asMessage(true);
     }
@@ -71,7 +75,7 @@ record AuthorizationDenialMessage(
         return message;
     }
 
-    static class AuthorizationDenialMessageBuilder {
+    static class Builder {
         private final String userPrincipal;
         private final Boolean isAuthenticatedWithServiceAccount;
         private final String action;
@@ -82,7 +86,7 @@ record AuthorizationDenialMessage(
         private Collection<String> grantingClusterPrivileges;
         private Collection<String> grantingIndexPrivileges;
 
-        AuthorizationDenialMessageBuilder(String userPrincipal, Boolean isAuthenticatedWithServiceAccount, String action) {
+        Builder(String userPrincipal, Boolean isAuthenticatedWithServiceAccount, String action) {
             this.userPrincipal = userPrincipal;
             this.action = action;
             this.isAuthenticatedWithServiceAccount = isAuthenticatedWithServiceAccount;
@@ -102,34 +106,35 @@ record AuthorizationDenialMessage(
             );
         }
 
-        public void setRunAsUserPrincipal(String runAsUserPrincipal) {
-            Objects.requireNonNull(runAsUserPrincipal);
+        public Builder setRunAsUserPrincipal(String runAsUserPrincipal) {
             this.runAsUserPrincipal = runAsUserPrincipal;
+            return this;
         }
 
-        public void setApiKeyId(String apiKeyId) {
-            Objects.requireNonNull(apiKeyId);
+        public Builder setApiKeyId(String apiKeyId) {
+            assert apiKeyId != null : "api key id must be present in the metadata";
             this.apiKeyId = apiKeyId;
+            return this;
         }
 
-        public void setRoles(String[] roles) {
-            Objects.requireNonNull(roles);
+        public Builder setRoles(String[] roles) {
             this.roles = roles;
+            return this;
         }
 
-        public void setContext(String context) {
-            Objects.requireNonNull(context);
+        public Builder setContext(String context) {
             this.context = context;
+            return this;
         }
 
-        public void setGrantingClusterPrivileges(Collection<String> grantingClusterPrivileges) {
-            Objects.requireNonNull(grantingClusterPrivileges);
+        public Builder setGrantingClusterPrivileges(Collection<String> grantingClusterPrivileges) {
             this.grantingClusterPrivileges = grantingClusterPrivileges;
+            return this;
         }
 
-        public void setGrantingIndexPrivileges(Collection<String> grantingIndexPrivileges) {
-            Objects.requireNonNull(grantingIndexPrivileges);
+        public Builder setGrantingIndexPrivileges(Collection<String> grantingIndexPrivileges) {
             this.grantingIndexPrivileges = grantingIndexPrivileges;
+            return this;
         }
     }
 }

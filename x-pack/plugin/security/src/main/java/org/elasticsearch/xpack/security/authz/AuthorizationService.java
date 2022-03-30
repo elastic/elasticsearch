@@ -882,22 +882,18 @@ public class AuthorizationService {
             }
         }
 
-        final AuthorizationDenialMessage.AuthorizationDenialMessageBuilder builder =
-            new AuthorizationDenialMessage.AuthorizationDenialMessageBuilder(
-                authUser.principal(),
-                authentication.isAuthenticatedWithServiceAccount(),
-                action
-            );
+        final AuthorizationDenialMessage.Builder builder = AuthorizationDenialMessage.builder(
+            authUser.principal(),
+            authentication.isAuthenticatedWithServiceAccount(),
+            action
+        );
 
         if (authentication.getUser().isRunAs()) {
             builder.setRunAsUserPrincipal(authentication.getUser().principal());
         }
 
         if (authentication.isAuthenticatedAsApiKey()) {
-            String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            // TODO can we get rid of this?
-            assert apiKeyId != null : "api key id must be present in the metadata";
-            builder.setApiKeyId(apiKeyId);
+            builder.setApiKeyId((String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
         }
 
         // The run-as user is always from a realm. So it must have roles that can be printed.
@@ -913,12 +909,12 @@ public class AuthorizationService {
 
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
             Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
-            if (privileges != null && privileges.isEmpty() == false) {
+            if (privileges != null && privileges.size() > 0) {
                 builder.setGrantingClusterPrivileges(privileges);
             }
         } else if (isIndexAction(action)) {
             Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
-            if (privileges != null && privileges.isEmpty() == false) {
+            if (privileges != null && privileges.size() > 0) {
                 builder.setGrantingIndexPrivileges(privileges);
             }
         }

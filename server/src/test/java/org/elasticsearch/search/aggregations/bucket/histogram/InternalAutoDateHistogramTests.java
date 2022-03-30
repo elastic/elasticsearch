@@ -459,24 +459,39 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     public void testSerializationPre820() throws IOException {
-        //we need to test without sub-aggregations, otherwise we need to also update the interval within the inner aggs
-        InternalAutoDateHistogram instance = createTestInstance(randomAlphaOfLengthBetween(3, 7), createTestMetadata(),
-            InternalAggregations.EMPTY);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.CURRENT));
+        // we need to test without sub-aggregations, otherwise we need to also update the interval within the inner aggs
+        InternalAutoDateHistogram instance = createTestInstance(
+            randomAlphaOfLengthBetween(3, 7),
+            createTestMetadata(),
+            InternalAggregations.EMPTY
+        );
+        Version version = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Version.CURRENT)
+        );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);
         assertEquals(1, deserialized.getBucketInnerInterval());
 
-        InternalAutoDateHistogram modified = new InternalAutoDateHistogram(deserialized.getName(), deserialized.getBuckets(),
-            deserialized.getTargetBuckets(), deserialized.getBucketInfo(), deserialized.getFormatter(), deserialized.getMetadata(),
-            instance.getBucketInnerInterval());
+        InternalAutoDateHistogram modified = new InternalAutoDateHistogram(
+            deserialized.getName(),
+            deserialized.getBuckets(),
+            deserialized.getTargetBuckets(),
+            deserialized.getBucketInfo(),
+            deserialized.getFormatter(),
+            deserialized.getMetadata(),
+            instance.getBucketInnerInterval()
+        );
         assertEqualInstances(instance, modified);
     }
 
     public void testReadFromPre820() throws IOException {
-        byte[] bytes = Base64.getDecoder().decode("BG5hbWUKAAYBCAFa6AcEAAAAAQAAAAUAAAAKAAAAHgFzBnNlY29uZAEHAVrg1AMEAAAAAQAAAAUAAAAKAAA" +
-            "AHgFtBm1pbnV0ZQEGAVqA3dsBAwAAAAEAAAADAAAADAFoBGhvdXIBBQFagLiZKQIAAAABAAAABwFkA2RheQEEAVqAkPvTCQIAAAABAAAAAwFNBW1vbnRoAQIB" +
-            "WoDYxL11BgAAAAEAAAAFAAAACgAAABQAAAAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        byte[] bytes = Base64.getDecoder()
+            .decode(
+                "BG5hbWUKAAYBCAFa6AcEAAAAAQAAAAUAAAAKAAAAHgFzBnNlY29uZAEHAVrg1AMEAAAAAQAAAAUAAAAKAAA"
+                    + "AHgFtBm1pbnV0ZQEGAVqA3dsBAwAAAAEAAAADAAAADAFoBGhvdXIBBQFagLiZKQIAAAABAAAABwFkA2RheQEEAVqAkPvTCQIAAAABAAAAAwFNBW1vbnRoAQIB"
+                    + "WoDYxL11BgAAAAEAAAAFAAAACgAAABQAAAAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            );
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
             in.setVersion(Version.V_8_1_1);
             InternalAutoDateHistogram deserialized = new InternalAutoDateHistogram(in);

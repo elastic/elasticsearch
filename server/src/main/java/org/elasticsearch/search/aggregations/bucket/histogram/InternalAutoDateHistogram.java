@@ -664,7 +664,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         if (super.equals(obj) == false) return false;
 
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
-        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(bucketInfo, that.bucketInfo)
+        return Objects.equals(buckets, that.buckets)
+            && Objects.equals(format, that.format)
+            && Objects.equals(bucketInfo, that.bucketInfo)
             && bucketInnerInterval == that.bucketInnerInterval;
     }
 

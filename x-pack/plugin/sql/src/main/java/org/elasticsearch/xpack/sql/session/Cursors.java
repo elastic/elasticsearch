@@ -123,7 +123,7 @@ public final class Cursors {
             @Override
             public <T> Map<String, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
                 try {
-                    return super.getReaders(categoryClass);
+                    return writeableRegistry.getReaders(categoryClass);
                 } catch (IllegalArgumentException iae) {
                     return WRITEABLE_REGISTRY.getReaders(categoryClass);
                 }

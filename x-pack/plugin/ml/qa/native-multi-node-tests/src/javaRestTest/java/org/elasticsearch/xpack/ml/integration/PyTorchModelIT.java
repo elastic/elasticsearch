@@ -328,12 +328,18 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(nodes, hasSize(2));
             for (var node : nodes) {
                 assertThat(node.get("number_of_pending_requests"), notNullValue());
-                // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
             }
+            // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+            assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
+            assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
 
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(2));
         }
+    }
+
+    private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
+        assertTrue("all nodes have null value for [" + name + "]", nodes.stream().anyMatch(n -> n.get(name) != null));
     }
 
     @SuppressWarnings("unchecked")

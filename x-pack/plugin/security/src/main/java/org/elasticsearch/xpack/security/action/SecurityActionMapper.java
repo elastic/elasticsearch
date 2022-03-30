@@ -25,7 +25,7 @@ public class SecurityActionMapper {
     /**
      * Returns the security specific action name given the incoming action name and request
      */
-    public String action(String action, TransportRequest request) {
+    public static String action(String action, TransportRequest request) {
         switch (action) {
             case ClearScrollAction.NAME -> {
                 assert request instanceof ClearScrollRequest;

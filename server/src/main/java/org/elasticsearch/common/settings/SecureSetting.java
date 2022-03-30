@@ -36,7 +36,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         KeyStoreWrapper.validateSettingName(key);
     }
 
-    private boolean assertAllowedProperties(Setting.Property... properties) {
+    private static boolean assertAllowedProperties(Setting.Property... properties) {
         for (Setting.Property property : properties) {
             if (ALLOWED_PROPERTIES.contains(property) == false) {
                 return false;

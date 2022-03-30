@@ -37,6 +37,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -84,7 +85,7 @@ public class FetchPhase {
             return;
         }
 
-        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : context.getProfilers().startProfilingFetchPhase();
+        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
             hits = buildSearchHits(context, profiler);
@@ -210,7 +211,7 @@ public class FetchPhase {
         }
     }
 
-    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    private static FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -251,11 +252,11 @@ public class FetchPhase {
         }
     }
 
-    private boolean sourceRequired(SearchContext context) {
+    private static boolean sourceRequired(SearchContext context) {
         return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
-    private HitContext prepareHitContext(
+    private static HitContext prepareHitContext(
         SearchContext context,
         Profiler profiler,
         LeafNestedDocuments nestedDocuments,
@@ -295,7 +296,7 @@ public class FetchPhase {
      *   - Loading the document source and setting it on {@link HitContext#sourceLookup()}. This
      *     allows fetch subphases that use the hit context to access the preloaded source.
      */
-    private HitContext prepareNonNestedHitContext(
+    private static HitContext prepareNonNestedHitContext(
         SearchContext context,
         Profiler profiler,
         FieldsVisitor fieldsVisitor,
@@ -343,7 +344,7 @@ public class FetchPhase {
      *     use the hit context to access the preloaded source.
      */
     @SuppressWarnings("unchecked")
-    private HitContext prepareNestedHitContext(
+    private static HitContext prepareNestedHitContext(
         SearchContext context,
         Profiler profiler,
         int topDocId,
@@ -433,7 +434,7 @@ public class FetchPhase {
         return hitContext;
     }
 
-    private void loadStoredFields(
+    private static void loadStoredFields(
         Function<String, MappedFieldType> fieldTypeLookup,
         Profiler profileListener,
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,

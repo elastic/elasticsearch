@@ -89,6 +89,22 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
     }
 
+    public void testDuplicatedIncludes() throws Exception {
+        DocumentMapper documentMapper = createDocumentMapper(
+            topMapping(b -> b.startObject("_source").array("includes", "path1", "path1").endObject())
+        );
+
+        ParsedDocument doc = documentMapper.parse(source(b -> {
+            b.startObject("path1").field("field1", "value1").endObject();
+            b.startObject("path2").field("field2", "value2").endObject();
+        }));
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            assertEquals(Map.of("path1", Map.of("field1", "value1")), parser.map());
+        }
+    }
+
     public void testExcludes() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(
             topMapping(b -> b.startObject("_source").array("excludes", "path1*").endObject())
@@ -106,6 +122,22 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
+    }
+
+    public void testDuplicatedExcludes() throws Exception {
+        DocumentMapper documentMapper = createDocumentMapper(
+            topMapping(b -> b.startObject("_source").array("excludes", "path1", "path1").endObject())
+        );
+
+        ParsedDocument doc = documentMapper.parse(source(b -> {
+            b.startObject("path1").field("field1", "value1").endObject();
+            b.startObject("path2").field("field2", "value2").endObject();
+        }));
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            assertEquals(Map.of("path2", Map.of("field2", "value2")), parser.map());
+        }
     }
 
     public void testComplete() throws Exception {

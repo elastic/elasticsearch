@@ -291,15 +291,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         createIndex(client, indexName, indexSettings.build());
     }
 
-    private static void createIndex(RestClient client, String name, Settings settings) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("""
-            {
-             "settings": %s
-            }""".formatted(Strings.toString(settings)));
-        client.performRequest(request);
-    }
-
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
         request.setJsonEntity("""

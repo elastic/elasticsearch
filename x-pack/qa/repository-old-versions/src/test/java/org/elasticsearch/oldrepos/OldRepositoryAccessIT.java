@@ -28,8 +28,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -330,7 +328,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         String restoredIndex = "restored_" + indexName;
         RestClient llClient = client.getLowLevelClient();
         Map<?, ?> response = toMap(llClient.performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
-        Map<?, ?> mapping = ObjectPath.eval(restoredIndex + ".mapping", response);
+        Map<?, ?> mapping = ObjectPath.evaluate(response, restoredIndex + ".mapping");
         logger.info("mapping for {}: {}", restoredIndex, mapping);
         assertThat(mapping, hasKey("_meta"));
         assertThat(mapping.get("_meta"), instanceOf(Map.class));

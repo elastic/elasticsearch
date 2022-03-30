@@ -429,9 +429,7 @@ public class IndexRequestTests extends ESTestCase {
             );
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error"
-                )
+                equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
             );
         }
     }

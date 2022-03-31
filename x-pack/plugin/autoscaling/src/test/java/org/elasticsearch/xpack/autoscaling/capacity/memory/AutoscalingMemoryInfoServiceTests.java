@@ -368,7 +368,6 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
     }

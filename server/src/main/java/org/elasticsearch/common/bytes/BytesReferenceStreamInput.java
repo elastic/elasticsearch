@@ -189,14 +189,12 @@ class BytesReferenceStreamInput extends StreamInput {
         int offsetByteArray = currentSliceIndex + offset;
         for (int charsOffset = 0; charsOffset < charCount; charsOffset++) {
             final int c = byteBuffer[offsetByteArray++] & 0xff;
-            switch (c >> 4) {
-                case 0, 1, 2, 3, 4, 5, 6, 7 -> charBuffer[charsOffset] = (char) c;
-                default -> {
-                    sliceIndex = offsetByteArray - offset - 1;
-                    super.readStringSlow(charsOffset, charCount, charBuffer);
-                    return;
-                }
+            if ((c & 0x80) != 0) {
+                sliceIndex = offsetByteArray - offset - 1;
+                super.readStringSlow(charsOffset, charCount, charBuffer);
+                return;
             }
+            charBuffer[charsOffset] = (char) c;
         }
         sliceIndex = offsetByteArray - offset;
     }

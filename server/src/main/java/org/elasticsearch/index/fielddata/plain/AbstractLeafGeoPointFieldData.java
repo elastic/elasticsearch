@@ -11,15 +11,20 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.util.Collection;
 import java.util.Collections;
 
 public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointFieldData {
+
+    protected final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
+
+    public AbstractLeafGeoPointFieldData(ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
+    }
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {
@@ -27,12 +32,12 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
     }
 
     @Override
-    public final DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(new ScriptDocValues.GeoPoints(getGeoPointValues()), name);
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getGeoPointValues(), name);
     }
 
-    public static LeafGeoPointFieldData empty(final int maxDoc) {
-        return new AbstractLeafGeoPointFieldData() {
+    public static LeafGeoPointFieldData empty(final int maxDoc, ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
+        return new AbstractLeafGeoPointFieldData(toScriptFieldFactory) {
 
             @Override
             public long ramBytesUsed() {

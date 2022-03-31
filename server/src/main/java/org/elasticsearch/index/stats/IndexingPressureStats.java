@@ -202,6 +202,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return currentReplicaOps;
     }
 
+    public long getMemoryLimit() {
+        return memoryLimit;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";

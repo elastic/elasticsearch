@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -129,7 +128,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
                     assertThat(status.getException(), notNullValue());
                     return status.getFeatureName();
                 })
-                .collect(Collectors.toList());
+                .toList();
             assertThat(failedFeatures, contains("EvilSystemIndexTestPlugin"));
         } finally {
             EvilSystemIndexTestPlugin.setBeEvil(false);

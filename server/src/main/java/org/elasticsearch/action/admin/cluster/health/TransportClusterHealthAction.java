@@ -18,8 +18,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
@@ -107,88 +109,79 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final long endTimeRelativeMillis
     ) {
         assert request.waitForEvents() != null;
+        final String source = "cluster_health (wait_for_events [" + request.waitForEvents() + "])";
         if (request.local()) {
-            clusterService.submitStateUpdateTask(
-                "cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                new LocalClusterUpdateTask(request.waitForEvents()) {
-                    @Override
-                    public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
-                        return unchanged();
-                    }
+            new LocalMasterServiceTask(request.waitForEvents()) {
+                @Override
+                protected void onPublicationComplete() {
+                    final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
+                    final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                    request.timeout(newTimeout);
+                    executeHealth(
+                        request,
+                        clusterService.state(),
+                        listener,
+                        waitCount,
+                        observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
+                    );
+                }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
-                        executeHealth(
-                            request,
-                            clusterService.state(),
-                            listener,
-                            waitCount,
-                            observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
-                        );
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    listener.onFailure(e);
+                }
+            }.submit(clusterService.getMasterService(), source);
+        } else {
+            final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return currentState;
+                }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
+                    final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                    request.timeout(newTimeout);
+
+                    // we must use the state from the applier service, because if the state-not-recovered block is in place then the
+                    // applier service has a different view of the cluster state from the one supplied here
+                    final ClusterState appliedState = clusterService.state();
+                    assert newState.stateUUID().equals(appliedState.stateUUID()) : newState.stateUUID() + " vs " + appliedState.stateUUID();
+                    executeHealth(
+                        request,
+                        appliedState,
+                        listener,
+                        waitCount,
+                        observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
+                    );
+                }
+
+                @Override
+                public void onNoLongerMaster() {
+                    logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
+                    // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                    listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ProcessClusterEventTimeoutException) {
+                        listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
+                    } else {
                         logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                         listener.onFailure(e);
                     }
                 }
-            );
-        } else {
-            final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
-            clusterService.submitStateUpdateTask(
-                "cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return currentState;
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
-
-                        // we must use the state from the applier service, because if the state-not-recovered block is in place then the
-                        // applier service has a different view of the cluster state from the one supplied here
-                        final ClusterState appliedState = clusterService.state();
-                        assert newState.stateUUID().equals(appliedState.stateUUID())
-                            : newState.stateUUID() + " vs " + appliedState.stateUUID();
-                        executeHealth(
-                            request,
-                            appliedState,
-                            listener,
-                            waitCount,
-                            observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
-                        );
-                    }
-
-                    @Override
-                    public void onNoLongerMaster(String source) {
-                        logger.trace(
-                            "stopped being master while waiting for events with priority [{}]. retrying.",
-                            request.waitForEvents()
-                        );
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        if (e instanceof ProcessClusterEventTimeoutException) {
-                            listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
-                        } else {
-                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                            listener.onFailure(e);
-                        }
-                    }
-                }
-            );
+            }, newExecutor());
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private void executeHealth(
@@ -411,8 +404,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
                 UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                pendingTaskTimeInQueue,
-                request.doesReturn200ForClusterHealthTimeout()
+                pendingTaskTimeInQueue
             );
             response.setStatus(ClusterHealthStatus.RED);
             return response;
@@ -425,8 +417,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             numberOfPendingTasks,
             numberOfInFlightFetch,
             UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-            pendingTaskTimeInQueue,
-            request.doesReturn200ForClusterHealthTimeout()
+            pendingTaskTimeInQueue
         );
     }
 }

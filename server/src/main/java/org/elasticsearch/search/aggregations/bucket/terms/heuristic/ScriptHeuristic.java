@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -87,7 +87,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
+    public SignificanceHeuristic rewrite(AggregationReduceContext context) {
         SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService()
             .compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, factory.newInstance());
@@ -146,7 +146,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
-    public final class LongAccessor extends Number {
+    public static final class LongAccessor extends Number {
         public long value;
 
         @Override

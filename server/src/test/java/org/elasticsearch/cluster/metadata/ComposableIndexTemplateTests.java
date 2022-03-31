@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ComposableIndexTemplateTests extends AbstractDiffableSerializationTestCase<ComposableIndexTemplate> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTestCase<ComposableIndexTemplate> {
     @Override
     protected ComposableIndexTemplate makeTestChanges(ComposableIndexTemplate testInstance) {
         try {
@@ -79,11 +81,10 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         }
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
-        List<String> componentTemplates = randomList(0, 10, () -> randomAlphaOfLength(5));
         return new ComposableIndexTemplate(
             indexPatterns,
             template,
-            componentTemplates,
+            randomBoolean() ? null : randomList(0, 10, () -> randomAlphaOfLength(5)),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomNonNegativeLong(),
             meta,
@@ -106,7 +107,9 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
     private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
         try {
             if (dataStreamTemplate != null) {
-                return new CompressedXContent("{\"properties\":{\"" + dataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}");
+                return new CompressedXContent(
+                    "{\"properties\":{\"" + ComposableIndexTemplate.DataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}"
+                );
             } else {
                 return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
             }
@@ -241,5 +244,14 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
+    }
+
+    public void testComponentTemplatesEquals() {
+        assertThat(ComposableIndexTemplate.componentTemplatesEquals(null, null), equalTo(true));
+        assertThat(ComposableIndexTemplate.componentTemplatesEquals(null, List.of()), equalTo(true));
+        assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), null), equalTo(true));
+        assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of()), equalTo(true));
+        assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(randomAlphaOfLength(5)), List.of()), equalTo(false));
+        assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of(randomAlphaOfLength(5))), equalTo(false));
     }
 }

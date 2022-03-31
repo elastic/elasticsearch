@@ -166,8 +166,7 @@ final class QueryTranslator {
         }
 
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
-            if (f instanceof CIDRMatch) {
-                CIDRMatch cm = (CIDRMatch) f;
+            if (f instanceof CIDRMatch cm) {
                 if (cm.input() instanceof FieldAttribute && Expressions.foldable(cm.addresses())) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) cm.input()).exactAttribute());
 
@@ -198,8 +197,7 @@ final class QueryTranslator {
                 return q;
             }
 
-            if (f instanceof BinaryComparisonCaseInsensitiveFunction) {
-                BinaryComparisonCaseInsensitiveFunction bccif = (BinaryComparisonCaseInsensitiveFunction) f;
+            if (f instanceof BinaryComparisonCaseInsensitiveFunction bccif) {
 
                 String targetFieldName = null;
                 String wildcardQuery = null;

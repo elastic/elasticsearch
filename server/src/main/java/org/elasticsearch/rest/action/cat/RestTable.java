@@ -334,8 +334,7 @@ public class RestTable {
         if (value == null) {
             return null;
         }
-        if (value instanceof ByteSizeValue) {
-            ByteSizeValue v = (ByteSizeValue) value;
+        if (value instanceof ByteSizeValue v) {
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
                 return Long.toString(v.getBytes());
@@ -353,8 +352,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof SizeValue) {
-            SizeValue v = (SizeValue) value;
+        if (value instanceof SizeValue v) {
             String resolution = request.param("size");
             if ("".equals(resolution)) {
                 return Long.toString(v.singles());
@@ -372,8 +370,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof TimeValue) {
-            TimeValue v = (TimeValue) value;
+        if (value instanceof TimeValue v) {
             String resolution = request.param("time");
             if ("nanos".equals(resolution)) {
                 return Long.toString(v.nanos());
@@ -419,7 +416,7 @@ public class RestTable {
         }
 
         @SuppressWarnings("unchecked")
-        private int compareCell(Object o1, Object o2) {
+        private static int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {

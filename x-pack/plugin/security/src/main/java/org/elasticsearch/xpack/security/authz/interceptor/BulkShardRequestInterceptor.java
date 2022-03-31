@@ -47,9 +47,8 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest() instanceof BulkShardRequest) {
+        if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());

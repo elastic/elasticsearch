@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -285,6 +285,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
     }
 
+    @SuppressWarnings("HiddenField")
     public void testLazyLoading() throws Exception {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
@@ -340,6 +341,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertNotNull(databaseNodeService.getDatabase("GeoLite2-ASN.mmdb").databaseReader.get());
     }
 
+    @SuppressWarnings("HiddenField")
     public void testLoadingCustomDatabase() throws IOException {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");

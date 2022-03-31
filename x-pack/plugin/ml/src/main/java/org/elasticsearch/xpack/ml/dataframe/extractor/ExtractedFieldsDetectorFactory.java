@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -24,7 +22,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -41,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -190,10 +187,8 @@ public class ExtractedFieldsDetectorFactory {
             Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
 
             ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
-            Iterator<ObjectObjectCursor<String, Settings>> iterator = indexToSettings.iterator();
-            while (iterator.hasNext()) {
-                ObjectObjectCursor<String, Settings> indexSettings = iterator.next();
-                Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings.value);
+            for (var indexSettings : indexToSettings.values()) {
+                Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings);
                 if (indexMaxDocValueFields < minDocValueFieldsLimit) {
                     minDocValueFieldsLimit = indexMaxDocValueFields;
                 }

@@ -10,8 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,12 +106,12 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         SearchProgressActionListener listener = new SearchProgressActionListener() {
             @Override
             public void onListShards(
-                List<SearchShard> shards,
+                List<SearchShard> searchShards,
                 List<SearchShard> skippedShards,
                 SearchResponse.Clusters clusters,
                 boolean fetchPhase
             ) {
-                shardsListener.set(shards);
+                shardsListener.set(searchShards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
 
@@ -141,12 +140,12 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            public void onPartialReduce(List<SearchShard> searchShards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
             @Override
-            public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            public void onFinalReduce(List<SearchShard> searchShards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
@@ -192,6 +191,6 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         }
         client.admin().indices().prepareRefresh("index-*").get();
         ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();
-        return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().collect(Collectors.toList());
+        return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().toList();
     }
 }

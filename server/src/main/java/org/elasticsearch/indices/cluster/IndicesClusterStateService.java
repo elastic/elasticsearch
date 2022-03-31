@@ -15,7 +15,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -93,8 +93,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ThreadPool threadPool;
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
-
-    private static final ActionListener<Void> SHARD_STATE_ACTION_LISTENER = ActionListener.wrap(() -> {});
 
     private final Settings settings;
     // a list of shards that failed during recovery
@@ -197,6 +195,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         final ClusterState state = event.state();
 
+        final DiscoveryNode currentMaster = state.nodes().getMasterNode();
+        if (currentMaster != null && currentMaster.equals(event.previousState().nodes().getMasterNode()) == false) {
+            // master node changed, clear request deduplicator so we send out new state update requests right away without waiting for
+            // the in-flight ones to fail first
+            shardStateAction.clearRemoteShardRequestDeduplicator();
+        }
+
         // we need to clean the shards and indices we have on this node, since we
         // are going to recover them again once state persistence is disabled (no master / not recovered)
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
@@ -251,7 +256,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
-                    shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER, state);
+                    shardStateAction.localShardFailed(matchedRouting, message, null, ActionListener.noop(), state);
                 }
             }
         }
@@ -275,7 +280,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // overrideable by tests
-    Logger getLogger() {
+    static Logger getLogger() {
         return logger;
     }
 
@@ -663,7 +668,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         + state
                         + "], mark shard as started",
                     shard.getTimestampRange(),
-                    SHARD_STATE_ACTION_LISTENER,
+                    ActionListener.noop(),
                     clusterState
                 );
             }
@@ -728,7 +733,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 "after " + state.getRecoverySource(),
                 timestampMillisFieldRange,
-                SHARD_STATE_ACTION_LISTENER
+                ActionListener.noop()
             );
         }
 
@@ -784,7 +789,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 failure
             );
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
-            shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER, state);
+            shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(

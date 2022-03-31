@@ -12,7 +12,7 @@ package org.elasticsearch.gradle.internal;
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
 public enum DockerBase {
-    DEFAULT("almalinux:8.4-minimal", ""),
+    DEFAULT("ubuntu:20.04", ""),
 
     // "latest" here is intentional, since the image name specifies "8"
     UBI("docker.elastic.co/ubi8/ubi-minimal:latest", "-ubi8"),
@@ -21,7 +21,7 @@ public enum DockerBase {
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank"),
 
     // Base image with extras for Cloud
-    CLOUD("almalinux:8.4-minimal", "-cloud"),
+    CLOUD("ubuntu:20.04", "-cloud"),
 
     // Based on CLOUD above, with more extras. We don't set a base image because
     // we programmatically extend from the Cloud image.

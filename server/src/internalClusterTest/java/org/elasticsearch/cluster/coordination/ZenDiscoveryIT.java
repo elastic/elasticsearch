@@ -8,38 +8,21 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
-import java.util.EnumSet;
-import java.util.concurrent.TimeUnit;
-
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -78,64 +61,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         r = client().admin().indices().prepareRecoveries("test").get();
         int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
-    }
-
-    public void testHandleNodeJoin_incompatibleClusterState() {
-        String masterNode = internalCluster().startMasterOnlyNode();
-        String node1 = internalCluster().startNode();
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-        final ClusterState state = clusterService.state();
-        Metadata.Builder mdBuilder = Metadata.builder(state.metadata());
-        mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));
-        ClusterState stateWithCustomMetadata = ClusterState.builder(state).metadata(mdBuilder).build();
-
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-
-        internalCluster().getInstance(TransportService.class, masterNode)
-            .sendRequest(
-                state.nodes().getLocalNode(),
-                JoinHelper.JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(stateWithCustomMetadata),
-                new ActionListenerResponseHandler<>(new ActionListener<>() {
-                    @Override
-                    public void onResponse(TransportResponse.Empty unused) {
-                        fail("onResponse should not be called");
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        assertThat(t, instanceOf(RemoteTransportException.class));
-                        assertThat(t.getCause(), instanceOf(IllegalArgumentException.class));
-                        assertThat(t.getCause().getMessage(), containsString("Unknown NamedWriteable"));
-                        future.onResponse(null);
-                    }
-                }, i -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
-            );
-
-        future.actionGet(10, TimeUnit.SECONDS);
-    }
-
-    public static class CustomMetadata extends TestCustomMetadata {
-        public static final String TYPE = "custom_md";
-
-        CustomMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
-        }
     }
 
     public void testDiscoveryStats() throws Exception {

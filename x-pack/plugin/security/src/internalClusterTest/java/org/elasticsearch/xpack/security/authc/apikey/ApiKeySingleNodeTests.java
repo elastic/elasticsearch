@@ -15,6 +15,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -24,17 +25,23 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -45,10 +52,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,6 +68,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
         builder.put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true);
+        builder.put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true);
         return builder.build();
     }
 
@@ -183,6 +192,50 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             XContentType.JSON
         );
         assertThat(roleDescriptor, equalTo(ServiceAccountService.getServiceAccounts().get("elastic/fleet-server").roleDescriptor()));
+    }
+
+    public void testGetApiKeyWorksForTheApiKeyItself() {
+        final String apiKeyName = randomAlphaOfLength(10);
+        final CreateApiKeyResponse createApiKeyResponse = client().execute(
+            CreateApiKeyAction.INSTANCE,
+            new CreateApiKeyRequest(
+                apiKeyName,
+                List.of(new RoleDescriptor("x", new String[] { "manage_own_api_key", "manage_token" }, null, null, null, null, null, null)),
+                null,
+                null
+            )
+        ).actionGet();
+
+        final String apiKeyId = createApiKeyResponse.getId();
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+
+        // Works for both the API key itself or the token created by it
+        final Client clientKey1;
+        if (randomBoolean()) {
+            clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
+        } else {
+            final CreateTokenResponse createTokenResponse = new CreateTokenRequestBuilder(
+                client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)),
+                CreateTokenAction.INSTANCE
+            ).setGrantType("client_credentials").get();
+            clientKey1 = client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()));
+        }
+
+        // Can get its own info
+        final GetApiKeyResponse getApiKeyResponse = clientKey1.execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean())
+        ).actionGet();
+        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
+        assertThat(getApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(apiKeyId));
+
+        // Cannot get any other keys
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> clientKey1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forAllApiKeys()).actionGet()
+        );
+        assertThat(e.getMessage(), containsString("unauthorized for API key id [" + apiKeyId + "]"));
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {

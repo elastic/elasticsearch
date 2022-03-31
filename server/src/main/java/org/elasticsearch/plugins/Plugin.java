@@ -9,7 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -48,6 +48,7 @@ import java.util.function.UnaryOperator;
  * <li>{@link AnalysisPlugin}
  * <li>{@link ClusterPlugin}
  * <li>{@link DiscoveryPlugin}
+ * <li>{@link HealthPlugin}
  * <li>{@link IngestPlugin}
  * <li>{@link MapperPlugin}
  * <li>{@link NetworkPlugin}

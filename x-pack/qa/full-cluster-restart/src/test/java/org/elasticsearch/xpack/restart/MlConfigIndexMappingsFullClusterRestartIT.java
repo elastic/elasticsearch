@@ -21,7 +21,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,12 +41,14 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
-            ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
-            : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-        boolean clusterUnderstandsComposableTemplates = isRunningAgainstOldCluster() == false
-            || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (isRunningAgainstOldCluster()) {
+            XPackRestTestHelper.waitForTemplates(
+                client(),
+                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
+                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
+            );
+        }
     }
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
@@ -71,19 +72,18 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig = "{\n"
-            + "    \"job_id\": \""
-            + jobId
-            + "\",\n"
-            + "    \"analysis_config\": {\n"
-            + "        \"bucket_span\": \"10m\",\n"
-            + "        \"detectors\": [{\n"
-            + "            \"function\": \"metric\",\n"
-            + "            \"field_name\": \"responsetime\"\n"
-            + "        }]\n"
-            + "    },\n"
-            + "    \"data_description\": {}\n"
-            + "}";
+        String jobConfig = """
+            {
+                "job_id": "%s",
+                "analysis_config": {
+                    "bucket_span": "10m",
+                    "detectors": [{
+                        "function": "metric",
+                        "field_name": "responsetime"
+                    }]
+                },
+                "data_description": {}
+            }""".formatted(jobId);
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
         putJobRequest.setJsonEntity(jobConfig);

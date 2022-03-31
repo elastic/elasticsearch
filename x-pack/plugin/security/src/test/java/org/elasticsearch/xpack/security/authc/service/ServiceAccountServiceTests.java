@@ -14,7 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -96,7 +95,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testGetServiceAccountPrincipals() {
-        assertThat(ServiceAccountService.getServiceAccountPrincipals(), containsInAnyOrder("elastic/fleet-server", "elastic/kibana"));
+        assertThat(
+            ServiceAccountService.getServiceAccountPrincipals(),
+            containsInAnyOrder("elastic/enterprise-search-server", "elastic/fleet-server", "elastic/kibana")
+        );
     }
 
     public void testTryParseToken() throws IOException, IllegalAccessException {
@@ -641,7 +643,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 3))
             .mapToObj(i -> TokenInfo.indexToken(ValidationTests.randomTokenName()))
             .sorted()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

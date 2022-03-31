@@ -31,7 +31,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -204,7 +203,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
             childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
         }
-        this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
+        this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -219,7 +218,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         clusterSettings.addSettingsUpdateConsumer(
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             this::setTotalCircuitBreakerLimit,
-            this::validateTotalCircuitBreakerLimit
+            HierarchyCircuitBreakerService::validateTotalCircuitBreakerLimit
         );
         clusterSettings.addSettingsUpdateConsumer(
             FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -256,7 +255,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
+    private static void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         BreakerSettings newParentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             byteSizeValue.getBytes(),
@@ -481,7 +480,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         List<GarbageCollectorMXBean> youngBeans = ManagementFactory.getGarbageCollectorMXBeans()
             .stream()
             .filter(mxBean -> GcNames.getByGcName(mxBean.getName(), mxBean.getName()).equals(GcNames.YOUNG))
-            .collect(Collectors.toList());
+            .toList();
         assert youngBeans.size() == 1;
         assert youngBeans.get(0).getCollectionCount() != -1 : "G1 must support getting collection count";
 

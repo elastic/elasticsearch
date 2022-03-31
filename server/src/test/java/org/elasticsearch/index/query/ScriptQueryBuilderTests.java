@@ -49,16 +49,17 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     public void testFromJsonVerbose() throws IOException {
-        String json = "{\n"
-            + "  \"script\" : {\n"
-            + "    \"script\" : {\n"
-            + "      \"source\" : \"5\",\n"
-            + "      \"lang\" : \"mockscript\"\n"
-            + "    },\n"
-            + "    \"boost\" : 1.0,\n"
-            + "    \"_name\" : \"PcKdEyPOmR\"\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "script" : {
+                "script" : {
+                  "source" : "5",
+                  "lang" : "mockscript"
+                },
+                "boost" : 1.0,
+                "_name" : "PcKdEyPOmR"
+              }
+            }""";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -67,31 +68,32 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"script\" : {\n"
-            + "    \"script\" : \"5\","
-            + "    \"boost\" : 1.0,\n"
-            + "    \"_name\" : \"PcKdEyPOmR\"\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "script" : {
+                "script" : "5",    "boost" : 1.0,
+                "_name" : "PcKdEyPOmR"
+              }
+            }""";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         assertEquals(json, "5", parsed.script().getIdOrCode());
     }
 
     public void testArrayOfScriptsException() {
-        String json = "{\n"
-            + "  \"script\" : {\n"
-            + "    \"script\" : [ {\n"
-            + "      \"source\" : \"5\",\n"
-            + "      \"lang\" : \"mockscript\"\n"
-            + "    },\n"
-            + "    {\n"
-            + "      \"source\" : \"6\",\n"
-            + "      \"lang\" : \"mockscript\"\n"
-            + "    }\n ]"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "script" : {
+                "script" : [ {
+                  "source" : "5",
+                  "lang" : "mockscript"
+                },
+                {
+                  "source" : "6",
+                  "lang" : "mockscript"
+                }
+             ]  }
+            }""";
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("does not support an array of scripts"));

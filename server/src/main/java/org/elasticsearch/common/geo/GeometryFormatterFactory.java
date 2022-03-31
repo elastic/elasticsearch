@@ -27,21 +27,18 @@ public class GeometryFormatterFactory {
      * Returns a formatter by name
      */
     public static <T> Function<List<T>, List<Object>> getFormatter(String name, Function<T, Geometry> toGeometry) {
-        switch (name) {
-            case GEOJSON:
-                return geometries -> {
-                    final List<Object> objects = new ArrayList<>(geometries.size());
-                    geometries.forEach((shape) -> objects.add(GeoJson.toMap(toGeometry.apply(shape))));
-                    return objects;
-                };
-            case WKT:
-                return geometries -> {
-                    final List<Object> objects = new ArrayList<>(geometries.size());
-                    geometries.forEach((shape) -> objects.add(WellKnownText.toWKT(toGeometry.apply(shape))));
-                    return objects;
-                };
-            default:
-                throw new IllegalArgumentException("Unrecognized geometry format [" + name + "].");
-        }
+        return switch (name) {
+            case GEOJSON -> geometries -> {
+                final List<Object> objects = new ArrayList<>(geometries.size());
+                geometries.forEach((shape) -> objects.add(GeoJson.toMap(toGeometry.apply(shape))));
+                return objects;
+            };
+            case WKT -> geometries -> {
+                final List<Object> objects = new ArrayList<>(geometries.size());
+                geometries.forEach((shape) -> objects.add(WellKnownText.toWKT(toGeometry.apply(shape))));
+                return objects;
+            };
+            default -> throw new IllegalArgumentException("Unrecognized geometry format [" + name + "].");
+        };
     }
 }

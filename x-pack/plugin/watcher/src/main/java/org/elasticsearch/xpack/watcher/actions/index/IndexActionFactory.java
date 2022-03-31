@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.index;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;

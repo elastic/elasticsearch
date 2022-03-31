@@ -97,15 +97,15 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
                     + "]"
             );
         }
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        TermsAggregator.BucketCountThresholds thresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
+        if (thresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             // TODO significant text does a 2x here, should we as well?
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+            thresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(thresholds.getRequiredSize()));
         }
-        bucketCountThresholds.ensureValidity();
+        thresholds.ensureValidity();
 
         return new CategorizeTextAggregator(
             name,
@@ -114,7 +114,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             parent,
             indexedFieldName,
             fieldType,
-            bucketCountThresholds,
+            thresholds,
             maxUniqueTokens,
             maxMatchTokens,
             similarityThreshold,

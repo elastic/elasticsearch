@@ -11,19 +11,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 public class ApiKeyGenerator {
@@ -57,22 +54,18 @@ public class ApiKeyGenerator {
             apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
         }, listener::onFailure);
 
-        if (ServiceAccountSettings.REALM_NAME.equals(authentication.getSourceRealm().getName())) {
-            final ServiceAccount serviceAccount = ServiceAccountService.getServiceAccounts().get(authentication.getUser().principal());
-            if (serviceAccount == null) {
-                roleDescriptorsListener.onFailure(
-                    new ElasticsearchSecurityException(
-                        "the authentication is created by a service account that does not exist: ["
-                            + authentication.getUser().principal()
-                            + "]"
-                    )
-                );
-            } else {
-                roleDescriptorsListener.onResponse(Set.of(serviceAccount.roleDescriptor()));
-            }
-        } else {
-            rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())), roleDescriptorsListener);
-        }
-    }
+        final Subject effectiveSubject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
 
+        // Retain current behaviour that User of an API key authentication has no roles
+        if (effectiveSubject.getType() == Subject.Type.API_KEY) {
+            roleDescriptorsListener.onResponse(Set.of());
+            return;
+        }
+
+        rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
+            assert roleDescriptorsList.size() == 1;
+            roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
+
+        }, roleDescriptorsListener::onFailure));
+    }
 }

@@ -14,6 +14,10 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
 }
 
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("javaRestTest").configure{enabled = false }

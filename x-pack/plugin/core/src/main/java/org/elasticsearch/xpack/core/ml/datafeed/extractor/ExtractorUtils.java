@@ -93,8 +93,8 @@ public final class ExtractorUtils {
 
     public static DateHistogramValuesSourceBuilder getDateHistogramValuesSource(CompositeAggregationBuilder compositeAggregationBuilder) {
         for (CompositeValuesSourceBuilder<?> valuesSourceBuilder : compositeAggregationBuilder.sources()) {
-            if (valuesSourceBuilder instanceof DateHistogramValuesSourceBuilder) {
-                return (DateHistogramValuesSourceBuilder) valuesSourceBuilder;
+            if (valuesSourceBuilder instanceof DateHistogramValuesSourceBuilder dateHistogramValuesSourceBuilder) {
+                return dateHistogramValuesSourceBuilder;
             }
         }
         throw ExceptionsHelper.badRequestException("[composite] aggregations require exactly one [date_histogram] value source");
@@ -110,16 +110,12 @@ public final class ExtractorUtils {
      * @return The histogram interval
      */
     public static long getHistogramIntervalMillis(AggregationBuilder histogramAggregation) {
-        if (histogramAggregation instanceof HistogramAggregationBuilder) {
-            return (long) ((HistogramAggregationBuilder) histogramAggregation).interval();
-        } else if (histogramAggregation instanceof DateHistogramAggregationBuilder) {
-            return validateAndGetDateHistogramInterval(
-                DateHistogramAggOrValueSource.fromAgg((DateHistogramAggregationBuilder) histogramAggregation)
-            );
-        } else if (histogramAggregation instanceof CompositeAggregationBuilder) {
-            return validateAndGetDateHistogramInterval(
-                DateHistogramAggOrValueSource.fromCompositeAgg((CompositeAggregationBuilder) histogramAggregation)
-            );
+        if (histogramAggregation instanceof HistogramAggregationBuilder histo) {
+            return (long) histo.interval();
+        } else if (histogramAggregation instanceof DateHistogramAggregationBuilder dateHisto) {
+            return validateAndGetDateHistogramInterval(DateHistogramAggOrValueSource.fromAgg(dateHisto));
+        } else if (histogramAggregation instanceof CompositeAggregationBuilder composite) {
+            return validateAndGetDateHistogramInterval(DateHistogramAggOrValueSource.fromCompositeAgg(composite));
         } else {
             throw new IllegalStateException("Invalid histogram aggregation [" + histogramAggregation.getName() + "]");
         }
@@ -148,29 +144,16 @@ public final class ExtractorUtils {
         TimeValue interval;
         Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
         if (dateTimeUnit != null) {
-            switch (dateTimeUnit) {
-                case WEEK_OF_WEEKYEAR:
-                    interval = new TimeValue(7, TimeUnit.DAYS);
-                    break;
-                case DAY_OF_MONTH:
-                    interval = new TimeValue(1, TimeUnit.DAYS);
-                    break;
-                case HOUR_OF_DAY:
-                    interval = new TimeValue(1, TimeUnit.HOURS);
-                    break;
-                case MINUTES_OF_HOUR:
-                    interval = new TimeValue(1, TimeUnit.MINUTES);
-                    break;
-                case SECOND_OF_MINUTE:
-                    interval = new TimeValue(1, TimeUnit.SECONDS);
-                    break;
-                case MONTH_OF_YEAR:
-                case YEAR_OF_CENTURY:
-                case QUARTER_OF_YEAR:
-                    throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
-                default:
-                    throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
-            }
+            interval = switch (dateTimeUnit) {
+                case WEEK_OF_WEEKYEAR -> new TimeValue(7, TimeUnit.DAYS);
+                case DAY_OF_MONTH -> new TimeValue(1, TimeUnit.DAYS);
+                case HOUR_OF_DAY -> new TimeValue(1, TimeUnit.HOURS);
+                case MINUTES_OF_HOUR -> new TimeValue(1, TimeUnit.MINUTES);
+                case SECOND_OF_MINUTE -> new TimeValue(1, TimeUnit.SECONDS);
+                case MONTH_OF_YEAR, YEAR_OF_CENTURY, QUARTER_OF_YEAR -> throw ExceptionsHelper.badRequestException(
+                    invalidDateHistogramCalendarIntervalMessage(calendarInterval)
+                );
+            };
         } else {
             interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.calendar_interval");
         }

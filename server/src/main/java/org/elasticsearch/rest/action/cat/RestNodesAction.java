@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -514,7 +514,7 @@ public class RestNodesAction extends AbstractCatAction {
      * @param max The maximum number.
      * @return 0 if {@code max} is &lt;= 0. Otherwise 100 * {@code used} / {@code max}.
      */
-    private short calculatePercentage(long used, long max) {
+    private static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) ((100d * used) / max);
     }
 }

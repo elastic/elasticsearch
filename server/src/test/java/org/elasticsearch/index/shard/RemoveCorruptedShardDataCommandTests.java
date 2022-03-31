@@ -10,12 +10,14 @@ package org.elasticsearch.index.shard;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -34,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -101,18 +102,23 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
 
-        final Path dataDir = createTempDir();
+        dataPaths = new Path[] { createTempDir(), createTempDir(), createTempDir() };
+        final String[] tmpPaths = Arrays.stream(dataPaths).map(s -> s.toAbsolutePath().toString()).toArray(String[]::new);
+        int randomPath = TestUtil.nextInt(random(), 0, dataPaths.length - 1);
+        final Path tempDir = dataPaths[randomPath];
 
         environment = TestEnvironment.newEnvironment(
             Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), dataDir)
-                .putList(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths)
                 .build()
         );
 
         // create same directory structure as prod does
-        Files.createDirectories(dataDir);
-        dataPaths = new Path[] { dataDir };
+        for (Path dataPath : dataPaths) {
+            Files.createDirectories(dataPath);
+        }
+
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -121,7 +127,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(tempDir);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
@@ -129,7 +135,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
             new MaxDocsCondition(randomNonNegativeLong()),
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+            new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
 
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
@@ -142,13 +149,12 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
-            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            final Path[] paths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
-                    dataPaths,
+                    paths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()

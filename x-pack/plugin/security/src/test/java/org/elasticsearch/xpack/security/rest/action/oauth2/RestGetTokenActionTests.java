@@ -18,9 +18,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -136,18 +136,14 @@ public class RestGetTokenActionTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        final String request = "{"
-            + "\"grant_type\": \"password\","
-            + "\"username\": \"user1\","
-            + "\"password\": \""
-            + SecuritySettingsSourceField.TEST_PASSWORD
-            + "\","
-            + "\"scope\": \"FULL\""
-            + "}";
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)
-        ) {
+        final String request = """
+            {
+              "grant_type": "password",
+              "username": "user1",
+              "password": "%s",
+              "scope": "FULL"
+            }""".formatted(SecuritySettingsSourceField.TEST_PASSWORD);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
             CreateTokenRequest createTokenRequest = RestGetTokenAction.PARSER.parse(parser, null);
             assertEquals("password", createTokenRequest.getGrantType());
             assertEquals("user1", createTokenRequest.getUsername());
@@ -158,17 +154,13 @@ public class RestGetTokenActionTests extends ESTestCase {
 
     public void testParserRefreshRequest() throws Exception {
         final String token = randomAlphaOfLengthBetween(4, 32);
-        final String request = "{"
-            + "\"grant_type\": \"refresh_token\","
-            + "\"refresh_token\": \""
-            + token
-            + "\","
-            + "\"scope\": \"FULL\""
-            + "}";
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)
-        ) {
+        final String request = """
+            {
+              "grant_type": "refresh_token",
+              "refresh_token": "%s",
+              "scope": "FULL"
+            }""".formatted(token);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
             CreateTokenRequest createTokenRequest = RestGetTokenAction.PARSER.parse(parser, null);
             assertEquals("refresh_token", createTokenRequest.getGrantType());
             assertEquals(token, createTokenRequest.getRefreshToken());

@@ -73,10 +73,10 @@ public class NestedSortBuilderTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link NestedSortBuilder} with random path and filter of the given depth.
+     * Create a {@link NestedSortBuilder} with random filter of the given depth.
      */
     public static NestedSortBuilder createRandomNestedSort(int depth) {
-        NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+        NestedSortBuilder nestedSort = new NestedSortBuilder("path");
         if (randomBoolean()) {
             nestedSort.setFilter(AbstractSortTestCase.randomNestedFilter());
         }
@@ -107,20 +107,15 @@ public class NestedSortBuilderTests extends ESTestCase {
         NestedSortBuilder mutated = original.getNestedSort();
         int parameter = randomIntBetween(0, 2);
         switch (parameter) {
-            case 0:
+            case 0 -> {
                 mutated = new NestedSortBuilder(original.getPath() + "_suffix");
                 mutated.setFilter(original.getFilter());
                 mutated.setNestedSort(original.getNestedSort());
-                break;
-            case 1:
-                mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
-                break;
-            case 2:
-            default:
-                mutated.setNestedSort(
-                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
-                );
-                break;
+            }
+            case 1 -> mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
+            default -> mutated.setNestedSort(
+                randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+            );
         }
         return mutated;
     }

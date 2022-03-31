@@ -8,13 +8,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -155,8 +156,9 @@ public class PointInTimeIT extends ESIntegTestCase {
             final Set<String> dataNodes = clusterService().state()
                 .nodes()
                 .getDataNodes()
+                .values()
                 .stream()
-                .map(e -> e.getValue().getId())
+                .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
             assertAcked(
@@ -241,21 +243,38 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
         refresh();
         String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
-        SearchResponse resp1 = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get();
-        assertNoFailures(resp1);
-        assertHitCount(resp1, index1 + index2);
-        client().admin().indices().prepareDelete("index-1").get();
-        if (randomBoolean()) {
-            SearchResponse resp2 = client().prepareSearch("index-*").get();
-            assertNoFailures(resp2);
-            assertHitCount(resp2, index2);
+        try {
+            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get();
+            assertNoFailures(resp);
+            assertHitCount(resp, index1 + index2);
+            client().admin().indices().prepareDelete("index-1").get();
+            if (randomBoolean()) {
+                resp = client().prepareSearch("index-*").get();
+                assertNoFailures(resp);
+                assertHitCount(resp, index2);
+            }
 
+            // Allow partial search result
+            resp = client().prepareSearch()
+                .setPreference(null)
+                .setAllowPartialSearchResults(true)
+                .setPointInTime(new PointInTimeBuilder(pit))
+                .get();
+            assertFailures(resp);
+            assertHitCount(resp, index2);
+
+            // Do not allow partial search result
+            expectThrows(
+                ElasticsearchException.class,
+                () -> client().prepareSearch()
+                    .setPreference(null)
+                    .setAllowPartialSearchResults(false)
+                    .setPointInTime(new PointInTimeBuilder(pit))
+                    .get()
+            );
+        } finally {
+            closePointInTime(pit);
         }
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get()
-        );
-        closePointInTime(resp1.pointInTimeId());
     }
 
     public void testCanMatch() throws Exception {
@@ -263,10 +282,8 @@ public class PointInTimeIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 100)));
-        assertAcked(
-            prepareCreate("test").setSettings(settings)
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
-        );
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
+            {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
         String pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
         try {
@@ -306,9 +323,10 @@ public class PointInTimeIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
-            .collect(Collectors.toList());
+            .map(DiscoveryNode::getName)
+            .toList();
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 
         createIndex(

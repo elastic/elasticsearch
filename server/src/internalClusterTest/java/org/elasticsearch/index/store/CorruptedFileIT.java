@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.index.CheckIndex;
@@ -24,11 +23,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -78,6 +78,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -497,8 +498,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // we are green so primaries got not corrupted.
         // ensure that no shard is actually allocated on the unlucky node
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (IndexShardRoutingTable table : clusterStateResponse.getState().getRoutingTable().index("test")) {
-            for (ShardRouting routing : table) {
+        final IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index("test");
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                final ShardRouting routing = indexShardRoutingTable.shard(copy);
                 if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.RELOCATING)));
@@ -636,9 +640,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         final IndicesShardStoresResponse stores = client().admin().indices().prepareShardStores(index.getName()).get();
 
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses().get(index.getName())) {
-            for (IndicesShardStoresResponse.StoreStatus store : shards.value) {
-                final ShardId shardId = new ShardId(index, shards.key);
+        for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses()
+            .get(index.getName())
+            .entrySet()) {
+            for (IndicesShardStoresResponse.StoreStatus store : shards.getValue()) {
+                final ShardId shardId = new ShardId(index, shards.getKey());
                 if (store.getAllocationStatus().equals(IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED)) {
                     for (Path path : findFilesToCorruptOnNode(store.getNode().getName(), shardId)) {
                         try (OutputStream os = Files.newOutputStream(path)) {

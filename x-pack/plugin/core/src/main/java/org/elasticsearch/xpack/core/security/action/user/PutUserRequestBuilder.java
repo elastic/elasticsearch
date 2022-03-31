@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -220,7 +220,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         }
     }
 
-    private ValidationException validationException(String abc) {
+    private static ValidationException validationException(String abc) {
         ValidationException validationException = new ValidationException();
         validationException.addValidationError(abc);
         return validationException;

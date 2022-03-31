@@ -12,8 +12,10 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -86,6 +88,8 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private final DocumentDimensions dimensions;
+    private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -100,8 +104,10 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
+        this.id = in.id;
         this.version = in.version;
         this.seqID = in.seqID;
+        this.dimensions = in.dimensions;
     }
 
     protected DocumentParserContext(
@@ -121,6 +127,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
     }
 
     public final IndexSettings indexSettings() {
@@ -186,12 +193,33 @@ public abstract class DocumentParserContext {
         this.version = version;
     }
 
+    public final String id() {
+        if (id == null) {
+            assert false : "id field mapper has not set the id";
+            throw new IllegalStateException("id field mapper has not set the id");
+        }
+        return id;
+    }
+
+    public final void id(String id) {
+        this.id = id;
+    }
+
     public final SeqNoFieldMapper.SequenceIDFields seqID() {
         return this.seqID;
     }
 
     public final void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
         this.seqID = seqID;
+    }
+
+    /**
+     * Description on the document being parsed used in error messages. Not
+     * called unless there is an error.
+     */
+    public final String documentDescription() {
+        IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        return idMapper.documentDescription(this);
     }
 
     /**
@@ -219,11 +247,7 @@ public abstract class DocumentParserContext {
         return dynamicMappers;
     }
 
-    public final boolean isShadowed(String field) {
-        return mappingLookup.isShadowed(field);
-    }
-
-    public final ObjectMapper getObjectMapper(String name) {
+    public final ObjectMapper getDynamicObjectMapper(String name) {
         return dynamicObjectMappers.get(name);
     }
 
@@ -248,15 +272,10 @@ public abstract class DocumentParserContext {
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
     /**
-     * Return a new context that will be within a copy-to operation.
+     * @return a RootObjectMapper.Builder to be used to construct a dynamic mapping update
      */
-    public final DocumentParserContext createCopyToContext() {
-        return new Wrapper(this) {
-            @Override
-            public boolean isWithinCopyTo() {
-                return true;
-            }
-        };
+    public final RootObjectMapper.Builder updateRoot() {
+        return mappingLookup.getMapping().getRoot().newBuilder(indexSettings.getIndexVersionCreated());
     }
 
     public boolean isWithinCopyTo() {
@@ -267,6 +286,10 @@ public abstract class DocumentParserContext {
      * Return a new context that will be used within a nested document.
      */
     public final DocumentParserContext createNestedContext(String fullPath) {
+        if (isWithinCopyTo()) {
+            // nested context will already have been set up for copy_to fields
+            return this;
+        }
         final LuceneDocument doc = new LuceneDocument(fullPath, doc());
         addDoc(doc);
         return switchDoc(doc);
@@ -285,20 +308,42 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Return a new context that will have the provided path.
+     * Return a context for copy_to directives
+     * @param copyToField   the name of the field to copy to
+     * @param doc           the document to target
      */
-    public final DocumentParserContext overridePath(final ContentPath path) {
+    public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
+        ContentPath path = new ContentPath(0);
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
         return new Wrapper(this) {
             @Override
             public ContentPath path() {
                 return path;
             }
+
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+
+            @Override
+            public boolean isWithinCopyTo() {
+                return true;
+            }
+
+            @Override
+            public LuceneDocument doc() {
+                return doc;
+            }
         };
     }
 
     /**
-     * @deprecated we are actively deprecating and removing the ability to pass
-     *             complex objects to multifields, so try and avoid using this method
+     *  @deprecated we are actively deprecating and removing the ability to pass
+     *              complex objects to multifields, so try and avoid using this method
+     * Replace the XContentParser used by this context
+     * @param parser    the replacement parser
+     * @return  a new context with a replaced parser
      */
     @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
@@ -308,6 +353,13 @@ public abstract class DocumentParserContext {
                 return parser;
             }
         };
+    }
+
+    /**
+     * The collection of dimensions for this document.
+     */
+    public DocumentDimensions getDimensions() {
+        return dimensions;
     }
 
     public abstract ContentPath path();
@@ -342,5 +394,46 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
+    }
+
+    // XContentParser that wraps an existing parser positioned on a value,
+    // and a field name, and returns a stream that looks like { 'field' : 'value' }
+    private static class CopyToParser extends FilterXContentParserWrapper {
+
+        enum State {
+            FIELD,
+            VALUE
+        }
+
+        private State state = State.FIELD;
+        private final String field;
+
+        CopyToParser(String fieldName, XContentParser in) {
+            super(in);
+            this.field = fieldName;
+            assert in.currentToken().isValue() || in.currentToken() == Token.VALUE_NULL;
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            if (state == State.FIELD) {
+                state = State.VALUE;
+                return delegate().currentToken();
+            }
+            return Token.END_OBJECT;
+        }
+
+        @Override
+        public Token currentToken() {
+            if (state == State.FIELD) {
+                return Token.FIELD_NAME;
+            }
+            return delegate().currentToken();
+        }
+
+        @Override
+        public String currentName() throws IOException {
+            return field;
+        }
     }
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
@@ -34,7 +34,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -102,7 +101,7 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
         assert searchResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
         List<QueryWatchesAction.Response.Item> items = Arrays.stream(searchResponse.getHits().getHits())
             .map(this::transformSearchHit)
-            .collect(Collectors.toList());
+            .toList();
         listener.onResponse(new QueryWatchesAction.Response(searchResponse.getHits().getTotalHits().value, items));
     }
 

@@ -16,12 +16,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
@@ -120,7 +120,7 @@ public class PutRoleRequestTests extends ESTestCase {
         }
         original.writeTo(out);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(out.getVersion());
         final PutRoleRequest copy = new PutRoleRequest(in);
@@ -184,10 +184,34 @@ public class PutRoleRequestTests extends ESTestCase {
                 .build();
         }
         request.addApplicationPrivileges(applicationPrivileges);
-
-        if (randomBoolean()) {
-            final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
-            request.conditionalCluster(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                request.conditionalCluster(new ConfigurableClusterPrivilege[0]);
+                break;
+            case 1:
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+                break;
+            case 2:
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+                break;
+            case 3:
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    ),
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+                break;
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

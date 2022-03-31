@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,17 +36,17 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState, false);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
 
         request.waitForNoInitializingShards(true);
         clusterState = randomClusterStateWithInitializingShards("test", between(1, 10));
-        response = new ClusterHealthResponse("", indices, clusterState, false);
+        response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
         request.waitForNoInitializingShards(false);
         clusterState = randomClusterStateWithInitializingShards("test", randomInt(20));
-        response = new ClusterHealthResponse("", indices, clusterState, false);
+        response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
     }
 
@@ -57,11 +56,11 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         request.waitForActiveShards(ActiveShardCount.ALL);
 
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState, false);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
         clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-        response = new ClusterHealthResponse("", indices, clusterState, false);
+        response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
     }
 
@@ -89,7 +88,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             shardRoutingStates.set(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
 
-        final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex());
 
         // Primary

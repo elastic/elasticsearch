@@ -91,12 +91,13 @@ public class WatchSourceBuilder implements ToXContentObject {
 
     public WatchSourceBuilder addAction(
         String id,
-        Transform.Builder<? extends Transform> transform,
+        Transform.Builder<? extends Transform> transformBuilder,
         Action.Builder<? extends Action> action
     ) {
-        return addAction(id, null, transform.build(), action.build());
+        return addAction(id, null, transformBuilder.build(), action.build());
     }
 
+    @SuppressWarnings("HiddenField")
     public WatchSourceBuilder addAction(String id, Condition condition, Action.Builder<? extends Action> action) {
         return addAction(id, null, condition, null, action.build());
     }
@@ -104,17 +105,18 @@ public class WatchSourceBuilder implements ToXContentObject {
     public WatchSourceBuilder addAction(
         String id,
         TimeValue throttlePeriod,
-        Transform.Builder<? extends Transform> transform,
+        Transform.Builder<? extends Transform> transformBuilder,
         Action.Builder<? extends Action> action
     ) {
-        return addAction(id, throttlePeriod, transform.build(), action.build());
+        return addAction(id, throttlePeriod, transformBuilder.build(), action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform transform, Action action) {
-        actions.put(id, new TransformedAction(id, action, throttlePeriod, null, transform, null));
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform aTransform, Action action) {
+        actions.put(id, new TransformedAction(id, action, throttlePeriod, null, aTransform, null));
         return this;
     }
 
+    @SuppressWarnings("HiddenField")
     public WatchSourceBuilder addAction(
         String id,
         TimeValue throttlePeriod,
@@ -125,11 +127,13 @@ public class WatchSourceBuilder implements ToXContentObject {
         return addAction(id, throttlePeriod, condition, transform.build(), action.build());
     }
 
+    @SuppressWarnings("HiddenField")
     public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition condition, Transform transform, Action action) {
         actions.put(id, new TransformedAction(id, action, throttlePeriod, condition, transform, null));
         return this;
     }
 
+    @SuppressWarnings("HiddenField")
     public WatchSourceBuilder addAction(
         String id,
         TimeValue throttlePeriod,

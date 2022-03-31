@@ -26,12 +26,9 @@ import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
@@ -205,7 +202,6 @@ public class NodeJoinTests extends ESTestCase {
             "test_node",
             Settings.EMPTY,
             clusterSettings,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
             transportService,
             null,
             writableRegistry(),
@@ -613,11 +609,11 @@ public class NodeJoinTests extends ESTestCase {
     public void testConcurrentJoining() {
         List<DiscoveryNode> masterNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true))
-            .collect(Collectors.toList());
+            .toList();
         List<DiscoveryNode> otherNodes = IntStream.rangeClosed(masterNodes.size() + 1, masterNodes.size() + 1 + randomIntBetween(0, 5))
             .mapToObj(nodeId -> newNode(nodeId, false))
-            .collect(Collectors.toList());
-        List<DiscoveryNode> allNodes = Stream.concat(masterNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
+            .toList();
+        List<DiscoveryNode> allNodes = Stream.concat(masterNodes.stream(), otherNodes.stream()).toList();
 
         DiscoveryNode localNode = masterNodes.get(0);
         VotingConfiguration votingConfiguration = new VotingConfiguration(
@@ -638,13 +634,13 @@ public class NodeJoinTests extends ESTestCase {
         List<DiscoveryNode> successfulNodes;
         do {
             successfulNodes = randomSubsetOf(allNodes);
-        } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false);
+        } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).toList()) == false);
 
         logger.info("Successful voting nodes: {}", successfulNodes);
 
         List<JoinRequest> correctJoinRequests = successfulNodes.stream()
             .map(node -> new JoinRequest(node, newTerm, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))))
-            .collect(Collectors.toList());
+            .toList();
 
         List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(allNodes);
         possiblyUnsuccessfulNodes.removeAll(successfulNodes);
@@ -670,7 +666,7 @@ public class NodeJoinTests extends ESTestCase {
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion + randomLongBetween(1, 10)))
                 );
             }
-        }).collect(Collectors.toList());
+        }).collect(Collectors.toCollection(ArrayList::new));
 
         // duplicate some requests, which will be unsuccessful
         possiblyFailingJoinRequests.addAll(randomSubsetOf(possiblyFailingJoinRequests));
@@ -702,7 +698,7 @@ public class NodeJoinTests extends ESTestCase {
             } catch (CoordinationStateRejectedException e) {
                 // ignore - these requests are expected to fail
             }
-        }, "process " + joinRequest))).collect(Collectors.toList());
+        }, "process " + joinRequest))).toList();
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

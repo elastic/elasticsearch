@@ -72,9 +72,9 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             // sort by index name, then shard ID
             final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final StatsResponse statsResponse : statsResponse) {
-                taskResponsesByIndex.computeIfAbsent(statsResponse.status().followerIndex(), k -> new TreeMap<>())
-                    .put(statsResponse.status().getShardId(), statsResponse);
+            for (final StatsResponse response : statsResponse) {
+                taskResponsesByIndex.computeIfAbsent(response.status().followerIndex(), k -> new TreeMap<>())
+                    .put(response.status().getShardId(), response);
             }
             builder.startObject();
             {

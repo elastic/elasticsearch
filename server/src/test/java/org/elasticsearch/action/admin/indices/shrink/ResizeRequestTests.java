@@ -21,6 +21,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -67,14 +68,16 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             ResizeRequest request = new ResizeRequest("target", "source");
             request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
             String actualRequestBody = Strings.toString(request);
-            assertEquals("{\"settings\":{},\"aliases\":{},\"max_primary_shard_size\":\"100mb\"}", actualRequestBody);
+            assertEquals("""
+                {"settings":{},"aliases":{},"max_primary_shard_size":"100mb"}""", actualRequestBody);
         }
         {
             ResizeRequest request = new ResizeRequest();
             CreateIndexRequest target = new CreateIndexRequest("target");
             Alias alias = new Alias("test_alias");
             alias.routing("1");
-            alias.filter("{\"term\":{\"year\":2016}}");
+            alias.filter("""
+                {"term":{"year":2016}}""");
             alias.writeIndex(true);
             target.alias(alias);
             Settings.Builder settings = Settings.builder();
@@ -82,9 +85,26 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             target.settings(settings);
             request.setTargetIndex(target);
             String actualRequestBody = Strings.toString(request);
-            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}},"
-                + "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
-            assertEquals(expectedRequestBody, actualRequestBody);
+            String expectedRequestBody = """
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_shards": "10"
+                    }
+                  },
+                  "aliases": {
+                    "test_alias": {
+                      "filter": {
+                        "term": {
+                          "year": 2016
+                        }
+                      },
+                      "routing": "1",
+                      "is_write_index": true
+                    }
+                  }
+                }""";
+            assertEquals(XContentHelper.stripWhitespace(expectedRequestBody), actualRequestBody);
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -396,7 +397,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
     }
 
     private Map<String, String> getRelevantHeaders(HttpRequest httpRequest) {
-        final Map<String, String> headers = new HashMap<>(4);
+        final Map<String, String> headers = Maps.newMapWithExpectedSize(4);
         final String[] relevantHeaderNames = new String[] { "user-agent", "x-elastic-product-origin", "x-forwarded-for", "x-opaque-id" };
         for (Map.Entry<String, List<String>> header : httpRequest.getHeaders().entrySet()) {
             if (header.getValue().size() > 0) {
@@ -439,14 +440,11 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
     }
 
     private static char randomizeCase(char c) {
-        switch (between(1, 3)) {
-            case 1:
-                return Character.toUpperCase(c);
-            case 2:
-                return Character.toLowerCase(c);
-            default:
-                return c;
-        }
+        return switch (between(1, 3)) {
+            case 1 -> Character.toUpperCase(c);
+            case 2 -> Character.toLowerCase(c);
+            default -> c;
+        };
     }
 
     private HttpChannel randomHttpChannel() {

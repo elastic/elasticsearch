@@ -20,7 +20,11 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BinaryDocValuesField implements DocValuesField<ByteBuffer> {
+public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
+    implements
+        Field<ByteBuffer>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<BytesRef> {
 
     private final SortedBinaryDocValues input;
     private final String name;
@@ -66,7 +70,7 @@ public class BinaryDocValuesField implements DocValuesField<ByteBuffer> {
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<?> toScriptDocValues() {
         if (bytesRefs == null) {
             bytesRefs = new BytesRefs(this);
         }
@@ -74,8 +78,9 @@ public class BinaryDocValuesField implements DocValuesField<ByteBuffer> {
         return bytesRefs;
     }
 
-    // this method is required to support the ByteRef return values
+    // this method is required to support the Boolean return values
     // for the old-style "doc" access in ScriptDocValues
+    @Override
     public BytesRef getInternal(int index) {
         return values[index].toBytesRef();
     }

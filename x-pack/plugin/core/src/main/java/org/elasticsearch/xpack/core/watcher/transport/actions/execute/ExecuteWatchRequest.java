@@ -26,7 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * An execute watch request to execute a watch by id
+ * A request to execute a watch by id
  */
 public class ExecuteWatchRequest extends ActionRequest {
 
@@ -85,11 +85,11 @@ public class ExecuteWatchRequest extends ActionRequest {
         out.writeBoolean(recordExecution);
         out.writeBoolean(alternativeInput != null);
         if (alternativeInput != null) {
-            out.writeMap(alternativeInput);
+            out.writeGenericMap(alternativeInput);
         }
         out.writeBoolean(triggerData != null);
         if (triggerData != null) {
-            out.writeMap(triggerData);
+            out.writeGenericMap(triggerData);
         }
         out.writeLong(actionModes.size());
         for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
@@ -195,6 +195,7 @@ public class ExecuteWatchRequest extends ActionRequest {
     /**
      * @param watchSource instead of using an existing watch use this non persisted watch
      */
+    @SuppressWarnings("HiddenField")
     public void setWatchSource(BytesReference watchSource, XContentType xContentType) {
         this.watchSource = watchSource;
         this.xContentType = xContentType;

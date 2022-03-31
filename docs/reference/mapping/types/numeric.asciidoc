@@ -131,7 +131,9 @@ The following parameters are accepted by numeric types:
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `true` (default) and `false`.
+    Should the field be quickly searchable? Accepts `true` (default) and
+    `false`. Numeric fields that only have <<doc-values,`doc_values`>>
+    enabled can also be queried, albeit slower.
 
 <<mapping-field-meta,`meta`>>::
 

@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -107,7 +107,7 @@ public class TransformUpdaterTests extends ESTestCase {
             randomAlphaOfLengthBetween(1, 10),
             Version.CURRENT
         );
-        transformConfigManager.putTransformConfiguration(maxCompatibleConfig, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(maxCompatibleConfig, ActionListener.noop());
         assertConfiguration(
             listener -> transformConfigManager.getTransformConfiguration(maxCompatibleConfig.getId(), listener),
             config -> {}
@@ -143,9 +143,9 @@ public class TransformUpdaterTests extends ESTestCase {
 
         TransformConfig minCompatibleConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            TransformConfig.CONFIG_VERSION_LAST_CHANGED
+            TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED
         );
-        transformConfigManager.putTransformConfiguration(minCompatibleConfig, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(minCompatibleConfig, ActionListener.noop());
 
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
@@ -171,7 +171,7 @@ public class TransformUpdaterTests extends ESTestCase {
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(minCompatibleConfig.getId(), listener), config -> {
             assertNotNull(config);
-            assertEquals(TransformConfig.CONFIG_VERSION_LAST_CHANGED, config.getVersion());
+            assertEquals(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED, config.getVersion());
         });
     }
 
@@ -183,11 +183,11 @@ public class TransformUpdaterTests extends ESTestCase {
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.V_7_2_0,
-                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_CHANGED)
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
         );
 
-        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.noop());
         TransformCheckpoint checkpoint = new TransformCheckpoint(
             oldConfig.getId(),
             0L, // timestamp
@@ -195,7 +195,7 @@ public class TransformUpdaterTests extends ESTestCase {
             Collections.singletonMap("index_1", new long[] { 1, 2, 3, 4 }), // index checkpoints
             0L
         );
-        transformConfigManager.putOldTransformCheckpoint(checkpoint, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOldTransformCheckpoint(checkpoint, ActionListener.noop());
 
         TransformStoredDoc stateDoc = new TransformStoredDoc(
             oldConfig.getId(),
@@ -211,7 +211,7 @@ public class TransformUpdaterTests extends ESTestCase {
             ),
             TransformIndexerStatsTests.randomStats()
         );
-        transformConfigManager.putOrUpdateOldTransformStoredDoc(stateDoc, null, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOrUpdateOldTransformStoredDoc(stateDoc, null, ActionListener.noop());
 
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(oldConfig.getId(), listener), config -> {});
 
@@ -260,23 +260,27 @@ public class TransformUpdaterTests extends ESTestCase {
                 assertEquals(stateDoc.getTransformStats(), storedDocAndVersion.v1().getTransformStats());
             }
         );
+    }
 
-        // same as dry run
+    public void testTransformUpdateDryRun() throws InterruptedException {
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+
         TransformConfig oldConfigForDryRunUpdate = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.V_7_2_0,
-                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_CHANGED)
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
         );
 
-        transformConfigManager.putOldTransformConfiguration(oldConfigForDryRunUpdate, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOldTransformConfiguration(oldConfigForDryRunUpdate, ActionListener.noop());
         assertConfiguration(
             listener -> transformConfigManager.getTransformConfiguration(oldConfigForDryRunUpdate.getId(), listener),
             config -> {}
         );
 
+        TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
                 securityContext,

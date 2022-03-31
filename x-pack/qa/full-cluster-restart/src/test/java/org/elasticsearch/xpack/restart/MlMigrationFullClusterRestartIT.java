@@ -50,23 +50,36 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
-            ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
-            : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-        boolean clusterUnderstandsComposableTemplates = isRunningAgainstOldCluster() == false
-            || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (isRunningAgainstOldCluster()) {
+            XPackRestTestHelper.waitForTemplates(
+                client(),
+                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
+                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
+            );
+        }
     }
 
     private void createTestIndex() throws IOException {
         Request createTestIndex = new Request("PUT", "/airline-data");
-        createTestIndex.setJsonEntity(
-            "{\"mappings\": { \"doc\": {\"properties\": {"
-                + "\"time\": {\"type\": \"date\"},"
-                + "\"airline\": {\"type\": \"keyword\"},"
-                + "\"responsetime\": {\"type\": \"float\"}"
-                + "}}}}"
-        );
+        createTestIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "doc": {
+                  "properties": {
+                    "time": {
+                      "type": "date"
+                    },
+                    "airline": {
+                      "type": "keyword"
+                    },
+                    "responsetime": {
+                      "type": "float"
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(createTestIndex);
     }
 
@@ -192,20 +205,19 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void putJob(String jobId) throws IOException {
-        String jobConfig = "{\n"
-            + "    \"job_id\": \""
-            + jobId
-            + "\",\n"
-            + "    \"analysis_config\": {\n"
-            + "        \"bucket_span\": \"10m\",\n"
-            + "        \"detectors\": [{\n"
-            + "            \"function\": \"metric\",\n"
-            + "            \"by_field_name\": \"airline\",\n"
-            + "            \"field_name\": \"responsetime\"\n"
-            + "        }]\n"
-            + "    },\n"
-            + "    \"data_description\": {}\n"
-            + "}";
+        String jobConfig = """
+            {
+                "job_id": "%s",
+                "analysis_config": {
+                    "bucket_span": "10m",
+                    "detectors": [{
+                        "function": "metric",
+                        "by_field_name": "airline",
+                        "field_name": "responsetime"
+                    }]
+                },
+                "data_description": {}`
+            }""".formatted(jobId);
         Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId);
         putClosedJob.setJsonEntity(jobConfig);
         client().performRequest(putClosedJob);

@@ -380,7 +380,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // synchronize starting with the waiting thread
         barrier.await();
 
-        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1).boxed().collect(Collectors.toList());
+        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1)
+            .boxed()
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(elements);
         for (int i = 0; i < elements.size(); i++) {
             updateLocalCheckpoint(tracker, trackingAllocationId.getId(), elements.get(i));
@@ -802,7 +804,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         StreamInput streamInput = output.bytes().streamInput();
         primaryContext = new ReplicationTracker.PrimaryContext(streamInput);
         switch (randomInt(3)) {
-            case 0: {
+            case 0 -> {
                 // apply cluster state update on old primary while primary context is being transferred
                 clusterState = randomUpdateClusterState(allocationIds, clusterState);
                 clusterState.apply(oldPrimary);
@@ -810,9 +812,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 newPrimary.activateWithPrimaryContext(primaryContext);
                 // apply cluster state update on new primary so that the states on old and new primary are comparable
                 clusterState.apply(newPrimary);
-                break;
             }
-            case 1: {
+            case 1 -> {
                 // apply cluster state update on new primary while primary context is being transferred
                 clusterState = randomUpdateClusterState(allocationIds, clusterState);
                 clusterState.apply(newPrimary);
@@ -820,20 +821,17 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 newPrimary.activateWithPrimaryContext(primaryContext);
                 // apply cluster state update on old primary so that the states on old and new primary are comparable
                 clusterState.apply(oldPrimary);
-                break;
             }
-            case 2: {
+            case 2 -> {
                 // apply cluster state update on both copies while primary context is being transferred
                 clusterState = randomUpdateClusterState(allocationIds, clusterState);
                 clusterState.apply(oldPrimary);
                 clusterState.apply(newPrimary);
                 newPrimary.activateWithPrimaryContext(primaryContext);
-                break;
             }
-            case 3: {
+            case 3 -> {
                 // no cluster state update
                 newPrimary.activateWithPrimaryContext(primaryContext);
-                break;
             }
         }
 
@@ -1035,7 +1033,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final AllocationId allocationId) {
         final String nodeId = nodeIdFromAllocationId(allocationId);
         if (tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)) == false) {
-            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.noop());
         }
     }
 
@@ -1169,7 +1167,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 equalTo(expectedLeaseIds)
             );
             // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
-            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.noop());
         });
 
         tracker.renewPeerRecoveryRetentionLeases();
@@ -1234,6 +1232,68 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             currentTimeMillis.get(),
             lessThanOrEqualTo(testStartTimeMillis + maximumTestTimeMillis)
         );
+    }
+
+    public void testTrackedGlobalCheckpointsNeedSync() {
+        final int numberOfActiveAllocationsIds = randomIntBetween(2, 8);
+        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final var activeAndInitializingAllocationIds = randomActiveAndInitializingAllocationIds(
+            numberOfActiveAllocationsIds,
+            numberOfInitializingIds
+        );
+        final var activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final var initializingAllocationIds = activeAndInitializingAllocationIds.v2();
+
+        final var primaryId = activeAllocationIds.iterator().next();
+
+        final var initialClusterStateVersion = randomNonNegativeLong();
+
+        final var currentTimeMillis = new AtomicLong(0L);
+        final var tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, currentTimeMillis::get);
+
+        final var routingTable = routingTable(initializingAllocationIds, primaryId);
+        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        final var localCheckpoint = randomLongBetween(0L, 1000L);
+        tracker.activatePrimaryMode(localCheckpoint);
+
+        // the global checkpoint hasn't moved yet so no sync is needed
+        assertEquals(UNASSIGNED_SEQ_NO, tracker.globalCheckpoint);
+        assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+
+        // advance the local checkpoint on all in-sync copies to move the global checkpoint on the primary
+        for (final var activeAllocationId : activeAllocationIds) {
+            assertEquals(UNASSIGNED_SEQ_NO, tracker.globalCheckpoint);
+            assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+            tracker.updateLocalCheckpoint(activeAllocationId.getId(), localCheckpoint);
+
+            // there may also be some activity on initializing shards but this is irrelevant
+            if (0 < numberOfInitializingIds && randomBoolean()) {
+                tracker.updateLocalCheckpoint(
+                    randomFrom(initializingAllocationIds).getId(),
+                    usually() ? localCheckpoint : randomLongBetween(0L, localCheckpoint)
+                );
+            }
+        }
+        // the global checkpoint advanced on the primary, but not on any other copy, so a sync is needed
+        assertEquals(localCheckpoint, tracker.globalCheckpoint);
+        assertTrue(tracker.trackedGlobalCheckpointsNeedSync());
+
+        // sync the global checkpoint on every active copy
+        for (final var activeAllocationId : activeAllocationIds) {
+            assertTrue(tracker.trackedGlobalCheckpointsNeedSync());
+            tracker.updateGlobalCheckpointForShard(activeAllocationId.getId(), localCheckpoint);
+
+            // there may also be some activity on initializing shards but this is irrelevant
+            if (0 < numberOfInitializingIds && randomBoolean()) {
+                tracker.updateGlobalCheckpointForShard(
+                    randomFrom(initializingAllocationIds).getId(),
+                    usually() ? localCheckpoint : randomLongBetween(0L, localCheckpoint)
+                );
+            }
+        }
+
+        // the global checkpoint is up to date on every in-sync copy so no further sync is needed
+        assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
     }
 
 }

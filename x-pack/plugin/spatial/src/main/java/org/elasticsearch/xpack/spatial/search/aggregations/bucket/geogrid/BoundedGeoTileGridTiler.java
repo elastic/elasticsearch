@@ -72,6 +72,7 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
         // For every level we go down, we half each dimension. The total number of splits is equal to 1 << (levelEnd - levelStart)
         final int splits = 1 << precision - zTile;
@@ -101,9 +102,9 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
                 }
             }
         } else {
-            final int minX = Math.max(this.minX, xTile * splits);
-            final int maxX = Math.min(this.maxX, xTile * splits + splits);
-            for (int i = minX; i < maxX; i++) {
+            final int _minX = Math.max(this.minX, xTile * splits);
+            final int _maxX = Math.min(this.maxX, xTile * splits + splits);
+            for (int i = _minX; i < _maxX; i++) {
                 for (int j = minY; j < maxY; j++) {
                     assert validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));

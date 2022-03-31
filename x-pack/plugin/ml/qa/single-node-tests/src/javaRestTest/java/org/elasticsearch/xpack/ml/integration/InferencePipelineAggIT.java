@@ -25,76 +25,70 @@ public class InferencePipelineAggIT extends InferenceTestCase {
 
     @Before
     public void setupModelAndData() throws IOException {
-        putRegressionModel(
-            MODEL_ID,
-            "{\n"
-                + "            \"description\": \"super complex model for tests\",\n"
-                + "            \"input\": {\"field_names\": [\"avg_cost\", \"item\"]},\n"
-                + "            \"inference_config\": {\n"
-                + "              \"regression\": {\n"
-                + "                \"results_field\": \"regression-value\",\n"
-                + "                \"num_top_feature_importance_values\": 2\n"
-                + "              }\n"
-                + "            },\n"
-                + "            \"definition\": {\n"
-                + "              \"preprocessors\" : [{\n"
-                + "                \"one_hot_encoding\": {\n"
-                + "                  \"field\": \"product_type\",\n"
-                + "                  \"hot_map\": {\n"
-                + "                    \"TV\": \"type_tv\",\n"
-                + "                    \"VCR\": \"type_vcr\",\n"
-                + "                    \"Laptop\": \"type_laptop\"\n"
-                + "                  }\n"
-                + "                }\n"
-                + "              }],\n"
-                + "              \"trained_model\": {\n"
-                + "                \"ensemble\": {\n"
-                + "                  \"feature_names\": [],\n"
-                + "                  \"target_type\": \"regression\",\n"
-                + "                  \"trained_models\": [\n"
-                + "                  {\n"
-                + "                    \"tree\": {\n"
-                + "                      \"feature_names\": [\n"
-                + "                        \"avg_cost\", \"type_tv\", \"type_vcr\", \"type_laptop\"\n"
-                + "                      ],\n"
-                + "                      \"tree_structure\": [\n"
-                + "                      {\n"
-                + "                        \"node_index\": 0,\n"
-                + "                        \"split_feature\": 0,\n"
-                + "                        \"split_gain\": 12,\n"
-                + "                        \"threshold\": 38,\n"
-                + "                        \"decision_type\": \"lte\",\n"
-                + "                        \"default_left\": true,\n"
-                + "                        \"left_child\": 1,\n"
-                + "                        \"right_child\": 2\n"
-                + "                      },\n"
-                + "                      {\n"
-                + "                        \"node_index\": 1,\n"
-                + "                        \"leaf_value\": 5.0\n"
-                + "                      },\n"
-                + "                      {\n"
-                + "                        \"node_index\": 2,\n"
-                + "                        \"leaf_value\": 2.0\n"
-                + "                      }\n"
-                + "                      ],\n"
-                + "                      \"target_type\": \"regression\"\n"
-                + "                    }\n"
-                + "                  }\n"
-                + "                  ]\n"
-                + "                }\n"
-                + "              }\n"
-                + "            }\n"
-                + "          }"
-        );
-        createIndex(
-            INDEX_NAME,
-            Settings.EMPTY,
-            "\"properties\":{\n"
-                + " \"product\":{\"type\": \"keyword\"},\n"
-                + " \"cost\":{\"type\": \"integer\"},\n"
-                + " \"time\": {\"type\": \"date\"}"
-                + "}"
-        );
+        putRegressionModel(MODEL_ID, """
+            {
+                        "description": "super complex model for tests",
+                        "input": {"field_names": ["avg_cost", "item"]},
+                        "inference_config": {
+                          "regression": {
+                            "results_field": "regression-value",
+                            "num_top_feature_importance_values": 2
+                          }
+                        },
+                        "definition": {
+                          "preprocessors" : [{
+                            "one_hot_encoding": {
+                              "field": "product_type",
+                              "hot_map": {
+                                "TV": "type_tv",
+                                "VCR": "type_vcr",
+                                "Laptop": "type_laptop"
+                              }
+                            }
+                          }],
+                          "trained_model": {
+                            "ensemble": {
+                              "feature_names": [],
+                              "target_type": "regression",
+                              "trained_models": [
+                              {
+                                "tree": {
+                                  "feature_names": [
+                                    "avg_cost", "type_tv", "type_vcr", "type_laptop"
+                                  ],
+                                  "tree_structure": [
+                                  {
+                                    "node_index": 0,
+                                    "split_feature": 0,
+                                    "split_gain": 12,
+                                    "threshold": 38,
+                                    "decision_type": "lte",
+                                    "default_left": true,
+                                    "left_child": 1,
+                                    "right_child": 2
+                                  },
+                                  {
+                                    "node_index": 1,
+                                    "leaf_value": 5.0
+                                  },
+                                  {
+                                    "node_index": 2,
+                                    "leaf_value": 2.0
+                                  }
+                                  ],
+                                  "target_type": "regression"
+                                }
+                              }
+                              ]
+                            }
+                          }
+                        }
+                      }""");
+        createIndex(INDEX_NAME, Settings.EMPTY, """
+            "properties":{
+             "product":{"type": "keyword"},
+             "cost":{"type": "integer"},
+             "time": {"type": "date"}}""");
         indexData("{ \"product\": \"TV\", \"cost\": 300, \"time\": 1587501233000 }");
         indexData("{ \"product\": \"TV\", \"cost\": 400, \"time\": 1587501233000}");
         indexData("{ \"product\": \"VCR\", \"cost\": 150, \"time\": 1587501233000 }");
@@ -117,39 +111,38 @@ public class InferencePipelineAggIT extends InferenceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPipelineRegressionSimple() throws Exception {
-        Response searchResponse = search(
-            "{\n"
-                + "            \"size\": 0,\n"
-                + "            \"aggs\": {\n"
-                + "              \"good\": {\n"
-                + "                \"terms\": {\n"
-                + "                  \"field\": \"product\",\n"
-                + "                  \"size\": 10\n"
-                + "                },\n"
-                + "                \"aggs\": {\n"
-                + "                  \"avg_cost_agg\": {\n"
-                + "                    \"avg\": {\n"
-                + "                      \"field\": \"cost\"\n"
-                + "                    }\n"
-                + "                  },\n"
-                + "                  \"regression_agg\": {\n"
-                + "                    \"inference\": {\n"
-                + "                      \"model_id\": \"a-complex-regression-model\",\n"
-                + "                      \"inference_config\": {\n"
-                + "                        \"regression\": {\n"
-                + "                          \"results_field\": \"value\"\n"
-                + "                        }\n"
-                + "                      },\n"
-                + "                      \"buckets_path\": {\n"
-                + "                        \"avg_cost\": \"avg_cost_agg\"\n"
-                + "                      }\n"
-                + "                    }\n"
-                + "                  }\n"
-                + "                }\n"
-                + "              }\n"
-                + "            }\n"
-                + "          }"
-        );
+        Response searchResponse = search("""
+            {
+                        "size": 0,
+                        "aggs": {
+                          "good": {
+                            "terms": {
+                              "field": "product",
+                              "size": 10
+                            },
+                            "aggs": {
+                              "avg_cost_agg": {
+                                "avg": {
+                                  "field": "cost"
+                                }
+                              },
+                              "regression_agg": {
+                                "inference": {
+                                  "model_id": "a-complex-regression-model",
+                                  "inference_config": {
+                                    "regression": {
+                                      "results_field": "value"
+                                    }
+                                  },
+                                  "buckets_path": {
+                                    "avg_cost": "avg_cost_agg"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }""");
         assertThat(
             (List<Double>) XContentMapValues.extractValue("aggregations.good.buckets.regression_agg.value", responseAsMap(searchResponse)),
             contains(2.0, 2.0, 2.0)
@@ -158,46 +151,45 @@ public class InferencePipelineAggIT extends InferenceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPipelineAggReferencingSingleBucket() throws Exception {
-        Response searchResponse = search(
-            "{\n"
-                + "              \"size\": 0,\n"
-                + "              \"query\": {\n"
-                + "                \"match_all\": {}\n"
-                + "              },\n"
-                + "              \"aggs\": {\n"
-                + "                \"date_histo\": {\n"
-                + "                  \"date_histogram\": {\n"
-                + "                    \"field\": \"time\",\n"
-                + "                    \"fixed_interval\": \"1d\"\n"
-                + "                  },\n"
-                + "                  \"aggs\": {\n"
-                + "                    \"good\": {\n"
-                + "                      \"terms\": {\n"
-                + "                        \"field\": \"product\",\n"
-                + "                        \"size\": 10\n"
-                + "                      },\n"
-                + "                      \"aggs\": {\n"
-                + "                        \"avg_cost_agg\": {\n"
-                + "                          \"avg\": {\n"
-                + "                            \"field\": \"cost\"\n"
-                + "                          }\n"
-                + "                        }\n"
-                + "                      }\n"
-                + "                    },\n"
-                + "                    \"regression_agg\": {\n"
-                + "                      \"inference\": {\n"
-                + "                        \"model_id\": \"a-complex-regression-model\",\n"
-                + "                        \"buckets_path\": {\n"
-                + "                          \"avg_cost\": \"good['TV']>avg_cost_agg\",\n"
-                + "                          \"product_type\": \"good['TV']\"\n"
-                + "                        }\n"
-                + "                      }\n"
-                + "                    }\n"
-                + "                  }\n"
-                + "                }\n"
-                + "              }\n"
-                + "            }"
-        );
+        Response searchResponse = search("""
+            {
+                          "size": 0,
+                          "query": {
+                            "match_all": {}
+                          },
+                          "aggs": {
+                            "date_histo": {
+                              "date_histogram": {
+                                "field": "time",
+                                "fixed_interval": "1d"
+                              },
+                              "aggs": {
+                                "good": {
+                                  "terms": {
+                                    "field": "product",
+                                    "size": 10
+                                  },
+                                  "aggs": {
+                                    "avg_cost_agg": {
+                                      "avg": {
+                                        "field": "cost"
+                                      }
+                                    }
+                                  }
+                                },
+                                "regression_agg": {
+                                  "inference": {
+                                    "model_id": "a-complex-regression-model",
+                                    "buckets_path": {
+                                      "avg_cost": "good['TV']>avg_cost_agg",
+                                      "product_type": "good['TV']"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }""");
         assertThat(
             (List<Double>) XContentMapValues.extractValue(
                 "aggregations.date_histo.buckets.regression_agg.value",
@@ -209,35 +201,34 @@ public class InferencePipelineAggIT extends InferenceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testAllFieldsMissingWarning() throws IOException {
-        Response searchResponse = search(
-            "{\n"
-                + "            \"size\": 0,\n"
-                + "            \"query\": { \"match_all\" : { } },\n"
-                + "            \"aggs\": {\n"
-                + "              \"good\": {\n"
-                + "                \"terms\": {\n"
-                + "                  \"field\": \"product\",\n"
-                + "                  \"size\": 10\n"
-                + "                },\n"
-                + "                \"aggs\": {\n"
-                + "                  \"avg_cost_agg\": {\n"
-                + "                    \"avg\": {\n"
-                + "                      \"field\": \"cost\"\n"
-                + "                    }\n"
-                + "                  },\n"
-                + "                  \"regression_agg\" : {\n"
-                + "                    \"inference\": {\n"
-                + "                      \"model_id\": \"a-complex-regression-model\",\n"
-                + "                      \"buckets_path\": {\n"
-                + "                        \"cost\" : \"avg_cost_agg\"\n"
-                + "                      }\n"
-                + "                    }\n"
-                + "                  }\n"
-                + "                }\n"
-                + "              }\n"
-                + "            }\n"
-                + "          }"
-        );
+        Response searchResponse = search("""
+            {
+                        "size": 0,
+                        "query": { "match_all" : { } },
+                        "aggs": {
+                          "good": {
+                            "terms": {
+                              "field": "product",
+                              "size": 10
+                            },
+                            "aggs": {
+                              "avg_cost_agg": {
+                                "avg": {
+                                  "field": "cost"
+                                }
+                              },
+                              "regression_agg" : {
+                                "inference": {
+                                  "model_id": "a-complex-regression-model",
+                                  "buckets_path": {
+                                    "cost" : "avg_cost_agg"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }""");
         assertThat(
             (List<String>) XContentMapValues.extractValue(
                 "aggregations.good.buckets.regression_agg.warning",

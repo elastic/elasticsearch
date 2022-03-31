@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
@@ -73,7 +73,7 @@ public class RestIndexAction extends BaseRestHandler {
             return super.prepareRequest(request, client);
         }
 
-        void validateOpType(String opType) {
+        static void validateOpType(String opType) {
             if (null != opType && false == "create".equals(opType.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("opType must be 'create', found: [" + opType + "]");
             }

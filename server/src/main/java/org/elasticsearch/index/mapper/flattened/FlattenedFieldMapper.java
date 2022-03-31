@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
@@ -34,13 +35,13 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
@@ -56,6 +57,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.FlattenedDocValuesField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -141,13 +144,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Integer.MAX_VALUE
         );
 
-        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
-            "index_options",
-            false,
-            m -> builder(m).indexOptions.get(),
-            "docs",
-            "freqs"
-        );
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
@@ -232,7 +229,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(rootName, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+            this(rootName, ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -359,7 +356,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key);
+            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
 
         @Override
@@ -475,10 +472,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static class KeyedFlattenedFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate) {
+        private KeyedFlattenedFieldData(
+            String key,
+            IndexOrdinalsFieldData delegate,
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+        ) {
             this.delegate = delegate;
             this.key = key;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         public String getKey() {
@@ -518,25 +521,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
@@ -556,10 +559,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
+            private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-            Builder(String fieldName, String key) {
+            Builder(String fieldName, String key, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
                 this.fieldName = fieldName;
                 this.key = key;
+                this.toScriptFieldFactory = toScriptFieldFactory;
             }
 
             @Override
@@ -569,9 +574,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     fieldName,
                     CoreValuesSourceType.KEYWORD,
                     breakerService,
-                    AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                    // The delegate should never be accessed
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
                 );
-                return new KeyedFlattenedFieldData(key, delegate);
+                return new KeyedFlattenedFieldData(key, delegate, toScriptFieldFactory);
             }
         }
     }
@@ -615,6 +621,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -626,7 +637,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -680,7 +695,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        if (mappedFieldType.isSearchable() == false && mappedFieldType.hasDocValues() == false) {
+        if (mappedFieldType.isIndexed() == false && mappedFieldType.hasDocValues() == false) {
             context.parser().skipChildren();
             return;
         }

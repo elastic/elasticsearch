@@ -9,7 +9,7 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -700,20 +700,20 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("name", contextMapping.getValue().name())
                     .field("type", contextMapping.getValue().type().name());
                 switch (contextMapping.getValue().type()) {
-                    case CATEGORY:
+                    case CATEGORY -> {
                         final String fieldName = ((CategoryContextMapping) contextMapping.getValue()).getFieldName();
                         if (fieldName != null) {
                             mapping.field("path", fieldName);
                             categoryContextFields.add(fieldName);
                         }
-                        break;
-                    case GEO:
+                    }
+                    case GEO -> {
                         final String name = ((GeoContextMapping) contextMapping.getValue()).getFieldName();
                         mapping.field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
                         if (name != null) {
                             mapping.field("path", name);
                         }
-                        break;
+                    }
                 }
 
                 mapping.endObject();

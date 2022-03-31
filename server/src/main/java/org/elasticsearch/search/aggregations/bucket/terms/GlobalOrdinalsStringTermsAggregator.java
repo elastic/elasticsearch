@@ -387,7 +387,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * that it hits and then calling {@link CollectionStrategy#forEach}
      * once to iterate on the results.
      */
-    abstract class CollectionStrategy implements Releasable {
+    abstract static class CollectionStrategy implements Releasable {
         /**
          * Short description of the collection mechanism added to the profile
          * output to help with debugging.
@@ -812,7 +812,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes;
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
@@ -822,6 +822,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
+            boolean success = false;
+            try {
+                subsetSizes = bigArrays().newLongArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override
@@ -938,7 +947,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * oversizing the destination bytes helps to keep from allocating
          * a bunch of little arrays over and over and over again.
          */
-        private void oversizedCopy(BytesRef from, BytesRef to) {
+        private static void oversizedCopy(BytesRef from, BytesRef to) {
             if (to.bytes.length < from.length) {
                 to.bytes = new byte[ArrayUtil.oversize(from.length, 1)];
             }

@@ -51,7 +51,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
@@ -135,7 +135,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         if (stopped) {
             return;
         }
-        task.stopWithoutNotification(reason);
+        task.markAsStopped(reason);
+
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
                 deploymentManager.stopDeployment(task);
@@ -204,20 +205,12 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
-    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason) {
+    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
-            stopped -> updateStoredState(
-                task.getModelId(),
-                new RoutingStateAndReason(RoutingState.STOPPED, reason),
-                ActionListener.wrap(s -> {}, failure -> {})
-            ),
+            _void -> updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to stop due to error", task.getModelId()), failed);
-                updateStoredState(
-                    task.getModelId(),
-                    new RoutingStateAndReason(RoutingState.STOPPED, reason),
-                    ActionListener.wrap(s -> {}, failure -> {})
-                );
+                updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener);
             }
         );
         updateStoredState(
@@ -309,7 +302,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                     && isResetMode == false) {
                     prepareModelToLoad(trainedModelAllocation.getTaskParams());
                 }
-                // This mode is not routed to the current node at all
+                // This model is not routed to the current node at all
                 if (routingStateAndReason == null) {
                     TrainedModelDeploymentTask task = modelIdToTask.remove(trainedModelAllocation.getTaskParams().getModelId());
                     if (task != null) {
@@ -356,7 +349,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         );
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
-            TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + taskParams.getModelId(),
+            TRAINED_MODEL_ALLOCATION_TASK_ACTION,
             taskAwareRequest(taskParams)
         );
         // threadsafe check to verify we are not loading/loaded the model
@@ -448,7 +441,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         Runnable stopTask = () -> stopDeploymentAsync(
             task,
             "model failed to load; reason [" + ex.getMessage() + "]",
-            ActionListener.wrap(r -> {}, e -> {})
+            ActionListener.noop()
         );
         updateStoredState(
             task.getModelId(),

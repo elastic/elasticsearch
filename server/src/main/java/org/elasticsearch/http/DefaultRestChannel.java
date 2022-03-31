@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
@@ -113,9 +113,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
-            opaque = request.header(X_OPAQUE_ID);
+            opaque = request.header(X_OPAQUE_ID_HTTP_HEADER);
             if (opaque != null) {
-                setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+                setHeaderField(httpResponse, X_OPAQUE_ID_HTTP_HEADER, opaque);
             }
 
             // Add all custom headers
@@ -143,17 +143,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value) {
         setHeaderField(response, headerField, value, true);
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
         if (override || response.containsHeader(headerField) == false) {
             response.addHeader(headerField, value);
         }
     }
 
-    private void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
+    private static void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {

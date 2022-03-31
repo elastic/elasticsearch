@@ -63,18 +63,29 @@ public final class TrackingResultProcessor implements Processor {
             conditionalWithResult = null; // no condition
         }
 
-        if (actualProcessor instanceof PipelineProcessor) {
-            PipelineProcessor pipelineProcessor = ((PipelineProcessor) actualProcessor);
+        if (actualProcessor instanceof PipelineProcessor pipelineProcessor) {
             Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
             // runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
             Pipeline pipelineToCall = pipelineProcessor.getPipeline(ingestDocument);
             if (pipelineToCall == null) {
-                throw new IllegalArgumentException(
+                IllegalArgumentException e = new IllegalArgumentException(
                     "Pipeline processor configured for non-existent pipeline ["
                         + pipelineProcessor.getPipelineToCallName(ingestDocument)
                         + ']'
                 );
+                // Add error as processor result, otherwise this gets lost in SimulateExecutionService#execute(...) and
+                // an empty response gets returned by the ingest simulate api.
+                processorResultList.add(
+                    new SimulateProcessorResult(
+                        pipelineProcessor.getType(),
+                        pipelineProcessor.getTag(),
+                        pipelineProcessor.getDescription(),
+                        e,
+                        conditionalWithResult
+                    )
+                );
+                throw e;
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors
@@ -209,12 +220,12 @@ public final class TrackingResultProcessor implements Processor {
         List<Processor> processors = new ArrayList<>();
         for (Processor processor : compoundProcessor.getProcessors()) {
             ConditionalProcessor conditionalProcessor = parentCondition;
-            if (processor instanceof ConditionalProcessor) {
-                conditionalProcessor = (ConditionalProcessor) processor;
+            if (processor instanceof ConditionalProcessor cp) {
+                conditionalProcessor = cp;
                 processor = conditionalProcessor.getInnerProcessor();
             }
-            if (processor instanceof CompoundProcessor) {
-                processors.add(decorate((CompoundProcessor) processor, conditionalProcessor, processorResultList));
+            if (processor instanceof CompoundProcessor cp) {
+                processors.add(decorate(cp, conditionalProcessor, processorResultList));
             } else {
                 processors.add(
                     new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, conditionalProcessor, processorResultList)
@@ -224,12 +235,12 @@ public final class TrackingResultProcessor implements Processor {
         List<Processor> onFailureProcessors = new ArrayList<>(compoundProcessor.getProcessors().size());
         for (Processor processor : compoundProcessor.getOnFailureProcessors()) {
             ConditionalProcessor conditionalProcessor = null;
-            if (processor instanceof ConditionalProcessor) {
-                conditionalProcessor = (ConditionalProcessor) processor;
+            if (processor instanceof ConditionalProcessor cp) {
+                conditionalProcessor = cp;
                 processor = conditionalProcessor.getInnerProcessor();
             }
-            if (processor instanceof CompoundProcessor) {
-                onFailureProcessors.add(decorate((CompoundProcessor) processor, conditionalProcessor, processorResultList));
+            if (processor instanceof CompoundProcessor cp) {
+                onFailureProcessors.add(decorate(cp, conditionalProcessor, processorResultList));
             } else {
                 onFailureProcessors.add(
                     new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, conditionalProcessor, processorResultList)

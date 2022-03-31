@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -64,7 +65,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
-    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -286,51 +286,49 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     public void onException(HttpChannel channel, Exception e) {
-        if (lifecycle.started() == false) {
-            // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
-            return;
-        }
-        if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "close connection exception caught while handling client http traffic, closing connection {}",
-                    channel
-                ),
-                e
-            );
-            CloseableChannel.closeChannel(channel);
-        } else if (NetworkExceptionHelper.isConnectException(e)) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "connect exception caught while handling client http traffic, closing connection {}",
-                    channel
-                ),
-                e
-            );
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof HttpReadTimeoutException) {
-            logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof CancelledKeyException) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "cancelled key exception caught while handling client http traffic, closing connection {}",
-                    channel
-                ),
-                e
-            );
-            CloseableChannel.closeChannel(channel);
-        } else {
-            logger.warn(
-                () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
-                e
-            );
+        try {
+            if (lifecycle.started() == false) {
+                // just close and ignore - we are already stopped and just need to make sure we release all resources
+                return;
+            }
+            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "close connection exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else if (NetworkExceptionHelper.isConnectException(e)) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "connect exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else if (e instanceof HttpReadTimeoutException) {
+                logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
+            } else if (e instanceof CancelledKeyException) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "cancelled key exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else {
+                logger.warn(
+                    () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
+                    e
+                );
+            }
+        } finally {
             CloseableChannel.closeChannel(channel);
         }
     }
 
-    protected void onServerException(HttpServerChannel channel, Exception e) {
+    protected static void onServerException(HttpServerChannel channel, Exception e) {
         logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
     }
 
@@ -355,16 +353,17 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
             handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            networkService.getHandlingTimeTracker().addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn(
                     "handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                    httpRequest.header(Task.X_OPAQUE_ID),
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     httpRequest.method(),
                     httpRequest.uri(),
                     httpChannel,
@@ -490,7 +489,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         if (HttpUtils.shouldCloseConnection(request)) {
             return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
         } else {
-            return NO_OP;
+            return ActionListener.noop();
         }
     }
 }

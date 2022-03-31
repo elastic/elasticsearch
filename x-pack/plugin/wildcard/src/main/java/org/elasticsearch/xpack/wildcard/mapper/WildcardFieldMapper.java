@@ -67,6 +67,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -266,6 +267,11 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
+        }
+
+        @Override
         public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             return wildcardQuery(value, method, false, context);
         }
@@ -455,8 +461,7 @@ public class WildcardFieldMapper extends FieldMapper {
             BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
             StringBuilder sequence = new StringBuilder();
             for (Query query : queries) {
-                if (query instanceof TermQuery) {
-                    TermQuery tq = (TermQuery) query;
+                if (query instanceof TermQuery tq) {
                     sequence.append(tq.getTerm().text());
                 } else {
                     if (sequence.length() > 0) {
@@ -526,8 +531,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (approxQuery == null) {
                 return null;
             }
-            if (approxQuery instanceof BooleanQuery) {
-                BooleanQuery bq = (BooleanQuery) approxQuery;
+            if (approxQuery instanceof BooleanQuery bq) {
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 int clauseCount = 0;
                 for (BooleanClause clause : bq) {
@@ -547,8 +551,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
                 return rewritten.build();
             }
-            if (approxQuery instanceof TermQuery) {
-                TermQuery tq = (TermQuery) approxQuery;
+            if (approxQuery instanceof TermQuery tq) {
 
                 // Remove simple terms that are only string beginnings or ends.
                 String s = tq.getTerm().text();
@@ -832,7 +835,11 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService) -> new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD);
+            return (cache, breakerService) -> new StringBinaryIndexFieldData(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                WildcardDocValuesField::new
+            );
         }
 
         @Override

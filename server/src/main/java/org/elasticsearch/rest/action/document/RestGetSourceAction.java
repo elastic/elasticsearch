@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -109,7 +109,7 @@ public class RestGetSourceAction extends BaseRestHandler {
          * @param response a response
          * @throws ResourceNotFoundException if the document or source is missing
          */
-        private void checkResource(final GetResponse response) {
+        private static void checkResource(final GetResponse response) {
             final String index = response.getIndex();
             final String id = response.getId();
 

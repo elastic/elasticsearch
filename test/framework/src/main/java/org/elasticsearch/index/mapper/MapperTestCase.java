@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -131,7 +131,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // is not added to _field_names because it is not indexed nor stored
             assertEquals("field", termQuery.getTerm().text());
             assertNoDocValuesField(fields, "field");
-            if (fieldType.isSearchable() || fieldType.isStored()) {
+            if (fieldType.isIndexed() || fieldType.isStored()) {
                 assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
             } else {
                 assertNoFieldNamesField(fields);
@@ -364,15 +364,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private static class ConflictCheck {
-        final XContentBuilder init;
-        final XContentBuilder update;
-
-        private ConflictCheck(XContentBuilder init, XContentBuilder update) {
-            this.init = init;
-            this.update = update;
-        }
-    }
+    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
 
     public class ParameterChecker {
 
@@ -478,7 +470,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertSearchable(MappedFieldType fieldType) {
-        assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
+        assertEquals(fieldType.isIndexed(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
     }
 
     /**
@@ -666,23 +658,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesField<?> docValuesField = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-                .load(ctx)
-                .getScriptField("test");
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(
+                "test",
+                () -> { throw new UnsupportedOperationException(); }
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldFactory("test");
 
-            docValuesField.setNextDocId(0);
+            docValuesFieldSource.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            DocValuesField<?> indexData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
-                .getScriptField("test");
+                .getScriptFieldFactory("test");
 
             indexData.setNextDocId(0);
 
             // compare index and search time fielddata
-            assertThat(docValuesField.getScriptDocValues(), equalTo(indexData.getScriptDocValues()));
+            assertThat(docValuesFieldSource.toScriptDocValues(), equalTo(indexData.toScriptDocValues()));
         });
     }
 
@@ -752,6 +744,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), "time_series")
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                     .build()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));

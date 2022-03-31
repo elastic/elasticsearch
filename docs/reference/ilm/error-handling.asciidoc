@@ -68,6 +68,8 @@ Which returns the following information:
     "my-index-000001" : {
       "index" : "my-index-000001",
       "managed" : true,                         
+      "index_creation_date_millis" : 1541717265865,
+      "time_since_index_creation": "5.1d",
       "policy" : "shrink-index",                <1>
       "lifecycle_date_millis" : 1541717265865,
       "age": "5.1d",                            <2>

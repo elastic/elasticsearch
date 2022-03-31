@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
@@ -62,12 +63,34 @@ public class QueryContainer {
     private final Aggs aggs;
     private final Query query;
 
+    public static class FieldInfo {
+        private final FieldExtraction extraction;
+        private final String id;
+        private final Attribute attribute;
+
+        public FieldInfo(FieldExtraction extraction, String id, Attribute attribute) {
+            this.extraction = extraction;
+            this.id = id;
+            this.attribute = attribute;
+        }
+
+        public FieldExtraction extraction() {
+            return extraction;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public Attribute attribute() {
+            return attribute;
+        }
+    }
+
     // fields extracted from the response - not necessarily what the client sees
     // for example in case of grouping or custom sorting, the response has extra columns
     // that is filtered before getting to the client
-
-    // the list contains both the field extraction and its id (for custom sorting)
-    private final List<Tuple<FieldExtraction, String>> fields;
+    private final List<FieldInfo> fields;
 
     // aliases found in the tree
     private final AttributeMap<Expression> aliases;
@@ -99,7 +122,7 @@ public class QueryContainer {
     public QueryContainer(
         Query query,
         Aggs aggs,
-        List<Tuple<FieldExtraction, String>> fields,
+        List<FieldInfo> fields,
         AttributeMap<Expression> aliases,
         Map<String, GroupByKey> pseudoFunctions,
         AttributeMap<Pipe> scalarFunctions,
@@ -152,8 +175,8 @@ public class QueryContainer {
 
             int atIndex = -1;
             for (int i = 0; i < fields.size(); i++) {
-                Tuple<FieldExtraction, String> field = fields.get(i);
-                if (field.v2().equals(expressionId)) {
+                FieldInfo field = fields.get(i);
+                if (field.id().equals(expressionId)) {
                     atIndex = i;
                     break;
                 }
@@ -195,10 +218,10 @@ public class QueryContainer {
             int index = -1;
 
             for (int i = 0; i < fields.size(); i++) {
-                Tuple<FieldExtraction, String> tuple = fields.get(i);
+                FieldInfo field = fields.get(i);
                 // if the index is already set there is a collision,
-                // so continue searching for the other tuple with the same id
-                if (mask.get(i) == false && tuple.v2().equals(id)) {
+                // so continue searching for the other field with the same id
+                if (mask.get(i) == false && field.id().equals(id)) {
                     index = i;
                     break;
                 }
@@ -221,7 +244,7 @@ public class QueryContainer {
         return aggs;
     }
 
-    public List<Tuple<FieldExtraction, String>> fields() {
+    public List<FieldInfo> fields() {
         return fields;
     }
 
@@ -243,7 +266,7 @@ public class QueryContainer {
 
     public boolean isAggsOnly() {
         if (aggsOnly == null) {
-            aggsOnly = Boolean.valueOf(this.fields.stream().anyMatch(t -> t.v1().supportedByAggsOnlyQuery()));
+            aggsOnly = Boolean.valueOf(this.fields.stream().anyMatch(t -> t.extraction().supportedByAggsOnlyQuery()));
         }
 
         return aggsOnly.booleanValue();
@@ -372,7 +395,7 @@ public class QueryContainer {
      * is folded from bottom up. So the most significant sort order will be added last.
      */
     public QueryContainer prependSort(String expressionId, Sort sortable) {
-        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort.size() + 1);
+        Map<String, Sort> newSort = Maps.newLinkedHashMapWithExpectedSize(this.sort.size() + 1);
         newSort.put(expressionId, sortable);
         for (Map.Entry<String, Sort> entry : this.sort.entrySet()) {
             newSort.putIfAbsent(entry.getKey(), entry.getValue());
@@ -523,15 +546,14 @@ public class QueryContainer {
     public QueryContainer addColumn(Attribute attr) {
         Expression expression = aliases.resolve(attr, attr);
         Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
-        return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression));
+        return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression), attr);
     }
 
     private Tuple<QueryContainer, FieldExtraction> asFieldExtraction(Attribute attr) {
         // resolve it Expression
         Expression expression = aliases.resolve(attr, attr);
 
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
+        if (expression instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 return nestedHitFieldRef(fa);
             } else {
@@ -558,11 +580,11 @@ public class QueryContainer {
         throw new SqlIllegalArgumentException("Unknown output attribute {}", attr);
     }
 
-    public QueryContainer addColumn(FieldExtraction ref, String id) {
+    public QueryContainer addColumn(FieldExtraction ref, String id, Attribute attribute) {
         return new QueryContainer(
             query,
             aggs,
-            combine(fields, new Tuple<>(ref, id)),
+            combine(fields, new FieldInfo(ref, id, attribute)),
             aliases,
             pseudoFunctions,
             scalarFunctions,

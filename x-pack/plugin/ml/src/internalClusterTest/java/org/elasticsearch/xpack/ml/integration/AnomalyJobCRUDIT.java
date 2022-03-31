@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -197,7 +197,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[open-job-with-old-model-snapshot] job snapshot [snap_1] has min version before [7.0.0], "
+                "[open-job-with-old-model-snapshot] job model snapshot [snap_1] has min version before [7.0.0], "
                     + "please revert to a newer model snapshot or reset the job"
             )
         );

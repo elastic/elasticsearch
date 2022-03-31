@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -40,7 +40,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -72,7 +71,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
-            m -> toType(m).dims
+            m -> toType(m).dims,
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(dims -> {
             if (dims == null) {
                 throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
@@ -103,7 +104,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             false,
             () -> null,
             (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
-            m -> toType(m).indexOptions
+            m -> toType(m).indexOptions,
+            XContentBuilder::field,
+            Objects::toString
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -113,10 +116,10 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
-            this.indexed.requiresParameters(similarity);
+            this.indexed.requiresParameter(similarity);
             this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameters(indexed);
-            this.indexOptions.requiresParameters(indexed);
+            this.similarity.requiresParameter(indexed);
+            this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 
@@ -295,13 +298,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
-            if (isSearchable() == false) {
+        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands, Query filter) {
+            if (isIndexed() == false) {
                 throw new IllegalArgumentException(
-                    "[" + KnnVectorQueryBuilder.NAME + "] " + "queries are not supported if [index] is disabled"
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
 
@@ -311,38 +314,42 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                 );
             }
 
-            if (similarity == VectorSimilarity.dot_product) {
-                double squaredMagnitude = 0.0;
+            if (similarity == VectorSimilarity.dot_product || similarity == VectorSimilarity.cosine) {
+                float squaredMagnitude = 0.0f;
                 for (float e : queryVector) {
                     squaredMagnitude += e * e;
                 }
                 checkVectorMagnitude(queryVector, squaredMagnitude);
             }
-            return new KnnVectorQuery(name(), queryVector, numCands);
+            return new KnnVectorQuery(name(), queryVector, numCands, filter);
         }
 
-        private void checkVectorMagnitude(float[] vector, double squaredMagnitude) {
-            if (Math.abs(squaredMagnitude - 1.0f) > 1e-4) {
-                // Include the first five elements of the invalid vector in the error message
-                StringBuilder sb = new StringBuilder(
-                    "The ["
-                        + VectorSimilarity.dot_product.name()
-                        + "] similarity can "
-                        + "only be used with unit-length vectors. Preview of invalid vector: "
+        private void checkVectorMagnitude(float[] vector, float squaredMagnitude) {
+            StringBuilder errorBuilder = null;
+            if (similarity == VectorSimilarity.dot_product && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+                errorBuilder = new StringBuilder(
+                    "The [" + VectorSimilarity.dot_product.name() + "] similarity can " + "only be used with unit-length vectors."
                 );
-                sb.append("[");
+            } else if (similarity == VectorSimilarity.cosine && Math.sqrt(squaredMagnitude) == 0.0f) {
+                errorBuilder = new StringBuilder(
+                    "The [" + VectorSimilarity.cosine.name() + "] similarity does not support vectors with zero magnitude."
+                );
+            }
+
+            if (errorBuilder != null) {
+                // Include the first five elements of the invalid vector in the error message
+                errorBuilder.append(" Preview of invalid vector: [");
                 for (int i = 0; i < Math.min(5, vector.length); i++) {
                     if (i > 0) {
-                        sb.append(", ");
+                        errorBuilder.append(", ");
                     }
-                    sb.append(vector[i]);
+                    errorBuilder.append(vector[i]);
                 }
                 if (vector.length >= 5) {
-                    sb.append(", ...");
+                    errorBuilder.append(", ...");
                 }
-                sb.append("]");
-
-                throw new IllegalArgumentException(sb.toString());
+                errorBuilder.append("]");
+                throw new IllegalArgumentException(errorBuilder.toString());
             }
         }
     }
@@ -400,7 +407,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     private Field parseKnnVector(DocumentParserContext context) throws IOException {
         float[] vector = new float[dims];
-        double squaredMagnitude = 0.0;
+        float squaredMagnitude = 0.0f;
         int index = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             checkDimensionExceeded(index, context);
@@ -411,9 +418,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             squaredMagnitude += value * value;
         }
         checkDimensionMatches(index, context);
-        if (similarity == VectorSimilarity.dot_product) {
-            fieldType().checkVectorMagnitude(vector, squaredMagnitude);
-        }
+        fieldType().checkVectorMagnitude(vector, squaredMagnitude);
         return new KnnVectorField(fieldType().name(), vector, similarity.function);
     }
 
@@ -452,7 +457,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                     + "] field ["
                     + name()
                     + "] in doc ["
-                    + context.sourceToParse().id()
+                    + context.documentDescription()
                     + "] has more dimensions "
                     + "than defined in the mapping ["
                     + dims
@@ -469,7 +474,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                     + "] field ["
                     + name()
                     + "] in doc ["
-                    + context.sourceToParse().id()
+                    + context.documentDescription()
                     + "] has a different number of dimensions "
                     + "["
                     + index
@@ -497,7 +502,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     @Override
     public void doValidate(MappingLookup mappers) {
-        if (indexed && mappers.getNestedParent(name()) != null) {
+        if (indexed && mappers.nestedLookup().getNestedParent(name()) != null) {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
         }
     }
@@ -523,7 +528,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene90HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene91HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

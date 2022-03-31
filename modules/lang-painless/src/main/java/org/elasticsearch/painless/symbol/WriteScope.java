@@ -143,21 +143,23 @@ public class WriteScope {
     }
 
     /** Creates a class scope with the script scope as a parent. */
-    public WriteScope newClassScope(ClassWriter classWriter) {
-        return new WriteScope(this, classWriter);
+    public WriteScope newClassScope(ClassWriter writer) {
+        return new WriteScope(this, writer);
     }
 
     /** Creates a method scope with the class scope as a parent and parameters from the method signature. */
-    public WriteScope newMethodScope(MethodWriter methodWriter) {
-        return new WriteScope(this, methodWriter);
+    public WriteScope newMethodScope(MethodWriter writer) {
+        return new WriteScope(this, writer);
     }
 
     /** Creates a loop scope with labels for where continue and break instructions should jump to. */
+    @SuppressWarnings("HiddenField")
     public WriteScope newLoopScope(Label continueLabel, Label breakLabel) {
         return new WriteScope(this, continueLabel, breakLabel);
     }
 
     /** Creates a try scope with labels for where and exception should jump to. */
+    @SuppressWarnings("HiddenField")
     public WriteScope newTryScope(Label tryBeginLabel, Label tryEndLabel, Label catchesEndLabel) {
         return new WriteScope(this, tryBeginLabel, tryEndLabel, catchesEndLabel);
     }

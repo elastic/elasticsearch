@@ -18,12 +18,12 @@ import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -337,6 +337,24 @@ public class SysTablesTests extends ESTestCase {
             assertEquals(1, r.size());
             assertEquals("alias", r.column(2));
         }, alias);
+    }
+
+    public void testSysTablesWithCatalogPatternOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE 'clus*' LIKE '%' TYPE 'VIEW'", r -> {
+            assertEquals(1, r.size());
+            assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
+    public void testSysTablesWithNoCatalogOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES TYPE 'VIEW'", r -> {
+            assertEquals(1, r.size());
+            assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
+    public void testSysTablesWithNonExistentCatalogOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE 'bogus' LIKE '%' TYPE 'VIEW'", r -> { assertEquals(0, r.size()); });
     }
 
     public void testSysTablesWithInvalidType() throws Exception {

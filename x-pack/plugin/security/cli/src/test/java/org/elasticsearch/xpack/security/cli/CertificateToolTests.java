@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -58,7 +59,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.net.InetAddress;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -165,7 +165,7 @@ public class CertificateToolTests extends ESTestCase {
 
     public void testPromptingForInstanceInformation() throws Exception {
         final int numberOfInstances = scaledRandomIntBetween(1, 12);
-        Map<String, Map<String, String>> instanceInput = new HashMap<>(numberOfInstances);
+        Map<String, Map<String, String>> instanceInput = Maps.newMapWithExpectedSize(numberOfInstances);
         for (int i = 0; i < numberOfInstances; i++) {
             final String name;
             while (true) {
@@ -987,34 +987,37 @@ public class CertificateToolTests extends ESTestCase {
      * Writes the description of instances to a given {@link Path}
      */
     private Path writeInstancesTo(Path path) throws IOException {
-        Iterable<String> instances = Arrays.asList(
-            "instances:",
-            "  - name: \"node1\"",
-            "    ip:",
-            "      - \"127.0.0.1\"",
-            "    dns: \"localhost\"",
-            "  - name: \"node2\"",
-            "    filename: \"node2\"",
-            "    ip: \"::1\"",
-            "    cn:",
-            "      - \"node2.elasticsearch\"",
-            "  - name: \"node3\"",
-            "    filename: \"node3\"",
-            "  - name: \"CN=different value\"",
-            "    filename: \"different file\"",
-            "    dns:",
-            "      - \"node4.mydomain.com\""
-        );
-
-        return Files.write(path, instances, StandardCharsets.UTF_8);
+        String instances = """
+            instances:
+              - name: "node1"
+                ip:
+                  - "127.0.0.1"
+                dns: "localhost"
+              - name: "node2"
+                filename: "node2"
+                ip: "::1"
+                cn:
+                  - "node2.elasticsearch"
+              - name: "node3"
+                filename: "node3"
+              - name: "CN=different value"
+                filename: "different file"
+                dns:
+                  - "node4.mydomain.com"
+            """;
+        return Files.writeString(path, instances);
     }
 
     /**
      * Writes the description of instances to a given {@link Path}
      */
     private Path writeInvalidInstanceInformation(Path path) throws IOException {
-        Iterable<String> instances = Arrays.asList("instances:", "  - name: \"THIS=not a,valid DN\"", "    ip: \"127.0.0.1\"");
-        return Files.write(path, instances, StandardCharsets.UTF_8);
+        String instances = """
+            instances:
+              - name: "THIS=not a,valid DN"
+                ip: "127.0.0.1"
+            """;
+        return Files.writeString(path, instances);
     }
 
     @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")

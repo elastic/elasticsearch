@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -170,5 +171,10 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
         builder.boost(pgsqb.boost);
         builder.ignoreUnmapped(pgsqb.ignoreUnmapped);
         return builder;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_4_0;
     }
 }

@@ -53,7 +53,7 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
  */
 public class SuccessfulAuthenticationResponseMessageBuilder {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SuccessfulAuthenticationResponseMessageBuilder.class);
 
     private final Clock clock;
     private final SamlIdentityProvider idp;
@@ -262,12 +262,11 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     }
 
     private String getNameIdValueForFormat(String format, UserServiceAuthentication user) {
-        switch (format) {
-            case TRANSIENT:
+        return switch (format) {
+            case TRANSIENT ->
                 // See SAML 2.0 Core 8.3.8 & 1.3.4
-                return samlFactory.secureIdentifier();
-            default:
-                throw new IllegalStateException("Unsupported NameID Format: " + format);
-        }
+                samlFactory.secureIdentifier();
+            default -> throw new IllegalStateException("Unsupported NameID Format: " + format);
+        };
     }
 }

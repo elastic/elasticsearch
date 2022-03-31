@@ -19,9 +19,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialS
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,14 +44,14 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -64,7 +66,6 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +73,7 @@ import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -262,7 +264,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
-        private final BigArrays bigArrays;
+        private final Recycler<BytesRef> recycler;
         private final NodeHealthService nodeHealthService;
 
         private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier = MockPersistedState::new;
@@ -280,9 +282,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            bigArrays = usually()
-                ? BigArrays.NON_RECYCLING_INSTANCE
-                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            this.recycler = usually()
+                ? BytesRefRecycler.NON_RECYCLING_INSTANCE
+                : new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -802,14 +804,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return getAnyNodeExcept();
         }
 
-        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
-            List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodes);
+        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
+            List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodesToExclude);
             assert filteredNodes.isEmpty() == false;
             return randomFrom(filteredNodes);
         }
 
-        List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
-            Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
+        List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodesToExclude) {
+            Set<String> forbiddenIds = Arrays.stream(clusterNodesToExclude).map(ClusterNode::getId).collect(Collectors.toSet());
             return this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
         }
 
@@ -859,7 +861,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
@@ -887,13 +889,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeEnvironment = oldState.nodeEnvironment;
                         final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
+
+                        final Settings.Builder writerSettings = Settings.builder();
+                        if (randomBoolean()) {
+                            writerSettings.put(
+                                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                                ByteSizeValue.ofBytes(randomLongBetween(1, 1024))
+                            );
+                        }
+
                         if (updatedMetadata != oldState.getLastAcceptedState().metadata() || updatedTerm != oldState.getCurrentTerm()) {
                             try (
                                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
                                     nodeEnvironment,
                                     xContentRegistry(),
-                                    bigArrays,
-                                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                                    new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                                     deterministicTaskQueue::getCurrentTimeMillis
                                 ).createWriter()
                             ) {
@@ -903,7 +913,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 );
                             }
                         }
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode, bigArrays);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
@@ -1053,7 +1063,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private DisruptableMockTransport mockTransport;
             private final NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
-            private DelegatingBigArrays delegatingBigArrays;
+            private ClearableRecycler clearableRecycler;
 
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
@@ -1091,6 +1101,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             private void setUp() {
                 final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
+                clearableRecycler = new ClearableRecycler(recycler);
                 mockTransport = new DisruptableMockTransport(localNode, logger, deterministicTaskQueue) {
                     @Override
                     protected void execute(Runnable runnable) {
@@ -1120,25 +1131,34 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ) {
                         final TransportRequestOptions.Type chanType = options.type();
                         switch (action) {
-                            case JoinHelper.JOIN_ACTION_NAME:
-                            case FollowersChecker.FOLLOWER_CHECK_ACTION_NAME:
-                            case LeaderChecker.LEADER_CHECK_ACTION_NAME:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.PING));
-                                break;
-                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME:
-                            case PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME:
-                            case PublicationTransportHandler.COMMIT_STATE_ACTION_NAME:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.STATE));
-                                break;
-                            case JoinHelper.JOIN_PING_ACTION_NAME:
-                                assertThat(action, chanType, oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING));
-                                break;
-                            default:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
-                                break;
+                            // tag::noformat
+                            case JoinHelper.JOIN_ACTION_NAME, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
+                                 LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                equalTo(TransportRequestOptions.Type.PING)
+                            );
+                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                                 Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                equalTo(TransportRequestOptions.Type.STATE)
+                            );
+                            // end::noformat
+                            case JoinHelper.JOIN_PING_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING)
+                            );
+                            default -> assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
                         }
 
                         super.onSendRequest(requestId, action, request, options, destinationTransport);
+                    }
+
+                    @Override
+                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                        return new RecyclerBytesStreamOutput(clearableRecycler);
                     }
                 };
                 final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey())
@@ -1181,7 +1201,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                delegatingBigArrays = new DelegatingBigArrays(bigArrays);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
                 client.initialize(
                     singletonMap(
@@ -1198,7 +1217,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     "test_node",
                     settings,
                     clusterSettings,
-                    delegatingBigArrays,
                     transportService,
                     client,
                     getNamedWriteableRegistry(),
@@ -1214,7 +1232,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     nodeHealthService
                 );
                 masterService.setClusterStatePublisher(coordinator);
-                final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService, threadPool);
+                final GatewayService gatewayService = new GatewayService(
+                    settings,
+                    new BatchedRerouteService(clusterService, allocationService::reroute),
+                    clusterService,
+                    threadPool
+                );
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();
@@ -1245,12 +1268,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ClusterNode restartedNode(
                 Function<Metadata, Metadata> adaptGlobalMetadata,
                 Function<Long, Long> adaptCurrentTerm,
-                Settings nodeSettings
+                Settings settings
             ) {
-                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
-                    .stream()
-                    .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
-                    .collect(Collectors.toUnmodifiableSet());
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(
                     localNode.getName(),
@@ -1260,7 +1279,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings) ? allExceptVotingOnlyRole : emptySet(),
+                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
                     Version.CURRENT
                 );
                 try {
@@ -1268,11 +1287,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeIndex,
                         newLocalNode,
                         node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
-                        nodeSettings,
+                        settings,
                         nodeHealthService
                     );
                 } finally {
-                    delegatingBigArrays.releaseAll();
+                    clearableRecycler.clear();
                 }
             }
 
@@ -1351,7 +1370,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 .build()
                         )
                         .build(),
-                    (source, e) -> {}
+                    (e) -> {}
                 );
             }
 
@@ -1363,19 +1382,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int eventId = history.invoke(new Tuple<>(key, value));
                 return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, key, value), new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(oldState, key));
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerMaster() {
                         // in this case, we know for sure that event was not processed by the system and will not change history
                         // remove event to help avoid bloated history and state space explosion in linearizability checker
                         history.remove(eventId);
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         // do not remove event from history, the write might still take place
                         // instead, complete history when checking for linearizability
                     }
@@ -1386,12 +1405,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int eventId = history.invoke(new Tuple<>(key, null));
                 submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(newState, key));
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         // reads do not change state
                         // remove event to help avoid bloated history and state space explosion in linearizability checker
                         history.remove(eventId);
@@ -1417,27 +1436,27 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
-                            taskListener.onFailure(source, e);
+                        public void onFailure(Exception e) {
+                            logger.debug("publication failed", e);
+                            taskListener.onFailure(e);
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
-                            logger.trace("no longer master: [{}]", source);
-                            taskListener.onNoLongerMaster(source);
+                        public void onNoLongerMaster() {
+                            logger.trace("no longer master");
+                            taskListener.onNoLongerMaster();
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());
                             assertNotNull("State not committed : " + newState, state);
                             assertStateEquals(state, newState);
                             logger.trace("successfully published: [{}]", newState);
-                            taskListener.clusterStateProcessed(source, oldState, newState);
+                            taskListener.clusterStateProcessed(oldState, newState);
                         }
-                    });
+                    }, ClusterStateTaskExecutor.unbatched());
                 }).run();
                 return ackCollector;
             }
@@ -1636,8 +1655,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this.threadPool = threadPool;
             addStateApplier(event -> {
                 switch (clusterStateApplyResponse) {
-                    case SUCCEED:
-                    case HANG:
+                    case SUCCEED, HANG -> {
                         final ClusterState oldClusterState = event.previousState();
                         final ClusterState newClusterState = event.state();
                         assert oldClusterState.version() <= newClusterState.version()
@@ -1645,9 +1663,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 + oldClusterState.version()
                                 + " to stale version "
                                 + newClusterState.version();
-                        break;
-                    case FAIL:
-                        throw new ElasticsearchException("simulated cluster state applier failure");
+                    }
+                    case FAIL -> throw new ElasticsearchException("simulated cluster state applier failure");
                 }
             });
         }
@@ -1662,9 +1679,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.wrap(() -> {
-                        // ignore result
-                    }));
+                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.noop());
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
@@ -1689,6 +1704,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
+    private static final Set<DiscoveryNodeRole> ALL_ROLES_EXCEPT_VOTING_ONLY = DiscoveryNodeRole.roles()
+        .stream()
+        .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
+        .collect(Collectors.toUnmodifiableSet());
+
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
         final TransportAddress address = buildNewFakeTransportAddress();
         return new DiscoveryNode(
@@ -1699,7 +1719,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             address.getAddress(),
             address,
             Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.roles() : emptySet(),
+            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
             Version.CURRENT
         );
     }
@@ -1813,107 +1833,50 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     /**
-     * A wrapper around a {@link BigArrays} which tracks the arrays it allocates so that they can be released if the node reboots. Only
-     * works for {@link ByteArray} allocations since that's all the {@link Coordinator} needs.
+     * A wrapper around a {@link Recycler<BytesRef>} which tracks the refs it allocates so they can be released if the node reboots.
      */
-    static class DelegatingBigArrays extends BigArrays {
+    static class ClearableRecycler implements Recycler<BytesRef> {
 
-        private final BigArrays delegate;
+        private final Recycler<BytesRef> delegate;
+        private final Set<V<BytesRef>> trackedRefs = new HashSet<>();
 
-        private final Set<DelegatingByteArray> trackedArrays = new HashSet<>();
-
-        DelegatingBigArrays(BigArrays delegate) {
-            super(null, null, null);
+        ClearableRecycler(Recycler<BytesRef> delegate) {
             this.delegate = delegate;
         }
 
         @Override
-        public ByteArray newByteArray(long size, boolean clearOnResize) {
-            return track(delegate.newByteArray(size, clearOnResize));
+        public V<BytesRef> obtain() {
+            V<BytesRef> innerRef = delegate.obtain();
+            final V<BytesRef> trackedRef = new V<>() {
+                @Override
+                public BytesRef v() {
+                    return innerRef.v();
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return innerRef.isRecycled();
+                }
+
+                @Override
+                public void close() {
+                    innerRef.close();
+                    trackedRefs.remove(this);
+                }
+            };
+            trackedRefs.add(trackedRef);
+            return trackedRef;
         }
 
-        @Override
-        public ByteArray resize(ByteArray array, long size) {
-            assert array instanceof DelegatingByteArray;
-            trackedArrays.remove(array);
-            return track(delegate.resize(((DelegatingByteArray) array).getDelegate(), size));
+        /**
+         * Release all tracked refs as if the node rebooted.
+         */
+        void clear() {
+            for (V<BytesRef> trackedRef : List.copyOf(trackedRefs)) {
+                trackedRef.close();
+            }
+            assert trackedRefs.isEmpty() : trackedRefs;
         }
 
-        private ByteArray track(ByteArray byteArray) {
-            final DelegatingByteArray wrapped = new DelegatingByteArray(byteArray);
-            trackedArrays.add(wrapped);
-            return wrapped;
-        }
-
-        void releaseAll() {
-            for (DelegatingByteArray trackedArray : List.copyOf(trackedArrays)) {
-                trackedArray.close();
-            }
-            assert trackedArrays.isEmpty() : trackedArrays;
-        }
-
-        private class DelegatingByteArray implements ByteArray {
-
-            private final ByteArray delegate;
-
-            DelegatingByteArray(ByteArray delegate) {
-                this.delegate = delegate;
-            }
-
-            ByteArray getDelegate() {
-                return delegate;
-            }
-
-            @Override
-            public void close() {
-                delegate.close();
-                trackedArrays.remove(this);
-            }
-
-            @Override
-            public long size() {
-                return delegate.size();
-            }
-
-            @Override
-            public byte get(long index) {
-                return delegate.get(index);
-            }
-
-            @Override
-            public byte set(long index, byte value) {
-                return delegate.set(index, value);
-            }
-
-            @Override
-            public boolean get(long index, int len, BytesRef ref) {
-                return delegate.get(index, len, ref);
-            }
-
-            @Override
-            public void set(long index, byte[] buf, int offset, int len) {
-                delegate.set(index, buf, offset, len);
-            }
-
-            @Override
-            public void fill(long fromIndex, long toIndex, byte value) {
-                delegate.fill(fromIndex, toIndex, value);
-            }
-
-            @Override
-            public boolean hasArray() {
-                return delegate.hasArray();
-            }
-
-            @Override
-            public byte[] array() {
-                return delegate.array();
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return delegate.ramBytesUsed();
-            }
-        }
     }
 }

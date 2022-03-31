@@ -52,8 +52,7 @@ public final class TimeoutUtils {
     public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseTasksResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (ElasticsearchException nodeFailure : response.getNodeFailures()) {
-            if (nodeFailure instanceof FailedNodeException) {
-                FailedNodeException failedNodeException = (FailedNodeException) nodeFailure;
+            if (nodeFailure instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();
@@ -73,8 +72,7 @@ public final class TimeoutUtils {
         HashSet<String> timedOutNodeIds = null;
         for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
             final Throwable shardFailureCause = shardFailure.getCause();
-            if (shardFailureCause instanceof FailedNodeException) {
-                FailedNodeException failedNodeException = (FailedNodeException) shardFailureCause;
+            if (shardFailureCause instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();

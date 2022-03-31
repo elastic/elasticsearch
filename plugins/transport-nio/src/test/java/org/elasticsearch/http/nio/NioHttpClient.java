@@ -73,7 +73,7 @@ class NioHttpClient implements Closeable {
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
-            list.add(response.headers().get(Task.X_OPAQUE_ID));
+            list.add(response.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER));
         }
         return list;
     }
@@ -99,7 +99,7 @@ class NioHttpClient implements Closeable {
         for (int i = 0; i < uris.length; i++) {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
-            httpRequest.headers().add(Task.X_OPAQUE_ID, String.valueOf(i));
+            httpRequest.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, String.valueOf(i));
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);

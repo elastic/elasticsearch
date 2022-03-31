@@ -139,30 +139,30 @@ public class URLRepository extends BlobStoreRepository {
     /**
      * Makes sure that the url is white listed or if it points to the local file system it matches one on of the root path in path.repo
      */
-    private URL checkURL(URL url) {
-        String protocol = url.getProtocol();
+    private URL checkURL(URL urlToCheck) {
+        String protocol = urlToCheck.getProtocol();
         if (protocol == null) {
-            throw new RepositoryException(getMetadata().name(), "unknown url protocol from URL [" + url + "]");
+            throw new RepositoryException(getMetadata().name(), "unknown url protocol from URL [" + urlToCheck + "]");
         }
         for (String supportedProtocol : supportedProtocols) {
             if (supportedProtocol.equals(protocol)) {
                 try {
-                    if (URIPattern.match(urlWhiteList, url.toURI())) {
+                    if (URIPattern.match(urlWhiteList, urlToCheck.toURI())) {
                         // URL matches white list - no additional processing is needed
-                        return url;
+                        return urlToCheck;
                     }
                 } catch (URISyntaxException ex) {
-                    logger.warn("cannot parse the specified url [{}]", url);
-                    throw new RepositoryException(getMetadata().name(), "cannot parse the specified url [" + url + "]");
+                    logger.warn("cannot parse the specified url [{}]", urlToCheck);
+                    throw new RepositoryException(getMetadata().name(), "cannot parse the specified url [" + urlToCheck + "]");
                 }
                 // We didn't match white list - try to resolve against path.repo
-                URL normalizedUrl = environment.resolveRepoURL(url);
+                URL normalizedUrl = environment.resolveRepoURL(urlToCheck);
                 if (normalizedUrl == null) {
                     String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the "
                         + "path.repo setting or by {} setting: [{}] ";
-                    logger.warn(logMessage, url, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
                     String exceptionMessage = "file url ["
-                        + url
+                        + urlToCheck
                         + "] doesn't match any of the locations specified by path.repo or "
                         + ALLOWED_URLS_SETTING.getKey();
                     throw new RepositoryException(getMetadata().name(), exceptionMessage);
@@ -170,7 +170,7 @@ public class URLRepository extends BlobStoreRepository {
                 return normalizedUrl;
             }
         }
-        throw new RepositoryException(getMetadata().name(), "unsupported url protocol [" + protocol + "] from URL [" + url + "]");
+        throw new RepositoryException(getMetadata().name(), "unsupported url protocol [" + protocol + "] from URL [" + urlToCheck + "]");
     }
 
     @Override

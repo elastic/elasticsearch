@@ -167,8 +167,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         if (atomic) {
             final Path tempBlobPath = new Path(path, FsBlobContainer.tempBlobName(blobName));
             store.execute((Operation<Void>) fileContext -> {
-                try (FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))) {
-                    writer.accept(stream);
+                try {
+                    try (
+                        FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))
+                    ) {
+                        writer.accept(stream);
+                    }
+                    // Ensure that the stream is closed before renaming so all pending writes are flushed
                     fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
                 } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                     throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -235,7 +240,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         FileStatus[] files;
         try {
             files = store.execute(
-                fileContext -> fileContext.util().listStatus(path, path -> prefix == null || path.getName().startsWith(prefix))
+                fileContext -> fileContext.util().listStatus(path, eachPath -> prefix == null || eachPath.getName().startsWith(prefix))
             );
         } catch (FileNotFoundException e) {
             files = new FileStatus[0];

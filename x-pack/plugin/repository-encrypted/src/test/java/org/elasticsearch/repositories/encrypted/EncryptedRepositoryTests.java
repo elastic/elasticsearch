@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -75,7 +76,10 @@ public class EncryptedRepositoryTests extends ESTestCase {
             Settings.EMPTY
         );
         ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
-        when(clusterApplierService.threadPool()).thenReturn(mock(ThreadPool.class));
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(clusterApplierService.threadPool()).thenReturn(threadPool);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         this.encryptedRepository = new EncryptedRepository(

@@ -31,12 +31,14 @@ import org.junit.After;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
 
@@ -77,6 +79,10 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
             assertThat(((LDAPException) cause).getResultCode(), is(ResultCode.TIMEOUT));
         } finally {
             ldapServers[0].setProcessingDelayMillis(0);
+
+            // Wait for the async search to complete or timeout.
+            // Without this, we might trigger an orphaned thread - see https://github.com/pingidentity/ldapsdk/issues/120
+            assertBusy(() -> assertThat(connection.getActiveOperationCount(), lessThanOrEqualTo(0)), 2000, TimeUnit.MILLISECONDS);
         }
     }
 

@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.core.slm;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,11 +40,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  * snapshot should be triggered, what the snapshot should be named, what repository it should go
  * to, and the configuration for the snapshot itself.
  */
-public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
-    implements
-        Writeable,
-        Diffable<SnapshotLifecyclePolicy>,
-        ToXContentObject {
+public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
     private final String id;
     private final String name;
@@ -135,8 +130,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     }
 
     public long calculateNextExecution() {
-        final Cron schedule = new Cron(this.schedule);
-        return schedule.getNextValidTimeAfter(System.currentTimeMillis());
+        final Cron scheduleEvaluator = new Cron(this.schedule);
+        return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
     }
 
     /**
@@ -149,9 +144,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
     public TimeValue calculateNextInterval() {
-        final Cron schedule = new Cron(this.schedule);
-        long next1 = schedule.getNextValidTimeAfter(System.currentTimeMillis());
-        long next2 = schedule.getNextValidTimeAfter(next1);
+        final Cron scheduleEvaluator = new Cron(this.schedule);
+        long next1 = scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+        long next2 = scheduleEvaluator.getNextValidTimeAfter(next1);
         if (next1 > 0 && next2 > 0) {
             return TimeValue.timeValueMillis(next2 - next1);
         } else {
@@ -283,7 +278,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.name);
         out.writeString(this.schedule);
         out.writeString(this.repository);
-        out.writeMap(this.configuration);
+        out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
     }
 

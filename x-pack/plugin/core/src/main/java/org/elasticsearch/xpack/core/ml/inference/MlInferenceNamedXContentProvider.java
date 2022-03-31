@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpd
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
@@ -48,6 +50,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigU
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -435,12 +439,40 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 (p, c) -> BertTokenization.fromXContent(p, (boolean) c)
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
+                MPNetTokenization.NAME,
+                (p, c) -> MPNetTokenization.fromXContent(p, (boolean) c)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
+                new ParseField(RobertaTokenization.NAME),
+                (p, c) -> RobertaTokenization.fromXContent(p, (boolean) c)
+            )
+        );
 
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 TokenizationUpdate.class,
                 BertTokenizationUpdate.NAME,
                 (p, c) -> BertTokenizationUpdate.fromXContent(p)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationUpdate.class,
+                MPNetTokenizationUpdate.NAME,
+                (p, c) -> MPNetTokenizationUpdate.fromXContent(p)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationUpdate.class,
+                RobertaTokenizationUpdate.NAME,
+                (p, c) -> RobertaTokenizationUpdate.fromXContent(p)
             )
         );
 
@@ -591,12 +623,30 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(Tokenization.class, BertTokenization.NAME.getPreferredName(), BertTokenization::new)
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Tokenization.class, MPNetTokenization.NAME.getPreferredName(), MPNetTokenization::new)
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, RobertaTokenization.NAME, RobertaTokenization::new));
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 TokenizationUpdate.class,
                 BertTokenizationUpdate.NAME.getPreferredName(),
                 BertTokenizationUpdate::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TokenizationUpdate.class,
+                MPNetTokenizationUpdate.NAME.getPreferredName(),
+                MPNetTokenizationUpdate::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TokenizationUpdate.class,
+                RobertaTokenizationUpdate.NAME.getPreferredName(),
+                RobertaTokenizationUpdate::new
             )
         );
 

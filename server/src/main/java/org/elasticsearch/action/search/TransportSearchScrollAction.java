@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -25,55 +24,45 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
-    private final SearchPhaseController searchPhaseController;
 
     @Inject
     public TransportSearchScrollAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController
+        SearchTransportService searchTransportService
     ) {
-        super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
+        super(SearchScrollAction.NAME, transportService, actionFilters, SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
-        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            Runnable action;
-            switch (scrollId.getType()) {
-                case QUERY_THEN_FETCH_TYPE:
-                    action = new SearchScrollQueryThenFetchAsyncAction(
+            Runnable action = switch (scrollId.getType()) {
+                case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
+                    logger,
+                    clusterService,
+                    searchTransportService,
+                    request,
+                    (SearchTask) task,
+                    scrollId,
+                    listener
+                );
+                case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
+                    new SearchScrollQueryAndFetchAsyncAction(
                         logger,
                         clusterService,
                         searchTransportService,
-                        searchPhaseController,
                         request,
                         (SearchTask) task,
                         scrollId,
                         listener
                     );
-                    break;
-                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
-                    action = new SearchScrollQueryAndFetchAsyncAction(
-                        logger,
-                        clusterService,
-                        searchTransportService,
-                        searchPhaseController,
-                        request,
-                        (SearchTask) task,
-                        scrollId,
-                        listener
-                    );
-                    break;
-                default:
-                    throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
-            }
+                default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
+            };
             action.run();
         } catch (Exception e) {
             listener.onFailure(e);

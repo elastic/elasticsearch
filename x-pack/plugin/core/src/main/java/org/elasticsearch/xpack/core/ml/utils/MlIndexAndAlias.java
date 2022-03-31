@@ -23,8 +23,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,8 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
@@ -182,7 +181,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (hasIndex(clusterState, primaryIndex)) {
+        if (clusterState.getMetadata().hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }
@@ -333,11 +332,7 @@ public final class MlIndexAndAlias {
         try {
             request = new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
                 ComposableIndexTemplate.parse(
-                    JsonXContent.jsonXContent.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        templateConfig.loadBytes()
-                    )
+                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
                 )
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {
@@ -381,9 +376,5 @@ public final class MlIndexAndAlias {
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().templatesV2().containsKey(templateName);
-    }
-
-    public static boolean hasIndex(ClusterState state, String index) {
-        return state.getMetadata().getIndicesLookup().containsKey(index);
     }
 }

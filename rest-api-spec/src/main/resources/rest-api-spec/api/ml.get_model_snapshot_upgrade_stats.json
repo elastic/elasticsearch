@@ -1,0 +1,40 @@
+{
+  "ml.get_model_snapshot_upgrade_stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-model-snapshot-upgrade-stats.html",
+      "description":"Gets stats for anomaly detection job model snapshot upgrades that are in progress."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_upgrade/_stats",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job. May be a wildcard, comma separated list or `_all`."
+            },
+            "snapshot_id":{
+              "type":"string",
+              "description":"The ID of the snapshot. May be a wildcard, comma separated list or `_all`."
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no jobs or no snapshots. (This includes the `_all` string.)"
+      }
+    }
+  }
+}

@@ -102,10 +102,6 @@
           "red"
         ],
         "description":"Wait until cluster is in a specific state"
-      },
-      "return_200_for_cluster_health_timeout":{
-        "type":"boolean",
-        "description":"Whether to return HTTP 200 instead of 408 in case of a cluster health timeout from the server side"
       }
     }
   }

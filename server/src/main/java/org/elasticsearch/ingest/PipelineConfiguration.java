@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
-public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
+public final class PipelineConfiguration implements SimpleDiffable<PipelineConfiguration>, ToXContentObject {
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
@@ -103,8 +103,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             Object o = configMap.get("version");
             if (o == null) {
                 return null;
-            } else if (o instanceof Number) {
-                return ((Number) o).intValue();
+            } else if (o instanceof Number number) {
+                return number.intValue();
             } else {
                 throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
             }
@@ -127,7 +127,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(PipelineConfiguration::readFrom, in);
+        return SimpleDiffable.readDiffFrom(PipelineConfiguration::readFrom, in);
     }
 
     @Override

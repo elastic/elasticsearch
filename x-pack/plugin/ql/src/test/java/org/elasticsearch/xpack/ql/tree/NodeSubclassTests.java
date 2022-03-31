@@ -170,8 +170,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
             Type changedArgType = argTypes[changedArgOffset];
 
-            if (originalArgValue instanceof Collection) {
-                Collection<?> col = (Collection<?>) originalArgValue;
+            if (originalArgValue instanceof Collection<?> col) {
 
                 if (col.isEmpty() || col instanceof EnumSet) {
                     /*
@@ -358,8 +357,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     @SuppressWarnings("unchecked")
     private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
-        if (argType instanceof ParameterizedType) {
-            ParameterizedType pt = (ParameterizedType) argType;
+        if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
                 return makeMap(toBuildClass, pt);
             }
@@ -401,8 +399,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
             throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "]");
         }
-        if (argType instanceof WildcardType) {
-            WildcardType wt = (WildcardType) argType;
+        if (argType instanceof WildcardType wt) {
             if (wt.getLowerBounds().length > 0 || wt.getUpperBounds().length > 1) {
                 throw new IllegalArgumentException("Unsupported wildcard type [" + wt + "]");
             }

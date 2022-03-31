@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public final class TransportQueryApiKeyAction extends HandledTransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
 

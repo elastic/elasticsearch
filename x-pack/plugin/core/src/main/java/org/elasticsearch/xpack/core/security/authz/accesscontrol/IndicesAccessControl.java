@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
@@ -18,11 +19,11 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -63,7 +64,7 @@ public class IndicesAccessControl {
         return granted;
     }
 
-    public Collection<?> getDeniedIndices() {
+    public Collection<String> getDeniedIndices() {
         return this.indexPermissions.entrySet()
             .stream()
             .filter(e -> e.getValue().granted == false)
@@ -95,14 +96,19 @@ public class IndicesAccessControl {
     }
 
     public List<String> getIndicesWithFieldOrDocumentLevelSecurity() {
-        return indexPermissions.entrySet()
-            .stream()
-            .filter(
-                entry -> entry.getValue().fieldPermissions.hasFieldLevelSecurity()
-                    || entry.getValue().documentPermissions.hasDocumentLevelPermissions()
-            )
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableList());
+        return getIndexNames(iac -> iac.fieldPermissions.hasFieldLevelSecurity() || iac.documentPermissions.hasDocumentLevelPermissions());
+    }
+
+    public List<String> getIndicesWithFieldLevelSecurity() {
+        return getIndexNames(iac -> iac.fieldPermissions.hasFieldLevelSecurity());
+    }
+
+    public List<String> getIndicesWithDocumentLevelSecurity() {
+        return getIndexNames(iac -> iac.documentPermissions.hasDocumentLevelPermissions());
+    }
+
+    private List<String> getIndexNames(Predicate<IndexAccessControl> predicate) {
+        return indexPermissions.entrySet().stream().filter(entry -> predicate.test(entry.getValue())).map(Map.Entry::getKey).toList();
     }
 
     public enum DlsFlsUsage {
@@ -182,7 +188,7 @@ public class IndicesAccessControl {
         }
 
         /**
-         * Returns a instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
+         * Returns an instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
          * contained in the provided parameter.<br>
          * Allowed fields for this index permission would be an intersection of allowed fields.<br>
          * Allowed documents for this index permission would be an intersection of allowed documents.<br>
@@ -193,17 +199,19 @@ public class IndicesAccessControl {
          * @see DocumentPermissions#limitDocumentPermissions(DocumentPermissions)
          */
         public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
-            final boolean granted;
+            final boolean isGranted;
             if (this.granted == limitedByIndexAccessControl.granted) {
-                granted = this.granted;
+                isGranted = this.granted;
             } else {
-                granted = false;
+                isGranted = false;
             }
-            FieldPermissions fieldPermissions = getFieldPermissions().limitFieldPermissions(limitedByIndexAccessControl.fieldPermissions);
-            DocumentPermissions documentPermissions = getDocumentPermissions().limitDocumentPermissions(
+            FieldPermissions constrainedFieldPermissions = getFieldPermissions().limitFieldPermissions(
+                limitedByIndexAccessControl.fieldPermissions
+            );
+            DocumentPermissions constrainedDocumentPermissions = getDocumentPermissions().limitDocumentPermissions(
                 limitedByIndexAccessControl.getDocumentPermissions()
             );
-            return new IndexAccessControl(granted, fieldPermissions, documentPermissions);
+            return new IndexAccessControl(isGranted, constrainedFieldPermissions, constrainedDocumentPermissions);
         }
 
         @Override
@@ -264,23 +272,23 @@ public class IndicesAccessControl {
             return this;
         }
 
-        final boolean granted;
+        final boolean isGranted;
         if (this.granted == limitedByIndicesAccessControl.granted) {
-            granted = this.granted;
+            isGranted = this.granted;
         } else {
-            granted = false;
+            isGranted = false;
         }
         Set<String> indexes = indexPermissions.keySet();
         Set<String> otherIndexes = limitedByIndicesAccessControl.indexPermissions.keySet();
         Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
-        Map<String, IndexAccessControl> indexPermissions = new HashMap<>(commonIndexes.size());
+        Map<String, IndexAccessControl> indexPermissionsMap = Maps.newMapWithExpectedSize(commonIndexes.size());
         for (String index : commonIndexes) {
             IndexAccessControl indexAccessControl = getIndexPermissions(index);
             IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
-            indexPermissions.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
+            indexPermissionsMap.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
         }
-        return new IndicesAccessControl(granted, indexPermissions);
+        return new IndicesAccessControl(isGranted, indexPermissionsMap);
     }
 
     @Override

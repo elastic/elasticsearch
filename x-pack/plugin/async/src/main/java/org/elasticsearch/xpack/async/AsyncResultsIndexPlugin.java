@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.async;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,7 +43,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
     }
 

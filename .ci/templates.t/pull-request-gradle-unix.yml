@@ -22,6 +22,8 @@
             - ^docs/.*
           black-list-labels:
             - '>test-mute'
+          black-list-target-branches:
+            - feature/desired-balance-allocator
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -30,7 +32,7 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
-            JAVA15_HOME=$HOME/.java/openjdk15
+            JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh {gradle-args}

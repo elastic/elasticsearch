@@ -31,8 +31,8 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         String method = settings.get("name", "nfkc_cf");
-        Normalizer2 normalizer = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
-        this.normalizer = wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
+        Normalizer2 normalizerInstance = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
+        this.normalizer = wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
     }
 
     @Override

@@ -1,0 +1,693 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Unsigned long tests
+//
+
+arithmeticUnsignedLongCast
+SELECT 1::unsigned_long + 1 AS x;
+
+       x:ul
+---------------
+2
+;
+
+nullArithmetics
+SELECT null + 18446744073709551614 AS x;
+
+       x:ul
+---------------
+null
+;
+
+arithmeticPlus
+SELECT 18446744073709551614 + 1 AS x;
+
+       x:ul
+---------------
+18446744073709551615
+;
+
+arithmeticMultiply
+SELECT 9223372036854775807::unsigned_long * 2 AS x;
+
+       x:ul
+---------------
+18446744073709551614
+;
+
+arithmeticDivide
+SELECT 18446744073709551614 / 2 AS x;
+
+       x:ul
+---------------
+9223372036854775807
+;
+
+arithmeticModulo
+SELECT 18446744073709551614 % 10 AS x;
+
+       x:ul
+---------------
+4
+;
+
+selectWithOrderByAndComparison
+SELECT salary_ul AS x FROM test_emp_copy WHERE salary_ul > 70000 ORDER by salary_ul DESC LIMIT 1;
+
+       x:ul
+---------------
+74999
+;
+
+selectWithImplicitAgg
+SELECT MAX(salary_ul)::STRING AS x FROM test_emp_copy;
+
+       x:s
+---------------
+74999
+;
+
+selectWithGroupByCountAndOrderBy
+SELECT salary_ul AS s, count(1) AS c FROM test_emp_copy GROUP BY 1 ORDER BY 1 LIMIT 3;
+
+       s:ul    |       c:l
+---------------+---------------
+25324          |1
+25945          |1
+25976          |1
+;
+
+selectWithMathFunction
+SELECT ROUND(SIN(salary_ul), 3) AS sin, salary_ul AS sal FROM test_emp_copy ORDER BY sal DESC LIMIT 3;
+
+      sin:d    |      sal:ul
+---------------+---------------
+0.239          |74999
+-0.823         |74970
+-0.015         |74572
+;
+
+selectWithIn
+SELECT salary_ul, salary_ul + languages AS s, languages FROM test_emp_copy WHERE salary_ul IN ('74999', 74970, 74572::unsigned_long);
+
+    salary_ul:ul  |       s:ul    |   languages:bt
+------------------+---------------+---------------
+74572             |74576          |4
+74999             |null           |null
+74970             |74973          |3
+;
+
+countWithImplicitGroupBy
+SELECT MAX(salary_ul) AS m FROM test_emp_copy ORDER BY COUNT(*);
+
+       m:ul
+---------------
+74999
+;
+
+kurtosisAndSkewnessGroup
+SELECT gender, KURTOSIS(salary_ul) k, SKEWNESS(salary_ul) s FROM test_emp_copy GROUP BY gender;
+
+gender:s             | k:d                  | s:d
+
+null                 |2.2215791166941923    |-0.03373126000214023
+F                    |1.7873117044424276    |0.05504995122217512
+M                    |2.280646181070106     |0.44302407229580243
+;
+
+sumFieldWithSumLiteralAsCondition
+SELECT first_name, last_name, SUM(salary_ul) AS s, birth_date AS y, COUNT(1) FROM test_emp_copy GROUP BY 1, 2, 4 HAVING ((SUM(1) >= 1) AND (SUM(1) <= 577)) AND ((SUM(salary_ul) >= 35000) AND (SUM(salary_ul) <= 45000));
+
+  first_name:s |   last_name:s |       s:d     |           y:ts         |   COUNT(1):l
+---------------+---------------+---------------+------------------------+---------------
+null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1
+null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1
+null           |Lortz          |35222          |1960-07-20T00:00:00.000Z|1
+null           |Makrucki       |37691          |1963-07-22T00:00:00.000Z|1
+null           |Swan           |39878          |1962-12-29T00:00:00.000Z|1
+Alejandro      |McAlpine       |44307          |1953-09-19T00:00:00.000Z|1
+Amabile        |Gomatam        |38645          |1955-10-04T00:00:00.000Z|1
+Basil          |Tramer         |37853          |null                    |1
+Berhard        |McFarlin       |38376          |1954-10-01T00:00:00.000Z|1
+Berni          |Genin          |37137          |1956-02-12T00:00:00.000Z|1
+Chirstian      |Koblick        |36174          |1954-05-01T00:00:00.000Z|1
+Domenick       |Tempesti       |39356          |1963-11-26T00:00:00.000Z|1
+Hilari         |Morton         |37702          |1965-01-03T00:00:00.000Z|1
+Hisao          |Lipner         |40612          |1958-01-21T00:00:00.000Z|1
+Jayson         |Mandell        |43889          |1954-09-16T00:00:00.000Z|1
+Jungsoon       |Syrzycki       |39638          |1954-02-25T00:00:00.000Z|1
+Kendra         |Hofting        |44956          |1961-05-30T00:00:00.000Z|1
+Kenroku        |Malabarba      |35742          |1962-11-07T00:00:00.000Z|1
+Margareta      |Bierman        |41933          |1960-09-06T00:00:00.000Z|1
+Mayuko         |Warwick        |40031          |1952-12-24T00:00:00.000Z|1
+Mingsen        |Casley         |39728          |null                    |1
+Mokhtar        |Bernatsky      |38992          |1955-08-28T00:00:00.000Z|1
+Saniya         |Kalloufi       |43906          |1958-02-19T00:00:00.000Z|1
+Sreekrishna    |Servieres      |44817          |1961-09-23T00:00:00.000Z|1
+Sudharsan      |Flasterstein   |43602          |1963-03-21T00:00:00.000Z|1
+Vishv          |Zockler        |39110          |1959-07-23T00:00:00.000Z|1
+Weiyi          |Meriste        |37112          |null                    |1
+Yinghua        |Dredge         |43026          |1958-05-21T00:00:00.000Z|1
+Zvonko         |Nyanchama      |42716          |null                    |1
+;
+
+histogramNumeric
+SELECT HISTOGRAM(salary_ul, 5000) AS h FROM test_emp_copy GROUP BY h;
+
+       h:ul
+---------------
+25000
+30000
+35000
+40000
+45000
+50000
+55000
+60000
+65000
+70000
+;
+
+medianAbsoluteDeviation
+schema::gender:s|mad:d
+SELECT gender, MAD(salary_ul) AS mad FROM test_emp_copy GROUP BY gender ORDER BY gender;
+
+    gender     |      mad
+---------------+---------------
+null           |10789.0
+F              |12719.0
+M              |8905.0
+;
+
+groupAndAggNotSpecifiedInTheAggregateWithHaving
+SELECT gender, MIN(salary_ul) AS min, COUNT(*) AS c FROM test_emp_copy GROUP BY gender HAVING c > 1 ORDER BY gender NULLS FIRST, MAX(salary_ul);
+
+    gender:s   |      min:ul   |       c:l
+---------------+---------------+---------------
+null           |25324          |10
+F              |25976          |33
+M              |25945          |57
+;
+
+aggNotSpecifiedWithHavingOnLargeGroupBy
+SELECT MAX(salary_ul) AS max FROM test_emp_copy GROUP BY emp_no HAVING AVG(salary_ul) > 1000 ORDER BY MIN(salary_ul) LIMIT 5;
+
+      max:ul
+---------------
+25324
+25945
+25976
+26436
+27215
+;
+
+multipleGroupingsAndOrderingByGroupsAndAggs
+SELECT gender, MIN(salary_ul + 1) AS min, COUNT(*) AS c, MAX(salary_ul) AS max FROM test_emp_copy GROUP BY gender HAVING c > 1 ORDER BY gender DESC NULLS LAST, MAX(salary_ul) ASC;
+
+    gender:s   |      min:ul   |       c:l     |      max:ul
+---------------+---------------+---------------+---------------
+M              |25946          |57             |74999
+F              |25977          |33             |74572
+null           |25325          |10             |73717
+;
+
+aggSumWithAliasWithColumnRepeatedWithOrderDesc
+SELECT gender AS g, gender, SUM(salary_ul) AS s3, SUM(salary_ul), SUM(salary_ul) AS s5 FROM test_emp_copy GROUP BY g ORDER BY s5 DESC;
+
+g:s  | gender:s  | s3:d  | SUM(salary_ul):d  | s5:d
+-----+-----------+-------+-------------------+------
+M    |M          |2671054|2671054            |2671054
+F    |F          |1666196|1666196            |1666196
+null |null       |487605 |487605             |487605
+;
+
+aggregateFunctionsWithScalars
+SELECT MAX(CASE WHEN (salary_ul - 10) > 70000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary_ul - 20) > 50000 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "min",
+AVG(COS(salary_ul * 1.2) + 100 * (salary_ul / 5)) AS "avg",
+SUM(salary_ul / 0.765 + sin((salary_ul + 12345) / 12)) AS "sum",
+MAD(ABS(salary_ul / -0.813) / 2 + (12345 * (salary_ul % 10))) AS "mad"
+FROM test_emp_copy;
+
+       max        |      min      |       avg       |       sum       |       mad
+------------------+---------------+-----------------+-----------------+-----------------
+155409.30000000002|23532.72       |964937.9295477575|6306995.482492277|30811.76199261993
+;
+
+aggregatesWithScalarsAndGroupByOrderByAggWithoutProjection
+schema::gender:s
+SELECT gender FROM test_emp_copy GROUP BY gender ORDER BY MAX(salary_ul % 100) DESC;
+
+    gender
+---------------
+M
+null
+F
+;
+
+percentileAggregateFunctionsWithScalars
+schema::percentile:d|percentile_rank:d|gender:s
+SELECT PERCENTILE(CASE WHEN (salary_ul / 2) > 10000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END, 80) AS "percentile",
+PERCENTILE_RANK(CASE WHEN (salary_ul - 20) > 50000 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END, 40000) AS "percentile_rank",
+gender FROM test_emp_copy
+GROUP BY gender ORDER BY gender;
+
+   percentile    | percentile_rank  |    gender
+-----------------+------------------+---------------
+86857.79999999999|32.69659025378865 |null
+94042.92000000001|37.03569653103581 |F
+87348.36         |44.337514210592246|M
+;
+
+extendedStatsAggregateFunctionsWithScalars
+schema::stddev_pop:d|stddev_samp:d|sum_of_squares:d|var_pop:d|var_samp:d|gender:s
+SELECT STDDEV_POP(CASE WHEN (salary_ul / 2) > 10000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END) AS "stddev_pop",
+STDDEV_SAMP(CASE WHEN (salary_ul / 2) > 10000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END) AS "stddev_samp",
+SUM_OF_SQUARES(CASE WHEN (salary_ul - 20) > 50000 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "sum_of_squares",
+VAR_POP(CASE WHEN (salary_ul - 20) % 1000 > 200 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "var_pop",
+VAR_SAMP(CASE WHEN (salary_ul - 20) % 1000 > 200 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "var_samp",
+gender FROM test_emp_copy
+GROUP BY gender ORDER BY gender;
+
+    stddev_pop    |   stddev_samp    |   sum_of_squares    |      var_pop       |      var_samp      |    gender
+------------------+------------------+---------------------+--------------------+--------------------+---------------
+16752.73244172422 |17658.930515747525|3.06310583829007E10  |3.460331137445282E8 |3.844812374939202E8 |null
+17427.462400181845|17697.67172930331 |1.148127725047658E11 |3.1723426960671306E8|3.271478405319228E8 |F
+15702.798665784752|15842.381843421828|1.5882243113919238E11|2.529402043805585E8 |2.5745699374449703E8|M
+;
+
+groupByRoundAndTruncateWithTwoParams
+SELECT ROUND(SIN(TRUNCATE("salary_ul", 2)), 2) FROM "test_emp_copy" GROUP BY ROUND(SIN(TRUNCATE("salary_ul", 2)), 2) ORDER BY ROUND(SIN(TRUNCATE("salary_ul", 2)), 2) LIMIT 5;
+
+ROUND(SIN(TRUNCATE("salary_ul", 2)), 2)
+---------------------------------------
+-1.0
+-0.99
+-0.98
+-0.97
+-0.96
+;
+
+sumLiteralAndSumFieldWithComplexHaving
+SELECT gender, CAST(SUM("salary_ul") AS BIGINT), CAST(SUM(1) AS BIGINT), CAST(SUM(10) AS BIGINT), COUNT(*) FROM test_emp_copy GROUP BY gender HAVING ((SUM(1) >= 0) AND (SUM(1) <= 50) AND (SUM(salary_ul) >= 250000) AND (SUM(salary_ul) <= 5000000)) ORDER BY gender;
+
+    gender:s   |CAST(SUM("salary_ul") AS BIGINT):l|CAST(SUM(1) AS BIGINT):l|CAST(SUM(10) AS BIGINT):l|   COUNT(*):l
+---------------+----------------------------------+------------------------+-------------------------+---------------
+null           |487605                            |10                      |100                      |10
+F              |1666196                           |33                      |330                      |33
+;
+
+aggGroupByOnScalarWithHaving
+SELECT salary_ul + 1 AS e FROM test_emp_copy GROUP BY e HAVING AVG(salary_ul) BETWEEN 50000 AND 60000 ORDER BY e LIMIT 2;
+
+       e:ul
+---------------
+50065
+50129
+;
+
+caseGroupByProtectedDivisionByZero
+schema::x:ul
+SELECT CASE WHEN languages = 1 THEN NULL ELSE ( salary_ul / (languages - 1) ) END AS x FROM test_emp_copy GROUP BY 1 ORDER BY 1 LIMIT 10;
+
+       x
+---------------
+null
+6331
+6486
+7780
+7974
+8068
+8489
+8935
+9043
+9071
+;
+
+iifWithCompatibleIntervals
+schema::hire_date + IIF(salary_ul > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS):ts|salary_ul:ul
+SELECT hire_date + IIF(salary_ul > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS), salary_ul FROM test_emp_copy ORDER BY salary DESC LIMIT 10;
+
+hire_date + IIF(salary_ul > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS)|    salary_ul
+---------------------------------------------------------------------+---------------
+1985-11-20T02:00:00.000Z                                             |74999
+1989-09-02T02:00:00.000Z                                             |74970
+1989-02-10T02:00:00.000Z                                             |74572
+1989-07-07T02:00:00.000Z                                             |73851
+1999-04-30T02:00:00.000Z                                             |73717
+1988-10-18T02:00:00.000Z                                             |73578
+1990-09-15T02:00:00.000Z                                             |71165
+1987-03-18T02:00:00.000Z                                             |70011
+1987-05-28T00:00:00.000Z                                             |69904
+1990-02-18T00:00:00.000Z                                             |68547
+;
+
+aggPercentile
+SELECT languages, PERCENTILE(salary_ul, 95) AS "95th" FROM test_emp_copy GROUP BY languages;
+
+   languages:bt|      95th:d
+---------------+-----------------
+null           |74999.0
+1              |72790.5
+2              |71924.70000000001
+3              |73638.25
+4              |72115.59999999999
+5              |61071.7
+;
+
+mathPowerNegative
+SELECT POWER(salary_ul, -1) m, first_name FROM "test_emp_copy" WHERE emp_no < 10010 ORDER BY emp_no;
+
+          m          |  first_name
+---------------------+---------------
+1.7450484250937964E-5|Georgi
+1.773961788863068E-5 |Bezalel
+1.617992071838848E-5 |Parto
+2.76441643169127E-5  |Chirstian
+1.57410905427528E-5  |Kyoichi
+1.6574127786525235E-5|Anneke
+1.3409858928284075E-5|Tzvetan
+2.2775930396756706E-5|Saniya
+1.5111675280321576E-5|Sumant
+;
+
+averageWithOneValueAndOrder
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary_ul FROM test_emp_copy) PIVOT (AVG(salary_ul + 1) FOR gender IN ('F')) ORDER BY languages DESC LIMIT 4;
+   languages   |       'F'
+---------------+------------------
+5              |46706.555555555555
+4              |49292.5
+3              |53661.0
+2              |50685.4
+;
+
+sumWithInnerAggregateSumOfSquaresRound
+schema::birth_date:ts|emp_no:i|extra.info.gender:s|extra_gender:s|extra_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|null_constant:s|salary:i|wildcard_name:s|1:d|2:d
+SELECT * FROM test_emp_copy PIVOT (ROUND(SUM_OF_SQUARES(salary_ul + 1)/1E6, 2) FOR languages IN (1, 2)) LIMIT 3;
+
+  birth_date   |    emp_no     |extra.info.gender| extra_gender  |   extra_no    |  first_name   |    gender     |       hire_date        |   last_name   |     name      | null_constant |    salary     | wildcard_name |       1       |       2
+---------------+---------------+-----------------+---------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
+null           |10041          |F                |Female         |10041          |Uri            |F              |1989-11-12T00:00:00.000Z|Lenart         |Uri Lenart     |null           |56415          |Uri Lenart     |3182.77        |null
+null           |10043          |M                |Female         |10043          |Yishay         |M              |1990-10-20T00:00:00.000Z|Tzvieli        |Yishay Tzvieli |null           |34341          |Yishay Tzvieli |1179.37        |null
+null           |10044          |F                |Female         |10044          |Mingsen        |F              |1994-05-21T00:00:00.000Z|Casley         |Mingsen Casley |null           |39728          |Mingsen Casley |1578.39        |null
+;
+
+
+implicitAggAndCastMaxLargeInput
+SELECT MAX(bytes_out)::DOUBLE xd, MAX(bytes_in)::STRING xs FROM logs_unsigned_long;
+
+         xd:d       |         xs:s
+--------------------+--------------------
+1.822361547714736E19|18446744073709551615
+;
+
+implicitAggFirstLast
+SELECT FIRST(bytes_in)::BYTE xd, FIRST(bytes_out)::LONG xs FROM logs_unsigned_long;
+
+      xd:bt    |        xs:l
+---------------+------------------
+0              |352442273299370793
+;
+
+withMathFunctionLargeInput
+SELECT ROUND(SIN(bytes_out), 3) AS sin, bytes_out AS out FROM logs_unsigned_long ORDER BY sin DESC NULLS LAST LIMIT 3;
+
+      sin:d    |        out:ul
+---------------+--------------------
+0.999          |8422074124513216267
+0.999          |11563896463355414928
+0.997          |16110121334900810541
+;
+
+withMathIntoInLargeInput
+SELECT id, bytes_in, bytes_out,
+ ((bytes_out::DOUBLE + CASE WHEN status = 'OK' THEN bytes_in ELSE 0 END)/POWER(1024, 3))::UNSIGNED_LONG AS traffic_gb
+FROM logs_unsigned_long
+WHERE bytes_in IN (9223372036854775807::UNSIGNED_LONG * 2, 18446744073709551614, '18446744073709551615'::UNSIGNED_LONG);
+
+      id:i     |      bytes_in:ul   |     bytes_out:ul   |  traffic_gb:ul
+---------------+--------------------+--------------------+---------------
+20             |18446744073709551614|9891957732954625161 |26392472727
+40             |18446744073709551614|14524142879756567901|30706531324
+50             |18446744073709551615|8359170160363687272 |24964953059
+;
+
+countWithImplicitGroupByAndArithmeticLargeInput
+SELECT MAX(bytes_out) max, MIN(bytes_out) min, MAX(bytes_out) - MIN(bytes_out) diff FROM logs_unsigned_long ORDER BY COUNT(*);
+
+        max:ul      |       min:ul     |        diff:ul
+--------------------+------------------+--------------------
+18223615477147360166|352442273299370793|17871173203847989373
+
+;
+
+kurtosisAndSkewnessGroupLargeInput
+SELECT status, KURTOSIS(bytes_in) k, SKEWNESS(bytes_in) s FROM logs_unsigned_long GROUP BY status;
+
+    status     |        k         |         s
+---------------+------------------+--------------------
+Error          |2.056501455580364 |0.7571349191844446
+OK             |1.9651462247673082|-0.15628563062367107
+;
+
+
+fieldWithSumLiteralAsConditionLargeInput
+SELECT status, SUM(bytes_in) AS s, "@timestamp" AS y, COUNT(1) FROM logs_unsigned_long GROUP BY 1, 3 HAVING SUM(1) >= 3;
+
+    status:s   |          s:d        |          y:ts          |   COUNT(1):l
+---------------+---------------------+------------------------+---------------
+Error          |2.9973949656396653E19|2017-11-10T19:51:38.000Z|3
+OK             |6.232411355491008E19 |2017-11-10T20:35:55.000Z|6
+OK             |5.799662857991158E19 |2017-11-10T20:35:57.000Z|7
+OK             |3.14816340622471E19  |2017-11-10T20:36:07.000Z|3
+OK             |3.1174871328354025E19|2017-11-10T21:15:39.000Z|3
+OK             |3.3409057849369555E19|2017-11-10T21:15:40.000Z|3
+OK             |2.76229913536395E19  |2017-11-10T21:17:37.000Z|3
+;
+
+histogramNumericLargeInput
+SELECT HISTOGRAM(bytes_in, POWER(10, 9)) AS gb FROM logs_unsigned_long GROUP BY 1 LIMIT 10;
+
+        gb:ul
+-------------------
+null
+0
+74330435000000000
+154551962000000000
+195161570000000000
+316080452000000000
+369412756000000000
+754822992000000000
+905851433000000000
+1729864283000000000
+;
+
+medianAbsoluteDeviationLargeInput
+SELECT status, MAD(bytes_in) AS mad FROM logs_unsigned_long GROUP BY status ORDER BY status;
+
+    status     |         mad
+---------------+---------------------
+Error          |3.0183732936229658E18
+OK             |4.5240953206634045E18
+;
+
+
+groupAndAggNotSpecifiedInTheAggregateWithHavingLargeInput
+SELECT status, MIN(bytes_out) AS min, COUNT(*) AS c FROM logs_unsigned_long GROUP BY 1 HAVING c > 1 ORDER BY 1 NULLS FIRST, MAX(bytes_out);
+
+    status:s   |        min:ul     |       c:l
+---------------+-------------------+---------------
+Error          |4317649615355527138|9
+OK             |352442273299370793 |92
+;
+
+aggNotSpecifiedWithHavingOnLargeGroupByLargeInput
+SELECT MAX(bytes_in) AS max FROM logs_unsigned_long GROUP BY id HAVING AVG(bytes_in) > 1000 ORDER BY MIN(bytes_out) LIMIT 5;
+
+        max:ul
+--------------------
+1957665857956635540
+2408213296071189837
+9614024902524991937
+2706408999083639864
+17764691215469285192
+;
+
+multipleGroupingsAndOrderingByGroupsAndAggsLargeInput
+SELECT status, MIN(bytes_out + 1) AS min, COUNT(*) AS c, MAX(bytes_in) AS max FROM logs_unsigned_long GROUP BY status HAVING c > 1 ORDER BY status DESC NULLS LAST, MAX(bytes_in) ASC;
+
+    status:s   |       min:ul     |       c:l     |        max:ul
+---------------+------------------+---------------+--------------------
+OK             |352442273299370794|92             |18446744073709551615
+Error          |null              |9              |18345360876889252152
+;
+
+aggSumWithAliasWithColumnRepeatedWithOrderDescLargeInput
+SELECT status AS s, status, SUM(bytes_in) AS s3, SUM(bytes_in), SUM(bytes_in) AS s5 FROM logs_unsigned_long GROUP BY s ORDER BY s5 DESC;
+
+       s:s     |    status:s   |         s3:d       |   SUM(bytes_in):d  |         s5:d
+---------------+---------------+--------------------+--------------------+--------------------
+OK             |OK             |9.045581107970589E20|9.045581107970589E20|9.045581107970589E20
+Error          |Error          |3.671012330989688E19|3.671012330989688E19|3.671012330989688E19
+;
+
+aggregateFunctionsWithScalarsLargeInput
+
+SELECT MAX(CASE WHEN (bytes_out - 10) > 9223372036854775807 THEN (bytes_out + 12345) * 1.2 ELSE (bytes_out - 12345) * 2.7 END) AS max,
+MIN(CASE WHEN (bytes_out - 20) > 9223372036854775807 THEN (bytes_out * 1.2) - 1234 ELSE (bytes_out - 20) * 0.93 END) AS min,
+AVG((COS(bytes_out * 1.2) + 100) * (bytes_out / 5)) AS avg,
+SUM(bytes_out / 0.765 + sin((bytes_out + 12345) / 12)) AS sum,
+MAD(ABS(bytes_out / -0.813) / 2 + (12345 * (bytes_out % 10))) AS mad
+FROM logs_unsigned_long;
+
+        max:d       |         min:d       |        avg:d       |         sum:d       |         mad:d
+--------------------+---------------------+--------------------+---------------------+---------------------
+2.295063844173583E19|3.2777131416841485E17|1.820279192886511E20|1.1661879109640491E21|3.0865540937819786E18
+;
+
+
+aggregatesWithScalarsAndGroupByOrderByAggWithoutProjectionLargeInput
+SELECT status, MAX(bytes_in % 100) max FROM logs_unsigned_long GROUP BY status ORDER BY 2 DESC;
+
+    status:s   |      max:ul
+---------------+---------------
+OK             |99
+Error          |72
+;
+
+percentileAggregateFunctionsWithScalarsLargeInput
+SELECT PERCENTILE(CASE WHEN (bytes_out / 2) > 4E18 THEN (bytes_out + 12345) * 1.2 ELSE (bytes_out - 12345) * 2.7 END, 80) AS percentile,
+PERCENTILE_RANK(CASE WHEN (bytes_out - 20) > 4E18 THEN (bytes_out * 1.2) - 1234 ELSE (bytes_out - 20) * 0.93 END, 4E18) AS percentile_rank,
+status
+FROM logs_unsigned_long
+GROUP BY status
+ORDER BY status;
+
+     percentile      | percentile_rank  |    status
+---------------------+------------------+---------------
+1.8836190713044468E19|1.970336796004502 |Error
+1.7957483822449326E19|26.644793296251386|OK
+;
+
+extendedStatsAggregateFunctionsWithScalarsLargeInput
+SELECT STDDEV_POP(CASE WHEN (bytes_out / 2) > 10000 THEN (bytes_out + 12345) * 1.2 ELSE (bytes_out - 12345) * 2.7 END) AS stddev_pop,
+STDDEV_SAMP(CASE WHEN (bytes_out / 2) > 10000 THEN (bytes_out + 12345) * 1.2 ELSE (bytes_out - 12345) * 2.7 END) AS stddev_samp,
+SUM_OF_SQUARES(CASE WHEN (bytes_out - 20) > 50000 THEN (bytes_out * 1.2) - 1234 ELSE (bytes_out - 20) * 0.93 END) AS sum_of_squares,
+VAR_POP(CASE WHEN (bytes_out - 20) % 1000 > 200 THEN (bytes_out * 1.2) - 1234 ELSE (bytes_out - 20) * 0.93 END) AS var_pop,
+VAR_SAMP(CASE WHEN (bytes_out - 20) % 1000 > 200 THEN (bytes_out * 1.2) - 1234 ELSE (bytes_out - 20) * 0.93 END) AS var_samp,
+status
+FROM logs_unsigned_long
+GROUP BY status
+ORDER BY status;
+
+     stddev_pop      |     stddev_samp     |   sum_of_squares    |       var_pop       |      var_samp      |    status
+---------------------+---------------------+---------------------+---------------------+--------------------+---------------
+5.1879845114777528E18|5.6831522898475694E18|1.1113551085273773E39|2.9979868907159907E37|3.597584268859189E37|Error
+6.7116742512203459E18|6.7484508237837148E18|1.4906887301541836E40|4.304729535850427E37 |4.352034256024607E37|OK
+;
+
+groupByRoundAndTruncateWithTwoParamsLargeInput
+SELECT ROUND(SIN(TRUNCATE(bytes_in, 2)), 2) rst FROM logs_unsigned_long GROUP BY 1 ORDER BY 1 LIMIT 5;
+
+      rst:d
+---------------
+null
+-1.0
+-0.99
+-0.97
+-0.96
+;
+
+sumLiteralAndSumFieldWithComplexHavingLargeInput
+SELECT status, CAST(SUM(bytes_out) AS STRING), CAST(SUM(1) AS BIGINT), CAST(SUM(10) AS BIGINT), COUNT(*) FROM logs_unsigned_long GROUP BY status HAVING ((SUM(1) >= 0) AND (SUM(1) <= 50) AND (SUM(bytes_out) >= 250000) AND (SUM(bytes_out) <= 7E19)) ORDER BY status;
+
+    status:s   |CAST(SUM(bytes_out) AS STRING):s|CAST(SUM(1) AS BIGINT):l|CAST(SUM(10) AS BIGINT):l|   COUNT(*):l
+---------------+--------------------------------+------------------------+-------------------------+---------------
+Error          |6.2910783680124445E19           |9                       |90                       |9
+;
+
+aggGroupByOnScalarWithHavingLargeInput
+SELECT bytes_out + 1 AS e FROM logs_unsigned_long GROUP BY e HAVING AVG(bytes_out) BETWEEN 9E18 AND 1E19 ORDER BY e LIMIT 2;
+
+         e:ul
+-------------------
+9243820354371174975
+9336652471323200907
+;
+
+iifWithCompatibleIntervalsLargeInput
+SELECT "@timestamp" ts, "@timestamp" + IIF(bytes_out > 9E18, INTERVAL 2 HOURS, INTERVAL 2 DAYS) ts_plus, bytes_out FROM logs_unsigned_long ORDER BY bytes_out DESC LIMIT 10;
+
+           ts:ts        |        ts_plus:ts      |     bytes_out:ul
+------------------------+------------------------+--------------------
+2017-11-10T20:35:55.000Z|2017-11-12T20:35:55.000Z|null
+2017-11-10T19:51:38.000Z|2017-11-12T19:51:38.000Z|null
+2017-11-10T23:22:36.000Z|2017-11-12T23:22:36.000Z|null
+2017-11-10T00:27:03.000Z|2017-11-10T02:27:03.000Z|18223615477147360166
+2017-11-10T20:35:57.000Z|2017-11-10T22:35:57.000Z|18184253384683076090
+2017-11-10T21:15:40.000Z|2017-11-10T23:15:40.000Z|18107197698386620672
+2017-11-10T23:28:11.000Z|2017-11-11T01:28:11.000Z|17953153966527637143
+2017-11-10T21:28:34.000Z|2017-11-10T23:28:34.000Z|17857609920324506371
+2017-11-10T21:13:27.000Z|2017-11-10T23:13:27.000Z|17695317925249333633
+2017-11-10T20:36:15.000Z|2017-11-10T22:36:15.000Z|17281501450843634251
+;
+
+aggPercentileLargeInput
+SELECT status, PERCENTILE(bytes_in, 95) AS "95th" FROM logs_unsigned_long GROUP BY status;
+
+    status:s   |        95th:d
+---------------+---------------------
+Error          |1.8345360876889252E19
+OK             |1.8295214210102768E19
+;
+
+mathPowerNegativeLargeInput
+SELECT POWER(bytes_in, -1) m, id FROM logs_unsigned_long WHERE id < 10 ORDER BY id;
+
+          m:d         |      id:i
+----------------------+---------------
+2.2994842882726847E-19|1
+9.046030383433917E-20 |2
+1.3813254901492728E-19|3
+7.763447541524763E-20 |4
+1.5430743541977252E-19|5
+1.1302799995492255E-19|6
+5.530629782187966E-20 |7
+5.827842232431528E-20 |8
+5.459386906856704E-20 |9
+;
+
+averageWithOneValueAndOrderLargeInput
+SELECT * FROM (SELECT id, status, bytes_out FROM logs_unsigned_long) PIVOT (AVG(bytes_out + 1) FOR status IN ('OK', 'Error')) ORDER BY id DESC LIMIT 4;
+
+      id:i       |        'OK':d       |    'Error':d
+---------------+---------------------+---------------
+101            |null                 |null
+100            |1.5616395223975498E19|null
+99             |3.5244227329937082E17|null
+98             |5.4095497308894812E18|null
+;
+
+sumWithInnerAggregateSumOfSquaresRoundLargeInput
+SELECT * FROM logs_unsigned_long PIVOT (ROUND(SUM_OF_SQUARES(bytes_out + 1)/1E6, 2) FOR status IN ('Error', 'OK')) LIMIT 3;
+
+       @timestamp:ts    |   bytes_in:ul     |      id:i     |    'Error':d  |        'OK':d
+------------------------+-------------------+---------------+---------------+---------------------
+2017-11-10T00:00:22.000Z|0                  |80             |null           |1.2233739701097022E32
+2017-11-10T00:01:04.000Z|9636626466125797351|83             |null           |2.018903806214386E32
+2017-11-10T00:01:20.000Z|74330435873664882  |82             |null           |2.376773699133386E31
+;
+
+castWithGroupByLargeInput
+SELECT (bytes_in/1E12)::LONG::STRING in_tib FROM logs_unsigned_long WHERE bytes_in - 18E18 > 0 GROUP BY 1;
+
+      in_tib:s
+--------------------
+18081123
+18098466
+18317075
+18345361
+18446744
+;

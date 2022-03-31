@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -106,8 +106,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     /**
      * This method can be overridden to specify a different {@link Client} to be used for indexing than that used for the search/input
-     * part of the reindex. For example, a {@link org.elasticsearch.client.FilterClient} can be provided to transform bulk index requests
-     * before they are fully performed.
+     * part of the reindex. For example, a {@link org.elasticsearch.client.internal.FilterClient} can be provided to transform bulk index
+     * requests before they are fully performed.
      */
     protected Client getBulkClient() {
         return client;

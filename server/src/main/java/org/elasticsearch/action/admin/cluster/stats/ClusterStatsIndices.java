@@ -8,9 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -22,7 +19,9 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ClusterStatsIndices implements ToXContentFragment {
 
@@ -44,7 +43,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         AnalysisStats analysisStats,
         VersionStats versionStats
     ) {
-        ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
+        Map<String, ShardStats> countsPerIndex = new HashMap<>();
 
         this.docs = new DocsStats();
         this.store = new StoreStats();
@@ -79,8 +78,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         shards = new ShardStats();
         indexCount = countsPerIndex.size();
-        for (ObjectObjectCursor<String, ShardStats> indexCountsCursor : countsPerIndex) {
-            shards.addIndexShardCount(indexCountsCursor.value);
+        for (Map.Entry<String, ShardStats> indexCountsCursor : countsPerIndex.entrySet()) {
+            shards.addIndexShardCount(indexCountsCursor.getValue());
         }
 
         this.mappings = mappingStats;
@@ -313,7 +312,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
             static final String INDEX = "index";
         }
 
-        private void addIntMinMax(String field, int min, int max, double avg, XContentBuilder builder) throws IOException {
+        private static void addIntMinMax(String field, int min, int max, double avg, XContentBuilder builder) throws IOException {
             builder.startObject(field);
             builder.field(Fields.MIN, min);
             builder.field(Fields.MAX, max);
@@ -321,7 +320,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
             builder.endObject();
         }
 
-        private void addDoubleMinMax(String field, double min, double max, double avg, XContentBuilder builder) throws IOException {
+        private static void addDoubleMinMax(String field, double min, double max, double avg, XContentBuilder builder) throws IOException {
             builder.startObject(field);
             builder.field(Fields.MIN, min);
             builder.field(Fields.MAX, max);

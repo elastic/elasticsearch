@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.ml.inference;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -161,9 +161,15 @@ public class ModelAliasMetadata implements Metadata.Custom {
         public void writeTo(StreamOutput out) throws IOException {
             modelAliasesDiff.writeTo(out);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_13_0;
+        }
+
     }
 
-    public static class ModelAliasEntry extends AbstractDiffable<ModelAliasEntry> implements ToXContentObject {
+    public static class ModelAliasEntry implements SimpleDiffable<ModelAliasEntry>, ToXContentObject {
         private static final ConstructingObjectParser<ModelAliasEntry, Void> PARSER = new ConstructingObjectParser<>(
             "model_alias_metadata_alias_entry",
             // to protect BWC serialization
@@ -175,7 +181,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         }
 
         private static Diff<ModelAliasEntry> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(ModelAliasEntry::new, in);
+            return SimpleDiffable.readDiffFrom(ModelAliasEntry::new, in);
         }
 
         private static ModelAliasEntry fromXContent(XContentParser parser) {

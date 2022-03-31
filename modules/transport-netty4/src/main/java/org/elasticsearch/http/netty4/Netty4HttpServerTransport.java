@@ -50,6 +50,7 @@ import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.NettyByteBufSizer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -127,10 +128,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Property.NodeScope
     );
 
-    private final ByteSizeValue maxInitialLineLength;
-    private final ByteSizeValue maxHeaderSize;
-    private final ByteSizeValue maxChunkSize;
-
     private final int pipeliningMaxEvents;
 
     private final SharedGroupFactory sharedGroupFactory;
@@ -157,9 +154,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 
-        this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
-        this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
-        this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
@@ -172,9 +166,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         logger.debug(
             "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], "
                 + "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
-            maxChunkSize,
-            maxHeaderSize,
-            maxInitialLineLength,
+            SETTING_HTTP_MAX_CHUNK_SIZE.get(settings),
+            SETTING_HTTP_MAX_HEADER_SIZE.get(settings),
+            SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings),
             maxContentLength,
             receivePredictor,
             maxCompositeBufferComponents,
@@ -203,7 +197,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
             serverBootstrap.childHandler(configureServerChannelHandler());
-            serverBootstrap.handler(new ServerChannelExceptionHandler(this));
+            serverBootstrap.handler(ServerChannelExceptionHandler.INSTANCE);
 
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
@@ -297,23 +291,20 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
-        private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
-        private final Netty4HttpResponseCreator responseCreator;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
-            this.requestCreator = new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
-            this.responseCreator = new Netty4HttpResponseCreator();
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
+            ch.pipeline().addLast("chunked_writer", new Netty4WriteThrottlingHandler());
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
@@ -331,8 +322,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCompression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
-            ch.pipeline().addLast("request_creator", requestCreator);
-            ch.pipeline().addLast("response_creator", responseCreator);
+            ch.pipeline().addLast("request_creator", Netty4HttpRequestCreator.INSTANCE);
+            ch.pipeline().addLast("response_creator", Netty4HttpResponseCreator.INSTANCE);
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);
@@ -348,20 +339,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     @ChannelHandler.Sharable
     private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
-        private final Netty4HttpServerTransport transport;
+        static final ServerChannelExceptionHandler INSTANCE = new ServerChannelExceptionHandler();
 
-        private ServerChannelExceptionHandler(Netty4HttpServerTransport transport) {
-            this.transport = transport;
-        }
+        private ServerChannelExceptionHandler() {}
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
-                transport.onServerException(httpServerChannel, new Exception(cause));
+                AbstractHttpServerTransport.onServerException(httpServerChannel, new Exception(cause));
             } else {
-                transport.onServerException(httpServerChannel, (Exception) cause);
+                AbstractHttpServerTransport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
     }

@@ -85,7 +85,7 @@ final class ServerTransportFilter {
          requests from all the nodes are attached with a user (either a serialize
          user an authentication token
          */
-        String securityAction = actionMapper.action(action, request);
+        String securityAction = SecurityActionMapper.action(action, request);
 
         TransportChannel unwrappedChannel = transportChannel;
         if (unwrappedChannel instanceof TaskTransportChannel) {
@@ -105,10 +105,10 @@ final class ServerTransportFilter {
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
+                    securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
-                    }, version);
+                    });
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }

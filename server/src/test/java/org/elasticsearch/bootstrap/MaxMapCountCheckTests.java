@@ -210,8 +210,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         public void match(final LogEvent event) {
             if (event.getLevel().equals(level)
                 && event.getLoggerName().equals(loggerName)
-                && event.getMessage() instanceof ParameterizedMessage) {
-                final ParameterizedMessage message = (ParameterizedMessage) event.getMessage();
+                && event.getMessage()instanceof final ParameterizedMessage message) {
                 saw = message.getFormat().equals(messagePattern)
                     && Arrays.deepEquals(arguments, message.getParameters())
                     && throwablePredicate.test(event.getThrown());
@@ -230,13 +229,16 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         final BufferedReader reader = mock(BufferedReader.class);
         when(reader.readLine()).thenReturn(rawProcSysVmMaxMapCount);
         final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
-        assertThat(check.readProcSysVmMaxMapCount(reader), equalTo(rawProcSysVmMaxMapCount));
+        assertThat(BootstrapChecks.MaxMapCountCheck.readProcSysVmMaxMapCount(reader), equalTo(rawProcSysVmMaxMapCount));
     }
 
     public void testMaxMapCountCheckParse() {
         final long procSysVmMaxMapCount = randomIntBetween(1, Integer.MAX_VALUE);
         final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
-        assertThat(check.parseProcSysVmMaxMapCount(Long.toString(procSysVmMaxMapCount)), equalTo(procSysVmMaxMapCount));
+        assertThat(
+            BootstrapChecks.MaxMapCountCheck.parseProcSysVmMaxMapCount(Long.toString(procSysVmMaxMapCount)),
+            equalTo(procSysVmMaxMapCount)
+        );
     }
 
 }

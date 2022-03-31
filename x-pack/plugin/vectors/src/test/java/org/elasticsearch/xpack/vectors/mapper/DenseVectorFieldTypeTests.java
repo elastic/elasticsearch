@@ -34,6 +34,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertNotEquals(indexed, ft.hasDocValues());
     }
 
+    public void testIsIndexed() {
+        DenseVectorFieldType ft = createFieldType();
+        assertEquals(indexed, ft.isIndexed());
+    }
+
     public void testIsSearchable() {
         DenseVectorFieldType ft = createFieldType();
         assertEquals(indexed, ft.isSearchable());
@@ -71,9 +76,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10)
+            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
         );
-        assertThat(e.getMessage(), containsString("[knn] queries are not supported if [index] is disabled"));
+        assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",
@@ -83,7 +88,18 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.dot_product,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10));
+        e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null));
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
+
+        DenseVectorFieldType cosineField = new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            3,
+            true,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
+        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 }

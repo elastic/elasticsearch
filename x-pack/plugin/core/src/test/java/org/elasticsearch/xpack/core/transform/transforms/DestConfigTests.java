@@ -55,10 +55,10 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     public void testFailOnEmptyIndex() throws IOException {
-        boolean lenient = randomBoolean();
+        boolean lenient2 = randomBoolean();
         String json = "{ \"index\": \"\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            DestConfig dest = DestConfig.fromXContent(parser, lenient);
+            DestConfig dest = DestConfig.fromXContent(parser, lenient2);
             assertThat(dest.getIndex(), is(emptyString()));
             ValidationException validationException = dest.validate(null);
             assertThat(validationException, is(notNullValue()));

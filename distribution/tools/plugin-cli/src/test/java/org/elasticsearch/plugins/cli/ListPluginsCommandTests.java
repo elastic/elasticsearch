@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
@@ -258,11 +258,17 @@ public class ListPluginsCommandTests extends ESTestCase {
 
         MockTerminal terminal = listPlugins(home);
         String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0.0 but version " + Version.CURRENT + " is required";
-        assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
+        assertEquals("""
+            fake_plugin1
+            fake_plugin2
+            """, terminal.getOutput());
         assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
 
         String[] params = { "-s" };
         terminal = listPlugins(home, params);
-        assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
+        assertEquals("""
+            fake_plugin1
+            fake_plugin2
+            """, terminal.getOutput());
     }
 }

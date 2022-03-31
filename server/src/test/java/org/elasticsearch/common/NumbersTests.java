@@ -16,20 +16,21 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class NumbersTests extends ESTestCase {
 
     @Timeout(millis = 10000)
     public void testToLong() {
-        assertEquals(3L, Numbers.toLong("3", false));
-        assertEquals(3L, Numbers.toLong("3.1", true));
-        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.00", false));
-        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.00", false));
-        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.00", true));
-        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.00", true));
-        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.99", true));
-        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.99", true));
+        assertThat(Numbers.toLong("3", false), equalTo(3L));
+        assertThat(Numbers.toLong("3.1", true), equalTo(3L));
+        assertThat(Numbers.toLong("9223372036854775807.00", false), equalTo(9223372036854775807L));
+        assertThat(Numbers.toLong("-9223372036854775808.00", false), equalTo(-9223372036854775808L));
+        assertThat(Numbers.toLong("9223372036854775807.00", true), equalTo(9223372036854775807L));
+        assertThat(Numbers.toLong("-9223372036854775808.00", true), equalTo(-9223372036854775808L));
+        assertThat(Numbers.toLong("9223372036854775807.99", true), equalTo(9223372036854775807L));
+        assertThat(Numbers.toLong("-9223372036854775808.99", true), equalTo(-9223372036854775808L));
 
         assertEquals(
             "Value [9223372036854775808] is out of range for a long",
@@ -236,7 +237,8 @@ public class NumbersTests extends ESTestCase {
         assertFalse(Numbers.isPositiveNumeric("test"));
         assertTrue(Numbers.isPositiveNumeric("9223372036854775807000000"));
         assertEquals(
-            "Cannot invoke \"String.length()\" because \"string\" is null",
+            """
+                Cannot invoke "String.length()" because "string" is null""",
             expectThrows(NullPointerException.class, () -> Numbers.isPositiveNumeric(null)).getMessage()
         );
     }

@@ -9,7 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
@@ -71,7 +71,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext() == null ? FetchSourceContext.FETCH_SOURCE : request.fetchSourceContext();
-        request.fetchSourceContext(new FetchSourceContext(fetch, context.includes(), context.excludes()));
+        request.fetchSourceContext(FetchSourceContext.of(fetch, context.includes(), context.excludes()));
         return this;
     }
 
@@ -98,7 +98,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext context = request.fetchSourceContext() == null ? FetchSourceContext.FETCH_SOURCE : request.fetchSourceContext();
-        request.fetchSourceContext(new FetchSourceContext(context.fetchSource(), includes, excludes));
+        request.fetchSourceContext(FetchSourceContext.of(context.fetchSource(), includes, excludes));
         return this;
     }
 

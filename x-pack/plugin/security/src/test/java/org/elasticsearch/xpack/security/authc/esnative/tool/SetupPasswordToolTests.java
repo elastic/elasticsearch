@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -213,7 +214,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient)
             .execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), anyCheckedSupplier(), anyCheckedFunction());
-        Map<String, String> capturedPasswords = new HashMap<>(usersInSetOrder.size());
+        Map<String, String> capturedPasswords = Maps.newMapWithExpectedSize(usersInSetOrder.size());
         for (String user : usersInSetOrder) {
             URL urlWithRoute = passwordUrl(url, user);
             @SuppressWarnings({ "unchecked", "rawtypes" })

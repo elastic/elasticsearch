@@ -1,0 +1,3301 @@
+{
+  "index_patterns": [".monitoring-es-${xpack.stack.monitoring.template.version}-*"],
+  "version": ${xpack.stack.monitoring.template.release.version},
+  "template": {
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "elasticsearch": {
+          "properties": {
+            "cluster": {
+              "properties": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "id": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "state": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "stats": {
+                  "properties": {
+                    "license": {
+                      "properties": {
+                        "expiry_date_in_millis": {
+                          "type": "long"
+                        },
+                        "type": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "status": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "indices": {
+                      "properties": {
+                        "shards": {
+                          "properties": {
+                            "primaries": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "long"
+                        },
+                        "docs": {
+                          "properties": {
+                            "total": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "fielddata": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "store": {
+                          "properties": {
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "stack": {
+                      "properties": {
+                        "xpack": {
+                          "properties": {
+                            "ccr": {
+                              "properties": {
+                                "available": {
+                                  "type": "boolean"
+                                },
+                                "enabled": {
+                                  "type": "boolean"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "apm": {
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "nodes": {
+                      "properties": {
+                        "jvm": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "heap": {
+                                  "properties": {
+                                    "max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "used": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "max_uptime": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "data": {
+                          "type": "long"
+                        },
+                        "stats": {
+                          "properties": {
+                            "data": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "count": {
+                          "type": "long"
+                        },
+                        "fs": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "available": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "master": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "state": {
+                      "properties": {
+                        "nodes_hash": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "master_node": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "state_uuid": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "version": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "version": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "status": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "pending_task": {
+                  "properties": {
+                    "time_in_queue": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "source": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "priority": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "insert_order": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "mlockall": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "master": {
+                  "type": "boolean"
+                },
+                "jvm": {
+                  "properties": {
+                    "memory": {
+                      "properties": {
+                        "heap": {
+                          "properties": {
+                            "init": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "max": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "nonheap": {
+                          "properties": {
+                            "init": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "max": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "version": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "process": {
+                  "properties": {
+                    "mlockall": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "version": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "stats": {
+                  "properties": {
+                    "jvm": {
+                      "properties": {
+                        "mem": {
+                          "properties": {
+                            "pools": {
+                              "properties": {
+                                "young": {
+                                  "properties": {
+                                    "max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "peak": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "peak_max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "used": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "old": {
+                                  "properties": {
+                                    "max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "peak": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "peak_max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "used": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "survivor": {
+                                  "properties": {
+                                    "max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "peak": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "peak_max": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "used": {
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "heap": {
+                              "properties": {
+                                "max": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "used": {
+                                  "properties": {
+                                    "pct": {
+                                      "type": "double"
+                                    },
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "gc": {
+                          "properties": {
+                            "collectors": {
+                              "properties": {
+                                "young": {
+                                  "properties": {
+                                    "collection": {
+                                      "properties": {
+                                        "ms": {
+                                          "type": "long"
+                                        },
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "old": {
+                                  "properties": {
+                                    "collection": {
+                                      "properties": {
+                                        "ms": {
+                                          "type": "long"
+                                        },
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "indices": {
+                      "properties": {
+                        "search": {
+                          "properties": {
+                            "query_total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "query_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "query_cache": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "docs": {
+                          "properties": {
+                            "deleted": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "fielddata": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "indexing": {
+                          "properties": {
+                            "index_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "index_total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "throttle_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "store": {
+                          "properties": {
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "request_cache": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "segments": {
+                          "properties": {
+                            "version_map": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "norms": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "terms": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "stored_fields": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "index_writer": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "count": {
+                              "type": "long"
+                            },
+                            "fixed_bit_set": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "term_vectors": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "doc_values": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "points": {
+                              "properties": {
+                                "memory": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "process": {
+                      "properties": {
+                        "cpu": {
+                          "properties": {
+                            "pct": {
+                              "type": "double"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "os": {
+                      "properties": {
+                        "cpu": {
+                          "properties": {
+                            "load_avg": {
+                              "properties": {
+                                "1m": {
+                                  "type": "half_float"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "cgroup": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "control_group": {
+                                  "ignore_above": 1024,
+                                  "type": "keyword"
+                                },
+                                "usage": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "limit": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "cpu": {
+                              "properties": {
+                                "cfs": {
+                                  "properties": {
+                                    "quota": {
+                                      "properties": {
+                                        "us": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "stat": {
+                                  "properties": {
+                                    "elapsed_periods": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "times_throttled": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "time_throttled": {
+                                      "properties": {
+                                        "ns": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "cpuacct": {
+                              "properties": {
+                                "usage": {
+                                  "properties": {
+                                    "ns": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "thread_pool": {
+                      "properties": {
+                        "search": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "get": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "index": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "bulk": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "write": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "fs": {
+                      "properties": {
+                        "summary": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "available": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "free": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "io_stats": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "operations": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "read": {
+                                  "properties": {
+                                    "operations": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "write": {
+                                  "properties": {
+                                    "operations": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "properties": {
+                            "total_in_bytes": {
+                              "type": "long"
+                            },
+                            "available_in_bytes": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "ml": {
+              "properties": {
+                "job": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "invalid_date": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "data_counts": {
+                      "properties": {
+                        "invalid_date_count": {
+                          "type": "long"
+                        },
+                        "processed_record_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "state": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "forecasts_stats": {
+                      "properties": {
+                        "total": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "model_size": {
+                      "properties": {
+                        "memory_status": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "enrich": {
+              "properties": {
+                "executed_searches": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "remote_requests": {
+                  "properties": {
+                    "current": {
+                      "type": "long"
+                    },
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "executing_policy": {
+                  "properties": {
+                    "task": {
+                      "properties": {
+                        "task": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "parent_task_id": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "action": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "id": {
+                          "type": "long"
+                        },
+                        "time": {
+                          "properties": {
+                            "running": {
+                              "properties": {
+                                "nano": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "start": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "cancellable": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "queue": {
+                  "properties": {
+                    "size": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            },
+            "index": {
+              "properties": {
+                "shards": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "primaries": {
+                  "properties": {
+                    "search": {
+                      "properties": {
+                        "query_total": {
+                          "type": "long"
+                        },
+                        "query_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "query_cache": {
+                      "properties": {
+                        "miss_count": {
+                          "type": "long"
+                        },
+                        "memory_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "hit_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "docs": {
+                      "properties": {
+                        "deleted": {
+                          "type": "long"
+                        },
+                        "count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "indexing": {
+                      "properties": {
+                        "throttle_time_in_millis": {
+                          "type": "long"
+                        },
+                        "index_time_in_millis": {
+                          "type": "long"
+                        },
+                        "index_total": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "refresh": {
+                      "properties": {
+                        "external_total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "request_cache": {
+                      "properties": {
+                        "miss_count": {
+                          "type": "long"
+                        },
+                        "memory_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "evictions": {
+                          "type": "long"
+                        },
+                        "hit_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "store": {
+                      "properties": {
+                        "size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "segments": {
+                      "properties": {
+                        "version_map_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "norms_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "count": {
+                          "type": "long"
+                        },
+                        "term_vectors_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "points_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "index_writer_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "terms_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "doc_values_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "stored_fields_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "fixed_bit_set_memory_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "merges": {
+                      "properties": {
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "search": {
+                      "properties": {
+                        "query_total": {
+                          "type": "long"
+                        },
+                        "query_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "query_cache": {
+                      "properties": {
+                        "miss_count": {
+                          "type": "long"
+                        },
+                        "memory_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "evictions": {
+                          "type": "long"
+                        },
+                        "hit_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "docs": {
+                      "properties": {
+                        "deleted": {
+                          "type": "long"
+                        },
+                        "count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "fielddata": {
+                      "properties": {
+                        "memory_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "evictions": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "indexing": {
+                      "properties": {
+                        "throttle_time_in_millis": {
+                          "type": "long"
+                        },
+                        "index_time_in_millis": {
+                          "type": "long"
+                        },
+                        "index_total": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "refresh": {
+                      "properties": {
+                        "external_total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "store": {
+                      "properties": {
+                        "size": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "request_cache": {
+                      "properties": {
+                        "miss_count": {
+                          "type": "long"
+                        },
+                        "memory_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "evictions": {
+                          "type": "long"
+                        },
+                        "hit_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "merges": {
+                      "properties": {
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "segments": {
+                      "properties": {
+                        "version_map_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "norms_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "memory": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "count": {
+                          "type": "long"
+                        },
+                        "term_vectors_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "points_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "index_writer_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "terms_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "doc_values_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "stored_fields_memory_in_bytes": {
+                          "type": "long"
+                        },
+                        "fixed_bit_set_memory_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "created": {
+                  "type": "long"
+                },
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "uuid": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "status": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "recovery": {
+                  "properties": {
+                    "stop_time": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "translog": {
+                      "properties": {
+                        "total_on_start": {
+                          "type": "long"
+                        },
+                        "total": {
+                          "type": "long"
+                        },
+                        "percent": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "verify_index": {
+                      "properties": {
+                        "total_time": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "check_index_time": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "index": {
+                      "properties": {
+                        "size": {
+                          "properties": {
+                            "total_in_bytes": {
+                              "type": "long"
+                            },
+                            "reused_in_bytes": {
+                              "type": "long"
+                            },
+                            "recovered_in_bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "files": {
+                          "properties": {
+                            "recovered": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            },
+                            "percent": {
+                              "ignore_above": 1024,
+                              "type": "keyword"
+                            },
+                            "reused": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "properties": {
+                        "transport_address": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "host": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "name": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "id": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "type": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "target": {
+                      "properties": {
+                        "transport_address": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "host": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "name": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        },
+                        "id": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "start_time": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "stage": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "id": {
+                      "type": "long"
+                    },
+                    "total_time": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "primary": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "summary": {
+                  "properties": {
+                    "primaries": {
+                      "properties": {
+                        "search": {
+                          "properties": {
+                            "query": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "docs": {
+                          "properties": {
+                            "deleted": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "indexing": {
+                          "properties": {
+                            "index": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "store": {
+                          "properties": {
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "bulk": {
+                          "properties": {
+                            "operations": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "time": {
+                              "properties": {
+                                "avg": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    },
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "count": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "segments": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "properties": {
+                        "search": {
+                          "properties": {
+                            "query": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "docs": {
+                          "properties": {
+                            "deleted": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "indexing": {
+                          "properties": {
+                            "index": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "is_throttled": {
+                              "type": "boolean"
+                            },
+                            "throttle_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "store": {
+                          "properties": {
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "bulk": {
+                          "properties": {
+                            "operations": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "time": {
+                              "properties": {
+                                "avg": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    },
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "segments": {
+                          "properties": {
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "shard": {
+              "properties": {
+                "number": {
+                  "type": "long"
+                },
+                "source_node": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "uuid": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "relocating_node": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "state": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "primary": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "ccr": {
+              "properties": {
+                "leader": {
+                  "properties": {
+                    "index": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "max_seq_no": {
+                      "type": "long"
+                    },
+                    "global_checkpoint": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "follower": {
+                  "properties": {
+                    "operations": {
+                      "properties": {
+                        "read": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "time_since_last_read": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "index": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "settings_version": {
+                      "type": "long"
+                    },
+                    "shard": {
+                      "properties": {
+                        "number": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "max_seq_no": {
+                      "type": "long"
+                    },
+                    "mapping_version": {
+                      "type": "long"
+                    },
+                    "aliases_version": {
+                      "type": "long"
+                    },
+                    "operations_written": {
+                      "type": "long"
+                    },
+                    "global_checkpoint": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "remote_cluster": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "read_exceptions": {
+                  "type": "nested"
+                },
+                "shard_id": {
+                  "type": "long"
+                },
+                "bytes_read": {
+                  "type": "long"
+                },
+                "requests": {
+                  "properties": {
+                    "outstanding": {
+                      "properties": {
+                        "read": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "write": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "failed": {
+                      "properties": {
+                        "read": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "write": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "successful": {
+                      "properties": {
+                        "read": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "write": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "auto_follow": {
+                  "properties": {
+                    "success": {
+                      "properties": {
+                        "follow_indices": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "failed": {
+                      "properties": {
+                        "follow_indices": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "remote_cluster_state_requests": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "total_time": {
+                  "properties": {
+                    "read": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        },
+                        "remote_exec": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "write": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "last_requested_seq_no": {
+                  "type": "long"
+                },
+                "write_buffer": {
+                  "properties": {
+                    "size": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "operation": {
+                      "properties": {
+                        "count": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "cluster_uuid": {
+          "path": "elasticsearch.cluster.id",
+          "type": "alias"
+        },
+        "source_node": {
+          "properties": {
+            "name": {
+              "path": "elasticsearch.node.name",
+              "type": "alias"
+            },
+            "uuid": {
+              "path": "elasticsearch.node.id",
+              "type": "alias"
+            }
+          }
+        },
+        "timestamp": {
+          "path": "@timestamp",
+          "type": "alias"
+        },
+        "job_stats": {
+          "properties": {
+            "job_id": {
+              "path": "elasticsearch.ml.job.id",
+              "type": "alias"
+            },
+            "forecasts_stats": {
+              "properties": {
+                "total": {
+                  "path": "elasticsearch.ml.job.forecasts_stats.total",
+                  "type": "alias"
+                }
+              }
+            }
+          }
+        },
+        "ecs": {
+          "properties": {
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "service": {
+          "properties": {
+            "address": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "name": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "type": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "ephemeral_id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "origin": {
+              "properties": {
+                "address": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "environment": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "ephemeral_id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "node": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "state": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "state": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "target": {
+              "properties": {
+                "address": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "environment": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "ephemeral_id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "node": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "state": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "version": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "license": {
+          "properties": {
+            "type": {
+              "path": "elasticsearch.cluster.stats.license.type",
+              "type": "alias"
+            },
+            "status": {
+              "path": "elasticsearch.cluster.stats.license.status",
+              "type": "alias"
+            }
+          }
+        },
+        "cluster_state": {
+          "properties": {
+            "nodes_hash": {
+              "path": "elasticsearch.cluster.stats.state.nodes_hash",
+              "type": "alias"
+            },
+            "master_node": {
+              "path": "elasticsearch.cluster.stats.state.master_node",
+              "type": "alias"
+            },
+            "state_uuid": {
+              "path": "elasticsearch.cluster.stats.state.state_uuid",
+              "type": "alias"
+            },
+            "version": {
+              "path": "elasticsearch.cluster.stats.state.version",
+              "type": "alias"
+            },
+            "status": {
+              "path": "elasticsearch.cluster.stats.status",
+              "type": "alias"
+            }
+          }
+        },
+        "cluster_stats": {
+          "properties": {
+            "indices": {
+              "properties": {
+                "shards": {
+                  "properties": {
+                    "total": {
+                      "path": "elasticsearch.cluster.stats.indices.shards.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "count": {
+                  "path": "elasticsearch.cluster.stats.indices.total",
+                  "type": "alias"
+                }
+              }
+            },
+            "nodes": {
+              "properties": {
+                "jvm": {
+                  "properties": {
+                    "max_uptime_in_millis": {
+                      "path": "elasticsearch.cluster.stats.nodes.jvm.max_uptime.ms",
+                      "type": "alias"
+                    },
+                    "mem": {
+                      "properties": {
+                        "heap_max_in_bytes": {
+                          "path": "elasticsearch.cluster.stats.nodes.jvm.memory.heap.max.bytes",
+                          "type": "alias"
+                        },
+                        "heap_used_in_bytes": {
+                          "path": "elasticsearch.cluster.stats.nodes.jvm.memory.heap.used.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "count": {
+                  "properties": {
+                    "total": {
+                      "path": "elasticsearch.cluster.stats.nodes.count",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "stack_stats": {
+          "properties": {
+            "xpack": {
+              "properties": {
+                "ccr": {
+                  "properties": {
+                    "available": {
+                      "path": "elasticsearch.cluster.stats.stack.xpack.ccr.available",
+                      "type": "alias"
+                    },
+                    "enabled": {
+                      "path": "elasticsearch.cluster.stats.stack.xpack.ccr.enabled",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "apm": {
+              "properties": {
+                "found": {
+                  "path": "elasticsearch.cluster.stats.stack.apm.found",
+                  "type": "alias"
+                }
+              }
+            }
+          }
+        },
+        "index_recovery": {
+          "properties": {
+            "shards": {
+              "properties": {
+                "stop_time_in_millis": {
+                  "path": "elasticsearch.index.recovery.stop_time.ms",
+                  "type": "alias"
+                },
+                "start_time_in_millis": {
+                  "path": "elasticsearch.index.recovery.start_time.ms",
+                  "type": "alias"
+                }
+              }
+            }
+          }
+        },
+        "indices_stats": {
+          "properties": {
+            "_all": {
+              "properties": {
+                "primaries": {
+                  "properties": {
+                    "indexing": {
+                      "properties": {
+                        "index_time_in_millis": {
+                          "path": "elasticsearch.index.summary.primaries.indexing.index.time.ms",
+                          "type": "alias"
+                        },
+                        "index_total": {
+                          "path": "elasticsearch.index.summary.primaries.indexing.index.count",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "search": {
+                      "properties": {
+                        "query_total": {
+                          "path": "elasticsearch.index.summary.total.search.query.count",
+                          "type": "alias"
+                        },
+                        "query_time_in_millis": {
+                          "path": "elasticsearch.index.summary.total.search.query.time.ms",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "indexing": {
+                      "properties": {
+                        "index_total": {
+                          "path": "elasticsearch.index.summary.total.indexing.index.count",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "shard": {
+          "properties": {
+            "node": {
+              "path": "elasticsearch.node.id",
+              "type": "alias"
+            },
+            "index": {
+              "path": "elasticsearch.index.name",
+              "type": "alias"
+            },
+            "state": {
+              "path": "elasticsearch.shard.state",
+              "type": "alias"
+            },
+            "shard": {
+              "path": "elasticsearch.shard.number",
+              "type": "alias"
+            },
+            "primary": {
+              "path": "elasticsearch.shard.primary",
+              "type": "alias"
+            }
+          }
+        },
+        "version": {
+          "type": "long"
+        },
+        "ccr_auto_follow_stats": {
+          "properties": {
+            "number_of_failed_remote_cluster_state_requests": {
+              "path": "elasticsearch.ccr.auto_follow.failed.remote_cluster_state_requests.count",
+              "type": "alias"
+            },
+            "follower": {
+              "properties": {
+                "failed_read_requests": {
+                  "path": "elasticsearch.ccr.requests.failed.read.count",
+                  "type": "alias"
+                }
+              }
+            },
+            "number_of_failed_follow_indices": {
+              "path": "elasticsearch.ccr.auto_follow.failed.follow_indices.count",
+              "type": "alias"
+            },
+            "number_of_successful_follow_indices": {
+              "path": "elasticsearch.ccr.auto_follow.success.follow_indices.count",
+              "type": "alias"
+            }
+          }
+        },
+        "ccr_stats": {
+          "properties": {
+            "write_buffer_size_in_bytes": {
+              "path": "elasticsearch.ccr.write_buffer.size.bytes",
+              "type": "alias"
+            },
+            "leader_global_checkpoint": {
+              "path": "elasticsearch.ccr.leader.global_checkpoint",
+              "type": "alias"
+            },
+            "follower_index": {
+              "path": "elasticsearch.ccr.follower.index",
+              "type": "alias"
+            },
+            "leader_max_seq_no": {
+              "path": "elasticsearch.ccr.leader.max_seq_no",
+              "type": "alias"
+            },
+            "last_requested_seq_no": {
+              "path": "elasticsearch.ccr.last_requested_seq_no",
+              "type": "alias"
+            },
+            "follower_settings_version": {
+              "path": "elasticsearch.ccr.follower.settings_version",
+              "type": "alias"
+            },
+            "successful_write_requests": {
+              "path": "elasticsearch.ccr.requests.successful.write.count",
+              "type": "alias"
+            },
+            "remote_cluster": {
+              "path": "elasticsearch.ccr.remote_cluster",
+              "type": "alias"
+            },
+            "outstanding_write_requests": {
+              "path": "elasticsearch.ccr.requests.outstanding.write.count",
+              "type": "alias"
+            },
+            "total_read_time_millis": {
+              "path": "elasticsearch.ccr.total_time.read.ms",
+              "type": "alias"
+            },
+            "outstanding_read_requests": {
+              "path": "elasticsearch.ccr.requests.outstanding.read.count",
+              "type": "alias"
+            },
+            "total_write_time_millis": {
+              "path": "elasticsearch.ccr.total_time.write.ms",
+              "type": "alias"
+            },
+            "failed_write_requests": {
+              "path": "elasticsearch.ccr.requests.failed.write.count",
+              "type": "alias"
+            },
+            "failed_read_requests": {
+              "path": "elasticsearch.ccr.requests.failed.read.count",
+              "type": "alias"
+            },
+            "bytes_read": {
+              "path": "elasticsearch.ccr.bytes_read",
+              "type": "alias"
+            },
+            "leader_index": {
+              "path": "elasticsearch.ccr.leader.index",
+              "type": "alias"
+            },
+            "follower_max_seq_no": {
+              "path": "elasticsearch.ccr.follower.max_seq_no",
+              "type": "alias"
+            },
+            "operations_written": {
+              "path": "elasticsearch.ccr.follower.operations_written",
+              "type": "alias"
+            },
+            "write_buffer_operation_count": {
+              "path": "elasticsearch.ccr.write_buffer.operation.count",
+              "type": "alias"
+            },
+            "successful_read_requests": {
+              "path": "elasticsearch.ccr.requests.successful.read.count",
+              "type": "alias"
+            },
+            "shard_id": {
+              "path": "elasticsearch.ccr.follower.shard.number",
+              "type": "alias"
+            },
+            "follower_mapping_version": {
+              "path": "elasticsearch.ccr.follower.mapping_version",
+              "type": "alias"
+            },
+            "follower_aliases_version": {
+              "path": "elasticsearch.ccr.follower.aliases_version",
+              "type": "alias"
+            },
+            "follower_global_checkpoint": {
+              "path": "elasticsearch.ccr.follower.global_checkpoint",
+              "type": "alias"
+            },
+            "total_read_remote_exec_time_millis": {
+              "path": "elasticsearch.ccr.total_time.read.remote_exec.ms",
+              "type": "alias"
+            },
+            "operations_read": {
+              "path": "elasticsearch.ccr.follower.operations.read.count",
+              "type": "alias"
+            }
+          }
+        },
+        "node_stats": {
+          "properties": {
+            "jvm": {
+              "properties": {
+                "mem": {
+                  "properties": {
+                    "heap_used_percent": {
+                      "path": "elasticsearch.node.stats.jvm.mem.heap.used.pct",
+                      "type": "alias"
+                    },
+                    "heap_max_in_bytes": {
+                      "path": "elasticsearch.node.stats.jvm.mem.heap.max.bytes",
+                      "type": "alias"
+                    },
+                    "heap_used_in_bytes": {
+                      "path": "elasticsearch.node.stats.jvm.mem.heap.used.bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "gc": {
+                  "properties": {
+                    "collectors": {
+                      "properties": {
+                        "young": {
+                          "properties": {
+                            "collection_count": {
+                              "path": "elasticsearch.node.stats.jvm.gc.collectors.young.collection.count",
+                              "type": "alias"
+                            },
+                            "collection_time_in_millis": {
+                              "path": "elasticsearch.node.stats.jvm.gc.collectors.young.collection.ms",
+                              "type": "alias"
+                            }
+                          }
+                        },
+                        "old": {
+                          "properties": {
+                            "collection_count": {
+                              "path": "elasticsearch.node.stats.jvm.gc.collectors.old.collection.count",
+                              "type": "alias"
+                            },
+                            "collection_time_in_millis": {
+                              "path": "elasticsearch.node.stats.jvm.gc.collectors.old.collection.ms",
+                              "type": "alias"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "indices": {
+              "properties": {
+                "search": {
+                  "properties": {
+                    "query_total": {
+                      "path": "elasticsearch.node.stats.indices.search.query_total.count",
+                      "type": "alias"
+                    },
+                    "query_time_in_millis": {
+                      "path": "elasticsearch.node.stats.indices.search.query_time.ms",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "query_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.query_cache.memory.bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "docs": {
+                  "properties": {
+                    "count": {
+                      "path": "elasticsearch.node.stats.indices.docs.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "throttle_time_in_millis": {
+                      "path": "elasticsearch.node.stats.indices.indexing.throttle_time.ms",
+                      "type": "alias"
+                    },
+                    "index_time_in_millis": {
+                      "path": "elasticsearch.node.stats.indices.indexing.index_time.ms",
+                      "type": "alias"
+                    },
+                    "index_total": {
+                      "path": "elasticsearch.node.stats.indices.indexing.index_total.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "fielddata": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.fielddata.memory.bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size": {
+                      "properties": {
+                        "bytes": {
+                          "path": "elasticsearch.node.stats.indices.store.size.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "size_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.store.size.bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "request_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.request_cache.memory.bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "version_map_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.version_map.memory.bytes",
+                      "type": "alias"
+                    },
+                    "norms_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.norms.memory.bytes",
+                      "type": "alias"
+                    },
+                    "count": {
+                      "path": "elasticsearch.node.stats.indices.segments.count",
+                      "type": "alias"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.term_vectors.memory.bytes",
+                      "type": "alias"
+                    },
+                    "points_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.points.memory.bytes",
+                      "type": "alias"
+                    },
+                    "index_writer_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.index_writer.memory.bytes",
+                      "type": "alias"
+                    },
+                    "memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.memory.bytes",
+                      "type": "alias"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.doc_values.memory.bytes",
+                      "type": "alias"
+                    },
+                    "terms_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.terms.memory.bytes",
+                      "type": "alias"
+                    },
+                    "fixed_bit_set_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.fixed_bit_set.memory.bytes",
+                      "type": "alias"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "path": "elasticsearch.node.stats.indices.segments.stored_fields.memory.bytes",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "process": {
+              "properties": {
+                "cpu": {
+                  "properties": {
+                    "percent": {
+                      "path": "elasticsearch.node.stats.process.cpu.pct",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "os": {
+              "properties": {
+                "cpu": {
+                  "properties": {
+                    "load_average": {
+                      "properties": {
+                        "1m": {
+                          "path": "elasticsearch.node.stats.os.cpu.load_avg.1m",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "cgroup": {
+                  "properties": {
+                    "memory": {
+                      "properties": {
+                        "usage_in_bytes": {
+                          "path": "elasticsearch.node.stats.os.cgroup.memory.usage.bytes",
+                          "type": "alias"
+                        },
+                        "control_group": {
+                          "path": "elasticsearch.node.stats.os.cgroup.memory.control_group",
+                          "type": "alias"
+                        },
+                        "limit_in_bytes": {
+                          "path": "elasticsearch.node.stats.os.cgroup.memory.limit.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "stat": {
+                          "properties": {
+                            "number_of_elapsed_periods": {
+                              "path": "elasticsearch.node.stats.os.cgroup.cpu.stat.elapsed_periods.count",
+                              "type": "alias"
+                            },
+                            "number_of_times_throttled": {
+                              "path": "elasticsearch.node.stats.os.cgroup.cpu.stat.times_throttled.count",
+                              "type": "alias"
+                            },
+                            "time_throttled_nanos": {
+                              "path": "elasticsearch.node.stats.os.cgroup.cpu.stat.time_throttled.ns",
+                              "type": "alias"
+                            }
+                          }
+                        },
+                        "cfs_quota_micros": {
+                          "path": "elasticsearch.node.stats.os.cgroup.cpu.cfs.quota.us",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "cpuacct": {
+                      "properties": {
+                        "usage_nanos": {
+                          "path": "elasticsearch.node.stats.os.cgroup.cpuacct.usage.ns",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "thread_pool": {
+              "properties": {
+                "search": {
+                  "properties": {
+                    "rejected": {
+                      "path": "elasticsearch.node.stats.thread_pool.search.rejected.count",
+                      "type": "alias"
+                    },
+                    "queue": {
+                      "path": "elasticsearch.node.stats.thread_pool.search.queue.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "get": {
+                  "properties": {
+                    "rejected": {
+                      "path": "elasticsearch.node.stats.thread_pool.get.rejected.count",
+                      "type": "alias"
+                    },
+                    "queue": {
+                      "path": "elasticsearch.node.stats.thread_pool.get.queue.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "index": {
+                  "properties": {
+                    "rejected": {
+                      "path": "elasticsearch.node.stats.thread_pool.index.rejected.count",
+                      "type": "alias"
+                    },
+                    "queue": {
+                      "path": "elasticsearch.node.stats.thread_pool.index.queue.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "bulk": {
+                  "properties": {
+                    "rejected": {
+                      "path": "elasticsearch.node.stats.thread_pool.bulk.rejected.count",
+                      "type": "alias"
+                    },
+                    "queue": {
+                      "path": "elasticsearch.node.stats.thread_pool.bulk.queue.count",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "write": {
+                  "properties": {
+                    "rejected": {
+                      "path": "elasticsearch.node.stats.thread_pool.write.rejected.count",
+                      "type": "alias"
+                    },
+                    "queue": {
+                      "path": "elasticsearch.node.stats.thread_pool.write.queue.count",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "fs": {
+              "properties": {
+                "summary": {
+                  "properties": {
+                    "total": {
+                      "properties": {
+                        "bytes": {
+                          "path": "elasticsearch.node.stats.fs.summary.total.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "available": {
+                      "properties": {
+                        "bytes": {
+                          "path": "elasticsearch.node.stats.fs.summary.available.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "io_stats": {
+                  "properties": {
+                    "total": {
+                      "properties": {
+                        "write_operations": {
+                          "path": "elasticsearch.node.stats.fs.io_stats.total.write.operations.count",
+                          "type": "alias"
+                        },
+                        "operations": {
+                          "path": "elasticsearch.node.stats.fs.io_stats.total.operations.count",
+                          "type": "alias"
+                        },
+                        "read_operations": {
+                          "path": "elasticsearch.node.stats.fs.io_stats.total.read.operations.count",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "total_in_bytes": {
+                      "path": "elasticsearch.node.stats.fs.summary.total.bytes",
+                      "type": "alias"
+                    },
+                    "available_in_bytes": {
+                      "path": "elasticsearch.node.stats.fs.summary.available.bytes",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "node_id": {
+              "path": "elasticsearch.node.id",
+              "type": "alias"
+            }
+          }
+        },
+        "host": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "architecture": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "metricset": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "period": {
+              "type": "long"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "action": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "agent_id_status": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "category": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "code": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "created": {
+              "type": "date"
+            },
+            "dataset": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "duration": {
+              "type": "long"
+            },
+            "end": {
+              "type": "date"
+            },
+            "hash": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "ingested": {
+              "type": "date"
+            },
+            "kind": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "module": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "original": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false,
+              "ignore_above": 1024
+            },
+            "outcome": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "provider": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "reason": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "reference": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "risk_score": {
+              "type": "float"
+            },
+            "risk_score_norm": {
+              "type": "float"
+            },
+            "sequence": {
+              "type": "long"
+            },
+            "severity": {
+              "type": "long"
+            },
+            "start": {
+              "type": "date"
+            },
+            "timezone": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "url": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "index_stats": {
+          "properties": {
+            "index": {
+              "type": "alias",
+              "path": "elasticsearch.index.name"
+            },
+            "primaries": {
+              "properties": {
+                "docs": {
+                  "properties": {
+                    "count": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.docs.count"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "index_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.indexing.index_time_in_millis"
+                    },
+                    "index_total": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.indexing.index_total"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.indexing.throttle_time_in_millis"
+                    }
+                  }
+                },
+                "merges": {
+                  "properties": {
+                    "total_size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.merges.total_size_in_bytes"
+                    }
+                  }
+                },
+                "refresh": {
+                  "properties": {
+                    "total_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.refresh.total_time_in_millis"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "count": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.segments.count"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.primaries.store.size_in_bytes"
+                    }
+                  }
+                }
+              }
+            },
+            "total": {
+              "properties": {
+                "fielddata": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.fielddata.memory_size_in_bytes"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "index_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.indexing.index_time_in_millis"
+                    },
+                    "index_total": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.indexing.index_total"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.indexing.throttle_time_in_millis"
+                    }
+                  }
+                },
+                "merges": {
+                  "properties": {
+                    "total_size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.merges.total_size_in_bytes"
+                    }
+                  }
+                },
+                "query_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.query_cache.memory_size_in_bytes"
+                    }
+                  }
+                },
+                "refresh": {
+                  "properties": {
+                    "total_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.refresh.total_time_in_millis"
+                    }
+                  }
+                },
+                "request_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.request_cache.memory_size_in_bytes"
+                    }
+                  }
+                },
+                "search": {
+                  "properties": {
+                    "query_time_in_millis": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.search.query_time_in_millis"
+                    },
+                    "query_total": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.search.query_total"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "count": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.count"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.doc_values_memory_in_bytes"
+                    },
+                    "fixed_bit_set_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.fixed_bit_set_memory_in_bytes"
+                    },
+                    "index_writer_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.index_writer_memory_in_bytes"
+                    },
+                    "memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.memory_in_bytes"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.norms_memory_in_bytes"
+                    },
+                    "points_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.points_memory_in_bytes"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.stored_fields_memory_in_bytes"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.term_vectors_memory_in_bytes"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.terms_memory_in_bytes"
+                    },
+                    "version_map_memory_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.segments.version_map_memory_in_bytes"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size_in_bytes": {
+                      "type": "alias",
+                      "path": "elasticsearch.index.total.store.size_in_bytes"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "settings": {
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
+    }
+  },
+  "data_stream": {}
+}

@@ -32,7 +32,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class ProxyConnectionStrategyTests extends ESTestCase {
 
@@ -80,7 +82,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -124,7 +130,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
@@ -186,7 +196,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -202,7 +216,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
-                    expectThrows(Exception.class, connectFuture::actionGet);
+                    assertThat(
+                        expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet).getMessage(),
+                        allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
+                    );
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());
@@ -226,7 +243,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
@@ -289,7 +310,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -324,7 +349,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
@@ -400,7 +429,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
         Set<Setting<?>> clusterSettings = new HashSet<>();
         clusterSettings.add(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE);
-        clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).collect(Collectors.toList()));
+        clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).toList());
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
 
         // Should validate successfully
@@ -410,10 +439,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = "Setting \""
-                + concreteSetting.getKey()
-                + "\" cannot be used with the configured "
-                + "\"cluster.remote.cluster_name.mode\" [required=PROXY, configured=SNIFF]";
+            String expected = """
+                Setting "%s" cannot be used with the configured "cluster.remote.cluster_name.mode" \
+                [required=PROXY, configured=SNIFF]\
+                """.formatted(concreteSetting.getKey());
             assertEquals(expected, iae.getMessage());
         }
     }
@@ -429,7 +458,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 String address = "localhost:" + address1.getPort();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);

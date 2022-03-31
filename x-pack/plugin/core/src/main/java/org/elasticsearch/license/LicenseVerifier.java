@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Arrays;
@@ -38,7 +39,7 @@ public class LicenseVerifier {
      * @param license to verify
      * @return true if valid, false otherwise
      */
-    public static boolean verifyLicense(final License license, byte[] publicKeyData) {
+    public static boolean verifyLicense(final License license, PublicKey publicKey) {
         byte[] signedContent = null;
         byte[] publicKeyFingerprint = null;
         try {
@@ -58,7 +59,7 @@ public class LicenseVerifier {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             license.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
             Signature rsa = Signature.getInstance("SHA512withRSA");
-            rsa.initVerify(CryptUtils.readPublicKey(publicKeyData));
+            rsa.initVerify(publicKey);
             BytesRefIterator iterator = BytesReference.bytes(contentBuilder).iterator();
             BytesRef ref;
             while ((ref = iterator.next()) != null) {
@@ -74,15 +75,19 @@ public class LicenseVerifier {
         }
     }
 
-    public static boolean verifyLicense(final License license) {
-        final byte[] publicKeyBytes;
+    private static final PublicKey PUBLIC_KEY;
+
+    static {
         try (InputStream is = LicenseVerifier.class.getResourceAsStream("/public.key")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
-            publicKeyBytes = out.toByteArray();
-        } catch (IOException ex) {
-            throw new IllegalStateException(ex);
+            PUBLIC_KEY = CryptUtils.readPublicKey(out.toByteArray());
+        } catch (IOException e) {
+            throw new AssertionError("key file is part of the source and must deserialize correctly", e);
         }
-        return verifyLicense(license, publicKeyBytes);
+    }
+
+    public static boolean verifyLicense(final License license) {
+        return verifyLicense(license, PUBLIC_KEY);
     }
 }

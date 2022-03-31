@@ -370,16 +370,16 @@ public final class SourceConfirmedTextQuery extends Query {
             MemoryIndex index = new MemoryIndex();
             index.setSimilarity(FREQ_SIMILARITY);
             List<Object> values = valueFetcher.apply(docID());
-            float freq = 0;
+            float frequency = 0;
             for (Object value : values) {
                 if (value == null) {
                     continue;
                 }
                 index.addField(field, value.toString(), indexAnalyzer);
-                freq += index.search(query);
+                frequency += index.search(query);
                 index.reset();
             }
-            return freq;
+            return frequency;
         }
     }
 

@@ -21,9 +21,10 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -153,7 +155,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             List<String> closedIndices = migrationQueue.stream()
                 .filter(SystemIndexMigrationInfo::isCurrentIndexClosed)
                 .map(SystemIndexMigrationInfo::getCurrentIndexName)
-                .collect(Collectors.toList());
+                .toList();
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
                     new IllegalStateException(
@@ -358,7 +360,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }, this::markAsFailed));
     }
 
-    private boolean needsToBeMigrated(IndexMetadata indexMetadata) {
+    private static boolean needsToBeMigrated(IndexMetadata indexMetadata) {
         assert indexMetadata != null : "null IndexMetadata should be impossible, we're not consistently using the same cluster state";
         if (indexMetadata == null) {
             return false;
@@ -459,9 +461,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getNextIndexName()
         );
 
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (Objects.nonNull(migrationInfo.getSettings())) {
+            settingsBuilder.put(migrationInfo.getSettings());
+            settingsBuilder.remove("index.blocks.write");
+            settingsBuilder.remove("index.blocks.read");
+            settingsBuilder.remove("index.blocks.metadata");
+        }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
-            .settings(Objects.requireNonNullElse(migrationInfo.getSettings(), Settings.EMPTY));
+            .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 
@@ -521,7 +530,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         setWriteBlock(index, false, ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(ex), e1 -> listener.onFailure(ex)));
     }
 
-    private ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
+    private static ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
         String bulkFailures = (bulkByScrollResponse.getBulkFailures() != null)
             ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getBulkFailures())
             : "";
@@ -590,17 +599,22 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(newState);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error("failed to clear migration results when starting new migration", e);
                 listener.onFailure(e);
             }
-        });
+        }, newExecutor());
         logger.debug("submitted update task to clear migration results");
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private SystemIndexMigrationInfo currentMigrationInfo() {

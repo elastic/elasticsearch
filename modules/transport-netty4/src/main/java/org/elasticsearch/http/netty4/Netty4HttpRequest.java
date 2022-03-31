@@ -218,17 +218,13 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new Netty4HttpResponse(request.headers(), request.protocolVersion(), status, content);
+    public Netty4HttpResponse createResponse(RestStatus status, BytesReference contentRef) {
+        return new Netty4HttpResponse(request.protocolVersion(), status, contentRef);
     }
 
     @Override
     public Exception getInboundException() {
         return inboundException;
-    }
-
-    public FullHttpRequest nettyRequest() {
-        return request;
     }
 
     /**
@@ -299,7 +295,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
         @Override
         public Collection<List<String>> values() {
-            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).collect(Collectors.toList());
+            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).toList();
         }
 
         @Override

@@ -53,40 +53,39 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         );
 
         // Failures are grouped (by default)
-        final String expectedJson = XContentHelper.stripWhitespace(
-            "{"
-                + "  \"type\": \"search_phase_execution_exception\","
-                + "  \"reason\": \"all shards failed\","
-                + "  \"phase\": \"test\","
-                + "  \"grouped\": true,"
-                + "  \"failed_shards\": ["
-                + "    {"
-                + "      \"shard\": 0,"
-                + "      \"index\": \"foo\","
-                + "      \"node\": \"node_1\","
-                + "      \"reason\": {"
-                + "        \"type\": \"parsing_exception\","
-                + "        \"reason\": \"foobar\","
-                + "        \"line\": 1,"
-                + "        \"col\": 2"
-                + "      }"
-                + "    },"
-                + "    {"
-                + "      \"shard\": 1,"
-                + "      \"index\": \"foo\","
-                + "      \"node\": \"node_2\","
-                + "      \"reason\": {"
-                + "        \"type\": \"index_shard_closed_exception\","
-                + "        \"reason\": \"CurrentState[CLOSED] Closed\","
-                + "        \"index_uuid\": \"_na_\","
-                + "        \"shard\": \"1\","
-                + "        \"index\": \"foo\""
-                + "      }"
-                + "    }"
-                + "  ]"
-                + "}"
-        );
-        assertEquals(expectedJson, Strings.toString(exception));
+        final String expectedJson = XContentHelper.stripWhitespace("""
+            {
+              "type": "search_phase_execution_exception",
+              "reason": "all shards failed",
+              "phase": "test",
+              "grouped": true,
+              "failed_shards": [
+                {
+                  "shard": 0,
+                  "index": "foo",
+                  "node": "node_1",
+                  "reason": {
+                    "type": "parsing_exception",
+                    "reason": "foobar",
+                    "line": 1,
+                    "col": 2
+                  }
+                },
+                {
+                  "shard": 1,
+                  "index": "foo",
+                  "node": "node_2",
+                  "reason": {
+                    "type": "index_shard_closed_exception",
+                    "reason": "CurrentState[CLOSED] Closed",
+                    "index_uuid": "_na_",
+                    "shard": "1",
+                    "index": "foo"
+                  }
+                }
+              ]
+            }""");
+        assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(exception));
     }
 
     public void testToAndFromXContent() throws IOException {

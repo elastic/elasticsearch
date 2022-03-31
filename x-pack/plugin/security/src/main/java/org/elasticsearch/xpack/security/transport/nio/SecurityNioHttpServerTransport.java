@@ -83,7 +83,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         this.sslService = sslService;
         if (sslEnabled) {
             this.sslConfiguration = sslService.getHttpTransportSSLConfiguration();
-            if (sslService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
+            if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 throw new IllegalArgumentException(
                     "a key must be provided to run as a server. the key should be configured using the "
                         + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
@@ -142,7 +142,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             SocketChannelContext context;
             if (sslEnabled) {
                 SSLEngine sslEngine;
-                boolean hostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
+                boolean hostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
                 if (hostnameVerificationEnabled) {
                     InetSocketAddress address = (InetSocketAddress) channel.getRemoteAddress();
                     // we create the socket based on the name given. don't reverse DNS

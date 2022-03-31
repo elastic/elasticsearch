@@ -87,6 +87,7 @@ public class Netty4Transport extends TcpTransport {
         NETTY_RECEIVE_PREDICTOR_SIZE,
         Property.NodeScope
     );
+
     public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
@@ -154,9 +155,9 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private Bootstrap createClientBootstrap(SharedGroupFactory.SharedGroup sharedGroup) {
+    private Bootstrap createClientBootstrap(SharedGroupFactory.SharedGroup sharedGroupForBootstrap) {
         final Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(sharedGroup.getLowLevelGroup());
+        bootstrap.group(sharedGroupForBootstrap.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configured allocator
         assert Netty4NioSocketChannel.class.isAssignableFrom(NettyAllocator.getChannelType());
@@ -205,7 +206,7 @@ public class Netty4Transport extends TcpTransport {
         return bootstrap;
     }
 
-    private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroup) {
+    private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroupForServerBootstrap) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -222,7 +223,7 @@ public class Netty4Transport extends TcpTransport {
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        serverBootstrap.group(sharedGroup.getLowLevelGroup());
+        serverBootstrap.group(sharedGroupForServerBootstrap.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configuredAllocator
         serverBootstrap.channel(NettyAllocator.getServerChannelType());
@@ -302,7 +303,7 @@ public class Netty4Transport extends TcpTransport {
             throw new IOException(connectFuture.cause());
         }
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", rstOnClose, connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
@@ -333,10 +334,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
-            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", new ESLoggingHandler());
-            // using a dot as a prefix means this cannot come from any settings parsed
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
+            setupPipeline(ch);
         }
 
         @Override
@@ -359,11 +357,9 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
-            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", new ESLoggingHandler());
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
+            setupPipeline(ch);
             serverAcceptedChannel(nettyTcpChannel);
         }
 
@@ -374,7 +370,15 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private void addClosedExceptionLogger(Channel channel) {
+    private void setupPipeline(Channel ch) {
+        ch.pipeline()
+            .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
+            .addLast("logging", ESLoggingHandler.INSTANCE)
+            .addLast("chunked_writer", new Netty4WriteThrottlingHandler())
+            .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
+    }
+
+    private static void addClosedExceptionLogger(Channel channel) {
         channel.closeFuture().addListener(f -> {
             if (f.isSuccess() == false) {
                 logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
@@ -383,7 +387,7 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @ChannelHandler.Sharable
-    private class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {

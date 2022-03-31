@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -32,10 +31,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHea
  * the additional meta information link headers used for execution, version (a monotonically
  * incrementing number), and last modified date
  */
-public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLifecyclePolicyMetadata>
-    implements
-        ToXContentObject,
-        Diffable<SnapshotLifecyclePolicyMetadata> {
+public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotLifecyclePolicyMetadata>, ToXContentObject {
 
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");
@@ -247,13 +243,13 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
             return this;
         }
 
-        public Builder setLastSuccess(SnapshotInvocationRecord lastSuccessDate) {
-            this.lastSuccessDate = lastSuccessDate;
+        public Builder setLastSuccess(SnapshotInvocationRecord lastSuccess) {
+            this.lastSuccessDate = lastSuccess;
             return this;
         }
 
-        public Builder setLastFailure(SnapshotInvocationRecord lastFailureDate) {
-            this.lastFailureDate = lastFailureDate;
+        public Builder setLastFailure(SnapshotInvocationRecord lastFailure) {
+            this.lastFailureDate = lastFailure;
             return this;
         }
 

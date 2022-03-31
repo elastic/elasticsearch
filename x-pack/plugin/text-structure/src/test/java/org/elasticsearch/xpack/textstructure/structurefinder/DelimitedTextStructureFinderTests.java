@@ -15,8 +15,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -25,9 +27,14 @@ import static org.elasticsearch.xpack.textstructure.structurefinder.DelimitedTex
 import static org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinder.stringToNumberPosBitSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
@@ -35,7 +42,11 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     private final TextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 3, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
-        String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
+        String sample = """
+            time,message
+            2018-05-17T13:41:23,hello
+            2018-05-17T13:41:32,hello again
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -73,18 +84,23 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenIncompleteCsv() throws Exception {
-        String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "badrow\n" + // REALLY bad row
-            "2018-05-17T13:41:25,hello\n"
-            + "2018-05-17T13:41:26,hello\n"
-            + "2018-05-17T13:41:27,hello\n"
-            + "2018-05-17T13:41:28,hello\n"
-            + "2018-05-17T13:41:29,hello\n"
-            + "2018-05-17T13:41:30,hello\n"
-            + "2018-05-17T13:41:31,hello\n"
-            + "2018-05-17T13:41:32,hello\n"
-            + "2018-05-17T13:41:35\n"
-            + // Just missing the column
-            "2018-05-17T13:41:33,hello again\n";
+        // REALLY bad row
+        // Just missing the column
+        String sample = """
+            time,message
+            2018-05-17T13:41:23,hello
+            badrow
+            2018-05-17T13:41:25,hello
+            2018-05-17T13:41:26,hello
+            2018-05-17T13:41:27,hello
+            2018-05-17T13:41:28,hello
+            2018-05-17T13:41:29,hello
+            2018-05-17T13:41:30,hello
+            2018-05-17T13:41:31,hello
+            2018-05-17T13:41:32,hello
+            2018-05-17T13:41:35
+            2018-05-17T13:41:33,hello again
+            """;
         assertFalse(csvFactory.canCreateFromSample(explanation, sample, 0.05));
         assertTrue("assertion failed. Explanation " + explanation, csvFactory.canCreateFromSample(explanation, sample, 0.10));
 
@@ -124,18 +140,37 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenIncompleteCsvWithMultiLinedRows() throws Exception {
-        String sample = "time,message\n" + "2018-05-17T13:41:23,\"hello\nnew line\"\n" + "\"badrow\n\n\n\n\"\n" + // REALLY bad row
-            "2018-05-17T13:41:25,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:26,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:27,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:28,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:29,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:30,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:31,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:32,\"hello\nnew line\"\n"
-            + "2018-05-17T13:41:35\n"
-            + // Just missing the column
-            "2018-05-17T13:41:33,\"hello again\nnew line\"\n";
+        // REALLY bad row
+        // Just missing the column
+        String sample = """
+            time,message
+            2018-05-17T13:41:23,"hello
+            new line"
+            "badrow
+
+
+
+            "
+            2018-05-17T13:41:25,"hello
+            new line"
+            2018-05-17T13:41:26,"hello
+            new line"
+            2018-05-17T13:41:27,"hello
+            new line"
+            2018-05-17T13:41:28,"hello
+            new line"
+            2018-05-17T13:41:29,"hello
+            new line"
+            2018-05-17T13:41:30,"hello
+            new line"
+            2018-05-17T13:41:31,"hello
+            new line"
+            2018-05-17T13:41:32,"hello
+            new line"
+            2018-05-17T13:41:35
+            2018-05-17T13:41:33,"hello again
+            new line"
+            """;
         assertFalse(csvFactory.canCreateFromSample(explanation, sample, 0.05));
         assertTrue("assertion failed. Explanation " + explanation, csvFactory.canCreateFromSample(explanation, sample, 0.10));
 
@@ -178,7 +213,11 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         TextStructureOverrides overrides = TextStructureOverrides.builder().setColumnNames(Arrays.asList("my_time", "my_message")).build();
 
-        String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
+        String sample = """
+            time,message
+            2018-05-17T13:41:23,hello
+            2018-05-17T13:41:32,hello again
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -221,7 +260,11 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         // detection with the wrong choice the results will be completely changed
         TextStructureOverrides overrides = TextStructureOverrides.builder().setHasHeaderRow(false).build();
 
-        String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
+        String sample = """
+            time,message
+            2018-05-17T13:41:23,hello
+            2018-05-17T13:41:32,hello again
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -260,7 +303,12 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
         // note that this last record is truncated
-        String sample = "time,message,count\n2018-05-17T13:41:23,\"hello\nworld\",1\n2019-01-18T14:46:57,\"hello again\n";
+        String sample = """
+            time,message,count
+            2018-05-17T13:41:23,"hello
+            world",1
+            2019-01-18T14:46:57,"hello again
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -298,12 +346,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNulls() throws Exception {
-        String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,"
-            + "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,"
-            + "improvement_surcharge,total_amount,,\n"
-            + "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
+        String sample = """
+            VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,\
+            PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount,,
+            2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,
+            1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,
+            1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -327,13 +376,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,"
-                + "\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?,"?"?,"?"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -374,13 +420,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         // Default timestamp field is the first field from the start of each row that contains a
         // consistent timestamp format, so if we want the second we need an override
         TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampField("tpep_dropoff_datetime").build();
-
-        String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,"
-            + "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,"
-            + "improvement_surcharge,total_amount,,\n"
-            + "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
+        String sample = """
+            VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,\
+            PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount,,
+            2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,
+            1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,
+            1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -404,13 +450,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\""
-                + "?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?,"?"?,"?"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -447,12 +490,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeader() throws Exception {
-        String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,"
-            + "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,"
-            + "improvement_surcharge,total_amount\n"
-            + "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
+        String sample = """
+            VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,\
+            PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount
+            2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,
+            1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,
+            1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -476,12 +520,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -541,12 +583,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             )
             .build();
 
-        String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,"
-            + "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,"
-            + "improvement_surcharge,total_amount\n"
-            + "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n"
-            + "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
+        String sample = """
+            VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,\
+            PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount
+            2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,
+            1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,
+            1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -570,12 +613,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -610,9 +651,11 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenCsvWithTimeLastColumn() throws Exception {
-        String sample = "\"pos_id\",\"trip_id\",\"latitude\",\"longitude\",\"altitude\",\"timestamp\"\n"
-            + "\"1\",\"3\",\"4703.7815\",\"1527.4713\",\"359.9\",\"2017-01-19 16:19:04.742113\"\n"
-            + "\"2\",\"3\",\"4703.7815\",\"1527.4714\",\"359.9\",\"2017-01-19 16:19:05.741890\"\n";
+        String sample = """
+            "pos_id","trip_id","latitude","longitude","altitude","timestamp"
+            "1","3","4703.7815","1527.4713","359.9","2017-01-19 16:19:04.742113"
+            "2","3","4703.7815","1527.4714","359.9","2017-01-19 16:19:05.741890"
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -636,10 +679,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?pos_id\"?,\"?trip_id\"?,\"?latitude\"?,\"?longitude\"?,\"?altitude\"?,\"?timestamp\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?pos_id"?,"?trip_id"?,"?latitude"?,"?longitude"?,"?altitude"?,"?timestamp"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -653,16 +694,18 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenTsvWithSyslogLikeTimestamp() throws Exception {
-        String sample = "Latitude\tLongitude\tloc\tTimestamp\n"
-            + "25.78042\t18.441196\t\"25.7804200000,18.4411960000\"\tJun 30 2019 13:21:24\n"
-            + "25.743484\t18.443047\t\"25.7434840000,18.4430470000\"\tJun 30 2019 06:02:35\n"
-            + "25.744583\t18.442783\t\"25.7445830000,18.4427830000\"\tJun 30 2019 06:02:35\n"
-            + "25.754593\t18.431637\t\"25.7545930000,18.4316370000\"\tJul 1 2019 06:02:43\n"
-            + "25.768574\t18.433483\t\"25.7685740000,18.4334830000\"\tJul 1 2019 06:21:28\n"
-            + "25.757736\t18.438683\t\"25.7577360000,18.4386830000\"\tJul 1 2019 12:06:08\n"
-            + "25.76615\t18.436565\t\"25.7661500000,18.4365650000\"\tJul 1 2019 12:06:08\n"
-            + "25.76896\t18.43586\t\"25.7689600000,18.4358600000\"\tJul 1 2019 12:13:50\n"
-            + "25.76423\t18.43705\t\"25.7642300000,18.4370500000\"\tJul 1 2019 12:39:10\n";
+        String sample = """
+            Latitude\tLongitude\tloc\tTimestamp
+            25.78042\t18.441196\t"25.7804200000,18.4411960000"\tJun 30 2019 13:21:24
+            25.743484\t18.443047\t"25.7434840000,18.4430470000"\tJun 30 2019 06:02:35
+            25.744583\t18.442783\t"25.7445830000,18.4427830000"\tJun 30 2019 06:02:35
+            25.754593\t18.431637\t"25.7545930000,18.4316370000"\tJul 1 2019 06:02:43
+            25.768574\t18.433483\t"25.7685740000,18.4334830000"\tJul 1 2019 06:21:28
+            25.757736\t18.438683\t"25.7577360000,18.4386830000"\tJul 1 2019 12:06:08
+            25.76615\t18.436565\t"25.7661500000,18.4365650000"\tJul 1 2019 12:06:08
+            25.76896\t18.43586\t"25.7689600000,18.4358600000"\tJul 1 2019 12:13:50
+            25.76423\t18.43705\t"25.7642300000,18.4370500000"\tJul 1 2019 12:39:10
+            """;
         assertTrue(tsvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -686,7 +729,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals("^\"?Latitude\"?\\t\"?Longitude\"?\\t\"?loc\"?\\t\"?Timestamp\"?", structure.getExcludeLinesPattern());
+        assertEquals("""
+            ^"?Latitude"?\\t"?Longitude"?\\t"?loc"?\\t"?Timestamp"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf('\t'), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -703,7 +747,11 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testCreateConfigsGivenDotInFieldName() throws Exception {
-        String sample = "time.iso8601,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
+        String sample = """
+            time.iso8601,message
+            2018-05-17T13:41:23,hello
+            2018-05-17T13:41:32,hello again
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -728,7 +776,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         // The exclude pattern needs to work on the raw text, so reflects the unmodified field names
-        assertEquals("^\"?time\\.iso8601\"?,\"?message\"?", structure.getExcludeLinesPattern());
+        assertEquals("""
+            ^"?time\\.iso8601"?,"?message"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -742,11 +791,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {
-        String withHeader = "time,airline,responsetime,sourcetype\n"
-            + "2014-06-23 00:00:00Z,AAL,132.2046,farequote\n"
-            + "2014-06-23 00:00:00Z,JZA,990.4628,farequote\n"
-            + "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n"
-            + "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
+        String withHeader = """
+            time,airline,responsetime,sourcetype
+            2014-06-23 00:00:00Z,AAL,132.2046,farequote
+            2014-06-23 00:00:00Z,JZA,990.4628,farequote
+            2014-06-23 00:00:01Z,JBU,877.5927,farequote
+            2014-06-23 00:00:01Z,KLM,1355.4812,farequote
+            """;
 
         Tuple<Boolean, String[]> header = DelimitedTextStructureFinder.findHeaderFromSample(
             explanation,
@@ -759,10 +810,12 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
     }
 
     public void testFindHeaderFromSampleGivenHeaderNotInSample() throws IOException {
-        String noHeader = "2014-06-23 00:00:00Z,AAL,132.2046,farequote\n"
-            + "2014-06-23 00:00:00Z,JZA,990.4628,farequote\n"
-            + "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n"
-            + "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
+        String noHeader = """
+            2014-06-23 00:00:00Z,AAL,132.2046,farequote
+            2014-06-23 00:00:00Z,JZA,990.4628,farequote
+            2014-06-23 00:00:01Z,JBU,877.5927,farequote
+            2014-06-23 00:00:01Z,KLM,1355.4812,farequote
+            """;
 
         Tuple<Boolean, String[]> header = DelimitedTextStructureFinder.findHeaderFromSample(
             explanation,
@@ -985,11 +1038,14 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
                 explanation,
                 columnNames,
                 1,
+                ',',
                 ",",
                 "\"",
                 mappings,
+                List.of(),
                 timeFieldName,
-                timeFieldFormat
+                timeFieldFormat,
+                NOOP_TIMEOUT_CHECKER
             )
         );
         assertThat(explanation, contains("Not creating a multi-line start pattern as no sampled message spanned multiple lines"));
@@ -1003,16 +1059,19 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         TimestampFormatFinder timeFieldFormat = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
         timeFieldFormat.addSample("2020-01-30T15:05:09");
         Map<String, Object> mappings = new TreeMap<>();
+        Map<String, Object> sampleRecord = new HashMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(timeFieldName)) {
                 mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "date"));
+                sampleRecord.put(columnName, "2020-01-30T15:05:09");
             } else {
-                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"));
+                sampleRecord.put(columnName, randomAlphaOfLength(10));
             }
         }
 
         String expected = "^"
-            + Stream.generate(() -> ".*?,").limit(timeFieldColumnIndex).collect(Collectors.joining())
+            + Stream.generate(() -> "[^,]*?,").limit(timeFieldColumnIndex).collect(Collectors.joining())
             + "\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}";
         assertEquals(
             expected,
@@ -1020,11 +1079,14 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
                 explanation,
                 columnNames,
                 2,
+                ',',
                 ",",
                 "\"",
                 mappings,
+                List.of(sampleRecord),
                 timeFieldName,
-                timeFieldFormat
+                timeFieldFormat,
+                NOOP_TIMEOUT_CHECKER
             )
         );
         assertThat(explanation, contains("Created a multi-line start pattern based on timestamp column [" + timeFieldName + "]"));
@@ -1038,20 +1100,24 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             "(?:true|false)",
             "[+-]?\\d+",
             "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?" }[randomIndex];
+        String sampleValue = new String[] { "true", "42", "3.1415927" }[randomIndex];
         List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
         int chosenFieldColumnIndex = randomIntBetween(0, columnNames.size() - 2);
         String chosenField = columnNames.get(chosenFieldColumnIndex);
         Map<String, Object> mappings = new TreeMap<>();
+        Map<String, Object> sampleRecord = new HashMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(chosenField)) {
                 mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, type));
+                sampleRecord.put(columnName, sampleValue);
             } else {
-                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"));
+                sampleRecord.put(columnName, randomAlphaOfLength(10));
             }
         }
 
         String expected = "^"
-            + Stream.generate(() -> ".*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining())
+            + Stream.generate(() -> "[^,]*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining())
             + "(?:"
             + expectedTypePattern
             + "|\""
@@ -1059,9 +1125,65 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             + "\"),";
         assertEquals(
             expected,
-            DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null)
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
+                explanation,
+                columnNames,
+                2,
+                ',',
+                ",",
+                "\"",
+                mappings,
+                List.of(sampleRecord),
+                null,
+                null,
+                NOOP_TIMEOUT_CHECKER
+            )
         );
         assertThat(explanation, contains("Created a multi-line start pattern based on [" + type + "] column [" + chosenField + "]"));
+    }
+
+    public void testMultilineStartPatternFromKeywordField() {
+
+        List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
+        int chosenFieldColumnIndex = randomIntBetween(0, columnNames.size() - 2);
+        String chosenFieldName = columnNames.get(chosenFieldColumnIndex);
+        Map<String, Object> mappings = new TreeMap<>();
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, Object> sampleRecord = new HashMap<>();
+            for (String columnName : columnNames) {
+                if (record == 0) {
+                    mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"));
+                }
+                if (columnName.equals(chosenFieldName)) {
+                    sampleRecord.put(columnName, randomFrom("A1", "B2", "C3"));
+                } else {
+                    sampleRecord.put(columnName, randomAlphaOfLength(5));
+                }
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        String expected = "^"
+            + Stream.generate(() -> "[^,]*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining())
+            + "(?:(?:A1|B2|C3)|\"(?:A1|B2|C3)\"),";
+        assertEquals(
+            expected,
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
+                explanation,
+                columnNames,
+                2,
+                ',',
+                ",",
+                "\"",
+                mappings,
+                sampleRecords,
+                null,
+                null,
+                NOOP_TIMEOUT_CHECKER
+            )
+        );
+        assertThat(explanation, contains("Created a multi-line start pattern based on [keyword] column [" + chosenFieldName + "]"));
     }
 
     public void testMultilineStartPatternDeterminationTooHard() {
@@ -1069,11 +1191,114 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
         Map<String, Object> mappings = new TreeMap<>();
         for (String columnName : columnNames) {
-            mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+            mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"));
         }
 
-        assertNull(DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null));
+        assertNull(
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
+                explanation,
+                columnNames,
+                2,
+                ',',
+                ",",
+                "\"",
+                mappings,
+                List.of(),
+                null,
+                null,
+                NOOP_TIMEOUT_CHECKER
+            )
+        );
         assertThat(explanation, contains("Failed to create a suitable multi-line start pattern"));
+    }
+
+    public void testColumnValueContainsDelimiterOrLineBreak() {
+
+        int failingRecord = randomIntBetween(0, 99);
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            for (int column = 0; column < 3; ++column) {
+                sampleRecord.put(
+                    "col" + column,
+                    (record == failingRecord && column == 1) ? "a" + randomFrom(",", "\n") + "b" : randomAlphaOfLength(3)
+                );
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col0", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertTrue(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col1", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col2", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+    }
+
+    public void testFindLowCardinalityKeywordPatternSucceeds() {
+
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            for (int column = 0; column < 10; ++column) {
+                sampleRecord.put("col" + column, (column == 1) ? randomFrom("A1", "B.", "C?") : randomAlphaOfLength(3));
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        assertThat(
+            DelimitedTextStructureFinder.findLowCardinalityKeywordPattern("col1", sampleRecords, NOOP_TIMEOUT_CHECKER),
+            is("(?:A1|B\\.|C\\?)")
+        );
+    }
+
+    public void testFindLowCardinalityKeywordPatternFails() {
+
+        int failingRecord = randomIntBetween(0, 99);
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            for (int column = 0; column < 10; ++column) {
+                sampleRecord.put(
+                    "col" + column,
+                    (column == 1 || (record == failingRecord && column == 6)) ? randomFrom("A1", "B.", "C?") : randomAlphaOfLength(3)
+                );
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        assertThat(DelimitedTextStructureFinder.findLowCardinalityKeywordPattern("col1", sampleRecords, NOOP_TIMEOUT_CHECKER), nullValue());
+    }
+
+    public void testContainsLastLine() {
+
+        Set<String> values = Set.of("A1", "B2", "C3");
+
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "A1"));
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "B2"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "C2"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "D4"));
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "A1\nB2"));
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "B1\nA2\nC3"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "A1\nB2\nC2"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "A1\nB2\nC3\n"));
+    }
+
+    public void testMakeExcludeLinesPattern() {
+
+        String[] header = generateRandomStringArray(1000, randomIntBetween(5, 50), false, false);
+        String quote = randomFrom("\"", "'");
+        String quotePattern = quote.replaceAll(DelimitedTextStructureFinder.REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+        String optQuotePattern = quotePattern + "?";
+        char delimiter = randomFrom(',', ';', '\t', '|');
+        String delimiterPattern = (delimiter == '\t')
+            ? "\\t"
+            : String.valueOf(delimiter).replaceAll(DelimitedTextStructureFinder.REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+
+        String excludeLinesPattern = DelimitedTextStructureFinder.makeExcludeLinesPattern(header, quote, optQuotePattern, delimiterPattern);
+
+        assertThat(excludeLinesPattern, startsWith("^"));
+        assertThat(excludeLinesPattern.length(), lessThanOrEqualTo(DelimitedTextStructureFinder.MAX_EXCLUDE_LINES_PATTERN_LENGTH));
+        if (excludeLinesPattern.contains(header[header.length - 1]) == false) {
+            assertThat(excludeLinesPattern, endsWith(".*"));
+        }
     }
 
     static Map<String, Object> randomCsvProcessorSettings() {

@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
@@ -184,9 +184,9 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
                 if (totalHits > 0) {
                     Aggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);
-                    long earliestTime = Intervals.alignToFloor((long) min.getValue(), maxBucketSpanMillis);
+                    long earliestTime = Intervals.alignToFloor((long) min.value(), maxBucketSpanMillis);
                     Max max = aggregations.get(LATEST_TIME);
-                    long latestTime = Intervals.alignToCeil((long) max.getValue() + 1, maxBucketSpanMillis);
+                    long latestTime = Intervals.alignToCeil((long) max.value() + 1, maxBucketSpanMillis);
                     listener.onResponse(
                         new ChunkedBucketSearcher(
                             jobsContext,

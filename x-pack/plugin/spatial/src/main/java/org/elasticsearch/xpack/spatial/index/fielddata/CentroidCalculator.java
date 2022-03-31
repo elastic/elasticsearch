@@ -276,21 +276,22 @@ public class CentroidCalculator {
          *  @param x the x-coordinate of the point
          * @param y the y-coordinate of the point
          * @param weight the associated weight of the coordinate
+         * @param shapeType the associated shape type of the coordinate
          */
-        private void addCoordinate(double x, double y, double weight, DimensionalShapeType dimensionalShapeType) {
+        private void addCoordinate(double x, double y, double weight, DimensionalShapeType shapeType) {
             // x and y can be infinite due to really small areas and rounding problems
             if (Double.isFinite(x) && Double.isFinite(y)) {
-                if (this.dimensionalShapeType == dimensionalShapeType) {
+                if (this.dimensionalShapeType == shapeType) {
                     compSumX.add(x * weight);
                     compSumY.add(y * weight);
                     compSumWeight.add(weight);
-                    this.dimensionalShapeType = dimensionalShapeType;
-                } else if (dimensionalShapeType.compareTo(this.dimensionalShapeType) > 0) {
+                    this.dimensionalShapeType = shapeType;
+                } else if (shapeType.compareTo(this.dimensionalShapeType) > 0) {
                     // reset counters
                     compSumX.reset(x * weight, 0);
                     compSumY.reset(y * weight, 0);
                     compSumWeight.reset(weight, 0);
-                    this.dimensionalShapeType = dimensionalShapeType;
+                    this.dimensionalShapeType = shapeType;
                 }
             }
         }

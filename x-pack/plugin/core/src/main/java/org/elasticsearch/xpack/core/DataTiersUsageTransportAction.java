@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -102,12 +102,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     // Takes a registry of indices and returns a mapping of index name to which tier it most prefers. Always 1 to 1, some may filter out.
     static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
-        indices.forEach(entry -> {
-            String tierPref = entry.value.getSettings().get(DataTier.TIER_PREFERENCE);
+        indices.entrySet().forEach(entry -> {
+            String tierPref = entry.getValue().getSettings().get(DataTier.TIER_PREFERENCE);
             if (Strings.hasText(tierPref)) {
                 String[] tiers = tierPref.split(",");
                 if (tiers.length > 0) {
-                    indexByTier.put(entry.key, tiers[0]);
+                    indexByTier.put(entry.getKey(), tiers[0]);
                 }
             }
         });

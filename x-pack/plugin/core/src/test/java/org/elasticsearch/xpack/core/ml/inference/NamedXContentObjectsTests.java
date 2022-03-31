@@ -84,8 +84,8 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
             this.trainedModel = trainedModel.get(0);
         }
 
-        void setModel(TrainedModel trainedModel) {
-            this.trainedModel = trainedModel;
+        void setModel(TrainedModel model) {
+            this.trainedModel = model;
         }
 
         void setUseExplicitPreprocessorOrder(boolean value) {

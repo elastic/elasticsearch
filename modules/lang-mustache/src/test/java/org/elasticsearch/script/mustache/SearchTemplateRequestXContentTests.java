@@ -9,6 +9,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -68,7 +69,8 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         SearchTemplateRequest request = new SearchTemplateRequest();
 
         request.setScriptType(ScriptType.INLINE);
-        request.setScript("{\"query\": { \"match\" : { \"{{my_field}}\" : \"{{my_value}}\" } } }");
+        request.setScript("""
+            {"query": { "match" : { "{{my_field}}" : "{{my_value}}" } } }""");
         request.setProfile(true);
 
         Map<String, Object> scriptParams = new HashMap<>();
@@ -79,7 +81,8 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
             .startObject()
-            .field("source", "{\"query\": { \"match\" : { \"{{my_field}}\" : \"{{my_value}}\" } } }")
+            .field("source", """
+                {"query": { "match" : { "{{my_field}}" : "{{my_value}}" } } }""")
             .startObject("params")
             .field("my_field", "foo")
             .field("my_value", "bar")
@@ -125,41 +128,51 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
     }
 
     public void testFromXContentWithEmbeddedTemplate() throws Exception {
-        String source = "{"
-            + "    'source' : {\n"
-            + "    'query': {\n"
-            + "      'terms': {\n"
-            + "        'status': [\n"
-            + "          '{{#status}}',\n"
-            + "          '{{.}}',\n"
-            + "          '{{/status}}'\n"
-            + "        ]\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }"
-            + "}";
+        String source = """
+            {
+              'source' : {
+                'query': {
+                  'terms': {
+                    'status': [
+                      '{{#status}}',
+                      '{{.}}',
+                      '{{/status}}'
+                    ]
+                  }
+                }
+              }}""";
 
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
-        assertThat(request.getScript(), equalTo("{\"query\":{\"terms\":{\"status\":[\"{{#status}}\",\"{{.}}\",\"{{/status}}\"]}}}"));
+        assertThat(request.getScript(), equalTo("""
+            {"query":{"terms":{"status":["{{#status}}","{{.}}","{{/status}}"]}}}"""));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
     }
 
     public void testFromXContentWithEmbeddedTemplateAndParams() throws Exception {
-        String source = "{"
-            + "    'source' : {"
-            + "      'query': { 'match' : { '{{my_field}}' : '{{my_value}}' } },"
-            + "      'size' : '{{my_size}}'"
-            + "    },"
-            + "    'params' : {"
-            + "        'my_field' : 'foo',"
-            + "        'my_value' : 'bar',"
-            + "        'my_size' : 5"
-            + "    }"
-            + "}";
+        String source = """
+            {
+                'source' : {
+                  'query': { 'match' : { '{{my_field}}' : '{{my_value}}' } },
+                  'size' : '{{my_size}}'
+                },
+                'params' : {
+                    'my_field' : 'foo',
+                    'my_value' : 'bar',
+                    'my_size' : 5
+                }
+            }""";
 
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
-        assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{my_field}}\":\"{{my_value}}\"}},\"size\":\"{{my_size}}\"}"));
+        assertThat(request.getScript(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "query": {
+                "match": {
+                  "{{my_field}}": "{{my_value}}"
+                }
+              },
+              "size": "{{my_size}}"
+            }""")));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(3));
         assertThat(request.getScriptParams(), hasEntry("my_field", "foo"));

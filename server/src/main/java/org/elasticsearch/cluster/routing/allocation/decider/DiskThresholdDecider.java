@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -563,7 +564,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         );
     }
 
-    private DiskUsageWithRelocations getDiskUsage(
+    private static DiskUsageWithRelocations getDiskUsage(
         RoutingNode node,
         RoutingAllocation allocation,
         ImmutableOpenMap<String, DiskUsage> usages,
@@ -605,7 +606,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @param usages Map of nodeId to DiskUsage for all known nodes
      * @return DiskUsage representing given node using the average disk usage
      */
-    DiskUsage averageUsage(RoutingNode node, ImmutableOpenMap<String, DiskUsage> usages) {
+    static DiskUsage averageUsage(RoutingNode node, ImmutableOpenMap<String, DiskUsage> usages) {
         if (usages.size() == 0) {
             return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", 0, 0);
         }
@@ -625,7 +626,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @param shardSize Size in bytes of the shard
      * @return Percentage of free space after the shard is assigned to the node
      */
-    double freeDiskPercentageAfterShardAssigned(DiskUsageWithRelocations usage, Long shardSize) {
+    static double freeDiskPercentageAfterShardAssigned(DiskUsageWithRelocations usage, Long shardSize) {
         shardSize = (shardSize == null) ? 0 : shardSize;
         DiskUsage newUsage = new DiskUsage(
             usage.getNodeId(),
@@ -682,7 +683,9 @@ public class DiskThresholdDecider extends AllocationDecider {
                     sourceIndexMeta,
                     indexMetadata.getNumberOfShards()
                 );
-                for (IndexShardRoutingTable shardRoutingTable : routingTable.index(mergeSourceIndex.getName())) {
+                final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                     if (shardIds.contains(shardRoutingTable.shardId())) {
                         targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
                     }
@@ -697,20 +700,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
     }
 
-    static class DiskUsageWithRelocations {
-
-        private final DiskUsage diskUsage;
-        private final long relocatingShardSize;
-
-        DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
-            this.diskUsage = diskUsage;
-            this.relocatingShardSize = relocatingShardSize;
-        }
-
-        @Override
-        public String toString() {
-            return "DiskUsageWithRelocations{" + "diskUsage=" + diskUsage + ", relocatingShardSize=" + relocatingShardSize + '}';
-        }
+    record DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
 
         double getFreeDiskAsPercentage() {
             if (getTotalBytes() == 0L) {

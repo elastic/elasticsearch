@@ -11,7 +11,6 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -19,23 +18,18 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,21 +62,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the {@code simple_query_string} query
  */
 public class SimpleQueryStringIT extends ESIntegTestCase {
-
-    private static int CLUSTER_MAX_CLAUSE_COUNT;
-
-    @BeforeClass
-    public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
-            .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -565,53 +544,20 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
-    public void testAllFieldsWithSpecifiedLeniency() throws IOException {
+    public void testAllFieldsWithSpecifiedLeniency() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test").setId("1").setSource("f_long", 1));
+        indexRandom(true, false, reqs);
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo123").lenient(false)).get()
         );
         assertThat(e.getDetailedMessage(), containsString("NumberFormatException: For input string: \"foo123\""));
-    }
-
-    public void testLimitOnExpandedFields() throws Exception {
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.startObject("_doc");
-        builder.startObject("properties");
-        for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
-            builder.startObject("field" + i).field("type", "text").endObject();
-        }
-        builder.endObject(); // properties
-        builder.endObject(); // type1
-        builder.endObject();
-
-        assertAcked(
-            prepareCreate("toomanyfields").setSettings(
-                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 100)
-            ).setMapping(builder)
-        );
-
-        client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
-        refresh();
-
-        doAssertLimitExceededException("*", CLUSTER_MAX_CLAUSE_COUNT + 1);
-        doAssertLimitExceededException("field*", CLUSTER_MAX_CLAUSE_COUNT + 1);
-    }
-
-    private void doAssertLimitExceededException(String field, int exceedingFieldCount) {
-        Exception e = expectThrows(Exception.class, () -> {
-            QueryStringQueryBuilder qb = queryStringQuery("bar");
-            qb.field(field);
-            client().prepareSearch("toomanyfields").setQuery(qb).get();
-        });
-        assertThat(
-            ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
-            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: " + exceedingFieldCount)
-        );
     }
 
     public void testFieldAlias() throws Exception {

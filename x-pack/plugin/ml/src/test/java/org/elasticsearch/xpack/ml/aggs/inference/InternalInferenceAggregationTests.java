@@ -102,19 +102,16 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         ParsedInference parsed = ((ParsedInference) parsedAggregation);
 
         InferenceResults result = agg.getInferenceResult();
-        if (result instanceof WarningInferenceResults) {
-            WarningInferenceResults warning = (WarningInferenceResults) result;
+        if (result instanceof WarningInferenceResults warning) {
             assertEquals(warning.getWarning(), parsed.getWarning());
-        } else if (result instanceof RegressionInferenceResults) {
-            RegressionInferenceResults regression = (RegressionInferenceResults) result;
+        } else if (result instanceof RegressionInferenceResults regression) {
             assertEquals(regression.value(), parsed.getValue());
             List<RegressionFeatureImportance> featureImportance = regression.getFeatureImportance();
             if (featureImportance.isEmpty()) {
                 featureImportance = null;
             }
             assertEquals(featureImportance, parsed.getFeatureImportance());
-        } else if (result instanceof ClassificationInferenceResults) {
-            ClassificationInferenceResults classification = (ClassificationInferenceResults) result;
+        } else if (result instanceof ClassificationInferenceResults classification) {
             assertEquals(classification.predictedValue(), parsed.getValue());
 
             List<ClassificationFeatureImportance> featureImportance = classification.getFeatureImportance();

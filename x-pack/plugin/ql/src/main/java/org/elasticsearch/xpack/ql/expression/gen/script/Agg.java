@@ -27,13 +27,11 @@ class Agg extends Param<AggregateFunction> {
     public String aggProperty() {
         AggregateFunction agg = value();
 
-        if (agg instanceof InnerAggregate) {
-            InnerAggregate inner = (InnerAggregate) agg;
+        if (agg instanceof InnerAggregate inner) {
             return Expressions.id((Expression) inner.outer()) + "." + inner.innerName();
         }
         // Count needs special handling since in most cases it is not a dedicated aggregation
-        else if (agg instanceof Count) {
-            Count c = (Count) agg;
+        else if (agg instanceof Count c) {
             // for literals get the last count
             if (c.field().foldable()) {
                 return COUNT_PATH;

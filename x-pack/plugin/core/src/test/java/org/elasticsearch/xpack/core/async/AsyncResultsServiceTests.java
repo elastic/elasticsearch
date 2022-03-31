@@ -77,8 +77,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void setExpirationTime(long expirationTimeMillis) {
-            this.expirationTimeMillis = expirationTimeMillis;
+        public void setExpirationTime(long expirationTime) {
+            this.expirationTimeMillis = expirationTime;
         }
 
         @Override

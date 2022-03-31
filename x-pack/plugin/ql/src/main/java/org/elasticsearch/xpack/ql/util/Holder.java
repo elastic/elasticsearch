@@ -21,6 +21,7 @@ public class Holder<T> {
         this.value = value;
     }
 
+    @SuppressWarnings("HiddenField")
     public void set(T value) {
         this.value = value;
     }

@@ -92,20 +92,11 @@ public class GeoBoundingBoxTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         for (String field : randomSubsetOf(List.of("top", "bottom", "left", "right"))) {
             switch (field) {
-                case "top":
-                    builder.field("top", geoBoundingBox.top());
-                    break;
-                case "bottom":
-                    builder.field("bottom", geoBoundingBox.bottom());
-                    break;
-                case "left":
-                    builder.field("left", geoBoundingBox.left());
-                    break;
-                case "right":
-                    builder.field("right", geoBoundingBox.right());
-                    break;
-                default:
-                    throw new IllegalStateException("unexpected branching");
+                case "top" -> builder.field("top", geoBoundingBox.top());
+                case "bottom" -> builder.field("bottom", geoBoundingBox.bottom());
+                case "left" -> builder.field("left", geoBoundingBox.left());
+                case "right" -> builder.field("right", geoBoundingBox.right());
+                default -> throw new IllegalStateException("unexpected branching");
             }
         }
         builder.endObject();

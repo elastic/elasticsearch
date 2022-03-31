@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -58,7 +58,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         );
     }
 
-    void handleResponse(FollowStatsAction.StatsResponses responses, Listener listener) {
+    static void handleResponse(FollowStatsAction.StatsResponses responses, Listener listener) {
         List<ShardFollowNodeTaskStatus> unSyncedShardFollowStatuses = responses.getStatsResponses()
             .stream()
             .map(FollowStatsAction.StatsResponse::status)

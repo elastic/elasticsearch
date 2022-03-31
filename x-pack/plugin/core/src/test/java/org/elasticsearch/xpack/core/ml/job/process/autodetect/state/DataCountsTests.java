@@ -208,7 +208,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
     public void testDocumentId() {
         DataCounts dataCounts = createTestInstance();
-        String jobId = dataCounts.getJobid();
+        String jobId = dataCounts.getJobId();
         assertEquals(jobId + "_data_counts", DataCounts.documentId(jobId));
     }
 

@@ -10,11 +10,10 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -45,7 +44,7 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         arguments = parser.nonOptions("key path");
     }
 
-    public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Sets.newHashSet(
+    public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Set.of(
         PosixFilePermission.OWNER_READ,
         PosixFilePermission.OWNER_WRITE
     );

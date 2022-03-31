@@ -25,7 +25,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -273,7 +273,7 @@ public final class DestinationIndex {
         assert getIndexResponse.indices().length == 1;
 
         // Fetch mappings from destination index
-        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().valuesIt().next().sourceAsMap();
+        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().values().iterator().next().sourceAsMap();
         Map<String, Object> destPropertiesAsMap = (Map<String, Object>) destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
         // Verify that the results field does not exist in the dest index

@@ -81,17 +81,15 @@ public class NodeRoleParserTests extends LaunchersTestCase {
     }
 
     public void testYamlSyntax() throws IOException {
-        MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> {
-            sb.append("node:\n");
-            sb.append("  roles:\n");
-            sb.append("    - master");
-        });
+        MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("""
+            node:
+              roles:
+                - master"""));
         assertThat(nodeRole, equalTo(MASTER_ONLY));
 
-        nodeRole = parseConfig(sb -> {
-            sb.append("node:\n");
-            sb.append("  roles: [ml]");
-        });
+        nodeRole = parseConfig(sb -> sb.append("""
+            node:
+              roles: [ml]"""));
         assertThat(nodeRole, equalTo(ML_ONLY));
     }
 

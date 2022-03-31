@@ -11,7 +11,6 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.BreakIteratorBoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FieldFragList;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.FragListBuilder;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
@@ -278,24 +278,26 @@ public class FastVectorHighlighter implements Highlighter {
             ? fieldOptions.boundaryScannerType()
             : HighlightBuilder.BoundaryScannerType.CHARS;
         switch (type) {
-            case SENTENCE:
+            case SENTENCE -> {
                 if (boundaryScannerLocale != null) {
                     return new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(boundaryScannerLocale));
                 }
                 return DEFAULT_SENTENCE_BOUNDARY_SCANNER;
-            case WORD:
+            }
+            case WORD -> {
                 if (boundaryScannerLocale != null) {
                     return new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(boundaryScannerLocale));
                 }
                 return DEFAULT_WORD_BOUNDARY_SCANNER;
-            case CHARS:
+            }
+            case CHARS -> {
                 if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
                     || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
                     return new SimpleBoundaryScanner(fieldOptions.boundaryMaxScan(), fieldOptions.boundaryChars());
                 }
                 return DEFAULT_SIMPLE_BOUNDARY_SCANNER;
-            default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+            }
+            default -> throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
         }
     }
 

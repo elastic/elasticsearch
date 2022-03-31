@@ -15,15 +15,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.AbstractCollection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,12 +43,12 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
- * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
- * or disallowing changes to its elements.
+ * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
+ * (see {@link RoutingNodes#mutable(RoutingTable, DiscoveryNodes)}, {@link RoutingNodes#immutable(RoutingTable, DiscoveryNodes)},
+ * and {@link #mutableCopy()})
  *
  * The main methods used to update routing entries are:
  * <ul>
@@ -56,13 +58,13 @@ import java.util.stream.StreamSupport;
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
  */
-public class RoutingNodes implements Iterable<RoutingNode> {
+public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
-    private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
+    private final Map<String, RoutingNode> nodesToShards;
 
-    private final UnassignedShards unassignedShards = new UnassignedShards(this);
+    private final UnassignedShards unassignedShards;
 
-    private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
+    private final Map<ShardId, List<ShardRouting>> assignedShards;
 
     private final boolean readOnly;
 
@@ -76,40 +78,54 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int totalShardCount = 0;
 
-    private final Map<String, Set<String>> attributeValuesByAttribute = new HashMap<>();
-    private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
+    private final Map<String, Set<String>> attributeValuesByAttribute;
+    private final Map<String, Recoveries> recoveriesPerNode;
 
-    public RoutingNodes(ClusterState clusterState) {
-        this(clusterState, true);
+    /**
+     * Creates an immutable instance from the {@link RoutingTable} and {@link DiscoveryNodes} found in a cluster state. Used to initialize
+     * the routing nodes in {@link ClusterState#getRoutingNodes()}. This method should not be used directly, use
+     * {@link ClusterState#getRoutingNodes()} instead.
+     */
+    public static RoutingNodes immutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+        return new RoutingNodes(routingTable, discoveryNodes, true);
     }
 
-    public RoutingNodes(ClusterState clusterState, boolean readOnly) {
-        this.readOnly = readOnly;
-        final RoutingTable routingTable = clusterState.routingTable();
+    public static RoutingNodes mutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+        return new RoutingNodes(routingTable, discoveryNodes, false);
+    }
 
-        Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
+    private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
+        this.readOnly = readOnly;
+        this.recoveriesPerNode = new HashMap<>();
+        this.assignedShards = new HashMap<>();
+        this.unassignedShards = new UnassignedShards(this);
+        this.attributeValuesByAttribute = new HashMap<>();
+
+        final Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = Maps.newMapWithExpectedSize(
+            discoveryNodes.getDataNodes().size()
+        );
         // fill in the nodeToShards with the "live" nodes
-        for (DiscoveryNode node : clusterState.nodes().getDataNodes().values()) {
-            nodesToShards.put(node.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+        for (var node : discoveryNodes.getDataNodes().keySet()) {
+            nodesToShards.put(node, new LinkedHashMap<>()); // LinkedHashMap to preserve order
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
                 assert indexShard.primary != null;
-                for (ShardRouting shard : indexShard) {
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    final ShardRouting shard = indexShard.shard(copy);
                     totalShardCount++;
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
-                        Map<ShardId, ShardRouting> entries = nodesToShards.computeIfAbsent(
-                            shard.currentNodeId(),
-                            k -> new LinkedHashMap<>()
-                        ); // LinkedHashMap to preserve order
-                        ShardRouting previousValue = entries.put(shard.shardId(), shard);
+                        // LinkedHashMap to preserve order
+                        ShardRouting previousValue = nodesToShards.computeIfAbsent(shard.currentNodeId(), k -> new LinkedHashMap<>())
+                            .put(shard.shardId(), shard);
                         if (previousValue != null) {
                             throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
                         }
@@ -119,13 +135,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         }
                         if (shard.relocating()) {
                             relocatingShards++;
-                            // LinkedHashMap to preserve order.
-                            // Add the counterpart shard with relocatingNodeId reflecting the source from which
-                            // it's relocating from.
-                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(), k -> new LinkedHashMap<>());
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
-                            previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);
+                            // LinkedHashMap to preserve order.
+                            // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
+                            previousValue = nodesToShards.computeIfAbsent(shard.relocatingNodeId(), k -> new LinkedHashMap<>())
+                                .put(targetShardRouting.shardId(), targetShardRouting);
                             if (previousValue != null) {
                                 throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
                             }
@@ -143,10 +158,48 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
+        this.nodesToShards = Maps.newMapWithExpectedSize(nodesToShards.size());
         for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
+            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, discoveryNodes.get(nodeId), entry.getValue()));
         }
+    }
+
+    private RoutingNodes(RoutingNodes routingNodes) {
+        // we should not call this on mutable instances, it's still expensive to create the copy and callers should instead mutate a single
+        // instance
+        assert routingNodes.readOnly : "tried to create a mutable copy from a mutable instance";
+        this.readOnly = false;
+        this.nodesToShards = Maps.newMapWithExpectedSize(routingNodes.nodesToShards.size());
+        for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
+            this.nodesToShards.put(entry.getKey(), entry.getValue().copy());
+        }
+        this.assignedShards = Maps.newMapWithExpectedSize(routingNodes.assignedShards.size());
+        for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
+            this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        }
+        this.unassignedShards = routingNodes.unassignedShards.copyFor(this);
+
+        this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
+        this.inactiveShardCount = routingNodes.inactiveShardCount;
+        this.relocatingShards = routingNodes.relocatingShards;
+        this.activeShardCount = routingNodes.activeShardCount;
+        this.totalShardCount = routingNodes.totalShardCount;
+        this.attributeValuesByAttribute = Maps.newMapWithExpectedSize(routingNodes.attributeValuesByAttribute.size());
+        for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
+            this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
+        }
+        this.recoveriesPerNode = Maps.newMapWithExpectedSize(routingNodes.recoveriesPerNode.size());
+        for (Map.Entry<String, Recoveries> entry : routingNodes.recoveriesPerNode.entrySet()) {
+            this.recoveriesPerNode.put(entry.getKey(), entry.getValue().copy());
+        }
+    }
+
+    /**
+     * @return a mutable copy of this instance
+     */
+    public RoutingNodes mutableCopy() {
+        return new RoutingNodes(this);
     }
 
     private void addRecovery(ShardRouting routing) {
@@ -246,10 +299,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             : Thread.currentThread().getName() + " should be the master service thread";
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,
-            ignored -> StreamSupport.stream(this.spliterator(), false)
-                .map(r -> r.node().getAttributes().get(attributeName))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet())
+            ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
         );
     }
 
@@ -747,7 +797,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         shards.add(shard);
     }
 
-    private boolean assertInstanceNotInList(ShardRouting shard, List<ShardRouting> shards) {
+    private static boolean assertInstanceNotInList(ShardRouting shard, List<ShardRouting> shards) {
         for (ShardRouting s : shards) {
             assert s != shard;
         }
@@ -816,6 +866,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns the number of routing nodes
      */
+    @Override
     public int size() {
         return nodesToShards.size();
     }
@@ -865,13 +916,29 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         private final List<ShardRouting> unassigned;
         private final List<ShardRouting> ignored;
 
-        private int primaries = 0;
-        private int ignoredPrimaries = 0;
+        private int primaries;
+        private int ignoredPrimaries;
 
         public UnassignedShards(RoutingNodes nodes) {
+            this(nodes, new ArrayList<>(), new ArrayList<>(), 0, 0);
+        }
+
+        private UnassignedShards(
+            RoutingNodes nodes,
+            List<ShardRouting> unassigned,
+            List<ShardRouting> ignored,
+            int primaries,
+            int ignoredPrimaries
+        ) {
             this.nodes = nodes;
-            unassigned = new ArrayList<>();
-            ignored = new ArrayList<>();
+            this.unassigned = unassigned;
+            this.ignored = ignored;
+            this.primaries = primaries;
+            this.ignoredPrimaries = ignoredPrimaries;
+        }
+
+        public UnassignedShards copyFor(RoutingNodes newNodes) {
+            return new UnassignedShards(newNodes, new ArrayList<>(unassigned), new ArrayList<>(ignored), primaries, ignoredPrimaries);
         }
 
         public void add(ShardRouting shardRouting) {
@@ -1068,11 +1135,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return ignored.isEmpty();
         }
 
-        public void shuffle() {
-            nodes.ensureMutable();
-            Randomness.shuffle(unassigned);
-        }
-
         /**
          * Drains all unassigned shards and returns it.
          * This method will not drain ignored shards.
@@ -1247,33 +1309,29 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * all the nodes have been returned.
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator() {
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            queue.add(entry.getValue().copyShards().iterator());
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
+        for (final var routingNode : nodesToShards.values()) {
+            final var iterator = routingNode.copyShards().iterator();
+            if (iterator.hasNext()) {
+                queue.add(iterator);
+            }
         }
-        return new Iterator<ShardRouting>() {
+        return new Iterator<>() {
             public boolean hasNext() {
-                while (queue.isEmpty() == false) {
-                    if (queue.peek().hasNext()) {
-                        return true;
-                    }
-                    queue.poll();
-                }
-                return false;
+                return queue.isEmpty() == false;
             }
 
             public ShardRouting next() {
-                if (hasNext() == false) {
+                if (queue.isEmpty()) {
                     throw new NoSuchElementException();
                 }
-                Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
-                queue.offer(iter);
-                return result;
-            }
-
-            public void remove() {
-                throw new UnsupportedOperationException();
+                final var nodeIterator = queue.poll();
+                assert nodeIterator.hasNext();
+                final var nextShard = nodeIterator.next();
+                if (nodeIterator.hasNext()) {
+                    queue.offer(nodeIterator);
+                }
+                return nextShard;
             }
         };
     }
@@ -1282,6 +1340,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;
         private int outgoing = 0;
+
+        public Recoveries copy() {
+            final Recoveries copy = new Recoveries();
+            copy.incoming = incoming;
+            copy.outgoing = outgoing;
+            return copy;
+        }
 
         void addOutgoing(int howMany) {
             assert outgoing + howMany >= 0 : outgoing + howMany + " must be >= 0";

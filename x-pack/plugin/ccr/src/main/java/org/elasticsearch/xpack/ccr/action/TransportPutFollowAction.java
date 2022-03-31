@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -35,7 +35,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -135,7 +134,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             );
             return;
         }
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
+        if (leaderIndexMetadata.isSearchableSnapshot()) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "leader index ["
@@ -198,7 +197,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings);
 
-        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
+            this.client,
+            threadPool.getThreadContext().getHeaders(),
+            clusterService.state()
+        );
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
             @Override
@@ -269,12 +272,13 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
                     delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            })
+            }),
+            threadPool.getThreadContext()
         );
     }
 
     private void initiateFollowing(
-        final Client client,
+        final Client clientWithHeaders,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener
     ) {
@@ -283,7 +287,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        client.execute(
+        clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
             ActionListener.wrap(
@@ -305,13 +309,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return new DataStream(
                 remoteDataStream.getName(),
-                remoteDataStream.getTimeStampField(),
                 List.of(backingIndexToFollow),
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
                 remoteDataStream.isHidden(),
                 true,
-                remoteDataStream.isAllowCustomRouting()
+                remoteDataStream.isSystem(),
+                remoteDataStream.isAllowCustomRouting(),
+                remoteDataStream.getIndexMode()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -335,13 +340,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
             return new DataStream(
                 localDataStream.getName(),
-                localDataStream.getTimeStampField(),
                 backingIndices,
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
                 localDataStream.isHidden(),
                 localDataStream.isReplicated(),
-                localDataStream.isAllowCustomRouting()
+                localDataStream.isSystem(),
+                localDataStream.isAllowCustomRouting(),
+                localDataStream.getIndexMode()
             );
         }
     }

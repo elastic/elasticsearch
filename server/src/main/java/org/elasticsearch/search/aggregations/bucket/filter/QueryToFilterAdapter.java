@@ -48,7 +48,9 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Note: This method rewrites the query against the {@link IndexSearcher}
      */
     public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
-        query = searcher.rewrite(query);
+        // Wrapping with a ConstantScoreQuery enables a few more rewrite
+        // rules as of Lucene 9.2
+        query = searcher.rewrite(new ConstantScoreQuery(query));
         if (query instanceof ConstantScoreQuery) {
             /*
              * Unwrap constant score because it gets in the way of us
@@ -128,7 +130,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * produce the same answer as collecting the results with a sequence like
      * {@code searcher.collect(counter); return counter.readAndReset();}?
      */
-    protected final boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
+    protected static boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
         if (live != null) {
             /*
              * We can only use metadata if all of the documents in the reader
@@ -154,18 +156,21 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
         /*
+         * Wrapping with a ConstantScoreQuery enables a few more rewrite
+         * rules as of Lucene 9.2.
          * It'd be *wonderful* if Lucene could do fancy optimizations
-         * when merging queries but it doesn't at the moment. Admittedly,
-         * we have a much more limited problem. We don't care about score
-         * here at all. We know which queries its worth spending time to
-         * optimize because we know which aggs rewrite into this one.
+         * when merging queries like combining ranges but it doesn't at
+         * the moment. Admittedly, we have a much more limited problem.
+         * We don't care about score here at all. We know which queries
+         * it's worth spending time to optimize because we know which aggs
+         * rewrite into this one.
          */
-        extraQuery = searcher().rewrite(extraQuery);
-        if (extraQuery instanceof MatchAllDocsQuery) {
+        extraQuery = searcher().rewrite(new ConstantScoreQuery(extraQuery));
+        Query unwrappedExtraQuery = unwrap(extraQuery);
+        if (unwrappedExtraQuery instanceof MatchAllDocsQuery) {
             return this;
         }
         Query unwrappedQuery = unwrap(query);
-        Query unwrappedExtraQuery = unwrap(extraQuery);
         if (unwrappedQuery instanceof PointRangeQuery && unwrappedExtraQuery instanceof PointRangeQuery) {
             Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedQuery, (PointRangeQuery) unwrappedExtraQuery);
             if (merged != null) {
@@ -174,8 +179,8 @@ public class QueryToFilterAdapter<Q extends Query> {
             }
         }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(query, BooleanClause.Occur.MUST);
-        builder.add(extraQuery, BooleanClause.Occur.MUST);
+        builder.add(query, BooleanClause.Occur.FILTER);
+        builder.add(extraQuery, BooleanClause.Occur.FILTER);
         return new QueryToFilterAdapter<>(searcher(), key(), builder.build()) {
             public boolean isInefficientUnion() {
                 return true;

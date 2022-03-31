@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -114,9 +113,9 @@ public class ScopedSettingsTests extends ESTestCase {
             currentSettings,
             new HashSet<>(Arrays.asList(dynamicSetting, IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING))
         );
-        Map<String, String> s = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(currentSettings);
+        var s = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(currentSettings);
         assertEquals(1, s.size());
-        assertEquals("192.168.0.1,127.0.0.1", s.get("_ip"));
+        assertEquals(List.of("192.168.0.1", "127.0.0.1"), s.get("_ip"));
         Settings.Builder builder = Settings.builder();
         Settings updates = Settings.builder().putNull("index.routing.allocation.require._ip").put("index.some.dyn.setting", 1).build();
         settings.validate(updates, false);
@@ -1473,7 +1472,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
                 @Override
                 public List<String> getListValue(final List<String> value) {
-                    return value.stream().map(s -> "new." + s).collect(Collectors.toList());
+                    return value.stream().map(s -> "new." + s).toList();
                 }
             })
         );
@@ -1488,10 +1487,7 @@ public class ScopedSettingsTests extends ESTestCase {
         final Settings upgradedSettings = service.upgradeSettings(settings);
         assertFalse(oldSetting.exists(upgradedSettings));
         assertTrue(newSetting.exists(upgradedSettings));
-        assertThat(
-            newSetting.get(upgradedSettings),
-            equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList()))
-        );
+        assertThat(newSetting.get(upgradedSettings), equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).toList()));
     }
 
 }

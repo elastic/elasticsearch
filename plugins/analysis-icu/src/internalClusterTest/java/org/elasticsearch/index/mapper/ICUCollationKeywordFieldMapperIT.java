@@ -347,11 +347,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
-            true,
-            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"foobar-10\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"foobar-9\"}", XContentType.JSON)
-        );
+        indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
+            {"collate":"foobar-10"}""", XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
+            {"collate":"foobar-9"}""", XContentType.JSON));
 
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
@@ -386,13 +384,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
-            true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"résumé\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"Resume\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"resume\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("4").setSource("{\"id\":\"4\",\"collate\":\"Résumé\"}", XContentType.JSON)
-        );
+        indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
+            {"id":"1","collate":"résumé"}""", XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
+            {"id":"2","collate":"Resume"}""", XContentType.JSON), client().prepareIndex(index).setId("3").setSource("""
+            {"id":"3","collate":"resume"}""", XContentType.JSON), client().prepareIndex(index).setId("4").setSource("""
+            {"id":"4","collate":"Résumé"}""", XContentType.JSON));
 
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.DESC));

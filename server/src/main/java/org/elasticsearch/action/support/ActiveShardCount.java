@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.support;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -26,7 +24,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
  */
-public final class ActiveShardCount implements Writeable {
+public record ActiveShardCount(int value) implements Writeable {
 
     private static final int ACTIVE_SHARD_COUNT_DEFAULT = -2;
     private static final int ALL_ACTIVE_SHARDS = -1;
@@ -35,12 +33,6 @@ public final class ActiveShardCount implements Writeable {
     public static final ActiveShardCount ALL = new ActiveShardCount(ALL_ACTIVE_SHARDS);
     public static final ActiveShardCount NONE = new ActiveShardCount(0);
     public static final ActiveShardCount ONE = new ActiveShardCount(1);
-
-    private final int value;
-
-    private ActiveShardCount(final int value) {
-        this.value = value;
-    }
 
     /**
      * Get an ActiveShardCount instance for the given value.  The value is first validated to ensure
@@ -160,8 +152,9 @@ public final class ActiveShardCount implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
+                if (waitForActiveShards.enoughShardsActive(shardRouting) == false) {
                     // not enough active shard copies yet
                     return false;
                 }
@@ -189,32 +182,12 @@ public final class ActiveShardCount implements Writeable {
     }
 
     @Override
-    public int hashCode() {
-        return Integer.hashCode(value);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ActiveShardCount that = (ActiveShardCount) o;
-        return value == that.value;
-    }
-
-    @Override
     public String toString() {
-        switch (value) {
-            case ALL_ACTIVE_SHARDS:
-                return "ALL";
-            case ACTIVE_SHARD_COUNT_DEFAULT:
-                return "DEFAULT";
-            default:
-                return Integer.toString(value);
-        }
+        return switch (value) {
+            case ALL_ACTIVE_SHARDS -> "ALL";
+            case ACTIVE_SHARD_COUNT_DEFAULT -> "DEFAULT";
+            default -> Integer.toString(value);
+        };
     }
 
 }

@@ -1,6 +1,0 @@
-pr: 80524
-summary: Use almalinux as the Docker base image
-area: Packaging
-type: enhancement
-issues:
- - 76681

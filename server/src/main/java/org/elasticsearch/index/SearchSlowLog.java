@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +20,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -196,7 +195,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 messageFields.put("elasticsearch.slowlog.source", "{}");
             }
 
-            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
             return messageFields;
         }
 

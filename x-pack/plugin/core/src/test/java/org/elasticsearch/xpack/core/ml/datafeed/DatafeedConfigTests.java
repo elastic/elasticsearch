@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -46,13 +45,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -132,113 +131,115 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return DatafeedConfig.STRICT_PARSER.apply(parser, null).build();
     }
 
-    private static final String FUTURE_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"tomorrows_technology_today\": \"amazing\",\n"
-        + "    \"scroll_size\": 1234\n"
-        + "}";
+    private static final String FUTURE_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "tomorrows_technology_today": "amazing",
+            "scroll_size": 1234
+        }""";
 
-    private static final String ANACHRONISTIC_QUERY_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        +
-        // query:match:type stopped being supported in 6.x
-        "    \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}},\n"
-        + "    \"scroll_size\": 1234\n"
-        + "}";
+    // query:match:type stopped being supported in 6.x
+    private static final String ANACHRONISTIC_QUERY_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "query": {"match" : {"query":"fieldName", "type": "phrase"}},
+            "scroll_size": 1234
+        }""";
 
-    private static final String ANACHRONISTIC_AGG_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        },\n"
-        + "        \"airline\": {\n"
-        + "          \"terms\": {\n"
-        + "            \"field\": \"airline\",\n"
-        + "            \"size\": 0\n"
-        + // size: 0 stopped being supported in 6.x
-        "          }\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    // size: 0 stopped being supported in 6.x
+    private static final String ANACHRONISTIC_AGG_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                },
+                "airline": {
+                  "terms": {
+                    "field": "airline",
+                    "size": 0
+                  }
+                }
+              }
+            }
+          }
+        }""";
 
-    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
-    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  },"
-        + "    \"aggs\": {\n"
-        + "    \"buckets2\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          },    "aggs": {
+            "buckets2": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
     public void testFutureConfigParse() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
+        XContentParser parser = parser(FUTURE_DATAFEED);
         XContentParseException e = expectThrows(
             XContentParseException.class,
             () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build()
@@ -247,10 +248,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testPastQueryConfigParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_QUERY_DATAFEED)) {
 
             DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(
@@ -259,10 +257,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             );
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_QUERY_DATAFEED)) {
 
             XContentParseException e = expectThrows(
                 XContentParseException.class,
@@ -273,10 +268,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testPastAggConfigParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_AGG_DATAFEED)) {
 
             DatafeedConfig datafeedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(
@@ -285,10 +277,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             );
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_AGG_DATAFEED)) {
 
             XContentParseException e = expectThrows(
                 XContentParseException.class,
@@ -299,19 +288,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testPastAggConfigOldDateHistogramParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL)
-        ) {
+        try (XContentParser parser = parser(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL)) {
 
             DatafeedConfig datafeedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(datafeedConfig.getParsedAggregations(xContentRegistry()), is(not(nullValue())));
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_AGG_DATAFEED)) {
 
             XContentParseException e = expectThrows(
                 XContentParseException.class,
@@ -322,26 +305,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testFutureMetadataParse() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
+        XContentParser parser = parser(FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
         assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
     }
 
     public void testMultipleDefinedAggParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(MULTIPLE_AGG_DEF_DATAFEED)) {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> DatafeedConfig.LENIENT_PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
             assertNotNull(ex.getCause());
             assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
         }
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(MULTIPLE_AGG_DEF_DATAFEED)) {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> DatafeedConfig.STRICT_PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
             assertNotNull(ex.getCause());
@@ -361,16 +337,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
         BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, forClusterstateXContent.streamInput());
+        XContentParser parser = parser(forClusterstateXContent);
 
         DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
 
         // headers are not written without the FOR_INTERNAL_STORAGE param
         BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
-        parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
+        parser = parser(nonClusterstateXContent);
 
         parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));
@@ -442,16 +416,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         conf.setIndices(Collections.emptyList());
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[]"), e.getMessage());
-    }
-
-    public void testCheckValid_GivenIndicesContainsOnlyNulls() {
-        List<String> indices = new ArrayList<>();
-        indices.add(null);
-        indices.add(null);
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
-        conf.setIndices(indices);
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[null, null]"), e.getMessage());
     }
 
     public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() {
@@ -839,8 +803,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         XContentType xContentType = XContentType.JSON;
         BytesReference bytes = XContentHelper.toXContent(datafeedConfig, xContentType, false);
         XContentParser parser = XContentHelper.createParser(
-            xContentRegistry(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             bytes,
             xContentType
         );
@@ -1102,5 +1065,16 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    private XContentParser parser(String json) throws IOException {
+        return JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
+    }
+
+    private XContentParser parser(BytesReference json) throws IOException {
+        return JsonXContent.jsonXContent.createParser(
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
+            json.streamInput()
+        );
     }
 }

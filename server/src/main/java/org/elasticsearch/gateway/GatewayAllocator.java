@@ -8,15 +8,13 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -39,6 +37,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.Node
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -105,8 +104,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void applyFailedShards(final List<FailedShard> failedShards, final RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
-            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
-            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
+            Releasables.close(asyncFetchStarted.remove(failedShard.routingEntry().shardId()));
+            Releasables.close(asyncFetchStore.remove(failedShard.routingEntry().shardId()));
         }
     }
 
@@ -173,8 +172,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         DiscoveryNodes nodes = allocation.nodes();
         if (hasNewNodes(nodes)) {
             final Set<String> newEphemeralIds = nodes.getDataNodes()
+                .values()
                 .stream()
-                .map(node -> node.getValue().getEphemeralId())
+                .map(DiscoveryNode::getEphemeralId)
                 .collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
@@ -203,8 +203,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+        for (Map.Entry<String, DiscoveryNode> node : nodes.getDataNodes().entrySet()) {
+            if (lastSeenEphemeralIds.contains(node.getValue().getEphemeralId()) == false) {
                 return true;
             }
         }
@@ -248,7 +248,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+            // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
             Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
             AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
                 shard.shardId(),

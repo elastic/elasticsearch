@@ -30,6 +30,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Registry and utilities around {@link Cursor}s.
@@ -119,6 +120,15 @@ public final class Cursors {
      */
     public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
         return internalDecodeFromStringWithZone(base64, new NamedWriteableRegistry(List.of()) {
+            @Override
+            public <T> Map<String, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
+                try {
+                    return writeableRegistry.getReaders(categoryClass);
+                } catch (IllegalArgumentException iae) {
+                    return WRITEABLE_REGISTRY.getReaders(categoryClass);
+                }
+            }
+
             @Override
             public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
                 try {

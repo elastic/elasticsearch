@@ -669,7 +669,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        DiskUsage node1Usage = decider.averageUsage(rn, usages.build());
+        DiskUsage node1Usage = DiskThresholdDecider.averageUsage(rn, usages.build());
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
@@ -681,7 +681,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        Double after = decider.freeDiskPercentageAfterShardAssigned(
+        Double after = DiskThresholdDecider.freeDiskPercentageAfterShardAssigned(
             new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("node2", "n2", "/dev/null", 100, 30), 0L),
             11L
         );

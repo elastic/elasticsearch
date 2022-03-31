@@ -392,7 +392,7 @@ public final class AnalysisRegistry implements Closeable {
         );
     }
 
-    private <T> AnalysisProvider<T> getProvider(
+    private static <T> AnalysisProvider<T> getProvider(
         Component componentType,
         String componentName,
         IndexSettings indexSettings,
@@ -584,7 +584,7 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
-    public IndexAnalyzers build(
+    public static IndexAnalyzers build(
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -710,7 +710,7 @@ public final class AnalysisRegistry implements Closeable {
         return analyzer;
     }
 
-    private void processNormalizerFactory(
+    private static void processNormalizerFactory(
         String name,
         AnalyzerProvider<?> normalizerFactory,
         Map<String, NamedAnalyzer> normalizers,

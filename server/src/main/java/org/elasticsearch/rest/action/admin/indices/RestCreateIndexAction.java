@@ -58,7 +58,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     }
 
     // default scope for testing types in mapping
-    CreateIndexRequest prepareRequestV7(RestRequest request) {
+    static CreateIndexRequest prepareRequestV7(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
@@ -103,7 +103,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
     }
 
-    CreateIndexRequest prepareRequest(RestRequest request) {
+    static CreateIndexRequest prepareRequest(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {

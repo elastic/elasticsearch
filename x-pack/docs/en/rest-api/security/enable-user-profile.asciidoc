@@ -8,7 +8,7 @@
 beta::[]
 
 Enables a user profile so it's visible in
-<<security-api-search-user-profile,user profile searches>>.
+<<security-api-suggest-user-profile,user profile searches>>.
 
 [[security-api-enable-user-profile-request]]
 ==== {api-request-title}

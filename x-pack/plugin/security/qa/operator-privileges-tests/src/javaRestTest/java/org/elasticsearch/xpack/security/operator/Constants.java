@@ -277,7 +277,6 @@ public class Constants {
         "cluster:monitor/xpack/info",
         "cluster:monitor/xpack/info/aggregate_metric",
         "cluster:monitor/xpack/info/analytics",
-        "cluster:monitor/xpack/info/archive",
         "cluster:monitor/xpack/info/ccr",
         "cluster:monitor/xpack/info/data_streams",
         "cluster:monitor/xpack/info/data_tiers",

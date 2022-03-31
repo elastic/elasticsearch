@@ -32,6 +32,16 @@ setup:
               date:
                 type: date
                 format: "yyyy-MM-dd HH:mm:ss"
+  - do:
+      indices.create:
+        index: test_timezone_date_nanos
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date_nanos
 
   - do:
       bulk:
@@ -52,6 +62,19 @@ setup:
           - '{"range": {"lt": "2016-02-01"}}'
           - '{"index": {}}'
           - '{ "date":["2021-05-01","2021-04-01","2021-04-22"], "date_not_indexed":["2021-05-01","2021-04-01","2021-03-22"]}'
+
+  - do:
+      bulk:
+        index: test_timezone_date_nanos
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date": "2015-01-01" }
+          - { "index": { } }
+          - { "date": "2015-01-01T12:10:30.123456789Z" }
+          - { "index": { } }
+          - { "date": 1420070400 }
+          - { "index": { } }
 
   - do:
       bulk:
@@ -107,6 +130,126 @@ setup:
   - match: { aggregations.histo.buckets.8.doc_count: 1 }
   - match: { aggregations.histo.buckets.12.key_as_string: "2016-06-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
+
+---
+"date_histogram on date_nanos without timezone fixed interval":
+  - skip:
+      version: " - 7.6.0"
+      reason: bug fixed in 7.6.1
+  - do:
+      search:
+        index: test_timezone_date_nanos
+        body:
+          size: 0
+          aggregations:
+            date_histogram:
+              date_histogram:
+                field: date
+                fixed_interval: 30s
+                min_doc_count: 1
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "1970-01-17T10:27:30.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1420050000 }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2015-01-01T00:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.1.key: 1420070400000 }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2015-01-01T12:10:30.000Z" }
+  - match: { aggregations.date_histogram.buckets.2.key: 1420114230000 }
+
+---
+"date_histogram on date_nanos with timezone fixed interval":
+  - skip:
+      version: " - 7.6.0"
+      reason: bug fixed in 7.6.1
+  - do:
+      search:
+        index: test_timezone_date_nanos
+        body:
+          size: 0
+          aggregations:
+            date_histogram:
+              date_histogram:
+                field: date
+                fixed_interval: 30s
+                time_zone: Europe/Berlin
+                min_doc_count: 1
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "1970-01-17T11:27:30.000+01:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1420050000 }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2015-01-01T01:00:00.000+01:00" }
+  - match: { aggregations.date_histogram.buckets.1.key: 1420070400000 }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2015-01-01T13:10:30.000+01:00" }
+  - match: { aggregations.date_histogram.buckets.2.key: 1420114230000 }
+
+---
+"date_histogram on date_nanos without timezone calendar interval":
+  - skip:
+      version: " - 7.6.0"
+      reason: bug fixed in 7.6.1
+  - do:
+      search:
+        index: test_timezone_date_nanos
+        body:
+          size: 0
+          aggregations:
+            date_histogram:
+              date_histogram:
+                field: date
+                calendar_interval: minute
+                min_doc_count: 1
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "1970-01-17T10:27:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1420020000 }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2015-01-01T00:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.1.key: 1420070400000 }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2015-01-01T12:10:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.2.key: 1420114200000 }
+
+---
+"date_histogram on date_nanos with timezone calendar interval":
+  - skip:
+      version: " - 7.6.0"
+      reason: bug fixed in 7.6.1
+  - do:
+      search:
+        index: test_timezone_date_nanos
+        body:
+          size: 0
+          aggregations:
+            date_histogram:
+              date_histogram:
+                field: date
+                calendar_interval: minute
+                time_zone: Europe/Berlin
+                min_doc_count: 1
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "1970-01-17T11:27:00.000+01:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1420020000 }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2015-01-01T01:00:00.000+01:00" }
+  - match: { aggregations.date_histogram.buckets.1.key: 1420070400000 }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2015-01-01T13:10:00.000+01:00" }
+  - match: { aggregations.date_histogram.buckets.2.key: 1420114200000 }
 
 ---
 "date_histogram and date_histogram_composite timezone":

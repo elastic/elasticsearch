@@ -25,6 +25,8 @@
           black-list-labels:
             - '>test-mute'
             - 'test-full-bwc'
+          black-list-target-branches:
+            - feature/desired-balance-allocator
     axes:
       - axis:
           type: slave

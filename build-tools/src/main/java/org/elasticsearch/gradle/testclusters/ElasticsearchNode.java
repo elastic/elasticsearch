@@ -918,8 +918,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         // Direct the stdout and stderr to the ES log file. This should not contend with the actual ES
         // process once it is started since there we close replace stdout/stderr handles once logging is setup.
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esLogFile.toFile()));
-        processBuilder.redirectErrorStream(true);
+        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esLogFile.toFile()));
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {

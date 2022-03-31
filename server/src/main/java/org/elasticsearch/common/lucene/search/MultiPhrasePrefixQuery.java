@@ -280,7 +280,7 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     // Breakout calculation of the termArrays equals
-    private boolean termArraysEquals(List<Term[]> termArrays1, List<Term[]> termArrays2) {
+    private static boolean termArraysEquals(List<Term[]> termArrays1, List<Term[]> termArrays2) {
         if (termArrays1.size() != termArrays2.size()) {
             return false;
         }

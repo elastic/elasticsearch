@@ -543,7 +543,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // real one, which has a logger defined
         final IndicesService indicesService = getIndicesService();
 
-        final Map<Index, List<IndexShardStats>> indexStats = indicesService.statsByShard(mockIndicesService, CommonStatsFlags.ALL);
+        final Map<Index, List<IndexShardStats>> indexStats = IndicesService.statsByShard(mockIndicesService, CommonStatsFlags.ALL);
 
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));

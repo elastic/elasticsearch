@@ -124,7 +124,7 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
-    MappingParserContext createMultiFieldContext(MappingParserContext in) {
+    static MappingParserContext createMultiFieldContext(MappingParserContext in) {
         return new MultiFieldParserContext(in);
     }
 

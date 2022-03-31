@@ -111,7 +111,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         };
     }
 
-    private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
+    private static TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -137,7 +137,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    private final class MultiplexTokenFilter extends TokenFilter {
+    private static final class MultiplexTokenFilter extends TokenFilter {
 
         private final TokenStream source;
         private final int filterCount;

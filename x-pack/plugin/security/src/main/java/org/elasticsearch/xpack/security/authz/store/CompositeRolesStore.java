@@ -280,7 +280,7 @@ public class CompositeRolesStore {
         }
     }
 
-    private boolean includesSuperuserRole(RoleReference roleReference) {
+    private static boolean includesSuperuserRole(RoleReference roleReference) {
         if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
             return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         } else {
@@ -363,7 +363,7 @@ public class CompositeRolesStore {
         );
     }
 
-    private Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+    private static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(

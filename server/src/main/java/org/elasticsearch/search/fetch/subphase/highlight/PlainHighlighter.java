@@ -224,7 +224,7 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
-    private Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+    private static Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
         if (maxAnalyzedOffset != null) {
             return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
         }

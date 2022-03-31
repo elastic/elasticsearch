@@ -66,26 +66,32 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        final var wrappedCommand = wrapRunnable(command);
+        final Runnable wrappedRunnable = wrapRunnable(command);
         try {
-            super.execute(wrappedCommand);
-        } catch (EsRejectedExecutionException ex) {
-            if (wrappedCommand instanceof AbstractRunnable abstractRunnable) {
+            super.execute(wrappedRunnable);
+        } catch (Exception e) {
+            if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {
                 try {
-                    abstractRunnable.onRejection(ex);
+                    // If we are an abstract runnable we can handle the exception
+                    // directly and don't need to rethrow it, but we log and assert
+                    // any unexpected exception first.
+                    if (e instanceof EsRejectedExecutionException == false) {
+                        logException(abstractRunnable, e);
+                    }
+                    abstractRunnable.onRejection(e);
                 } finally {
                     abstractRunnable.onAfter();
                 }
             } else {
-                throw ex;
+                throw e;
             }
-        } catch (Exception ex) {
-            if (command instanceof AbstractRunnable) {
-                assert false : ex;
-                logger.error(new ParameterizedMessage("execution of [{}] failed", wrappedCommand), ex);
-            }
-            throw ex;
         }
+    }
+
+    // package-visible for testing
+    void logException(AbstractRunnable r, Exception e) {
+        logger.error(() -> new ParameterizedMessage("[{}] unexpected exception when submitting task [{}] for execution", name, r), e);
+        assert false : "executor throws an exception (not a rejected execution exception) before the task has been submitted " + e;
     }
 
     @Override
@@ -143,6 +149,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     protected Runnable unwrap(Runnable runnable) {
-        return contextHolder.unwrap(runnable);
+        return ThreadContext.unwrap(runnable);
     }
 }

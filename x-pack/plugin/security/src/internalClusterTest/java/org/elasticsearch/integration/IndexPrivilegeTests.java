@@ -719,7 +719,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                             "the index privilege [index] allowed the update mapping action "
                                 + "[indices:admin/mapping/auto_put] on index ["
                                 + index
-                                + "], this privilege will not permit mapping updates in the next major release - "
+                                + "], this privilege will not permit mapping updates in a future major release - "
                                 + "users who require access to update mappings must be granted explicit privileges"
                         )
                     );
@@ -737,7 +737,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                             "the index privilege [index] allowed the update mapping action "
                                 + "[indices:admin/mapping/auto_put] on index ["
                                 + index
-                                + "], this privilege will not permit mapping updates in the next major release - "
+                                + "], this privilege will not permit mapping updates in a future major release - "
                                 + "users who require access to update mappings must be granted explicit privileges"
                         )
                     );

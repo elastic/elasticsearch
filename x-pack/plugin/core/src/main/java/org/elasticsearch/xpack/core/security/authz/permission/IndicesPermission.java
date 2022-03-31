@@ -385,7 +385,7 @@ public final class IndicesPermission {
                                                 + "] on index ["
                                                 + resource.name
                                                 + "], this "
-                                                + "privilege will not permit mapping updates in the next major release - users who require "
+                                                + "privilege will not permit mapping updates in a future major release - users who require "
                                                 + "access to update mappings must be granted explicit privileges"
                                         );
                                     });

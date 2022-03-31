@@ -197,7 +197,7 @@ not permitting updating one.
 +
 deprecated:[7.9] Also grants the permission to update the index mapping (but not
 the data stream mapping), using the update mapping action, or relying on
-{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
+{ref}/dynamic-mapping.html[dynamic mappings]. In a future major release,
 this privilege will not grant any mapping update permission.
 +
 --
@@ -214,7 +214,7 @@ existing ones.
 +
 deprecated:[7.9] Also grants the permission to update the index mapping (but not
 the data stream mapping), using the update mapping action, or relying on
-{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
+{ref}/dynamic-mapping.html[dynamic mappings]. In a future major release,
 this privilege will not grant any mapping update permission.
 +
 --
@@ -250,7 +250,7 @@ Privilege to index (overwriting included) and update documents.
 +
 deprecated:[7.9] Also grants the permission to update the index mapping (but not
 the data stream mapping), using the update mapping action, or relying on
-{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
+{ref}/dynamic-mapping.html[dynamic mappings]. In a future major release,
 this privilege will not grant any mapping update permission.
 
 `maintenance`::
@@ -301,8 +301,8 @@ permission to index, update, and delete documents as well as performing bulk
 operations, and allows the {ref}/dynamic-mapping.html[dynamic mapping updates]
 as a result of these.
 +
-deprecated:[7.9] Until the next major release, this also grants access to the
-update mapping action, but only on indices, not on data streams.
+deprecated:[7.9] This also grants access to the update mapping action on
+indices only, not on data streams. This access will be removed in a future major release.
 
 ==== Run as privilege
 

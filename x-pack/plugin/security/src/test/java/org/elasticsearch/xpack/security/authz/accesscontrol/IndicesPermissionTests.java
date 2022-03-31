@@ -509,17 +509,17 @@ public class IndicesPermissionTests extends ESTestCase {
             "the index privilege [index] allowed the update mapping action ["
                 + PutMappingAction.NAME
                 + "] on "
-                + "index [test1], this privilege will not permit mapping updates in the next major release - "
+                + "index [test1], this privilege will not permit mapping updates in a future major release - "
                 + "users who require access to update mappings must be granted explicit privileges",
             "the index privilege [index] allowed the update mapping action ["
                 + PutMappingAction.NAME
                 + "] on "
-                + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
+                + "index [test_write1], this privilege will not permit mapping updates in a future major release - "
                 + "users who require access to update mappings must be granted explicit privileges",
             "the index privilege [write] allowed the update mapping action ["
                 + PutMappingAction.NAME
                 + "] on "
-                + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
+                + "index [test_write1], this privilege will not permit mapping updates in a future major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
         iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
@@ -530,7 +530,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "the index privilege [index] allowed the update mapping action ["
                 + AutoPutMappingAction.NAME
                 + "] on "
-                + "index [test1], this privilege will not permit mapping updates in the next major release - "
+                + "index [test1], this privilege will not permit mapping updates in a future major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
 

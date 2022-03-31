@@ -111,7 +111,7 @@ context.  For example, for the `processor_conditional` context, use
 [%collapsible]
 ====
 *Details* +
-In {es} 8.0.0, the following privileges will no longer allow users to
+In {es} 9.0.0, the following privileges will no longer allow users to
 explicitly update the mapping of an index:
 
 * `create_doc`
@@ -119,8 +119,8 @@ explicitly update the mapping of an index:
 * `index`
 * `write`
 
-Additionally, in {es} 8.0.0, the following privileges will no longer allow users to
-{ref}/dynamic-mapping.html[dynamically update the mapping] of an index 
+Additionally, in {es} 9.0.0, the following privileges will no longer allow users to
+{ref}/dynamic-mapping.html[dynamically update the mapping] of an index
 during indexing or ingest:
 
 * `create_doc`
@@ -128,7 +128,7 @@ during indexing or ingest:
 * `index`
 
 These privileges will continue to allow mapping actions on indices (but not on data streams) until
-{es} 8.0.0. However, deprecation warnings will be returned.
+{es} 9.0.0. However, deprecation warnings will be returned.
 
 *Impact* +
 To allow users to explicitly update the mapping of an index,

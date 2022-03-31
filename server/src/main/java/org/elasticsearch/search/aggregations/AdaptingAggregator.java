@@ -128,4 +128,9 @@ public abstract class AdaptingAggregator extends Aggregator {
     public Aggregator delegate() {
         return delegate;
     }
+
+    @Override
+    public String toString() {
+        return name();
+    }
 }

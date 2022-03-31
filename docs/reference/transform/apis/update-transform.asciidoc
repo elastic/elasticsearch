@@ -19,10 +19,11 @@ Updates certain properties of a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `index`.
+* destination index: `read`, `index`. If a `retention_policy` is configured, `delete` index privilege is
+also required.
 
 
 [[update-transform-desc]]

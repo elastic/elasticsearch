@@ -434,7 +434,7 @@ public class DiskThresholdMonitor {
         );
     }
 
-    private void markNodesMissingUsageIneligibleForRelease(
+    private static void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
         ImmutableOpenMap<String, DiskUsage> usages,
         Set<String> indicesToMarkIneligibleForAutoRelease
@@ -480,7 +480,7 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
+    private static boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }

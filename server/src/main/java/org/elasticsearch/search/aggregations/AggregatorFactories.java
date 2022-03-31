@@ -406,7 +406,7 @@ public class AggregatorFactories {
             return new AggregatorFactories(context, aggFactories);
         }
 
-        private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
+        private static List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
             Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders,
             Collection<AggregationBuilder> aggregationBuilders
         ) {
@@ -435,7 +435,7 @@ public class AggregatorFactories {
             return orderedPipelineAggregatorrs;
         }
 
-        private void resolvePipelineAggregatorOrder(
+        private static void resolvePipelineAggregatorOrder(
             Map<String, AggregationBuilder> aggBuildersMap,
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap,
             List<PipelineAggregationBuilder> orderedPipelineAggregators,

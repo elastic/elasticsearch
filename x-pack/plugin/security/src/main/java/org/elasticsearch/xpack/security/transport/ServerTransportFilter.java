@@ -85,7 +85,7 @@ final class ServerTransportFilter {
          requests from all the nodes are attached with a user (either a serialize
          user an authentication token
          */
-        String securityAction = actionMapper.action(action, request);
+        String securityAction = SecurityActionMapper.action(action, request);
 
         TransportChannel unwrappedChannel = transportChannel;
         if (unwrappedChannel instanceof TaskTransportChannel) {

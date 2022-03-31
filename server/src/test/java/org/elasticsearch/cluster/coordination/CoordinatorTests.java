@@ -1005,7 +1005,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testDiffBasedPublishing() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1041,7 +1041,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 assertEquals(
                     cn.toString(),
-                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + (cn == leader ? 0 : 1),
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount()
                 );
                 assertEquals(
@@ -1932,7 +1932,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testClusterRecoversAfterExceptionDuringSerialization() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 

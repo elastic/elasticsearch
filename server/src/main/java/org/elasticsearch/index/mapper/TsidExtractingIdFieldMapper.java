@@ -110,7 +110,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public void createField(DocumentParserContext context, BytesRef tsid) {
+    public static void createField(DocumentParserContext context, BytesRef tsid) {
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {
             throw new IllegalArgumentException(
@@ -190,7 +190,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return "[" + parsedDocument.id() + "][" + tsidDescription(tsidField) + "@" + timestampStr + "]";
     }
 
-    private String tsidDescription(IndexableField tsidField) {
+    private static String tsidDescription(IndexableField tsidField) {
         String tsid = TimeSeriesIdFieldMapper.decodeTsid(tsidField.binaryValue()).toString();
         if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
             return tsid;

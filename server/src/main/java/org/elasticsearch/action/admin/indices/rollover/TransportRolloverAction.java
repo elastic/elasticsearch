@@ -60,7 +60,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
 
-    private final MetadataRolloverService rolloverService;
     private final Client client;
     private final RolloverExecutor rolloverTaskExecutor;
 
@@ -86,7 +85,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             RolloverResponse::new,
             ThreadPool.Names.SAME
         );
-        this.rolloverService = rolloverService;
         this.client = client;
         this.rolloverTaskExecutor = new RolloverExecutor(
             allocationService,
@@ -138,7 +136,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             ActionListener.wrap(statsResponse -> {
                 // Now that we have the stats for the cluster, we need to know the names of the index for which we should evaluate
                 // conditions, as well as what our newly created index *would* be.
-                final MetadataRolloverService.NameResolution trialRolloverNames = rolloverService.resolveRolloverNames(
+                final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
                     oldState,
                     rolloverRequest.getRolloverTarget(),
                     rolloverRequest.getNewIndexName(),
@@ -147,7 +145,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 final String trialSourceIndexName = trialRolloverNames.sourceName();
                 final String trialRolloverIndexName = trialRolloverNames.rolloverName();
 
-                rolloverService.validateIndexName(oldState, trialRolloverIndexName);
+                MetadataRolloverService.validateIndexName(oldState, trialRolloverIndexName);
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
@@ -304,7 +302,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             final var rolloverRequest = rolloverTask.rolloverRequest();
 
             // Regenerate the rollover names, as a rollover could have happened in between the pre-check and the cluster state update
-            final var rolloverNames = rolloverService.resolveRolloverNames(
+            final var rolloverNames = MetadataRolloverService.resolveRolloverNames(
                 currentState,
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),

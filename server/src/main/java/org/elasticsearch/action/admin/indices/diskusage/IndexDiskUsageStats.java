@@ -78,7 +78,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         return indexSizeInBytes;
     }
 
-    private void checkByteSize(long bytes) {
+    private static void checkByteSize(long bytes) {
         if (bytes < 0) {
             throw new IllegalArgumentException("Bytes must be non-negative; got " + bytes);
         }

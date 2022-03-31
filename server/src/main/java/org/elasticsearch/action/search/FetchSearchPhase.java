@@ -34,7 +34,6 @@ import java.util.function.BiFunction;
  */
 final class FetchSearchPhase extends SearchPhase {
     private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;
-    private final SearchPhaseController searchPhaseController;
     private final AtomicArray<SearchPhaseResult> queryResults;
     private final BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
@@ -43,15 +42,9 @@ final class FetchSearchPhase extends SearchPhase {
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
 
-    FetchSearchPhase(
-        SearchPhaseResults<SearchPhaseResult> resultConsumer,
-        SearchPhaseController searchPhaseController,
-        AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context
-    ) {
+    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
         this(
             resultConsumer,
-            searchPhaseController,
             aggregatedDfs,
             context,
             (response, queryPhaseResults) -> new ExpandSearchPhase(
@@ -64,7 +57,6 @@ final class FetchSearchPhase extends SearchPhase {
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
-        SearchPhaseController searchPhaseController,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
         BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
@@ -79,7 +71,6 @@ final class FetchSearchPhase extends SearchPhase {
             );
         }
         this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
-        this.searchPhaseController = searchPhaseController;
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -114,7 +105,6 @@ final class FetchSearchPhase extends SearchPhase {
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = () -> moveToNextPhase(
-            searchPhaseController,
             queryResults,
             reducedQueryPhase,
             queryAndFetchOptimization ? queryResults : fetchResults.getAtomicArray()
@@ -126,7 +116,7 @@ final class FetchSearchPhase extends SearchPhase {
             finishPhase.run();
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
-            final List<Integer>[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+            final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
@@ -134,7 +124,7 @@ final class FetchSearchPhase extends SearchPhase {
                 finishPhase.run();
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch
-                    ? searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
+                    ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
                     : null;
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
                     fetchResults,
@@ -270,12 +260,11 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void moveToNextPhase(
-        SearchPhaseController searchPhaseController,
         AtomicArray<SearchPhaseResult> queryPhaseResults,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        final InternalSearchResponse internalResponse = searchPhaseController.merge(
+        final InternalSearchResponse internalResponse = SearchPhaseController.merge(
             context.getRequest().scroll() != null,
             reducedQueryPhase,
             fetchResultsArr.asList(),

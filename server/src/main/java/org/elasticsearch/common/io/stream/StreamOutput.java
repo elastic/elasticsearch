@@ -144,6 +144,18 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Serializes a writable just like {@link Writeable#writeTo(StreamOutput)} would but prefixes it with the serialized size of the result.
+     *
+     * @param writeable {@link Writeable} to serialize
+     */
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+        final BytesStreamOutput tmp = new BytesStreamOutput();
+        tmp.setVersion(version);
+        writeable.writeTo(tmp);
+        writeBytesReference(tmp.bytes());
+    }
+
+    /**
      * Writes the bytes reference, including a length header.
      */
     public void writeBytesReference(@Nullable BytesReference bytes) throws IOException {

@@ -17,6 +17,7 @@ import com.unboundid.ldap.sdk.SingleServerSet;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -219,27 +220,34 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
 
-        MockLogAppender appender = new MockLogAppender();
-        try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger(PoolingSessionFactory.class), appender);
-            appender.addExpectation(
+        MockLogAppender mockAppender = new MockLogAppender();
+        LdapUserSearchSessionFactory sessionFactory = null;
+        Logger logger = LogManager.getLogger(LdapUserSearchSessionFactory.class);
+        try {
+            mockAppender.start();
+            Loggers.addAppender(logger, mockAppender);
+            mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "log error on missing bind password",
-                    PoolingSessionFactory.class.getName(),
+                    LdapUserSearchSessionFactory.class.getName(),
                     Level.ERROR,
-                    ("[%s] is set but no bind password is specified. "
-                        + "When [%s] is set, LDAP realm authentication occurs by attempting to bind to the LDAP server "
-                        + "using the found DN and the provided password. "
-                        + "Without a bind password, authentication attempts will fail and your node will not be fully operational. "
+                    ("[%s] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "LDAP realm authentication will fail and your node will not be fully operational. "
                         + "Specify a bind password via [%s] or [%s].").formatted(
                             RealmSettings.getFullSettingKey(config, BIND_DN),
-                            RealmSettings.getFullSettingKey(config, BIND_DN),
-                            RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD),
-                            RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                            RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                            RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
                         )
                 )
             );
+            sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+            if (sessionFactory != null) {
+                sessionFactory.close();
+            }
         }
     }
 

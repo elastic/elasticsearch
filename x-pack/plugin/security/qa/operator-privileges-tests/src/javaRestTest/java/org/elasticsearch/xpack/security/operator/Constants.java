@@ -333,7 +333,6 @@ public class Constants {
         "cluster:monitor/xpack/usage",
         "cluster:monitor/xpack/usage/aggregate_metric",
         "cluster:monitor/xpack/usage/analytics",
-        "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",

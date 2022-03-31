@@ -13,13 +13,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the lifecycle reference date to a new index created by rolling over an alias.
@@ -71,10 +68,11 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(indexMetadata.getLifecycleExecutionState());
         newLifecycleState.setIndexCreationDate(newIndexTime);
-
-        IndexMetadata.Builder newIndexMetadata = IndexMetadata.builder(indexMetadata);
-        newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
-        return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(newIndexMetadata)).build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            currentState,
+            indexMetadata.getIndex(),
+            newLifecycleState.build()
+        );
     }
 
     private static String getRolloverTarget(Index index, ClusterState currentState) {

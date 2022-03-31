@@ -15,14 +15,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public record HealthIndicatorResult(String name,
-                                    String component,
-                                    HealthStatus status,
-                                    String summary,
-                                    HealthIndicatorDetails details,
-                                    @Nullable List<UserAction> userActions)
-    implements
-        ToXContentObject {
+public record HealthIndicatorResult(
+    String name,
+    String component,
+    HealthStatus status,
+    String summary,
+    HealthIndicatorDetails details,
+    List<HealthIndicatorImpact> impacts,
+    @Nullable List<UserAction> userActions
+) implements ToXContentObject {
 
     public HealthIndicatorResult(String name, String component, HealthStatus status, String summary, HealthIndicatorDetails details) {
         this(name, component, status, summary, details, null);
@@ -34,6 +35,9 @@ public record HealthIndicatorResult(String name,
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
         builder.field("details", details, params);
+        if (impacts != null && impacts.isEmpty() == false) {
+            builder.field("impacts", impacts);
+        }
         // TODO 83303: Add detail / documentation
         if (userActions != null && userActions.size() > 0) {
             builder.field("user_actions", userActions);

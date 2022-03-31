@@ -1014,7 +1014,7 @@ public class PluginsServiceTests extends ESTestCase {
             "desc",
             "1.0",
             Version.CURRENT,
-            "1000000.0",
+            "1000",
             "FakePlugin",
             Collections.emptyList(),
             false,

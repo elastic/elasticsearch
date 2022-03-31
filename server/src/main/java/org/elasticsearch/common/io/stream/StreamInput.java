@@ -552,7 +552,7 @@ public abstract class StreamInput extends InputStream {
         return readBoolean(readByte());
     }
 
-    private boolean readBoolean(final byte value) {
+    private static boolean readBoolean(final byte value) {
         if (value == 0) {
             return false;
         } else if (value == 1) {

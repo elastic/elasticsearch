@@ -21,21 +21,31 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -71,6 +81,15 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody, boolean sourceOnly) throws Exception {
+        runSearchableSnapshotsTest(testCaseBody, sourceOnly, randomIntBetween(1, 500), null);
+    }
+
+    private void runSearchableSnapshotsTest(
+        final SearchableSnapshotsTestCaseBody testCaseBody,
+        final boolean sourceOnly,
+        final int numDocs,
+        @Nullable Settings indexSettings
+    ) throws Exception {
         final String repositoryType = writeRepositoryType();
         Settings repositorySettings = writeRepositorySettings();
         if (sourceOnly) {
@@ -96,31 +115,71 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int numberOfShards = randomIntBetween(1, 5);
-
         logger.info("creating index [{}]", indexName);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            indexSettings != null
+                ? indexSettings
+                : Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build(),
+            """
+                    "properties": {
+                        "field": {
+                            "type": "integer"
+                        },
+                        "text": {
+                            "type": "text",
+                            "fields": {
+                                "raw": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                """
         );
         ensureGreen(indexName);
 
-        final int numDocs = randomIntBetween(1, 500);
         logger.info("indexing [{}] documents", numDocs);
+        final int indexingThreads = 2;
+        final CountDownLatch indexingLatch = new CountDownLatch(indexingThreads);
+        final AtomicLong remainingDocs = new AtomicLong(numDocs);
+        for (int i = 0; i < indexingThreads; i++) {
+            var thread = new Thread(() -> {
+                try {
+                    do {
+                        final StringBuilder bulkBody = new StringBuilder();
+                        int bulkSize = 0;
 
-        final StringBuilder bulkBody = new StringBuilder();
-        for (int i = 0; i < numDocs; i++) {
-            bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\"}}\n");
-            bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Document number ").append(i).append("\"}\n");
+                        long n;
+                        while ((n = remainingDocs.decrementAndGet()) >= 0) {
+                            bulkBody.append(String.format(Locale.ROOT, """
+                                    {"index": {"_id":"%d"} }
+                                    {"field": %d, "text": "Document number %d"}
+                                """, n, n, n));
+                            bulkSize += 1;
+                            if (bulkSize >= 500) {
+                                break;
+                            }
+                        }
+                        if (bulkSize > 0) {
+                            Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
+                            documents.addParameter("refresh", Boolean.TRUE.toString());
+                            documents.setJsonEntity(bulkBody.toString());
+                            assertOK(client().performRequest(documents));
+                        }
+                    } while (remainingDocs.get() > 0);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                } finally {
+                    indexingLatch.countDown();
+                }
+            });
+            thread.start();
         }
-
-        final Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-        documents.addParameter("refresh", Boolean.TRUE.toString());
-        documents.setJsonEntity(bulkBody.toString());
-        assertOK(client().performRequest(documents));
+        indexingLatch.await();
 
         if (randomBoolean()) {
             final StringBuilder bulkUpdateBody = new StringBuilder();
@@ -312,6 +371,89 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
         });
+    }
+
+    public void testQueryScript() throws Exception {
+        runSearchableSnapshotsTest((indexName, numDocs) -> {
+            final int nbThreads = 5;
+
+            final CyclicBarrier barrier = new CyclicBarrier(nbThreads);
+            final AtomicBoolean maybeStop = new AtomicBoolean(false);
+            final CountDownLatch done = new CountDownLatch(nbThreads);
+
+            logger.info("--> starting concurrent search queries");
+            for (int threadId = 0; threadId < nbThreads; threadId++) {
+                int finalThreadId = threadId;
+                Thread thread = new Thread(() -> {
+                    try {
+                        for (int runs = 0; runs < 10; runs++) {
+                            if (maybeStop.get()) {
+                                return;
+                            }
+                            barrier.await(30L, TimeUnit.SECONDS);
+
+                            if (finalThreadId == 0) {
+                                // we want the cache to be empty so that cached data will have to be fetched
+                                clearCache(indexName);
+                            }
+
+                            barrier.await(30L, TimeUnit.SECONDS);
+                            if (maybeStop.get()) {
+                                return;
+                            }
+
+                            // we want the thread pools to have no active workers when the first script query will be cached in query cache
+                            waitForIdlingSearchableSnapshotsThreadPools();
+
+                            barrier.await(30L, TimeUnit.SECONDS);
+                            if (maybeStop.get()) {
+                                return;
+                            }
+
+                            Request searchRequest = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_search");
+                            searchRequest.addParameter("search_type", "query_then_fetch");
+                            searchRequest.setJsonEntity(
+                                new SearchSourceBuilder().trackTotalHits(true)
+                                    .query(
+                                        QueryBuilders.scriptQuery(
+                                            new Script(
+                                                ScriptType.INLINE,
+                                                Script.DEFAULT_SCRIPT_LANG,
+                                                "doc['text.raw'].value.toString().length() > 0",
+                                                Collections.emptyMap()
+                                            )
+                                        )
+                                    )
+                                    .toString()
+                            );
+
+                            Response searchResponse = client().performRequest(searchRequest);
+                            assertThat(extractValue(responseAsMap(searchResponse), "hits.total.value"), equalTo(numDocs));
+                            assertOK(searchResponse);
+                        }
+                    } catch (Exception e) {
+                        maybeStop.set(true);
+                        throw new AssertionError(e);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+                thread.start();
+            }
+
+            logger.info("--> waiting for searches to complete");
+            done.await();
+        },
+            false,
+            10_000,
+            Settings.builder()
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
+                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
     }
 
     private void clearCache(String restoredIndexName) throws IOException {

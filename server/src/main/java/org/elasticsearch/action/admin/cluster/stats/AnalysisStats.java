@@ -313,7 +313,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         );
     }
 
-    private void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
+    private static void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
         throws IOException {
         builder.startArray(name);
         for (ToXContent toXContent : coll) {

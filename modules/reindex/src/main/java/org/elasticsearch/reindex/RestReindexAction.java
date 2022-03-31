@@ -52,7 +52,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     protected ReindexRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         if (request.hasParam("pipeline")) {
             throw new IllegalArgumentException(
-                "_reindex doesn't support [pipeline] as a query parameter. " + "Specify it in the [dest] object instead."
+                "_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead."
             );
         }
 

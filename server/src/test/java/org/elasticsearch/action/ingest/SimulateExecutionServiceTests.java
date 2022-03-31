@@ -70,7 +70,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -99,7 +99,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor, processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -119,7 +119,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2, processor3));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -157,7 +157,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         );
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -200,7 +200,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -221,7 +221,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -241,7 +241,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor, processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -264,7 +264,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -284,7 +284,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });
@@ -308,7 +308,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
-        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+        SimulateExecutionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
             holder.set(r);
             latch.countDown();
         });

@@ -10,8 +10,10 @@ package org.elasticsearch.index.search.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -19,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.function.DoubleSupplier;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
@@ -84,25 +87,28 @@ public class GeoPointParsingTests extends ESTestCase {
         GeoPoint point = GeoUtils.parseGeoPoint(objectLatLon(randomPt.lat(), randomPt.lon()));
         assertPointsEqual(point, randomPt);
 
-        GeoUtils.parseGeoPoint(toObject(objectLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
+        point = GeoUtils.parseGeoPoint(toObject(objectLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
         assertPointsEqual(point, randomPt);
 
         GeoUtils.parseGeoPoint(arrayLatLon(randomPt.lat(), randomPt.lon()), point);
         assertPointsEqual(point, randomPt);
 
-        GeoUtils.parseGeoPoint(toObject(arrayLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
+        point = GeoUtils.parseGeoPoint(toObject(arrayLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
         assertPointsEqual(point, randomPt);
 
         GeoUtils.parseGeoPoint(geohash(randomPt.lat(), randomPt.lon()), point);
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
 
-        GeoUtils.parseGeoPoint(toObject(geohash(randomPt.lat(), randomPt.lon())), randomBoolean());
+        point = GeoUtils.parseGeoPoint(toObject(geohash(randomPt.lat(), randomPt.lon())), randomBoolean());
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
 
         GeoUtils.parseGeoPoint(stringLatLon(randomPt.lat(), randomPt.lon()), point);
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
 
-        GeoUtils.parseGeoPoint(toObject(stringLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
+        point = GeoUtils.parseGeoPoint(toObject(stringLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
+        assertCloseTo(point, randomPt.lat(), randomPt.lon());
+
+        point = GeoUtils.parseGeoPoint(GeoJson.toMap(new Point(randomPt.lon(), randomPt.lat())), randomBoolean());
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
     }
 
@@ -118,49 +124,40 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
     }
 
-    public void testInvalidPointLatHashMix() throws IOException {
-        XContentBuilder content = JsonXContent.contentBuilder();
-        content.startObject();
-        content.field("lat", 0).field("geohash", stringEncode(0d, 0d));
-        content.endObject();
+    public void testInvalidPointHashMix() throws IOException {
+        HashMap<String, Object> otherFields = new HashMap<>();
+        otherFields.put("lat", 0);
+        otherFields.put("lon", 0);
+        otherFields.put("type", "Point");
+        otherFields.put("coordinates", new double[] { 0.0, 0.0 });
+        for (String other : otherFields.keySet()) {
+            XContentBuilder content = JsonXContent.contentBuilder();
+            content.startObject();
+            content.field(other, otherFields.get(other)).field("geohash", stringEncode(0d, 0d));
+            content.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-        }
-        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser2.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-        }
-    }
-
-    public void testInvalidPointLonHashMix() throws IOException {
-        XContentBuilder content = JsonXContent.contentBuilder();
-        content.startObject();
-        content.field("lon", 0).field("geohash", stringEncode(0d, 0d));
-        content.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-        }
-        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser2.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+                parser.nextToken();
+                Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+                assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
+            }
+            try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+                parser2.nextToken();
+                Exception e = expectThrows(
+                    ElasticsearchParseException.class,
+                    () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean())
+                );
+                assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
+            }
         }
     }
 
@@ -173,13 +170,13 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
         }
     }
 

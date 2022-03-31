@@ -29,4 +29,6 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         );
         assertThat(e.getMessage(), equalTo("field [pt] of type [geo_point] doesn't support synthetic source"));
     }
+
+    // NOCOMMIT assert sorted
 }

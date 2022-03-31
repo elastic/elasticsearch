@@ -783,7 +783,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     // TODO multi-valued synthetic source
 
-    protected static record SyntheticSourceExample(
+    public static record SyntheticSourceExample(
         Object inputValue,
         Object result,
         CheckedConsumer<XContentBuilder, IOException> mapping
@@ -815,7 +815,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    protected static record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+    public static record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
 
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         assumeTrue("not supported", false);

@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -31,6 +32,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
@@ -348,5 +350,34 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             case 3 -> Float.toString((float) v);
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        double scalingFactor = 10;
+        CheckedConsumer<XContentBuilder, IOException> mapping = b -> b.field("type", "scaled_float").field("scaling_factor", scalingFactor);
+        if (randomBoolean()) {
+            float f = randomFloat();
+            return new SyntheticSourceExample(f, round(f, scalingFactor), mapping);
+        }
+        List<Float> in = randomList(1, 5, () -> randomFloat());
+        Object out = in.size() == 1 ? round(in.get(0), scalingFactor) : in.stream().map(f -> round(f, scalingFactor)).sorted().toList();
+        return new SyntheticSourceExample(in, out, mapping);
+    }
+
+    private double round(float f, double scalingFactor) {
+        long encoded = Math.round(f * scalingFactor);
+        double inverseScalingFactor = 1 / scalingFactor;
+        return encoded * inverseScalingFactor;
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it doesn't have doc values"),
+                b -> b.field("type", "scaled_float").field("doc_values", false).field("scaling_factor", 10)
+            )
+        );
     }
 }

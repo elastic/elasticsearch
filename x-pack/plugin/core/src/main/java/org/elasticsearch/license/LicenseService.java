@@ -32,6 +32,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -225,11 +226,27 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         });
     }
 
+    /**
+     * Gets the effective expiry date of the given license, including any overrides.
+     */
     public static long getExpiryDate(License license) {
         String licenseUidHash = MessageDigests.toHexString(MessageDigests.sha256().digest(license.uid().getBytes(StandardCharsets.UTF_8)));
         return LicenseOverrides.overrideDateForLicense(licenseUidHash)
             .map(date -> date.toInstant().toEpochMilli())
             .orElse(license.expiryDate());
+    }
+
+    /**
+     * Gets the current status of a license
+     */
+    public static LicenseStatus status(License license) {
+        long now = System.currentTimeMillis();
+        if (license.issueDate() > now) {
+            return LicenseStatus.INVALID;
+        } else if (LicenseService.getExpiryDate(license) < now) {
+            return LicenseStatus.EXPIRED;
+        }
+        return LicenseStatus.ACTIVE;
     }
 
     /**

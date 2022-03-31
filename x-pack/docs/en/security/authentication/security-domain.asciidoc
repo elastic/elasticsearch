@@ -4,8 +4,8 @@
 
 beta::[]
 
-Security domains are a method of grouping different <<realms,realms>>
-so that the {stack} can recognize when a single user authenticates with
+Security domains are a method of grouping multiple <<realms,realms>>
+so that the {stack} can recognize when a single end-user authenticates with
 these realms.
 
 ==== How security domains work
@@ -24,34 +24,29 @@ That is, if {es} detects that a `username` from two different realms is
 attempting to access a resource, {es} assumes that these users are distinct and
 doesn't allow resources to be shared between them.
 
-However, there are cases where the same user can authenticate with
-different realms and needs to share the same set of resources across the realms.
+However, there are cases where the same end-user can authenticate with
+multiple realms and needs to share the same set of resources across the realms.
 For example, an <<ldap-realm,LDAP realm>> and a <<saml-realm,SAML realm>> can
 be backed by the same directory service. Additionally,
 <<configuring-authorization-delegation,authorization delegation>> allows one
 realm to delegate authorization to another realm. If both realms authenticate
 users with the same `username`, it is reasonable to treat these users as the
-same end-user identity from a resource ownership point of view.
+same end-user from a resource ownership point of view.
 
-With security domains, you can configure multiple realms to be under the same
-domain, users can authenticate with any of the realms and have access to the
+With security domains, you group multiple realms to be under the same
+domain, end-users can authenticate with any of the realms and have access to the
 same set of resources regardless of which realm they authenticated with,
 (provided those realms are under the same domain).
 For example, a single <<user-profile,user profile>> is
-associated to the user, enabling user preferences, notifications, and other
-user data to be shared across domains. The same user can view results from an
-asynchronous search request or a scrolling search. If the user has the
+associated to the end-user, enabling preferences, notifications, and other
+user data to be shared across realms. The user can view results from an
+asynchronous search request or a scrolling search across realms. If the user has the
 necessary privileges, they can also view and manage API keys across realms.
 
 ==== Configure a security domain
 
-You specify the realms for a domain in `elasticsearch.yml`. The realms must
+You configure realms to be under a domain in `elasticsearch.yml`. The realms must
 be defined in `elasticsearch.yml` (but do not need to be enabled).
-Specifying either an undefined realm, synthetic realm, or the reserved realm
-under a domain will prevent the node from starting.
-A realm doesn't need to belong to a domain. If it does, the realm can only
-belong to a single domain. Specifying a realm in multiple domains generates an
-error when {es} starts.
 
 NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
 automatically enabled as `default_file`, and `default_native`, respectively,
@@ -75,6 +70,12 @@ xpack:
 contains two realms named `default_native` and `saml1`.
 
 . Restart {es}.
+
+{es} can fail to start on invalid domain configuration including the followings:
+* A single realm is configured to be under multiple domains
+* Any undefined realm, or synthetic realm, or the reserved realm is configured to
+  be under a domain
+
 
 [NOTE]
 ====

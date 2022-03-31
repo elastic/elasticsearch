@@ -159,6 +159,29 @@ public final class ThreadContext implements Writeable {
         return () -> threadLocal.set(context);
     }
 
+    public StoredContext clearTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
+
+        newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        newRequestHeaders.remove(Task.TRACE_STATE);
+
+        newTransientHeaders.remove("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+        newTransientHeaders.remove("parent_" + Task.TRACE_STATE);
+
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                context.responseHeaders,
+                newTransientHeaders,
+                context.isSystemContext,
+                context.warningHeadersSize
+            )
+        );
+        return () -> threadLocal.set(context);
+    }
+
     private Map<String, String> headers(ThreadContextStruct context) {
         Map<String, String> map = Maps.newMapWithExpectedSize(org.elasticsearch.tasks.Task.HEADERS_TO_COPY.size());
         for (String header : org.elasticsearch.tasks.Task.HEADERS_TO_COPY) {

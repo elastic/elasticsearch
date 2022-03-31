@@ -163,9 +163,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     }
 
     private Set<RoleDescriptor> maybeSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
-        boolean shouldSkip = roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
-            && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false;
-        if (shouldSkip == false) {
+        if (shouldSkipRolesUsingDocumentOrFieldLevelSecurity(roleDescriptors) == false) {
             return roleDescriptors;
         }
 
@@ -180,6 +178,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         );
 
         return roles.get(false);
+    }
+
+    private boolean shouldSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
+            && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false;
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {

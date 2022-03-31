@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -39,29 +39,14 @@ public class WatchStoreUtilsTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             String indexName = dataStreamName + "_" + i;
             indexNames.add(indexName);
-            IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-            Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_PRIORITY, 5)
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                .build();
-            indexMetadataBuilder.settings(settings);
-            indexMetadataMapBuilder.put(indexName, indexMetadataBuilder.build());
+            indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, null));
         }
         metadataBuilder.indices(indexMetadataMapBuilder.build());
         dataStreams.put(
             dataStreamName,
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
-                indexNames.stream().map(indexName -> new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE)).collect(Collectors.toList()),
-                randomInt(),
-                Collections.emptyMap(),
-                true,
-                randomBoolean(),
-                true,
-                randomBoolean(),
-                IndexMode.TIME_SERIES
+                indexNames.stream().map(indexName -> new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE)).collect(Collectors.toList())
             )
         );
         Map<String, DataStreamAlias> dataStreamAliases = Collections.emptyMap();
@@ -82,16 +67,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             String indexName = aliasName + "_" + i;
-            IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-            Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_PRIORITY, 5)
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                .build();
-            indexMetadataBuilder.settings(settings);
-            indexMetadataBuilder.putAlias(aliasMetadata);
-            indexMetadataMapBuilder.put(indexName, indexMetadataBuilder.build());
+            indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         }
         metadataBuilder.indices(indexMetadataMapBuilder.build());
         expectThrows(IllegalStateException.class, () -> WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build()));
@@ -102,7 +78,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
         AliasMetadata.Builder aliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         aliasMetadataBuilder.writeIndex(false);
-        AliasMetadata aliasMetadata = aliasMetadataBuilder.build();
+        AliasMetadata nonWritableAliasMetadata = aliasMetadataBuilder.build();
         AliasMetadata.Builder writableAliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         writableAliasMetadataBuilder.writeIndex(true);
         AliasMetadata writableAliasMetadata = writableAliasMetadataBuilder.build();
@@ -113,20 +89,13 @@ public class WatchStoreUtilsTests extends ESTestCase {
         for (int i = 0; i < indexCount; i++) {
             String indexName = aliasName + "_" + i;
             indexNames.add(indexName);
-            IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-            Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_PRIORITY, 5)
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                .build();
-            indexMetadataBuilder.settings(settings);
+            final AliasMetadata aliasMetadata;
             if (i == writableIndexIndex) {
-                indexMetadataBuilder.putAlias(writableAliasMetadata);
+                aliasMetadata = writableAliasMetadata;
             } else {
-                indexMetadataBuilder.putAlias(aliasMetadata);
+                aliasMetadata = nonWritableAliasMetadata;
             }
-            indexMetadataMapBuilder.put(indexName, indexMetadataBuilder.build());
+            indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         }
         metadataBuilder.indices(indexMetadataMapBuilder.build());
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build());
@@ -142,16 +111,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
         AliasMetadata aliasMetadata = aliasMetadataBuilder.build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
         String indexName = aliasName + "_" + 0;
-        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_PRIORITY, 5)
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            .build();
-        indexMetadataBuilder.settings(settings);
-        indexMetadataBuilder.putAlias(aliasMetadata);
-        indexMetadataMapBuilder.put(indexName, indexMetadataBuilder.build());
+        indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         metadataBuilder.indices(indexMetadataMapBuilder.build());
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build());
         assertNotNull(concreteIndex);
@@ -162,6 +122,14 @@ public class WatchStoreUtilsTests extends ESTestCase {
         String indexName = randomAlphaOfLength(20);
         Metadata.Builder metadataBuilder = Metadata.builder();
         ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, null));
+        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(indexName, metadataBuilder.build());
+        assertNotNull(concreteIndex);
+        assertEquals(indexName, concreteIndex.getIndex().getName());
+    }
+
+    private IndexMetadata createIndexMetaData(String indexName, AliasMetadata aliasMetadata) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_PRIORITY, 5)
@@ -170,10 +138,9 @@ public class WatchStoreUtilsTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             .build();
         indexMetadataBuilder.settings(settings);
-        indexMetadataMapBuilder.put(indexName, indexMetadataBuilder.build());
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
-        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(indexName, metadataBuilder.build());
-        assertNotNull(concreteIndex);
-        assertEquals(indexName, concreteIndex.getIndex().getName());
+        if (aliasMetadata != null) {
+            indexMetadataBuilder.putAlias(aliasMetadata);
+        }
+        return indexMetadataBuilder.build();
     }
 }

@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 
+import java.util.Locale;
+
 public class WatchStoreUtils {
 
     /**
@@ -29,11 +31,17 @@ public class WatchStoreUtils {
             return null;
         }
 
-        if ((indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX
-            && indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)
+        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS
             && indexAbstraction.getIndices().size() > 1
             && indexAbstraction.getWriteIndex() == null) {
-            throw new IllegalStateException("Alias [" + name + "] points to more than one index");
+            throw new IllegalStateException(
+                String.format(
+                    Locale.ROOT,
+                    "Alias [%s] points to %d indices, and does not have a designated write index",
+                    name,
+                    indexAbstraction.getIndices().size()
+                )
+            );
         }
 
         Index concreteIndex = indexAbstraction.getWriteIndex();

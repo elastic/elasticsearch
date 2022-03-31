@@ -11,6 +11,7 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
@@ -172,18 +173,19 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             // These attributes don't apply to HTTP spans. The APM server can infer a number of things
             // when "http." attributes are present
-            if (traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http.")) == false) {
-                // hack transactions to avoid the 'custom' transaction type
-                // this one is not part of OTel semantic attributes
-                spanBuilder.setAttribute("type", "elasticsearch");
-                // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
-                // also allows to set destination resource name in map
+            final boolean isHttpSpan = traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http."));
+            if (isHttpSpan) {
+                spanBuilder.setSpanKind(SpanKind.SERVER);
+            } else {
+                spanBuilder.setSpanKind(SpanKind.INTERNAL);
+//                // hack transactions to avoid the 'custom' transaction type
+//                // this one is not part of OTel semantic attributes
+//                spanBuilder.setAttribute("type", "elasticsearch");
+//                // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
+//                // also allows to set destination resource name in map
                 spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
                 spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
             }
-
-            // spanBuilder.setAttribute(SemanticAttributes.DB_SYSTEM, "elasticsearch");
-            // spanBuilder.setAttribute(SemanticAttributes.DB_NAME, clusterService.getNodeName());
 
             // this will duplicate the "resource attributes" that are defined globally
             // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in

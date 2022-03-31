@@ -62,11 +62,6 @@ public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery 
     }
 
     double[] terms() {
-        double[] result = new double[terms.size()];
-        int i = 0;
-        for (long l : terms) {
-            result[i++] = Double.longBitsToDouble(l);
-        }
-        return result;
+        return terms.stream().mapToDouble(Double::longBitsToDouble).toArray();
     }
 }

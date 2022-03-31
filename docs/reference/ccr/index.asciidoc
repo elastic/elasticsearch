@@ -54,6 +54,12 @@ https://www.elastic.co/webinars/replicate-elasticsearch-data-with-cross-cluster-
 Then, <<ccr-getting-started-tutorial,set up {ccr}>> on your local machine and work
 through the demo from the webinar.
 
+IMPORTANT: In all of these cases <<manually-configure-security, Security is to be configured>> independently for each cluster.
+In particular, no disaster recovery arrangement described bellow handles the replication of Security configuration,
+such as <<native-realm, native users>>, roles, or <<token-authentication-services, token credentials>>.
+Security configuration should be backed up and restored using the <<back-up-specific-feature-state, regular snapshot and restore procedure>>
+for the "security" feature.
+
 [discrete]
 [[ccr-disaster-recovery]]
 ==== Disaster recovery and high availability
@@ -193,7 +199,7 @@ follower shard pauses
 ==== Processing updates
 You can't manually modify a follower index's mappings or aliases. To make
 changes, you must update the leader index. Because they are read-only, follower
-indices reject writes in all configurations. 
+indices reject writes in all configurations.
 
 NOTE: Although changes to aliases on the leader index are replicated to follower
 indices, write indices are ignored. Follower indices can't accept direct writes,

@@ -47,7 +47,7 @@ public class SqlSearchIT extends ESRestTestCase {
      * changed on some versions and it all depends on when this above mentioned change was made.
      */
     private static final Version FIELDS_API_QL_INTRODUCTION = Version.V_7_12_0;
-    private static final Version VERSION_FIELD_QL_INTRODUCTION = Version.V_8_2_0;
+    private static final Version VERSION_FIELD_QL_INTRODUCTION = Version.V_8_3_0;
     private static final String index = "test_sql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;

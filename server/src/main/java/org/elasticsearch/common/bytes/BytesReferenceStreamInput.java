@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
@@ -25,8 +26,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     protected final BytesReference bytesReference;
     private BytesRefIterator iterator;
-    private int sliceIndex;
-    private BytesRef slice;
+    private ByteBuffer slice;
+    private int sliceSize;
     private int sliceStartOffset; // the offset on the stream at which the current slice starts
 
     private int mark = 0;
@@ -34,22 +35,28 @@ class BytesReferenceStreamInput extends StreamInput {
     BytesReferenceStreamInput(BytesReference bytesReference) throws IOException {
         this.bytesReference = bytesReference;
         this.iterator = bytesReference.iterator();
-        this.slice = iterator.next();
+        this.slice = convertToByteBuffer(iterator.next());
+        this.sliceSize = slice.remaining();
         this.sliceStartOffset = 0;
-        this.sliceIndex = 0;
+    }
+
+    static ByteBuffer convertToByteBuffer(BytesRef bytesRef) {
+        if (bytesRef == null) {
+            return null;
+        }
+        return ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 
     @Override
     public byte readByte() throws IOException {
         maybeNextSlice();
-        return slice.bytes[slice.offset + (sliceIndex++)];
+        return slice.get();
     }
 
     @Override
     public short readShort() throws IOException {
-        if (slice.length - sliceIndex >= 2) {
-            sliceIndex += 2;
-            return Numbers.bytesToShort(slice.bytes, slice.offset + sliceIndex - 2);
+        if (slice.remaining() >= 2) {
+            return slice.getShort();
         } else {
             // slow path
             return super.readShort();
@@ -58,9 +65,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readInt() throws IOException {
-        if (slice.length - sliceIndex >= 4) {
-            sliceIndex += 4;
-            return Numbers.bytesToInt(slice.bytes, slice.offset + sliceIndex - 4);
+        if (slice.remaining() >= 4) {
+            return slice.getInt();
         } else {
             // slow path
             return super.readInt();
@@ -69,9 +75,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readLong() throws IOException {
-        if (slice.length - sliceIndex >= 8) {
-            sliceIndex += 8;
-            return Numbers.bytesToLong(slice.bytes, slice.offset + sliceIndex - 8);
+        if (slice.remaining() >= 8) {
+            return slice.getLong();
         } else {
             // slow path
             return super.readLong();
@@ -80,32 +85,37 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readVInt() throws IOException {
-        if (slice.length - sliceIndex >= 5) {
-            final byte[] buf = slice.bytes;
-            final int offset = slice.offset;
-            byte b = buf[offset + sliceIndex++];
+        if (slice.remaining() >= 5) {
+            final byte[] buf = slice.array();
+            int offset = slice.position();
+            byte b = buf[offset++];
             if (b >= 0) {
+                slice.position(offset);
                 return b;
             }
             int i = b & 0x7F;
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7F) << 7;
             if (b >= 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7F) << 14;
             if (b >= 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7F) << 21;
             if (b >= 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x0F) << 28;
             if ((b & 0xF0) == 0) {
+                slice.position(offset);
                 return i;
             }
             throwOnBrokenVInt(b, i);
@@ -115,58 +125,68 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readVLong() throws IOException {
-        if (slice.length - sliceIndex >= 10) {
-            final byte[] buf = slice.bytes;
-            final int offset = slice.offset;
-            byte b = buf[offset + sliceIndex++];
+        if (slice.remaining() >= 10) {
+            final byte[] buf = slice.array();
+            int offset = slice.position();
+            byte b = buf[offset++];
             long i = b & 0x7FL;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 7;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 14;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 21;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 28;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 35;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 42;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= (b & 0x7FL) << 49;
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             i |= ((b & 0x7FL) << 56);
             if ((b & 0x80) == 0) {
+                slice.position(offset);
                 return i;
             }
-            b = buf[offset + sliceIndex++];
+            b = buf[offset++];
             if (b != 0 && b != 1) {
                 throwOnBrokenVLong(b, i);
             }
+            slice.position(offset);
             i |= ((long) b) << 63;
             return i;
         } else {
@@ -175,27 +195,28 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     protected int offset() {
-        return sliceStartOffset + sliceIndex;
+        return sliceStartOffset + slice.position();
     }
 
     private void maybeNextSlice() throws IOException {
-        if (sliceIndex == slice.length) {
+        if (slice.hasRemaining() == false) {
             // moveToNextSlice is intentionally extracted to another method since it's the assumed cold-path
             moveToNextSlice();
         }
     }
 
     private void moveToNextSlice() throws IOException {
-        slice = iterator.next();
-        while (slice != null && slice.length == 0) {
+
+        slice = convertToByteBuffer(iterator.next());
+        while (slice != null && slice.hasRemaining() == false) {
             // rare corner case of a bytes reference that has a 0-length component
-            slice = iterator.next();
+            slice = convertToByteBuffer(iterator.next());
         }
         if (slice == null) {
             throw new EOFException();
         }
-        sliceStartOffset += sliceIndex;
-        sliceIndex = 0;
+        sliceStartOffset += sliceSize;
+        sliceSize = slice.remaining();
     }
 
     @Override
@@ -229,12 +250,11 @@ class BytesReferenceStreamInput extends StreamInput {
         int destOffset = bOffset;
         while (remaining > 0) {
             maybeNextSlice();
-            final int currentLen = Math.min(remaining, slice.length - sliceIndex);
+            final int currentLen = Math.min(remaining, slice.remaining());
             assert currentLen > 0 : "length has to be > 0 to make progress but was: " + currentLen;
-            System.arraycopy(slice.bytes, slice.offset + sliceIndex, b, destOffset, currentLen);
+            slice.get(b, destOffset, currentLen);
             destOffset += currentLen;
             remaining -= currentLen;
-            sliceIndex += currentLen;
             assert remaining >= 0 : "remaining: " + remaining;
         }
         return numBytesToCopy;
@@ -269,9 +289,8 @@ class BytesReferenceStreamInput extends StreamInput {
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();
-            int currentLen = Math.min(remaining, slice.length - sliceIndex);
+            int currentLen = Math.min(remaining, slice.remaining());
             remaining -= currentLen;
-            sliceIndex += currentLen;
             assert remaining >= 0 : "remaining: " + remaining;
         }
         return numBytesSkipped;
@@ -280,12 +299,12 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public void reset() throws IOException {
         if (sliceStartOffset <= mark) {
-            sliceIndex = mark - sliceStartOffset;
+            slice.position(mark - sliceStartOffset);
         } else {
             iterator = bytesReference.iterator();
-            slice = iterator.next();
+            slice = convertToByteBuffer(iterator.next());
             sliceStartOffset = 0;
-            sliceIndex = 0;
+            sliceSize = slice.remaining();
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }

@@ -859,7 +859,7 @@ the grok function:
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(grok(\"%{COMMONAPACHELOG}\").extract(doc[\"message.keyword\"].value));"
+    "source": "emit(grok(\"%{COMMONAPACHELOG}\").extract(doc[\"message\"].value));"
   },
   "context": "composite_field",
   "context_setup": {

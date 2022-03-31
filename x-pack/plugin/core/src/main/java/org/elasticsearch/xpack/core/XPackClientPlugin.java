@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;

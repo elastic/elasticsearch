@@ -315,8 +315,8 @@ setup:
 ---
 "Multi-value date histogram":
   - skip:
-      version: "all"
-      reason:  AwaitsFix https://github.com/elastic/elasticsearch/issues/85509
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
 
   - do:
       search:
@@ -337,8 +337,8 @@ setup:
 ---
 "Multi-value date histogram docvalues only":
   - skip:
-      version: "all"
-      reason:  AwaitsFix https://github.com/elastic/elasticsearch/issues/85509
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
 
   - do:
       search:

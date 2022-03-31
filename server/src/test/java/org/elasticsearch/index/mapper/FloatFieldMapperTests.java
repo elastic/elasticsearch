@@ -47,4 +47,15 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
          */
         return randomBoolean() ? randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : randomFloat();
     }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        if (randomBoolean()) {
+            Number n = randomNumber();
+            return new SyntheticSourceExample(n, n.floatValue(), this::minimalMapping);
+        }
+        List<Number> in = randomList(1, 5, this::randomNumber);
+        Object out = in.size() == 1 ? in.get(0).floatValue() : in.stream().map(n -> n.floatValue()).sorted().toList();
+        return new SyntheticSourceExample(in, out, this::minimalMapping);
+    }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,5 +43,20 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected Number randomNumber() {
         return randomBoolean() ? randomFloat() : randomDoubleBetween(-65504, 65504, true);
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        if (randomBoolean()) {
+            Number n = randomNumber();
+            return new SyntheticSourceExample(n, round(n), this::minimalMapping);
+        }
+        List<Number> in = randomList(1, 5, this::randomNumber);
+        Object out = in.size() == 1 ? round(in.get(0)) : in.stream().map(n -> round(n)).sorted().toList();
+        return new SyntheticSourceExample(in, out, this::minimalMapping);
+    }
+
+    private float round(Number n) {
+        return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue()));
     }
 }

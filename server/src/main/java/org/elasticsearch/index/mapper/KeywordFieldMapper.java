@@ -25,7 +25,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -1030,7 +1029,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         b.startArray(simpleName());
                         b.value(leaf.lookupOrd(first).utf8ToString());
                         b.value(leaf.lookupOrd(next).utf8ToString());
-                        while ((next = leaf.nextOrd()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
                             b.value(leaf.lookupOrd(next).utf8ToString());
                         }
                         b.endArray();

@@ -90,7 +90,12 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        Number n = randomNumber();
-        return new SyntheticSourceExample(n, n.toString(), this::minimalMapping);
+        if (randomBoolean()) {
+            Number n = randomNumber();
+            return new SyntheticSourceExample(n, n, this::minimalMapping);
+        }
+        List<Number> in = randomList(1, 5, this::randomNumber);
+        Object out = in.size() == 1 ? in.get(0) : in.stream().map(Number::doubleValue).sorted().toList();
+        return new SyntheticSourceExample(in, out, this::minimalMapping);
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -45,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -766,6 +767,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "].";
     }
 
+    @Repeat(iterations = 100)
     public final void testSyntheticSource() throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
@@ -773,9 +775,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
         }));
-        MappedFieldType ft = mapper.mappers().getFieldType("field");
-        String expected = String.format(Locale.ROOT, """
-            {"field":%s}""", syntheticSourceExample.result);
+        String expected = Strings.toString(
+            JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
+        );
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
@@ -783,13 +785,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected static record SyntheticSourceExample(
         Object inputValue,
-        String result,
+        Object result,
         CheckedConsumer<XContentBuilder, IOException> mapping
     ) {}
 
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
         assumeTrue("not supported", false);
         return null;
+    }
+
+    public final void testSyntheticEmptyList() throws IOException {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo("{}"));
     }
 
     public final void testSyntheticSourceInvalid() throws IOException {

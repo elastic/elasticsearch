@@ -621,8 +621,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        String v = randomAlphaOfLength(5);
-        return new SyntheticSourceExample(v, '"' + v + '"', this::minimalMapping);
+        if (randomBoolean()) {
+            String v = randomAlphaOfLength(5);
+            return new SyntheticSourceExample(v, v, this::minimalMapping);
+        }
+        List<String> in = randomList(1, 5, () -> randomAlphaOfLength(5));
+        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
+        return new SyntheticSourceExample(in, out, this::minimalMapping);
     }
 
     @Override

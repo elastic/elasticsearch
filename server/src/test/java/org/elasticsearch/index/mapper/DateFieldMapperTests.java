@@ -510,7 +510,11 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        switch (((DateFieldType) ft).resolution()) {
+        return generateRandomInputValue(((DateFieldType) ft).resolution());
+    }
+
+    private Object generateRandomInputValue(DateFieldMapper.Resolution resolution) {
+        switch (resolution) {
             case MILLISECONDS:
                 if (randomBoolean()) {
                     return randomIs8601Nanos(MAX_ISO_DATE);
@@ -565,5 +569,30 @@ public class DateFieldMapperTests extends MapperTestCase {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        // TODO formats
+        boolean nanos = randomBoolean();
+        DateFormatter defaultFormatter = nanos
+            ? DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER
+            : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        Object input = generateRandomInputValue(nanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS);
+        return new SyntheticSourceExample(
+            input.toString(),
+            '"' + defaultFormatter.format(defaultFormatter.parse(input.toString())) + '"',
+            b -> b.field("type", nanos ? "date_nanos" : "date")
+        );
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [date] doesn't support synthetic source because it doesn't have doc values"),
+                b -> b.field("type", "date").field("doc_values", false)
+            )
+        );
     }
 }

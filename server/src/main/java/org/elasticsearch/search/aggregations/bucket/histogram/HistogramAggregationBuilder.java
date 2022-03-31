@@ -11,9 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -27,6 +24,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -124,6 +124,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         this.order = clone.order;
         this.keyed = clone.keyed;
         this.minDocCount = clone.minDocCount;
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -432,5 +437,10 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

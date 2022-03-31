@@ -12,10 +12,10 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -102,18 +102,17 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             ShardId shardId = new ShardId("_index_" + i, "_uuid_" + i, i);
             RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_" + i);
-            final ShardRouting shardRouting = ShardRouting
-                                                .newUnassigned(shardId, true, source, unassignedInfo)
-                                                .initialize(localNode.getId(), "_allocation_id", 10 * i);
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
+                .initialize(localNode.getId(), "_allocation_id", 10 * i);
 
             final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);
             recoveryStates.put("_index_" + i, singletonList(recoveryState));
         }
-        final RecoveryResponse recoveryResponse =
-                new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryStates, emptyList());
+        final RecoveryResponse recoveryResponse = new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryStates, emptyList());
 
-        final RecoveryRequestBuilder recoveryRequestBuilder =
-                spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
+        final RecoveryRequestBuilder recoveryRequestBuilder = spy(
+            new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE)
+        );
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -169,6 +168,14 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             assertThat(recoveries.hasRecoveries(), equalTo(true));
             assertThat(recoveries.shardRecoveryStates().size(), equalTo(nbRecoveries));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release.",
+            "[xpack.monitoring.collection.index.recovery.active_only] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release.",
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -188,12 +195,23 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        final RecoveryResponse recoveryResponse =
-                new RecoveryResponse(randomInt(), randomInt(), randomInt(), emptyMap(), List.of(new DefaultShardOperationFailedException(
-                        "test", 0, new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout")))));
+        final RecoveryResponse recoveryResponse = new RecoveryResponse(
+            randomInt(),
+            randomInt(),
+            randomInt(),
+            emptyMap(),
+            List.of(
+                new DefaultShardOperationFailedException(
+                    "test",
+                    0,
+                    new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout"))
+                )
+            )
+        );
 
-        final RecoveryRequestBuilder recoveryRequestBuilder =
-                spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
+        final RecoveryRequestBuilder recoveryRequestBuilder = spy(
+            new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE)
+        );
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -211,6 +229,11 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release."
+        );
     }
 
 }

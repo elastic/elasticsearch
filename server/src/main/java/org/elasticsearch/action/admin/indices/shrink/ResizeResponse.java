@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -20,8 +20,11 @@ import java.io.IOException;
  */
 public final class ResizeResponse extends CreateIndexResponse {
 
-    private static final ConstructingObjectParser<ResizeResponse, Void> PARSER = new ConstructingObjectParser<>("resize_index",
-            true, args -> new ResizeResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<ResizeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "resize_index",
+        true,
+        args -> new ResizeResponse((boolean) args[0], (boolean) args[1], (String) args[2])
+    );
 
     static {
         declareFields(PARSER);

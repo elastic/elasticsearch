@@ -22,9 +22,17 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
     private final String featureContext;
     private final XPackLicenseState licenseState;
 
-    public LicensedAllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
-                                           Map<String, String> headers, LicensedFeature.Persistent feature, String featureContext,
-                                           XPackLicenseState licenseState) {
+    public LicensedAllocatedPersistentTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        Map<String, String> headers,
+        LicensedFeature.Persistent feature,
+        String featureContext,
+        XPackLicenseState licenseState
+    ) {
         super(id, type, action, description, parentTask, headers);
         this.licensedFeature = feature;
         this.featureContext = featureContext;
@@ -78,8 +86,12 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
 
     // this is made public for tests, and final to ensure it is not overridden with something that may throw
     @Override
-    public final void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
-                        String persistentTaskId, long allocationId) {
+    public final void init(
+        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
+        String persistentTaskId,
+        long allocationId
+    ) {
         super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 }

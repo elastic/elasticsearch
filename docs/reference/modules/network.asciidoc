@@ -5,7 +5,7 @@ Each {es} node has two different network interfaces. Clients send requests to
 {es}'s REST APIs using its <<http-settings,HTTP interface>>, but nodes
 communicate with other nodes using the <<transport-settings,transport
 interface>>. The transport interface is also used for communication with
-<<modules-remote-clusters,remote clusters>>.
+<<remote-clusters,remote clusters>>.
 
 You can configure both of these interfaces at the same time using the
 `network.*` settings. If you have a more complicated network, you might need to
@@ -101,7 +101,7 @@ special character in YAML.
 
 These special values yield both IPv4 and IPv6 addresses by default, but you can
 also add an `:ipv4` or `:ipv6` suffix to limit them to just IPv4 or IPv6
-addresses respectively. For example, `network.host: _en0:ipv4_` would set this
+addresses respectively. For example, `network.host: "_en0:ipv4_"` would set this
 node's addresses to the IPv4 addresses of interface `en0`.
 
 [TIP]
@@ -252,3 +252,5 @@ include::http.asciidoc[]
 include::transport.asciidoc[]
 
 include::network/tracers.asciidoc[]
+
+include::network/threading.asciidoc[]

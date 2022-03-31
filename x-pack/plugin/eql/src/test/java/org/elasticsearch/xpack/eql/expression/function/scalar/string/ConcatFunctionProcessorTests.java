@@ -16,10 +16,9 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
-
 public class ConcatFunctionProcessorTests extends ESTestCase {
 
-    private static Object process(Object ... arguments) {
+    private static Object process(Object... arguments) {
         List<Expression> literals = new ArrayList<>(arguments.length);
         for (Object arg : arguments) {
             literals.add(l(arg));

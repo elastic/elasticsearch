@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-stop]]
 === Stop {ilm} API
 

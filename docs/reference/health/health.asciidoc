@@ -1,0 +1,69 @@
+[[health-api]]
+=== Health API
+++++
+<titleabbrev>Health</titleabbrev>
+++++
+
+An experimental API that returns the health status of an {es} cluster.
+
+This API is currently experimental for internal use by Elastic software only.
+
+NOTE: {cloud-only}
+
+[[health-api-request]]
+==== {api-request-title}
+
+`GET /_internal/_health`
+
+[[health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[health-api-desc]]
+==== {api-description-title}
+
+The health API returns a the health status of an Elasticsearch cluster. It
+returns a list of components that compose Elasticsearch functionality. Each
+component's health is determined by health indicators associated with the
+component.
+
+Each indicator has a health status of: `green`, `yellow` or `red`. The indicator will
+provide an explanation and metadata describing the reason for its current health status.
+
+A component's status is controlled by the worst indicator status. The cluster's status
+is controlled by the worst component status.
+
+[[health-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[health-api-response-body]]
+==== {api-response-body-title}
+
+`cluster_name`::
+    (string) The name of the cluster.
+
+`status`::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+
+`impacts`::
+    (list) A list of current health impacts to the cluster.
+
+`components`::
+    (object) Information about the health of the cluster components.
+
+[[cluster-health-api-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _internal/_health
+--------------------------------------------------
+
+The API returns the a response with all the components and indicators regardless
+of current status.

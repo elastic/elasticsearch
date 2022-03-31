@@ -42,8 +42,11 @@ public class EscapedFunctionsTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private String buildExpression(String escape, String pattern, Object value) {
-        return format(Locale.ROOT, "{" + randomWhitespaces() + escape + " " + randomWhitespaces() +
-            pattern + randomWhitespaces() + "}", value);
+        return format(
+            Locale.ROOT,
+            "{" + randomWhitespaces() + escape + " " + randomWhitespaces() + pattern + randomWhitespaces() + "}",
+            value
+        );
     }
 
     private Literal dateLiteral(String date) {
@@ -93,9 +96,9 @@ public class EscapedFunctionsTests extends ESTestCase {
     private String buildSecsFractionalAndTimezone() {
         String str = "";
         if (randomBoolean()) {
-            str = ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
-                    ".1234567", ".12345678", ".123456789") +
-                    randomFrom("", "Z", "Etc/GMT-5", "-05:30", "+04:20");
+            str = ":55"
+                + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456", ".1234567", ".12345678", ".123456789")
+                + randomFrom("", "Z", "Etc/GMT-5", "-05:30", "+04:20");
         }
         return str;
     }
@@ -116,15 +119,17 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     private LikePattern likeEscape(String like, String character) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' ", like) +
-                buildExpression("escape", "'%s'", character));
+        Expression exp = parser.createExpression(
+            format(Locale.ROOT, "exp LIKE '%s' ", like) + buildExpression("escape", "'%s'", character)
+        );
         assertThat(exp, instanceOf(Like.class));
         return ((Like) exp).pattern();
     }
 
     private Function function(String name) {
         Expression exp = parser.createExpression(
-            format(Locale.ROOT, "{" + randomWhitespaces() + "fn" + randomWhitespaces() + "%s" + randomWhitespaces() + "}", name));
+            format(Locale.ROOT, "{" + randomWhitespaces() + "fn" + randomWhitespaces() + "%s" + randomWhitespaces() + "}", name)
+        );
         assertThat(exp, instanceOf(Function.class));
         return (Function) exp;
     }
@@ -133,6 +138,7 @@ public class EscapedFunctionsTests extends ESTestCase {
         String escapedName = name.replace("(", "\\(").replace(")", "\\)").replace("{", "\\{").replace("}", "\\}");
         assertThat(result, matchesPattern("\\{\\s*fn\\s*" + escapedName + "\\s*}"));
     }
+
     public void testFunctionNoArg() {
         Function f = function("SCORE()");
         assertFunction("SCORE()", f.sourceText());
@@ -198,9 +204,14 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionWithFunctionWithArgAndParams() {
         String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
-        Function f = (Function) parser.createExpression(e,
-                asList(new SqlTypedParamValue(LONG.typeName(), 1), new SqlTypedParamValue(LONG.typeName(), 1),
-                        new SqlTypedParamValue(LONG.typeName(), 1)));
+        Function f = (Function) parser.createExpression(
+            e,
+            asList(
+                new SqlTypedParamValue(LONG.typeName(), 1),
+                new SqlTypedParamValue(LONG.typeName(), 1),
+                new SqlTypedParamValue(LONG.typeName(), 1)
+            )
+        );
 
         assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());
@@ -229,9 +240,11 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testDateLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> dateLiteral("2012-13-01"));
-        assertEquals("line 1:2: Invalid date received; Text '2012-13-01' could not be parsed: " +
-                "Invalid value for MonthOfYear (valid values 1 - 12): 13",
-                ex.getMessage());
+        assertEquals(
+            "line 1:2: Invalid date received; Text '2012-13-01' could not be parsed: "
+                + "Invalid value for MonthOfYear (valid values 1 - 12): 13",
+            ex.getMessage()
+        );
     }
 
     public void testTimeLiteral() {
@@ -241,9 +254,11 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testTimeLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> timeLiteral("10:10:65"));
-        assertEquals("line 1:2: Invalid time received; Text '10:10:65' could not be parsed: " +
-                "Invalid value for SecondOfMinute (valid values 0 - 59): 65",
-                ex.getMessage());
+        assertEquals(
+            "line 1:2: Invalid time received; Text '10:10:65' could not be parsed: "
+                + "Invalid value for SecondOfMinute (valid values 0 - 59): 65",
+            ex.getMessage()
+        );
     }
 
     public void testTimestampLiteral() {
@@ -255,20 +270,31 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testTimestampLiteralValidation() {
         String date = buildDate();
-        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral(date+ "_AB 10:01:02.3456"));
+        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral(date + "_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Text '" + date + "_AB 10:01:02.3456' could not be parsed, " +
-                        "unparsed text found at index " + date.length(),
-                ex.getMessage());
+            "line 1:2: Invalid timestamp received; Text '"
+                + date
+                + "_AB 10:01:02.3456' could not be parsed, "
+                + "unparsed text found at index "
+                + date.length(),
+            ex.getMessage()
+        );
         ex = expectThrows(ParsingException.class, () -> timestampLiteral("20120101_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Text '20120101_AB 10:01:02.3456' could not be parsed at index 0",
-                ex.getMessage());
+            "line 1:2: Invalid timestamp received; Text '20120101_AB 10:01:02.3456' could not be parsed at index 0",
+            ex.getMessage()
+        );
 
         ex = expectThrows(ParsingException.class, () -> timestampLiteral(date));
-        assertThat(ex.getMessage(), startsWith(
-                "line 1:2: Invalid timestamp received; Text '" + date + "' could not be parsed: " +
-                        "Unable to obtain ZonedDateTime from TemporalAccessor"));
+        assertThat(
+            ex.getMessage(),
+            startsWith(
+                "line 1:2: Invalid timestamp received; Text '"
+                    + date
+                    + "' could not be parsed: "
+                    + "Unable to obtain ZonedDateTime from TemporalAccessor"
+            )
+        );
     }
 
     public void testGUID() {

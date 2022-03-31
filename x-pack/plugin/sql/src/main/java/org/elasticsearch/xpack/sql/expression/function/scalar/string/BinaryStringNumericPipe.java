@@ -22,8 +22,7 @@ public class BinaryStringNumericPipe extends BinaryPipe {
 
     private final BinaryStringNumericOperation operation;
 
-    public BinaryStringNumericPipe(Source source, Expression expression, Pipe left, Pipe right,
-            BinaryStringNumericOperation operation) {
+    public BinaryStringNumericPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryStringNumericOperation operation) {
         super(source, expression, left, right);
         this.operation = operation;
     }

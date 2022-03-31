@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -114,5 +114,5 @@ public abstract class PipelineAggregator {
         return metadata;
     }
 
-    public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext);
 }

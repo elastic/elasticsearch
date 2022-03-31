@@ -25,15 +25,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -149,7 +148,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     @Override
@@ -166,7 +165,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         testAggregation(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -176,7 +175,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -186,7 +185,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(7, max.getValue(), 0);
+            assertEquals(7, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -196,7 +195,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(7, max.getValue(), 0);
+            assertEquals(7, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -206,7 +205,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(1, max.getValue(), 0);
+            assertEquals(1, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -216,7 +215,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -227,7 +226,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
+            assertEquals(max.value(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -239,7 +238,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(max.getValue(), 19.0, 0);
+            assertEquals(max.value(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -253,7 +252,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(emptyList());
         }, max -> {
-            assertEquals(max.getValue(), 19.0, 0);
+            assertEquals(max.value(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -268,12 +267,12 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
-            assertEquals(max.getValue(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
+            assertEquals(max.value(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
 
-    private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMax> verify)
+    private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)
         throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
@@ -284,7 +283,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalMax> verify,
+        Consumer<Max> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
@@ -385,7 +384,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.equals(maxPackedValue, 0, numBytes, maxValue, 0, numBytes)) {
+                if (Arrays.equals(maxPackedValue, 0, numBytes, maxValue, 0, numBytes)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
@@ -401,7 +400,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
         }, max -> {
-            assertEquals(10, max.getValue(), 0);
+            assertEquals(10, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -417,7 +416,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(10.0, max.getValue(), 0);
+            assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
             assertEquals("0010.0", max.getValueAsString());
         }, fieldType);
@@ -455,7 +454,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Max max = global.getAggregations().get("max");
         assertNotNull(max);
         assertEquals("max", max.getName());
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals(max, ((InternalAggregation) global).getProperty("max"));
         assertEquals(10.0, (double) ((InternalAggregation) global).getProperty("max.value"), 0);
         assertEquals(10.0, (double) ((InternalAggregation) max).getProperty("value"), 0);
@@ -490,9 +489,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
 
-        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
+        Max max = (Max) aggregator.buildAggregation(0L);
 
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
@@ -514,7 +513,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             }
         }, max -> {
             assertTrue(AggregationInspectionHelper.hasValue(max));
-            assertEquals(10.0, max.getValue(), 0);
+            assertEquals(10.0, max.value(), 0);
             assertEquals("max", max.getName());
         }, fieldType);
     }
@@ -532,7 +531,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(11.0, max.getValue(), 0);
+            assertEquals(11.0, max.value(), 0);
             assertEquals("max", max.getName());
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
@@ -548,7 +547,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -568,7 +567,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -589,7 +588,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(13.0, max.getValue(), 0);
+            assertEquals(13.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -607,7 +606,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(10.0, max.getValue(), 0);
+            assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -629,7 +628,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
             }
         }, max -> {
-            assertEquals(11.0, max.getValue(), 0);
+            assertEquals(11.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -650,7 +649,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -675,7 +674,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, max -> {
-            assertEquals(13.0, max.getValue(), 0);
+            assertEquals(13.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }
@@ -709,7 +708,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Max max = global.getAggregations().get("max");
         assertNotNull(max);
         assertEquals("max", max.getName());
-        assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+        assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
 
         indexReader.close();
         directory.close();
@@ -759,7 +758,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             Max max = filter.getAggregations().get("max");
             assertNotNull(max);
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
         }
 
         indexReader.close();
@@ -794,9 +793,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
         bucketCollector.postCollection();
 
-        InternalMax max = (InternalMax) maxAggregator.buildAggregation(0L);
+        Max max = (Max) maxAggregator.buildAggregation(0L);
         assertNotNull(max);
-        assertEquals(12.0, max.getValue(), 0);
+        assertEquals(12.0, max.value(), 0);
         assertEquals("max", max.getName());
 
         InternalValueCount count = (InternalValueCount) countAggregator.buildAggregation(0L);
@@ -844,9 +843,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();
 
-            InternalMax max = (InternalMax) maxAggregator.buildTopLevel();
+            Max max = (Max) maxAggregator.buildTopLevel();
             assertNotNull(max);
-            assertEquals(12.0, max.getValue(), 0);
+            assertEquals(12.0, max.value(), 0);
             assertEquals("max", max.getName());
 
             InternalValueCount count = (InternalValueCount) countAggregator.buildTopLevel();
@@ -861,8 +860,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(10, buckets.size());
 
             for (Terms.Bucket b : buckets) {
-                InternalMax subMax = b.getAggregations().get("sub_max");
-                assertEquals(Double.NEGATIVE_INFINITY, subMax.getValue(), 0);
+                Max subMax = b.getAggregations().get("sub_max");
+                assertEquals(Double.NEGATIVE_INFINITY, subMax.value(), 0);
             }
         }
 
@@ -900,9 +899,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
 
-        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
+        Max max = (Max) aggregator.buildAggregation(0L);
 
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
@@ -946,9 +945,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
 
-        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
+        Max max = (Max) aggregator.buildAggregation(0L);
 
-        assertEquals(10.0, max.getValue(), 0);
+        assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
@@ -963,10 +962,10 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
 
-        max = (InternalMax) aggregator.buildAggregation(0L);
+        max = (Max) aggregator.buildAggregation(0L);
 
-        assertTrue(max.getValue() >= 0.0);
-        assertTrue(max.getValue() <= 1.0);
+        assertTrue(max.value() >= 0.0);
+        assertTrue(max.value() <= 1.0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 

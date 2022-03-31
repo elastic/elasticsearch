@@ -88,7 +88,6 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
-        int debugPort = 5005;
         int httpPort = 9200;
         int transportPort = 9300;
         Map<String, String> additionalSettings = System.getProperties()
@@ -120,15 +119,14 @@ public class RunTask extends DefaultTestClustersTask {
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));
                 }
-                if (debug) {
-                    logger.lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
-                    node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
-                    debugPort += 1;
-                }
                 if (keystorePassword.length() > 0) {
                     node.keystorePassword(keystorePassword);
                 }
             }
+        }
+
+        if (debug) {
+            enableDebug();
         }
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.common.compress;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasable;
 
@@ -34,12 +35,15 @@ public class DeflateCompressor implements Compressor {
     // It needs to be different from other compressors and to not be specific
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
-    private static final byte[] HEADER = new byte[]{'D', 'F', 'L', '\0'};
+    private static final byte[] HEADER = new byte[] { 'D', 'F', 'L', '\0' };
+
+    public static final int HEADER_SIZE = HEADER.length;
+
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
     // We use buffering on the input and output of in/def-laters in order to
     // limit the number of JNI calls
-    private static final int BUFFER_SIZE = 4096;
+    public static final int BUFFER_SIZE = 4096;
 
     @Override
     public boolean isCompressed(BytesReference bytes) {
@@ -102,8 +106,8 @@ public class DeflateCompressor implements Compressor {
         @Override
         public void close() {
             if (Assertions.ENABLED) {
-                assert thread == Thread.currentThread() :
-                        "Opened on [" + thread.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
+                assert thread == Thread.currentThread()
+                    : "Opened on [" + thread.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
                 thread = null;
             }
             assert inUse;
@@ -129,14 +133,7 @@ public class DeflateCompressor implements Compressor {
      */
     public static InputStream inputStream(InputStream in, boolean threadLocal) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
-        int len = 0;
-        while (len < headerBytes.length) {
-            final int read = in.read(headerBytes, len, headerBytes.length - len);
-            if (read == -1) {
-                break;
-            }
-            len += read;
-        }
+        final int len = Streams.readFully(in, headerBytes);
         if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }

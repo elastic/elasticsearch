@@ -19,38 +19,31 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRes
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.function.Predicate;
 
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
-    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
-
     @Inject
-    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters,
-                                            HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
+    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters) {
         super(GetServiceAccountAction.NAME, transportService, actionFilters, GetServiceAccountRequest::new);
-        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
-        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service accounts", () -> {
-            Predicate<ServiceAccount> filter = v -> true;
-            if (request.getNamespace() != null) {
-                filter = filter.and( v -> v.id().namespace().equals(request.getNamespace()) );
-            } 
-            if (request.getServiceName() != null) {
-                filter = filter.and( v -> v.id().serviceName().equals(request.getServiceName()) );
-            }
-            final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
-                .values()
-                .stream()
-                .filter(filter)
-                .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
-                .toArray(ServiceAccountInfo[]::new);
-            listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
-        });
+        Predicate<ServiceAccount> filter = v -> true;
+        if (request.getNamespace() != null) {
+            filter = filter.and(v -> v.id().namespace().equals(request.getNamespace()));
+        }
+        if (request.getServiceName() != null) {
+            filter = filter.and(v -> v.id().serviceName().equals(request.getServiceName()));
+        }
+        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
+            .values()
+            .stream()
+            .filter(filter)
+            .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
+            .toArray(ServiceAccountInfo[]::new);
+        listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
     }
 }

@@ -7,17 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -26,20 +21,23 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.geometry.utils.Geohash.PRECISION;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,8 +51,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     private Version version = VersionUtils.randomIndexCompatibleVersion(random());
 
-    static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;
+    static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    static Map<String, Integer> multiValuedExpectedDocCountsForGeoHash = null;
     static int numDocs = 100;
 
     static String smallestGeoHash = null;
@@ -82,7 +80,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = random();
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             // generate random point
             double lat = (180d * random.nextDouble()) - 90d;
@@ -107,7 +105,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         );
 
         cities = new ArrayList<>();
-        multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
+        multiValuedExpectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             final int numPoints = random.nextInt(4);
             List<String> points = new ArrayList<>();
@@ -256,9 +254,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = 0;
-                for (ObjectIntCursor<String> cursor : expectedDocCountsForGeoHash) {
-                    if (cursor.key.length() == precision) {
-                        expectedBucketCount = Math.max(expectedBucketCount, cursor.value);
+                for (var entry : expectedDocCountsForGeoHash.entrySet()) {
+                    if (entry.getKey().length() == precision) {
+                        expectedBucketCount = Math.max(expectedBucketCount, entry.getValue());
                     }
                 }
                 assertNotSame(bucketCount, 0);

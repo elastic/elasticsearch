@@ -25,8 +25,9 @@ public class TokenSSLBootsrapCheckTests extends AbstractBootstrapCheckTestCase {
         assertTrue(new TokenSSLBootstrapCheck().check(createTestContext(settings, null)).isFailure());
 
         settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            .build();
         assertTrue(new TokenSSLBootstrapCheck().check(createTestContext(settings, null)).isSuccess());
     }
 

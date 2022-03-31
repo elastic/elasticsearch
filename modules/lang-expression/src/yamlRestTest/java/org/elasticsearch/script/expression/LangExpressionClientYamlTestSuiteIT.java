@@ -25,4 +25,3 @@ public class LangExpressionClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

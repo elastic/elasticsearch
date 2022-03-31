@@ -37,7 +37,7 @@ public enum SearchType {
     /**
      * Non-deprecated types
      */
-    public static final SearchType [] CURRENTLY_SUPPORTED = {QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH};
+    public static final SearchType[] CURRENTLY_SUPPORTED = { QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH };
 
     private byte id;
 

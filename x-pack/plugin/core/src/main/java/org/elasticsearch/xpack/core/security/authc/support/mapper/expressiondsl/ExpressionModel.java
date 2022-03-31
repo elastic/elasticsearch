@@ -28,7 +28,7 @@ public class ExpressionModel {
 
     public static final Predicate<FieldExpression.FieldValue> NULL_PREDICATE = field -> field.getValue() == null;
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(ExpressionModel.class);
 
     private final Map<String, Object> fieldValues;
     private final Map<String, Predicate<FieldExpression.FieldValue>> fieldPredicates;
@@ -63,11 +63,17 @@ public class ExpressionModel {
         final Predicate<FieldExpression.FieldValue> predicate = this.fieldPredicates.getOrDefault(field, NULL_PREDICATE);
         boolean isMatch = values.stream().anyMatch(predicate);
         if (isMatch == false && predicate == NULL_PREDICATE && fieldPredicates.containsKey(field) == false) {
-            logger.debug(() -> new ParameterizedMessage("Attempt to test field [{}] against value(s) [{}]," +
-                " but the field [{}] does not have a value on this object;" +
-                " known fields are [{}]",
-                field, Strings.collectionToCommaDelimitedString(values),
-                field, Strings.collectionToCommaDelimitedString(fieldPredicates.keySet())));
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Attempt to test field [{}] against value(s) [{}],"
+                        + " but the field [{}] does not have a value on this object;"
+                        + " known fields are [{}]",
+                    field,
+                    Strings.collectionToCommaDelimitedString(values),
+                    field,
+                    Strings.collectionToCommaDelimitedString(fieldPredicates.keySet())
+                )
+            );
         }
 
         return isMatch;
@@ -91,9 +97,9 @@ public class ExpressionModel {
         }
         if (object instanceof Collection) {
             return ((Collection<?>) object).stream()
-                    .map(element -> buildPredicate(element))
-                    .reduce((a, b) -> a.or(b))
-                    .orElse(fieldValue -> false);
+                .map(element -> buildPredicate(element))
+                .reduce((a, b) -> a.or(b))
+                .orElse(fieldValue -> false);
         }
         throw new IllegalArgumentException("Unsupported value type " + object.getClass());
     }
@@ -110,8 +116,7 @@ public class ExpressionModel {
             return false;
         }
         Number right = (Number) other;
-        if (left instanceof Double || left instanceof Float
-                || right instanceof Double || right instanceof Float) {
+        if (left instanceof Double || left instanceof Float || right instanceof Double || right instanceof Float) {
             return Double.compare(left.doubleValue(), right.doubleValue()) == 0;
         }
         return Numbers.toLongExact(left) == Numbers.toLongExact(right);

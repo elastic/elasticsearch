@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
@@ -27,6 +26,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -35,16 +35,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -464,38 +464,46 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private static DateFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_timestamp":
-                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(fieldName, params, lookup, formatter, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
-                            DateFieldScript.Parse parse = new DateFieldScript.Parse(this);
-                            emit(parse.parse(timestamp));
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_timestamp" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+                fieldName,
+                params,
+                lookup,
+                formatter,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                        Parse parse = new Parse(this);
+                        emit(parse.parse(timestamp));
                     }
-                };
-            case "add_days":
-                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(fieldName, params, lookup, formatter, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
-                            long epoch = (Long) timestamp;
-                            ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
-                            dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                            emit(dt.toInstant().toEpochMilli());
-                        }
+                }
+            };
+            case "add_days" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+                fieldName,
+                params,
+                lookup,
+                formatter,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                        long epoch = (Long) timestamp;
+                        ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
+                        dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
+                        emit(dt.toInstant().toEpochMilli());
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup, formatter) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup, formatter) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("shoud have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter) {

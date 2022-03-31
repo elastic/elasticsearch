@@ -25,10 +25,12 @@ you must attach your user credentials to the requests sent to {es}. For example,
 when using realms that support usernames and passwords you can simply attach
 {wikipedia}/Basic_access_authentication[basic auth] header to the requests.
 
-The {security-features} provide two services: the token service and the api key
+The {security-features} provide two services: the token service and the API key
 service. You can use these services to exchange the current authentication for
 a token or key. This token or key can then be used as credentials for authenticating
-new requests. These services are enabled by default when TLS/SSL is enabled for HTTP.
+new requests.
+The API key service is enabled by default.
+The token service is enabled by default when TLS/SSL is enabled for HTTP.
 
 include::built-in-users.asciidoc[][]
 include::service-accounts.asciidoc[]

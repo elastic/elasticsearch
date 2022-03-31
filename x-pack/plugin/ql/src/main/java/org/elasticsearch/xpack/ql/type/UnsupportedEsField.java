@@ -53,8 +53,7 @@ public class UnsupportedEsField extends EsField {
             return false;
         }
         UnsupportedEsField that = (UnsupportedEsField) o;
-        return Objects.equals(originalType, that.originalType)
-                && Objects.equals(inherited, that.inherited);
+        return Objects.equals(originalType, that.originalType) && Objects.equals(inherited, that.inherited);
     }
 
     @Override

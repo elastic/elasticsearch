@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.ql.TestUtils;
@@ -43,15 +44,15 @@ public class QueryTranslatorSpecTests extends AbstractQueryTranslatorTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertEquals(0, eqe.output().size());
 
-        final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
+        final String queryWithoutWhitespace = eqe.queryContainer().toString().replaceAll("\\s+", "");
 
         // test query term
-        matchers.forEach(m -> assertThat(query, m));
+        matchers.forEach(m -> assertThat(queryWithoutWhitespace, m));
 
         // test common term
-        assertThat(query, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));
+        assertThat(queryWithoutWhitespace, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));
 
         // test field source extraction
-        assertThat(query, not(containsString("\"_source\":{\"includes\":[],\"excludes\":[]")));
+        assertThat(queryWithoutWhitespace, not(containsString("\"_source\":{\"includes\":[],\"excludes\":[]")));
     }
 }

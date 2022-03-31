@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.analytics.aggregations.bucket.range;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -373,7 +373,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
 
     private MappedFieldType defaultFieldType(String fieldName) {
         if (fieldName.equals(HISTO_FIELD_NAME)) {
-            return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap());
+            return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap(), null);
         } else {
             return new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.DOUBLE);
         }

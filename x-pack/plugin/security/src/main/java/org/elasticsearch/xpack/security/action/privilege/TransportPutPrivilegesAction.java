@@ -27,8 +27,11 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportPutPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
-                                        TransportService transportService) {
+    public TransportPutPrivilegesAction(
+        ActionFilters actionFilters,
+        NativePrivilegeStore privilegeStore,
+        TransportService transportService
+    ) {
         super(PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
@@ -38,10 +41,11 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
         if (request.getPrivileges() == null || request.getPrivileges().size() == 0) {
             listener.onResponse(new PutPrivilegesResponse(Collections.emptyMap()));
         } else {
-            this.privilegeStore.putPrivileges(request.getPrivileges(), request.getRefreshPolicy(), ActionListener.wrap(
-                created -> listener.onResponse(new PutPrivilegesResponse(created)),
-                listener::onFailure
-            ));
+            this.privilegeStore.putPrivileges(
+                request.getPrivileges(),
+                request.getRefreshPolicy(),
+                ActionListener.wrap(created -> listener.onResponse(new PutPrivilegesResponse(created)), listener::onFailure)
+            );
         }
     }
 }

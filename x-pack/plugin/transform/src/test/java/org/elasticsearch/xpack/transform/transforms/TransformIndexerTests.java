@@ -18,7 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -248,11 +248,7 @@ public class TransformIndexerTests extends ESTestCase {
             --numberOfLoops;
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(
-                Stream.of(new IndexRequest()),
-                new TransformIndexerPosition(null, null),
-                numberOfLoops == 0
-            );
+            return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), numberOfLoops == 0);
         }
 
         @Override
@@ -300,6 +296,7 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            null,
             TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig(),
             null,
             null
@@ -341,6 +338,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,
@@ -397,6 +395,7 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
@@ -437,16 +436,16 @@ public class TransformIndexerTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
-        TransformAuditor auditor,
+        TransformAuditor transformAuditor,
         TransformIndexerStats jobStats,
         TransformContext context
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
-        transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
         TransformServices transformServices = new TransformServices(
             transformConfigManager,
             mock(TransformCheckpointService.class),
-            auditor,
+            transformAuditor,
             mock(SchedulerEngine.class)
         );
 

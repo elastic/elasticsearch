@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
@@ -41,9 +41,18 @@ public class EqlSession {
     private final Planner planner;
     private final CircuitBreaker circuitBreaker;
 
-    public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, PostAnalyzer postAnalyzer,
-                      FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner,
-                      CircuitBreaker circuitBreaker) {
+    public EqlSession(
+        Client client,
+        EqlConfiguration cfg,
+        IndexResolver indexResolver,
+        PreAnalyzer preAnalyzer,
+        PostAnalyzer postAnalyzer,
+        FunctionRegistry functionRegistry,
+        Verifier verifier,
+        Optimizer optimizer,
+        Planner planner,
+        CircuitBreaker circuitBreaker
+    ) {
 
         this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
@@ -103,11 +112,14 @@ public class EqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
         String indexWildcard = configuration.indexAsWildcard();
-        if(configuration.isCancelled()){
+        if (configuration.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.indicesOptions(), configuration.runtimeMappings(),
+        indexResolver.resolveAsMergedMapping(
+            indexWildcard,
+            configuration.indicesOptions(),
+            configuration.runtimeMappings(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }

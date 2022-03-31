@@ -11,11 +11,11 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import java.io.IOException;
@@ -84,7 +84,7 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
             }
         }
 
-        }
+    }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 

@@ -9,11 +9,11 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -23,14 +23,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
 public class SearchProfileResultsTests extends AbstractSerializingTestCase<SearchProfileResults> {
     public static SearchProfileResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);
-        Map<String, SearchProfileShardResult> shards = new HashMap<>(size);
+        Map<String, SearchProfileShardResult> shards = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
-            shards.put(
-                randomAlphaOfLengthBetween(5, 10),
-                new SearchProfileShardResult(searchResult, fetchResult)
-            );
+            shards.put(randomAlphaOfLengthBetween(5, 10), new SearchProfileShardResult(searchResult, fetchResult));
         }
         return new SearchProfileResults(shards);
     }

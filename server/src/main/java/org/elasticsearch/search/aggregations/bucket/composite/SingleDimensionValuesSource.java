@@ -148,7 +148,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.isSearchable() == false ||
+        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.isIndexed() == false ||
         // inverse of the natural order
             reverseMul == -1) {
             return false;
@@ -159,13 +159,5 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
             return false;
         }
         return true;
-    }
-
-    /**
-     * Whether this values source only guarantees stable hashes for {@link #hashCode(int)} and {@link #hashCodeCurrent()}
-     * in the context of a single LeafReader or whether rehashing is required when switching LeafReaders.
-     */
-    public boolean requiresRehashingWhenSwitchingLeafReaders() {
-        return false;
     }
 }

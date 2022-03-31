@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -371,7 +372,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots();
             assertEquals(
                 snapshotNames,
-                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).collect(Collectors.toList())
+                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).toList()
             );
         }
 
@@ -401,7 +402,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots();
             assertEquals(
                 snapshotNames,
-                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).collect(Collectors.toList())
+                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).toList()
             );
         }
     }
@@ -409,7 +410,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
-        createIndexWithContent("test-idx-1");
+        String indexName = "test-idx-1";
+        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(2, 10)).build());
         ensureGreen();
 
         ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
@@ -417,6 +419,22 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo");
         awaitNumberOfSnapshotsInProgress(1);
+
+        logger.info("--> wait for snapshots to get to a consistent state");
+        awaitClusterState(state -> {
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            if (snapshots.size() != 1) {
+                return false;
+            }
+            var shards = snapshotsInProgress.snapshot(snapshots.iterator().next()).shards();
+            long initShards = shards.values().stream().filter(v -> v.state() == SnapshotsInProgress.ShardState.INIT).count();
+            long successShards = shards.entrySet()
+                .stream()
+                .filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
+                .count();
+            return successShards == shards.size() - 1 && initShards == 1;
+        });
 
         GetSnapshotsResponse response1 = client().admin()
             .cluster()
@@ -426,7 +444,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         List<SnapshotInfo> snapshotInfoList = response1.getSnapshots();
         assertEquals(1, snapshotInfoList.size());
-        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
+        SnapshotInfo snapshotInfo = snapshotInfoList.get(0);
+        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfo.state());
+
+        SnapshotStatus snapshotStatus = client().admin().cluster().prepareSnapshotStatus().get().getSnapshots().get(0);
+        assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getTotalShards()));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
+        assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
 
         String notExistedSnapshotName = "snapshot_not_exist";
         GetSnapshotsResponse response2 = client().admin()
@@ -579,19 +603,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         List<String> sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
-        assertThat(
-            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
-            equalTo(sortedNames)
-        );
+        assertThat(getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().toList(), equalTo(sortedNames));
 
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots(snapshotNames).get();
         sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
-        assertThat(
-            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
-            equalTo(sortedNames)
-        );
+        assertThat(getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().toList(), equalTo(sortedNames));
 
         logger.info("--> make sure duplicates are not returned in the response");
         String regexName = snapshotNames[randomIntBetween(0, numSnapshots - 1)];
@@ -605,10 +623,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .addSnapshots(firstRegex, secondRegex)
             .get();
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
-        assertThat(
-            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
-            equalTo(sortedNames)
-        );
+        assertThat(getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().toList(), equalTo(sortedNames));
 
         unblockNode(repositoryName, blockedNode); // unblock node
         awaitNoMoreRunningOperations();

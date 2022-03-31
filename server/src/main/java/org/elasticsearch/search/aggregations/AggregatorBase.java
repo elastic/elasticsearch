@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
@@ -23,7 +24,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -74,7 +74,7 @@ public abstract class AggregatorBase extends Aggregator {
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState() {
+            static void badState() {
                 throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
 
@@ -261,7 +261,7 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
-            subAggregatorbyName = new HashMap<>(subAggregators.length);
+            subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
             for (int i = 0; i < subAggregators.length; i++) {
                 subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
             }

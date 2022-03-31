@@ -95,7 +95,7 @@ public class ByteBufferStreamInput extends StreamInput {
         }
     }
 
-    private EOFException newEOFException(RuntimeException ex) {
+    private static EOFException newEOFException(RuntimeException ex) {
         EOFException eofException = new EOFException();
         eofException.initCause(ex);
         return eofException;
@@ -130,6 +130,5 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 }

@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -90,7 +90,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .stream()
                 .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
                 .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
-                .map(t -> new ExecutingPolicy(t.getDescription(), t))
+                .map(t -> new ExecutingPolicy(t.description(), t))
                 .sorted(Comparator.comparing(ExecutingPolicy::getName))
                 .collect(Collectors.toList());
             List<EnrichStatsAction.Response.CacheStats> cacheStats = response.getNodes()

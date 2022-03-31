@@ -66,14 +66,17 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         if (action.getAttachments() != null && action.getAttachments().getAttachments().size() > 0) {
             for (EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
                 @SuppressWarnings("unchecked")
-                EmailAttachmentParser<EmailAttachment> parser =
-                    (EmailAttachmentParser<EmailAttachment>) emailAttachmentParsers.get(emailAttachment.type());
+                EmailAttachmentParser<EmailAttachment> parser = (EmailAttachmentParser<EmailAttachment>) emailAttachmentParsers.get(
+                    emailAttachment.type()
+                );
                 try {
                     Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
                     attachments.put(attachment.id(), attachment);
                 } catch (ElasticsearchException | IOException e) {
                     logger().error(
-                        (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId), e);
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId),
+                        e
+                    );
                     return new EmailAction.Result.FailureWithException(action.type(), e);
                 }
             }

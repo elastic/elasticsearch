@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Checks whether a condition has been met based on the cluster state.

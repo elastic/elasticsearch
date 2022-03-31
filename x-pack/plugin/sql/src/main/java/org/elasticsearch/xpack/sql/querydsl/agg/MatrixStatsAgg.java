@@ -10,7 +10,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.MatrixStatsAggregationBuilders.matrixStats;
+import static org.elasticsearch.search.aggregations.matrix.MatrixStatsAggregationBuilders.matrixStats;
 
 public class MatrixStatsAgg extends LeafAgg {
 

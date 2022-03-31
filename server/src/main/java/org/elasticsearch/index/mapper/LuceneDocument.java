@@ -74,9 +74,14 @@ public class LuceneDocument implements Iterable<IndexableField> {
     }
 
     public void add(IndexableField field) {
+        assert assertLegalFieldName(field);
+        fields.add(field);
+    }
+
+    private boolean assertLegalFieldName(IndexableField field) {
         // either a meta fields or starts with the prefix
         assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
-        fields.add(field);
+        return true;
     }
 
     /**
@@ -136,4 +141,12 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return null;
     }
 
+    public Number getNumericValue(String name) {
+        for (IndexableField f : fields) {
+            if (f.name().equals(name) && f.numericValue() != null) {
+                return f.numericValue();
+            }
+        }
+        return null;
+    }
 }

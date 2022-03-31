@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -151,7 +152,7 @@ public final class IOUtils {
      */
     public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
         for (final Closeable object : objects) {
-           closeWhileHandlingException(object);
+            closeWhileHandlingException(object);
         }
     }
 
@@ -162,8 +163,7 @@ public final class IOUtils {
         // noinspection EmptyCatchBlock
         try {
             close(closeable);
-        } catch (final IOException | RuntimeException e) {
-        }
+        } catch (final IOException | RuntimeException e) {}
     }
 
     /**
@@ -199,21 +199,17 @@ public final class IOUtils {
      * @throws IOException if any of the given files (or their sub-hierarchy files in case of directories) cannot be removed.
      */
     public static void rm(final Path... locations) throws IOException {
-        final LinkedHashMap<Path,Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
+        final LinkedHashMap<Path, Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
         if (unremoved.isEmpty() == false) {
             final StringBuilder b = new StringBuilder("could not remove the following files (in the order of attempts):\n");
-            for (final Map.Entry<Path,Throwable> kv : unremoved.entrySet()) {
-                b.append("   ")
-                        .append(kv.getKey().toAbsolutePath())
-                        .append(": ")
-                        .append(kv.getValue())
-                        .append("\n");
+            for (final Map.Entry<Path, Throwable> kv : unremoved.entrySet()) {
+                b.append("   ").append(kv.getKey().toAbsolutePath()).append(": ").append(kv.getValue()).append("\n");
             }
             throw new IOException(b.toString());
         }
     }
 
-    private static LinkedHashMap<Path,Throwable> rm(final LinkedHashMap<Path,Throwable> unremoved, final Path... locations) {
+    private static LinkedHashMap<Path, Throwable> rm(final LinkedHashMap<Path, Throwable> unremoved, final Path... locations) {
         if (locations != null) {
             for (final Path location : locations) {
                 // TODO: remove this leniency
@@ -308,9 +304,10 @@ public final class IOUtils {
                 file.force(metaData);
             } catch (final IOException e) {
                 if (isDir) {
-                    assert (LINUX || MAC_OS_X) == false :
-                            "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                                    "we just don't want to rely on that in production (undocumented); got: " + e;
+                    assert (LINUX || MAC_OS_X) == false
+                        : "on Linux and MacOSX fsyncing a directory should not throw IOException, "
+                            + "we just don't want to rely on that in production (undocumented); got: "
+                            + e;
                     // ignore exception if it is a directory
                     return;
                 }

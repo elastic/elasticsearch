@@ -28,16 +28,15 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
     public static final String NAME = "dtformat";
     private static final String[][] JAVA_TIME_FORMAT_REPLACEMENTS = {
-        {"tt", "a"},
-        {"t", "a"},
-        {"dddd", "eeee"},
-        {"ddd", "eee"},
-        {"K", "v"},
-        {"g", "G"},
-        {"f", "S"},
-        {"F", "S"},
-        {"z", "X"}
-    };
+        { "tt", "a" },
+        { "t", "a" },
+        { "dddd", "eeee" },
+        { "ddd", "eee" },
+        { "K", "v" },
+        { "g", "G" },
+        { "f", "S" },
+        { "F", "S" },
+        { "z", "X" } };
 
     private final Formatter formatter;
 

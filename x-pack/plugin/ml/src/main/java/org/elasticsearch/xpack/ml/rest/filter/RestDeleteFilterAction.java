@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.filter;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,7 +27,8 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "filters/{" + Request.FILTER_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "filters/{" + Request.FILTER_ID + "}", RestApiVersion.V_7).build()
+                .replaces(DELETE, PRE_V7_BASE_PATH + "filters/{" + Request.FILTER_ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 

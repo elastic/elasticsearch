@@ -23,8 +23,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
@@ -78,8 +78,14 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
         availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
-            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
-                    groups, bindAnyGroup, availabilityZones);
+            logger.debug(
+                "using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]",
+                hostType,
+                tags,
+                groups,
+                bindAnyGroup,
+                availabilityZones
+            );
         }
     }
 
@@ -90,7 +96,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     protected List<TransportAddress> fetchDynamicNodes() {
 
-        final List<TransportAddress> dynamicHosts = new ArrayList<>();
+        final List<TransportAddress> dynamicHostAddresses = new ArrayList<>();
 
         final DescribeInstancesResult descInstances;
         try (AmazonEc2Reference clientReference = awsEc2Service.client()) {
@@ -103,7 +109,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
         } catch (final AmazonClientException e) {
             logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
             logger.debug("Full exception:", e);
-            return dynamicHosts;
+            return dynamicHostAddresses;
         }
 
         logger.trace("finding seed nodes...");
@@ -120,18 +126,25 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     }
                     if (bindAnyGroup) {
                         // We check if we can find at least one group name or one group id in groups.
-                        if (disjoint(securityGroupNames, groups)
-                                && disjoint(securityGroupIds, groups)) {
-                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(),
-                                    instanceSecurityGroups, groups);
+                        if (disjoint(securityGroupNames, groups) && disjoint(securityGroupIds, groups)) {
+                            logger.trace(
+                                "filtering out instance {} based on groups {}, not part of {}",
+                                instance.getInstanceId(),
+                                instanceSecurityGroups,
+                                groups
+                            );
                             // continue to the next instance
                             continue;
                         }
                     } else {
                         // We need tp match all group names or group ids, otherwise we ignore this instance
                         if ((securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups)) == false) {
-                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}",
-                                    instance.getInstanceId(), instanceSecurityGroups, groups);
+                            logger.trace(
+                                "filtering out instance {} based on groups {}, does not include all of {}",
+                                instance.getInstanceId(),
+                                instanceSecurityGroups,
+                                groups
+                            );
                             // continue to the next instance
                             continue;
                         }
@@ -151,8 +164,8 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     // Reading the node host from its metadata
                     final String tagName = hostType.substring(TAG_PREFIX.length());
                     logger.debug("reading hostname from [{}] instance tag", tagName);
-                    final List<Tag> tags = instance.getTags();
-                    for (final Tag tag : tags) {
+                    final List<Tag> tagList = instance.getTags();
+                    for (final Tag tag : tagList) {
                         if (tag.getKey().equals(tagName)) {
                             address = tag.getValue();
                             logger.debug("using [{}] as the instance address", address);
@@ -166,13 +179,18 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                         final TransportAddress[] addresses = transportService.addressesFromString(address);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            dynamicHosts.add(addresses[i]);
+                            dynamicHostAddresses.add(addresses[i]);
                         }
                     } catch (final Exception e) {
                         final String finalAddress = address;
                         logger.warn(
-                            (Supplier<?>)
-                                () -> new ParameterizedMessage("failed to add {}, address {}", instance.getInstanceId(), finalAddress), e);
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to add {}, address {}",
+                                instance.getInstanceId(),
+                                finalAddress
+                            ),
+                            e
+                        );
                     }
                 } else {
                     logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
@@ -180,29 +198,24 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             }
         }
 
-        logger.debug("using dynamic transport addresses {}", dynamicHosts);
+        logger.debug("using dynamic transport addresses {}", dynamicHostAddresses);
 
-        return dynamicHosts;
+        return dynamicHostAddresses;
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {
-        final DescribeInstancesRequest describeInstancesRequest = new DescribeInstancesRequest()
-            .withFilters(
-                new Filter("instance-state-name").withValues("running", "pending")
-            );
+        final DescribeInstancesRequest describeInstancesRequest = new DescribeInstancesRequest().withFilters(
+            new Filter("instance-state-name").withValues("running", "pending")
+        );
 
         for (final Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
-            describeInstancesRequest.withFilters(
-                new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue())
-            );
+            describeInstancesRequest.withFilters(new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue()));
         }
 
         if (availabilityZones.isEmpty() == false) {
             // OR relationship amongst multiple values of the availability-zone filter
-            describeInstancesRequest.withFilters(
-                new Filter("availability-zone").withValues(availabilityZones)
-            );
+            describeInstancesRequest.withFilters(new Filter("availability-zone").withValues(availabilityZones));
         }
 
         return describeInstancesRequest;
@@ -211,7 +224,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     private final class TransportAddressesCache extends SingleObjectCache<List<TransportAddress>> {
 
         protected TransportAddressesCache(TimeValue refreshInterval) {
-            super(refreshInterval,  new ArrayList<>());
+            super(refreshInterval, new ArrayList<>());
         }
 
         @Override

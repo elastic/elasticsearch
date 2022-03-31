@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[info-api]]
 == Info API
 
@@ -82,6 +81,10 @@ Example response:
           "available" : true,
           "enabled" : true
       },
+      "archive" : {
+          "available" : true,
+          "enabled" : true
+      },
       "enrich" : {
           "available" : true,
           "enabled" : true
@@ -152,11 +155,11 @@ Example response:
       },
       "data_streams" : {
          "available" : true,
-         "enabled" : true,
+         "enabled" : true
       },
       "data_tiers" : {
          "available" : true,
-         "enabled" : true,
+         "enabled" : true
       }
    },
    "tagline" : "You know, for X"

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.security.transport;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -23,7 +23,7 @@ public final class ProfileConfigurations {
 
     public static Map<String, SslConfiguration> get(Settings settings, SSLService sslService, SslConfiguration defaultConfiguration) {
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
-        Map<String, SslConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
+        Map<String, SslConfiguration> profileConfiguration = Maps.newMapWithExpectedSize(profileNames.size() + 1);
         for (String profileName : profileNames) {
             if (profileName.equals(TransportSettings.DEFAULT_PROFILE)) {
                 // don't attempt to parse ssl settings from the profile;
@@ -31,8 +31,10 @@ public final class ProfileConfigurations {
                 if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
                     continue;
                 } else {
-                    throw new IllegalArgumentException("SSL settings should not be configured for the default profile. " +
-                        "Use the [xpack.security.transport.ssl] settings instead.");
+                    throw new IllegalArgumentException(
+                        "SSL settings should not be configured for the default profile. "
+                            + "Use the [xpack.security.transport.ssl] settings instead."
+                    );
                 }
             }
             SslConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));

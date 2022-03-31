@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -19,17 +19,25 @@ public final class InternalAlwaysCondition extends AlwaysCondition implements Ex
     public static final Result RESULT_INSTANCE = new Result(null, TYPE, true);
     public static final InternalAlwaysCondition INSTANCE = new InternalAlwaysCondition();
 
-    private InternalAlwaysCondition() { }
+    private InternalAlwaysCondition() {}
 
     public static InternalAlwaysCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("unable to parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
-                    TYPE, watchId, parser.currentName());
+            throw new ElasticsearchParseException(
+                "unable to parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
+                TYPE,
+                watchId,
+                parser.currentName()
+            );
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("unable to parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
-                    TYPE, watchId, parser.currentName());
+            throw new ElasticsearchParseException(
+                "unable to parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
+                TYPE,
+                watchId,
+                parser.currentName()
+            );
         }
         return INSTANCE;
     }

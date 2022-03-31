@@ -8,12 +8,13 @@
 
 package org.elasticsearch.common.xcontent;
 
-import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
-import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -73,26 +74,8 @@ public class XContentFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCBORBasedOnMajorObjectDetection() {
-        // for this {"f "=> 5} perl encoder for example generates:
-        byte[] bytes = new byte[] {(byte) 0xA1, (byte) 0x43, (byte) 0x66, (byte) 6f, (byte) 6f, (byte) 0x5};
-        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
-        //assertThat(((Number) XContentHelper.convertToMap(bytes, true).v2().get("foo")).intValue(), equalTo(5));
-
-        // this if for {"foo" : 5} in python CBOR
-        bytes = new byte[] {(byte) 0xA1, (byte) 0x63, (byte) 0x66, (byte) 0x6f, (byte) 0x6f, (byte) 0x5};
-        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
-        assertThat(((Number) XContentHelper.convertToMap(new BytesArray(bytes), true).v2().get("foo")).intValue(), equalTo(5));
-
-        // also make sure major type check doesn't collide with SMILE and JSON, just in case
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, SmileConstants.HEADER_BYTE_1), equalTo(false));
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) '{'), equalTo(false));
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) ' '), equalTo(false));
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) '-'), equalTo(false));
-    }
-
     public void testCBORBasedOnMagicHeaderDetection() {
-        byte[] bytes = new byte[] {(byte) 0xd9, (byte) 0xd9, (byte) 0xf7};
+        byte[] bytes = new byte[] { (byte) 0xd9, (byte) 0xd9, (byte) 0xf7 };
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
     }
 
@@ -100,7 +83,7 @@ public class XContentFactoryTests extends ESTestCase {
         ByteArrayInputStream is = new ByteArrayInputStream(new byte[0]);
         assertNull(XContentFactory.xContentType(is));
 
-        is = new ByteArrayInputStream(new byte[] {(byte) 1});
+        is = new ByteArrayInputStream(new byte[] { (byte) 1 });
         assertNull(XContentFactory.xContentType(is));
     }
 
@@ -113,16 +96,16 @@ public class XContentFactoryTests extends ESTestCase {
     }
 
     public void testJsonFromBytesOptionallyPrecededByUtf8Bom() throws Exception {
-        byte[] bytes = new byte[] {(byte) '{', (byte) '}'};
+        byte[] bytes = new byte[] { (byte) '{', (byte) '}' };
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
 
-        bytes = new byte[] {(byte) 0x20, (byte) '{', (byte) '}'};
+        bytes = new byte[] { (byte) 0x20, (byte) '{', (byte) '}' };
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
 
-        bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) '{', (byte) '}'};
+        bytes = new byte[] { (byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) '{', (byte) '}' };
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
 
-        bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) 0x20, (byte) '{', (byte) '}'};
+        bytes = new byte[] { (byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) 0x20, (byte) '{', (byte) '}' };
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.JSON));
     }
 }

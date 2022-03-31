@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
 import java.io.IOException;
@@ -75,8 +75,9 @@ public class CategorizationAnalyzerConfigTests extends AbstractSerializingTestCa
         Map<String, Object> map = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())
             .asMap(NamedXContentRegistry.EMPTY);
         @SuppressWarnings("unchecked")
-        Map<String, Object> firstLevel =
-            (Map<String, Object>) map.get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName());
+        Map<String, Object> firstLevel = (Map<String, Object>) map.get(
+            CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName()
+        );
         assertThat(firstLevel, not(nullValue()));
         String tokenizer = (String) firstLevel.get(CategorizationAnalyzerConfig.TOKENIZER.getPreferredName());
         assertThat(tokenizer, is("ml_classic"));

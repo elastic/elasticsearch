@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
@@ -83,7 +83,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         authentication.writeTo(out);
         out.writeLong(expirationTime.getEpochSecond());
         out.writeInt(expirationTime.getNano());
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**

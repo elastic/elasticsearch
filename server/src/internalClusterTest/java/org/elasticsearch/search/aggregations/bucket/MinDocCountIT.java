@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -46,12 +44,12 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class MinDocCountIT extends AbstractTermsTestCase {
@@ -99,7 +97,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         cardinality = randomIntBetween(8, 30);
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         final Set<String> stringTerms = new HashSet<>();
-        final LongSet longTerms = new LongHashSet();
+        final Set<Long> longTerms = new HashSet<>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
@@ -336,7 +334,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .executionHint(randomExecutionHint())
                         .order(order)
                         .size(size)
-                        .includeExclude(include == null ? null : new IncludeExclude(include, null))
+                        .includeExclude(include == null ? null : new IncludeExclude(include, null, null, null))
                         .shardSize(cardinality + randomInt(10))
                         .minDocCount(minDocCount)
                 )

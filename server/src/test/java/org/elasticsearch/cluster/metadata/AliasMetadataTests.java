@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -23,16 +23,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
 
     public void testSerialization() throws IOException {
-        final AliasMetadata before =
-                AliasMetadata
-                        .builder("alias")
-                        .filter("{ \"term\": \"foo\"}")
-                        .indexRouting("indexRouting")
-                        .routing("routing")
-                        .searchRouting("trim,tw , ltw , lw")
-                        .writeIndex(randomBoolean() ? null : randomBoolean())
-                        .isHidden(randomBoolean() ? null : randomBoolean())
-                        .build();
+        final AliasMetadata before = AliasMetadata.builder("alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .routing("routing")
+            .searchRouting("trim,tw , ltw , lw")
+            .writeIndex(randomBoolean() ? null : randomBoolean())
+            .isHidden(randomBoolean() ? null : randomBoolean())
+            .build();
 
         assertThat(before.searchRoutingValues(), equalTo(Sets.newHashSet("trim", "tw ", " ltw ", " lw")));
 
@@ -69,7 +67,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new alias
-                || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
+            || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
     }
 
     @Override

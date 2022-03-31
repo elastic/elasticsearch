@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -42,19 +42,18 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
     }
 
     public void testAggregate() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {1.0},
-            new double[] {2.0},
-            new double[] {2.0},
-            new double[] {3.0},
-            new double[] {5.0}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { 1.0 },
+            new double[] { 2.0 },
+            new double[] { 2.0 },
+            new double[] { 3.0 },
+            new double[] { 5.0 } };
 
         WeightedMode weightedMode = new WeightedMode(ones, 6);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(2.0));
 
-        double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
+        double[] variedWeights = new double[] { 1.0, -1.0, .5, 1.0, 5.0 };
 
         weightedMode = new WeightedMode(variedWeights, 6);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(5.0));
@@ -62,13 +61,12 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
         weightedMode = new WeightedMode(6);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(2.0));
 
-        values = new double[][]{
-            new double[] {1.0},
-            new double[] {1.0},
-            new double[] {1.0},
-            new double[] {1.0},
-            new double[] {2.0}
-        };
+        values = new double[][] {
+            new double[] { 1.0 },
+            new double[] { 1.0 },
+            new double[] { 1.0 },
+            new double[] { 1.0 },
+            new double[] { 2.0 } };
         weightedMode = new WeightedMode(6);
         double[] processedValues = weightedMode.processValues(values);
         assertThat(processedValues.length, equalTo(6));
@@ -82,14 +80,13 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
     }
 
     public void testAggregateMultiValueArrays() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {1.0, 0.0, 1.0},
-            new double[] {2.0, 0.0, 0.0},
-            new double[] {2.0, 3.0, 1.0},
-            new double[] {3.0, 3.0, 1.0},
-            new double[] {1.0, 1.0, 5.0}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { 1.0, 0.0, 1.0 },
+            new double[] { 2.0, 0.0, 0.0 },
+            new double[] { 2.0, 3.0, 1.0 },
+            new double[] { 3.0, 3.0, 1.0 },
+            new double[] { 1.0, 1.0, 5.0 } };
 
         WeightedMode weightedMode = new WeightedMode(ones, 3);
         double[] processedValues = weightedMode.processValues(values);
@@ -99,7 +96,7 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
         assertThat(processedValues[2], closeTo(0.244728471, 0.00001));
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(0.0));
 
-        double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
+        double[] variedWeights = new double[] { 1.0, -1.0, .5, 1.0, 5.0 };
 
         weightedMode = new WeightedMode(variedWeights, 3);
         processedValues = weightedMode.processValues(values);

@@ -58,9 +58,11 @@ public class ReplaceFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", replacement);
         }
 
-        return Strings.replace(input instanceof Character ? input.toString() : (String) input,
-                pattern instanceof Character ? pattern.toString() : (String) pattern,
-                replacement instanceof Character ? replacement.toString() : (String) replacement);
+        return Strings.replace(
+            input instanceof Character ? input.toString() : (String) input,
+            pattern instanceof Character ? pattern.toString() : (String) pattern,
+            replacement instanceof Character ? replacement.toString() : (String) replacement
+        );
     }
 
     @Override
@@ -75,8 +77,8 @@ public class ReplaceFunctionProcessor implements Processor {
 
         ReplaceFunctionProcessor other = (ReplaceFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(pattern(), other.pattern())
-                && Objects.equals(replacement(), other.replacement());
+            && Objects.equals(pattern(), other.pattern())
+            && Objects.equals(replacement(), other.replacement());
     }
 
     @Override

@@ -49,4 +49,3 @@ public abstract class GeoGridTiler {
     /** Maximum number of cells that can be created by this tiler */
     protected abstract long getMaxCells();
 }
-

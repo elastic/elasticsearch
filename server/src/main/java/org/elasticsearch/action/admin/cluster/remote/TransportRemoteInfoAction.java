@@ -25,8 +25,11 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     private final RemoteClusterService remoteClusterService;
 
     @Inject
-    public TransportRemoteInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                     SearchTransportService searchTransportService) {
+    public TransportRemoteInfoAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SearchTransportService searchTransportService
+    ) {
         super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
@@ -34,8 +37,13 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     @Override
     protected void doExecute(Task task, RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
         if (remoteClusterService.isEnabled() == false) {
-            throw new IllegalArgumentException("node [" + remoteClusterService.getLocalNode().getName() +
-                "] does not have the [" + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + "] role");
+            throw new IllegalArgumentException(
+                "node ["
+                    + remoteClusterService.getLocalNode().getName()
+                    + "] does not have the ["
+                    + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+                    + "] role"
+            );
         }
         listener.onResponse(new RemoteInfoResponse(remoteClusterService.getRemoteConnectionInfos().collect(toList())));
     }

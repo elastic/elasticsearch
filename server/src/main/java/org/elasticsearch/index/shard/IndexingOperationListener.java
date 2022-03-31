@@ -47,7 +47,6 @@ public interface IndexingOperationListener {
         return delete;
     }
 
-
     /**
      * Called after the delete operation occurred. Note that this is
      * also called when deleting a document did not succeed due to document
@@ -66,7 +65,7 @@ public interface IndexingOperationListener {
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
-    final class CompositeListener implements IndexingOperationListener{
+    final class CompositeListener implements IndexingOperationListener {
         private final List<IndexingOperationListener> listeners;
         private final Logger logger;
 

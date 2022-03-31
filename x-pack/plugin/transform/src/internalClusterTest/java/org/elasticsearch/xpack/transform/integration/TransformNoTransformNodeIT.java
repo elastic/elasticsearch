@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -44,7 +45,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformsStats(), is(empty()));
 
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testGetTransform() {
@@ -52,85 +53,106 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         GetTransformAction.Response response = client().execute(GetTransformAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformConfigurations(), is(empty()));
 
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testPreviewTransform() {
         String transformId = "transform-1";
         TransformConfig config = randomConfig(transformId);
-        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
-        ElasticsearchStatusException e =
-            expectThrows(ElasticsearchStatusException.class, () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet());
-        assertThat(
-            e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet()
+        );
+        assertThat(e.getMessage(), is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
     }
 
     public void testPutTransform_DeferValidation() {
         String transformId = "transform-2";
         TransformConfig config = randomConfig(transformId);
-        PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+        PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
         assertThat(response.isAcknowledged(), is(true));
 
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testPutTransform_NoDeferValidation() {
         String transformId = "transform-2";
         TransformConfig config = randomConfig(transformId);
-        PutTransformAction.Request request = new PutTransformAction.Request(config, false);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> client().execute(PutTransformAction.INSTANCE, request).actionGet());
-        assertThat(
-            e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+        PutTransformAction.Request request = new PutTransformAction.Request(config, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(PutTransformAction.INSTANCE, request).actionGet()
+        );
+        assertThat(e.getMessage(), is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
     }
 
     public void testUpdateTransform_DeferValidation() {
         String transformId = "transform-3";
         {
             TransformConfig config = randomConfig(transformId);
-            PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+            PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
         }
 
-        TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("my-index", "my-index-2"), null, null, null, null, null, null);
-        UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, true);
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            new SourceConfig("my-index", "my-index-2"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        UpdateTransformAction.Request request = new UpdateTransformAction.Request(
+            update,
+            transformId,
+            true,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+        );
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
 
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testUpdateTransform_NoDeferValidation() {
         String transformId = "transform-3";
         {
             TransformConfig config = randomConfig(transformId);
-            PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+            PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
-            assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+            assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
         }
 
-        TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("my-index", "my-index-2"), null, null, null, null, null, null);
-        UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, false);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet());
-        assertThat(
-            e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            new SourceConfig("my-index", "my-index-2"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        UpdateTransformAction.Request request = new UpdateTransformAction.Request(
+            update,
+            transformId,
+            false,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+        );
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet()
+        );
+        assertThat(e.getMessage(), is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
     }
 
     private static TransformConfig randomConfig(String transformId) {
-        return new TransformConfig.Builder()
-            .setId(transformId)
+        return new TransformConfig.Builder().setId(transformId)
             .setSource(new SourceConfig("my-index"))
             .setDest(new DestConfig("my-dest-index", null))
             .setPivotConfig(PivotConfigTests.randomPivotConfig())

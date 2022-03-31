@@ -2,7 +2,7 @@
 "Get Features":
   - skip:
       features: contains
-      version: " - 7.99.99" # Adjust this after backport
+      version: " - 7.12.99"
       reason: "This API was added in 7.13.0"
   - do: { features.get_features: {}}
   - contains: {'features': {'name': 'tasks'}}

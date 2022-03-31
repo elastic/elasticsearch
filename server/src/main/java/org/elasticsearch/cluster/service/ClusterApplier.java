@@ -30,4 +30,7 @@ public interface ClusterApplier {
      *                 themselves, typically using a more specific logger and at a less dramatic log level.
      */
     void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener);
+
+    ClusterApplierRecordingService.Stats getStats();
+
 }

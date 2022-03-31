@@ -29,8 +29,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
-    public FetchSearchResult() {
-    }
+    public FetchSearchResult() {}
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;
@@ -74,7 +73,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         this.profileResult = profileResult;
     }
 
-    private boolean assertNoSearchTarget(SearchHits hits) {
+    private static boolean assertNoSearchTarget(SearchHits hits) {
         for (SearchHit hit : hits.getHits()) {
             assert hit.getShard() == null : "expected null but got: " + hit.getShard();
         }

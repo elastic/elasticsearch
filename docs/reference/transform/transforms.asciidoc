@@ -14,6 +14,7 @@ documents that have a certain unique key.
 * <<transform-overview>>
 * <<transform-setup>>
 * <<transform-usage>>
+* <<transform-alerts>>
 * <<transform-scale>>
 * <<transform-checkpoints>>
 * <<transform-api-quickref>>

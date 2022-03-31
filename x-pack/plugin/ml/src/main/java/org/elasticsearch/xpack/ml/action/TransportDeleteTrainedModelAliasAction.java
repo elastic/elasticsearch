@@ -16,12 +16,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
@@ -54,7 +57,8 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ActionFilters actionFilters,
         InferenceAuditor auditor,
         IngestService ingestService,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(
             DeleteTrainedModelAliasAction.NAME,
             transportService,
@@ -81,13 +85,20 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
             public ClusterState execute(final ClusterState currentState) {
                 return deleteModelAlias(currentState, ingestService, auditor, request);
             }
-        });
+        }, newExecutor());
     }
 
-    static ClusterState deleteModelAlias(final ClusterState currentState,
-                                         final IngestService ingestService,
-                                         final InferenceAuditor inferenceAuditor,
-                                         final DeleteTrainedModelAliasAction.Request request) {
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
+    static ClusterState deleteModelAlias(
+        final ClusterState currentState,
+        final IngestService ingestService,
+        final InferenceAuditor inferenceAuditor,
+        final DeleteTrainedModelAliasAction.Request request
+    ) {
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
         final String referencedModel = currentMetadata.getModelId(request.getModelAlias());
         if (referencedModel == null) {

@@ -42,17 +42,26 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
  */
 public final class MergeSchedulerConfig {
 
-    public static final Setting<Integer> MAX_THREAD_COUNT_SETTING =
-        new Setting<>("index.merge.scheduler.max_thread_count",
-            (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
-            (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"), Property.Dynamic,
-            Property.IndexScope);
-    public static final Setting<Integer> MAX_MERGE_COUNT_SETTING =
-        new Setting<>("index.merge.scheduler.max_merge_count",
-            (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5),
-            (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"), Property.Dynamic, Property.IndexScope);
-    public static final Setting<Boolean> AUTO_THROTTLE_SETTING =
-        Setting.boolSetting("index.merge.scheduler.auto_throttle", true, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(
+        "index.merge.scheduler.max_thread_count",
+        (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
+        (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<Integer> MAX_MERGE_COUNT_SETTING = new Setting<>(
+        "index.merge.scheduler.max_merge_count",
+        (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5),
+        (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<Boolean> AUTO_THROTTLE_SETTING = Setting.boolSetting(
+        "index.merge.scheduler.auto_throttle",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     private volatile boolean autoThrottle;
     private volatile int maxThreadCount;
@@ -100,8 +109,9 @@ public final class MergeSchedulerConfig {
             throw new IllegalArgumentException("maxMergeCount should be at least 1");
         }
         if (maxThreadCount > maxMergeCount) {
-            throw new IllegalArgumentException("maxThreadCount (= " + maxThreadCount +
-                ") should be <= maxMergeCount (= " + maxMergeCount + ")");
+            throw new IllegalArgumentException(
+                "maxThreadCount (= " + maxThreadCount + ") should be <= maxMergeCount (= " + maxMergeCount + ")"
+            );
         }
         this.maxThreadCount = maxThreadCount;
         this.maxMergeCount = maxMergeCount;

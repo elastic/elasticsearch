@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -31,9 +29,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -59,7 +54,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
             .put("xpack.http.ssl.keystore.password", "testnode")
-            .putList("xpack.http.ssl.supported_protocols", getProtocols())
+            .putList("xpack.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .build();
     }
 
@@ -81,18 +76,17 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     public void testHttps() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .path(new TextTemplate("/test/_id"))
-                .body(new TextTemplate("{key=value}"))
-                .method(HttpMethod.POST);
+            .scheme(Scheme.HTTPS)
+            .path(new TextTemplate("/test/_id"))
+            .body(new TextTemplate("{key=value}"))
+            .method(HttpMethod.POST);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         timeWarp().trigger("_id");
         refresh();
@@ -102,8 +96,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
         assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
 
-        SearchResponse response =
-                searchWatchRecords(b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed")));
+        SearchResponse response = searchWatchRecords(
+            b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"))
+        );
 
         assertNoFailures(response);
         XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
@@ -119,19 +114,18 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     public void testHttpsAndBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(new TextTemplate("/test/_id"))
-                .body(new TextTemplate("{key=value}"))
-                .method(HttpMethod.POST);
+            .scheme(Scheme.HTTPS)
+            .auth(new BasicAuth("_username", "_password".toCharArray()))
+            .path(new TextTemplate("/test/_id"))
+            .body(new TextTemplate("{key=value}"))
+            .method(HttpMethod.POST);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         timeWarp().trigger("_id");
         refresh();
@@ -141,23 +135,5 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
         assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
         assertThat(webServer.requests().get(0).getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
-    }
-
-    /**
-     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
-     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
-     */
-    private static List<String> getProtocols() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
-            return List.of("TLSv1.2");
-        } else {
-            JavaVersion full =
-                AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
-                return List.of("TLSv1.2");
-            }
-        }
-        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

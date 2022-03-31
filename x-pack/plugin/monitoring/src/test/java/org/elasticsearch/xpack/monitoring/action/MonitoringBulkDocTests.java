@@ -10,10 +10,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.junit.Before;
@@ -79,63 +79,118 @@ public class MonitoringBulkDocTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        final EqualsHashCodeTestUtils.CopyFunction<MonitoringBulkDoc> copy =
-                doc -> new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
-                                             doc.getSource(), doc.getXContentType());
+        final EqualsHashCodeTestUtils.CopyFunction<MonitoringBulkDoc> copy = doc -> new MonitoringBulkDoc(
+            doc.getSystem(),
+            doc.getType(),
+            doc.getId(),
+            doc.getTimestamp(),
+            doc.getIntervalMillis(),
+            doc.getSource(),
+            doc.getXContentType()
+        );
 
         final List<EqualsHashCodeTestUtils.MutateFunction<MonitoringBulkDoc>> mutations = new ArrayList<>();
         mutations.add(doc -> {
-            MonitoredSystem system;
+            MonitoredSystem randomSystem;
             do {
-                system = randomFrom(MonitoredSystem.values());
-            } while (system == doc.getSystem());
-            return new MonitoringBulkDoc(system, doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
-                                         doc.getSource(),  doc.getXContentType());
+                randomSystem = randomFrom(MonitoredSystem.values());
+            } while (randomSystem == doc.getSystem());
+            return new MonitoringBulkDoc(
+                randomSystem,
+                doc.getType(),
+                doc.getId(),
+                doc.getTimestamp(),
+                doc.getIntervalMillis(),
+                doc.getSource(),
+                doc.getXContentType()
+            );
         });
         mutations.add(doc -> {
-            String type;
+            String randomType;
             do {
-                type = randomAlphaOfLength(5);
-            } while (type.equals(doc.getType()));
-            return new MonitoringBulkDoc(doc.getSystem(), type, doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
-                                         doc.getSource(), doc.getXContentType());
+                randomType = randomAlphaOfLength(5);
+            } while (randomType.equals(doc.getType()));
+            return new MonitoringBulkDoc(
+                doc.getSystem(),
+                randomType,
+                doc.getId(),
+                doc.getTimestamp(),
+                doc.getIntervalMillis(),
+                doc.getSource(),
+                doc.getXContentType()
+            );
         });
         mutations.add(doc -> {
-            String id;
+            String randomId;
             do {
-                id = randomAlphaOfLength(10);
-            } while (id.equals(doc.getId()));
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), id, doc.getTimestamp(), doc.getIntervalMillis(),
-                                         doc.getSource(), doc.getXContentType());
+                randomId = randomAlphaOfLength(10);
+            } while (randomId.equals(doc.getId()));
+            return new MonitoringBulkDoc(
+                doc.getSystem(),
+                doc.getType(),
+                randomId,
+                doc.getTimestamp(),
+                doc.getIntervalMillis(),
+                doc.getSource(),
+                doc.getXContentType()
+            );
         });
         mutations.add(doc -> {
-            long timestamp;
+            long randomTimestamp;
             do {
-                timestamp = randomNonNegativeLong();
-            } while (timestamp == doc.getTimestamp());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), timestamp, doc.getIntervalMillis(),
-                                         doc.getSource(), doc.getXContentType());
+                randomTimestamp = randomNonNegativeLong();
+            } while (randomTimestamp == doc.getTimestamp());
+            return new MonitoringBulkDoc(
+                doc.getSystem(),
+                doc.getType(),
+                doc.getId(),
+                randomTimestamp,
+                doc.getIntervalMillis(),
+                doc.getSource(),
+                doc.getXContentType()
+            );
         });
         mutations.add(doc -> {
-            long interval;
+            long randomInterval;
             do {
-                interval = randomNonNegativeLong();
-            } while (interval == doc.getIntervalMillis());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), interval,
-                                         doc.getSource(), doc.getXContentType());
+                randomInterval = randomNonNegativeLong();
+            } while (randomInterval == doc.getIntervalMillis());
+            return new MonitoringBulkDoc(
+                doc.getSystem(),
+                doc.getType(),
+                doc.getId(),
+                doc.getTimestamp(),
+                randomInterval,
+                doc.getSource(),
+                doc.getXContentType()
+            );
         });
         mutations.add(doc -> {
-            final BytesReference source = RandomObjects.randomSource(random(), doc.getXContentType());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
-                                         source, doc.getXContentType());
+            final BytesReference randomSource = RandomObjects.randomSource(random(), doc.getXContentType());
+            return new MonitoringBulkDoc(
+                doc.getSystem(),
+                doc.getType(),
+                doc.getId(),
+                doc.getTimestamp(),
+                doc.getIntervalMillis(),
+                randomSource,
+                doc.getXContentType()
+            );
         });
         mutations.add(doc -> {
-            XContentType xContentType;
+            XContentType randomXContentType;
             do {
-                xContentType = randomFrom(XContentType.values());
-            } while (xContentType == doc.getXContentType());
-            return new MonitoringBulkDoc(doc.getSystem(), doc.getType(), doc.getId(), doc.getTimestamp(), doc.getIntervalMillis(),
-                                         doc.getSource(), xContentType);
+                randomXContentType = randomFrom(XContentType.values());
+            } while (randomXContentType == doc.getXContentType());
+            return new MonitoringBulkDoc(
+                doc.getSystem(),
+                doc.getType(),
+                doc.getId(),
+                doc.getTimestamp(),
+                doc.getIntervalMillis(),
+                doc.getSource(),
+                randomXContentType
+            );
         });
 
         final MonitoringBulkDoc document = new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
@@ -160,13 +215,21 @@ public class MonitoringBulkDocTests extends ESTestCase {
      *  Test that we allow strings to be "" because Logstash 5.2 - 5.3 would submit empty _id values for time-based documents
      */
     public void testEmptyIdBecomesNull() {
-        final String id = randomFrom("", null, randomAlphaOfLength(5));
-        final MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "_type", id, 1L, 2L, BytesArray.EMPTY, XContentType.JSON);
+        final String randomId = randomFrom("", null, randomAlphaOfLength(5));
+        final MonitoringBulkDoc doc = new MonitoringBulkDoc(
+            MonitoredSystem.ES,
+            "_type",
+            randomId,
+            1L,
+            2L,
+            BytesArray.EMPTY,
+            XContentType.JSON
+        );
 
-        if (Strings.isNullOrEmpty(id)) {
+        if (Strings.isNullOrEmpty(randomId)) {
             assertNull(doc.getId());
         } else {
-            assertSame(id, doc.getId());
+            assertSame(randomId, doc.getId());
         }
     }
 }

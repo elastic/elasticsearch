@@ -9,6 +9,7 @@
 package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
@@ -16,22 +17,37 @@ import java.util.Arrays;
 
 public class DiskIoBufferPool {
 
-    public static final int BUFFER_SIZE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("es.disk_io.direct.buffer.size", "64KB"), "es.disk_io.direct.buffer.size").getBytes());
-    public static final int HEAP_BUFFER_SIZE = 8 * 1024;
+    public static final int BUFFER_SIZE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(System.getProperty("es.disk_io.direct.buffer.size", "64KB"), "es.disk_io.direct.buffer.size")
+            .getBytes()
+    );
 
-    private static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> {
+    // placeholder to cache the fact that a thread does not work with cached direct IO buffers in #ioBufferPool
+    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
+
+    // protected for testing
+    protected static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> {
         if (isWriteOrFlushThread()) {
             return ByteBuffer.allocateDirect(BUFFER_SIZE);
         } else {
-            return ByteBuffer.allocate(HEAP_BUFFER_SIZE);
+            return EMPTY_BUFFER;
         }
     });
 
-    public static ByteBuffer getIoBuffer() {
+    public static final DiskIoBufferPool INSTANCE = new DiskIoBufferPool();
+
+    protected DiskIoBufferPool() {}
+
+    /**
+     * @return thread-local cached direct byte buffer if we are on a thread that supports caching direct buffers or null otherwise
+     */
+    @Nullable
+    public ByteBuffer maybeGetDirectIOBuffer() {
         ByteBuffer ioBuffer = ioBufferPool.get();
-        ioBuffer.clear();
-        return ioBuffer;
+        if (ioBuffer == EMPTY_BUFFER) {
+            return null;
+        }
+        return ioBuffer.clear();
     }
 
     private static boolean isWriteOrFlushThread() {
@@ -40,7 +56,8 @@ public class DiskIoBufferPool {
             "[" + ThreadPool.Names.WRITE + "]",
             "[" + ThreadPool.Names.FLUSH + "]",
             "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
-            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]")) {
+            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]"
+        )) {
             if (threadName.contains(s)) {
                 return true;
             }

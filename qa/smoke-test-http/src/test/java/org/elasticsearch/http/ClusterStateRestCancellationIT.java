@@ -15,16 +15,17 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -51,15 +52,15 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError(source, e);
+            public void onFailure(Exception e) {
+                throw new AssertionError("update state", e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         future.actionGet();
     }
 
@@ -89,13 +90,13 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         assertBusy(() -> {
             updateClusterState(clusterService, s -> ClusterState.builder(s).build());
             final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().equals(ClusterStateAction.NAME)));
+            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
         updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingCustom.NAME).build());
     }
 
-    private static class AssertingCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class AssertingCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String NAME = "asserting";
         static final AssertingCustom INSTANCE = new AssertingCustom();
@@ -125,9 +126,9 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return Collections.singletonList(
-                    new NamedWriteableRegistry.Entry(ClusterState.Custom.class, AssertingCustom.NAME, in -> AssertingCustom.INSTANCE));
+                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, AssertingCustom.NAME, in -> AssertingCustom.INSTANCE)
+            );
         }
     }
-
 
 }

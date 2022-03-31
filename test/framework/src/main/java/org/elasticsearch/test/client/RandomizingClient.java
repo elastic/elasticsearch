@@ -9,11 +9,12 @@
 package org.elasticsearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.util.TestUtil;
+
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.core.TimeValue;
 
@@ -31,12 +32,9 @@ public class RandomizingClient extends FilterClient {
     private final int preFilterShardSize;
     private final boolean doTimeout;
 
-
     public RandomizingClient(Client client, Random random) {
         super(client);
-        defaultSearchType = RandomPicks.randomFrom(random, Arrays.asList(
-                SearchType.DFS_QUERY_THEN_FETCH,
-                SearchType.QUERY_THEN_FETCH));
+        defaultSearchType = RandomPicks.randomFrom(random, Arrays.asList(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         if (random.nextInt(10) == 0) {
             defaultPreference = Preference.LOCAL.type();
         } else if (random.nextInt(10) == 0) {
@@ -52,7 +50,7 @@ public class RandomizingClient extends FilterClient {
             this.maxConcurrentShardRequests = -1; // randomly use the default
         }
         if (random.nextBoolean()) {
-            preFilterShardSize =  1 + random.nextInt(1 << random.nextInt(7));
+            preFilterShardSize = 1 + random.nextInt(1 << random.nextInt(7));
         } else {
             preFilterShardSize = -1;
         }
@@ -61,8 +59,10 @@ public class RandomizingClient extends FilterClient {
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        SearchRequestBuilder searchRequestBuilder = in.prepareSearch(indices).setSearchType(defaultSearchType)
-            .setPreference(defaultPreference).setBatchedReduceSize(batchedReduceSize);
+        SearchRequestBuilder searchRequestBuilder = in.prepareSearch(indices)
+            .setSearchType(defaultSearchType)
+            .setPreference(defaultPreference)
+            .setBatchedReduceSize(batchedReduceSize);
         if (maxConcurrentShardRequests != -1) {
             searchRequestBuilder.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         }

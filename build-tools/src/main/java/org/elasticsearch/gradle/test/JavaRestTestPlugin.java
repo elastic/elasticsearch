@@ -48,26 +48,28 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
-        var cluster = testClusters.maybeCreate(JAVA_REST_TEST);
+        var clusterProvider = testClusters.register(JAVA_REST_TEST);
 
         // Register test task
         TaskProvider<StandaloneRestIntegTestTask> javaRestTestTask = project.getTasks()
             .register(JAVA_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
-                task.useCluster(cluster);
+                task.useCluster(clusterProvider);
                 task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
                 task.setClasspath(testSourceSet.getRuntimeClasspath());
 
+                var cluster = clusterProvider.get();
                 var nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
                 nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
                 nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));
                 nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
+                nonInputProperties.systemProperty("tests.cluster.readiness", () -> String.join(",", cluster.getAllReadinessPortURI()));
                 task.getJvmArgumentProviders().add(nonInputProperties);
             });
 
         // Register plugin bundle with test cluster
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
             TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-            cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
+            clusterProvider.configure(c -> c.plugin(bundle.flatMap(Zip::getArchiveFile)));
             javaRestTestTask.configure(t -> t.dependsOn(bundle));
         });
 

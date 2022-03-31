@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.analytics.movingPercentiles;
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -41,7 +41,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         @SuppressWarnings("unchecked")
         InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
@@ -53,19 +53,14 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         }
         PercentileConfig config = resolvePercentileConfig(histo, buckets.get(0), bucketsPaths()[0]);
         switch (config.method) {
-            case TDIGEST:
-                reduceTDigest(buckets, histo, newBuckets, factory, config);
-                break;
-            case HDR:
-                reduceHDR(buckets, histo, newBuckets, factory, config);
-                break;
-            default:
-                throw new AggregationExecutionException(
-                    AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                        + " references an unknown percentile aggregation method: ["
-                        + config.method
-                        + "]"
-                );
+            case TDIGEST -> reduceTDigest(buckets, histo, newBuckets, factory, config);
+            case HDR -> reduceHDR(buckets, histo, newBuckets, factory, config);
+            default -> throw new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " references an unknown percentile aggregation method: ["
+                    + config.method
+                    + "]"
+            );
         }
         return factory.createAggregation(newBuckets);
     }
@@ -181,8 +176,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
         }
 
-        if (propertyValue instanceof InternalTDigestPercentiles) {
-            InternalTDigestPercentiles internalTDigestPercentiles = ((InternalTDigestPercentiles) propertyValue);
+        if (propertyValue instanceof InternalTDigestPercentiles internalTDigestPercentiles) {
             return new PercentileConfig(
                 PercentilesMethod.TDIGEST,
                 internalTDigestPercentiles.getKeys(),
@@ -190,8 +184,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                 internalTDigestPercentiles.formatter()
             );
         }
-        if (propertyValue instanceof InternalHDRPercentiles) {
-            InternalHDRPercentiles internalHDRPercentiles = ((InternalHDRPercentiles) propertyValue);
+        if (propertyValue instanceof InternalHDRPercentiles internalHDRPercentiles) {
             return new PercentileConfig(
                 PercentilesMethod.HDR,
                 internalHDRPercentiles.getKeys(),

@@ -16,8 +16,9 @@ import org.gradle.api.Task;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
-import javax.inject.Inject;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 public class FilePermissionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 

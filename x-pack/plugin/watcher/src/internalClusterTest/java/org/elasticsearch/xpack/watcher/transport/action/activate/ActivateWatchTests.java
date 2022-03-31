@@ -11,12 +11,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
@@ -50,15 +50,16 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82797")
     public void testDeactivateAndActivate() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("1s")))
-                        .input(simpleInput("foo", "bar"))
-                        .addAction("_a1", indexAction("actions"))
-                        .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("1s")))
+                    .input(simpleInput("foo", "bar"))
+                    .addAction("_a1", indexAction("actions"))
+                    .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -106,15 +107,16 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82797")
     public void testLoadWatchWithoutAState() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0 0 0 1 1 ? 2050"))) // some time in 2050
-                        .input(simpleInput("foo", "bar"))
-                        .addAction("_a1", indexAction("actions"))
-                        .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0 0 0 1 1 ? 2050"))) // some time in 2050
+                    .input(simpleInput("foo", "bar"))
+                    .addAction("_a1", indexAction("actions"))
+                    .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -126,25 +128,28 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
 
         Set<String> filters = Sets.newHashSet(
-                "trigger.**",
-                "input.**",
-                "condition.**",
-                "throttle_period.**",
-                "transform.**",
-                "actions.**",
-                "metadata.**",
-                "status.version",
-                "status.last_checked",
-                "status.last_met_condition",
-                "status.actions.**");
+            "trigger.**",
+            "input.**",
+            "condition.**",
+            "throttle_period.**",
+            "transform.**",
+            "actions.**",
+            "metadata.**",
+            "status.version",
+            "status.last_checked",
+            "status.last_met_condition",
+            "status.actions.**"
+        );
 
         XContentBuilder builder = new XContentBuilder(XContentType.JSON, new BytesStreamOutput(), filters);
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in
-        IndexResponse indexResponse = client().prepareIndex().setIndex(".watches").setId("_id")
-                .setSource(BytesReference.bytes(builder), XContentType.JSON)
-                .get();
+        IndexResponse indexResponse = client().prepareIndex()
+            .setIndex(".watches")
+            .setId("_id")
+            .setSource(BytesReference.bytes(builder), XContentType.JSON)
+            .get();
         assertThat(indexResponse.getId(), is("_id"));
 
         // now, let's restart

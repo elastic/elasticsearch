@@ -45,8 +45,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phases = progressTracker.report();
 
         assertThat(phases.size(), equalTo(6));
-        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "c", "writing_results"));
+        assertThat(
+            phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "c", "writing_results")
+        );
         assertThat(phases.stream().map(PhaseProgress::getProgressPercent).allMatch(p -> p == 0), is(true));
     }
 
@@ -56,8 +58,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = progressTracker.report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results")
+        );
     }
 
     public void testFromZeroes_GivenAnalysisWithInference() {
@@ -66,8 +70,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = progressTracker.report();
 
         assertThat(phaseProgresses.size(), equalTo(6));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results", "inference"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results", "inference")
+        );
     }
 
     public void testUpdates() {
@@ -84,8 +90,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phases = progressTracker.report();
 
         assertThat(phases.size(), equalTo(4));
-        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "foo", "writing_results"));
+        assertThat(
+            phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "foo", "writing_results")
+        );
         assertThat(phases.get(0).getProgressPercent(), equalTo(1));
         assertThat(phases.get(1).getProgressPercent(), equalTo(2));
         assertThat(phases.get(2).getProgressPercent(), equalTo(3));
@@ -99,8 +107,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phases = progressTracker.report();
 
         assertThat(phases.size(), equalTo(4));
-        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "foo", "writing_results"));
+        assertThat(
+            phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "foo", "writing_results")
+        );
     }
 
     public void testUpdateReindexingProgress_GivenLowerValueThanCurrentProgress() {
@@ -163,14 +173,17 @@ public class ProgressTrackerTests extends ESTestCase {
         progressTracker.resetForInference();
 
         List<PhaseProgress> progress = progressTracker.report();
-        assertThat(progress, contains(
-            new PhaseProgress(ProgressTracker.REINDEXING, 100),
-            new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
-            new PhaseProgress("a", 100),
-            new PhaseProgress("b", 100),
-            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100),
-            new PhaseProgress(ProgressTracker.INFERENCE, 0)
-        ));
+        assertThat(
+            progress,
+            contains(
+                new PhaseProgress(ProgressTracker.REINDEXING, 100),
+                new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("b", 100),
+                new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100),
+                new PhaseProgress(ProgressTracker.INFERENCE, 0)
+            )
+        );
     }
 
     public void testResetForInference_GivenNoInference() {
@@ -184,13 +197,16 @@ public class ProgressTrackerTests extends ESTestCase {
         progressTracker.resetForInference();
 
         List<PhaseProgress> progress = progressTracker.report();
-        assertThat(progress, contains(
-            new PhaseProgress(ProgressTracker.REINDEXING, 100),
-            new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
-            new PhaseProgress("a", 100),
-            new PhaseProgress("b", 100),
-            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100)
-        ));
+        assertThat(
+            progress,
+            contains(
+                new PhaseProgress(ProgressTracker.REINDEXING, 100),
+                new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("b", 100),
+                new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100)
+            )
+        );
     }
 
     public void testAreAllPhasesExceptInferenceComplete_GivenComplete() {
@@ -214,8 +230,12 @@ public class ProgressTrackerTests extends ESTestCase {
         phasePerProgress.put(ProgressTracker.INFERENCE, 50);
         phasePerProgress.put(nonCompletePhase, randomIntBetween(0, 99));
 
-        ProgressTracker progressTracker = new ProgressTracker(phasePerProgress.entrySet().stream()
-            .map(entry -> new PhaseProgress(entry.getKey(), entry.getValue())).collect(Collectors.toList()));
+        ProgressTracker progressTracker = new ProgressTracker(
+            phasePerProgress.entrySet()
+                .stream()
+                .map(entry -> new PhaseProgress(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList())
+        );
 
         assertThat(progressTracker.areAllPhasesExceptInferenceComplete(), is(false));
     }

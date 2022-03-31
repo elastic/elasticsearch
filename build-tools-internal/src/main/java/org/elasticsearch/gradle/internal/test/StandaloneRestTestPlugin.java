@@ -20,7 +20,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
-
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.Arrays;
@@ -56,7 +55,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().create("compileOnly");
-        RestTestUtil.setupTestDependenciesDefaults(project, testSourceSet);
+        RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
         eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));

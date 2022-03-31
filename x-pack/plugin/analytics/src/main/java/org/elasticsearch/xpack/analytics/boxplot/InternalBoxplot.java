@@ -11,11 +11,12 @@ import com.tdunning.math.stats.Centroid;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,8 +45,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NEGATIVE_INFINITY : digestState.getMin();
             }
         },
         MAX {
@@ -55,8 +56,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.POSITIVE_INFINITY : state.getMax();
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.POSITIVE_INFINITY : digestState.getMax();
             }
         },
         Q1 {
@@ -66,8 +67,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NaN : state.quantile(0.25);
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NaN : digestState.quantile(0.25);
             }
         },
         Q2 {
@@ -77,8 +78,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NaN : state.quantile(0.5);
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NaN : digestState.quantile(0.5);
             }
         },
         Q3 {
@@ -88,8 +89,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NaN : state.quantile(0.75);
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NaN : digestState.quantile(0.75);
             }
         },
         LOWER {
@@ -99,8 +100,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return whiskers(state)[0];
+            double value(TDigestState digestState) {
+                return whiskers(digestState)[0];
             }
         },
         UPPER {
@@ -110,8 +111,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return whiskers(state)[1];
+            double value(TDigestState digestState) {
+                return whiskers(digestState)[1];
             }
         };
 
@@ -174,9 +175,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     private final TDigestState state;
 
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.state = state;
-        this.format = formatter;
     }
 
     /**
@@ -184,7 +184,6 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
      */
     public InternalBoxplot(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         state = TDigestState.read(in);
     }
 
@@ -270,7 +269,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     }
 
     @Override
-    public InternalBoxplot reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalBoxplot reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final InternalBoxplot percentiles = (InternalBoxplot) aggregation;

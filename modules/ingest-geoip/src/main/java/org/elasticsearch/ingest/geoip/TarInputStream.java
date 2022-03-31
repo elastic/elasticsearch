@@ -32,7 +32,7 @@ class TarInputStream extends FilterInputStream {
 
     public TarEntry getNextEntry() throws IOException {
         if (currentEntry != null) {
-            //go to the end of the current entry
+            // go to the end of the current entry
             skipN(remaining);
             if (reminder != 0) {
                 skipN(512 - reminder);
@@ -53,7 +53,7 @@ class TarInputStream extends FilterInputStream {
 
         boolean notFile = (buf[156] != 0 && buf[156] != '0') || name.endsWith("/");
 
-        if(notFile){
+        if (notFile) {
             remaining = 0;
             reminder = 0;
         } else {
@@ -103,22 +103,5 @@ class TarInputStream extends FilterInputStream {
         }
     }
 
-    static class TarEntry {
-        private final String name;
-        private final boolean notFile;
-
-        TarEntry(String name, boolean notFile) {
-            this.name = name;
-            this.notFile = notFile;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public boolean isNotFile() {
-            return notFile;
-        }
-    }
+    record TarEntry(String name, boolean notFile) {}
 }
-

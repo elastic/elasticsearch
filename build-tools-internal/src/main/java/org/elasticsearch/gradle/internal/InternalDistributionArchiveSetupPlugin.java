@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.Sync;
@@ -20,9 +21,8 @@ import org.gradle.api.tasks.bundling.Compression;
 import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
-import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
 
-import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT;
+import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
 
 /**
  * Provides a DSL and common configurations to define different types of
@@ -42,6 +42,7 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
 
     public static final String DEFAULT_CONFIGURATION_NAME = "default";
     public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
+    public static final String COMPOSITE_CONFIGURATION_NAME = "composite";
     private NamedDomainObjectContainer<DistributionArchive> container;
 
     @Override
@@ -73,8 +74,16 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
                 sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 var extractedConfiguration = sub.getConfigurations().create(EXTRACTED_CONFIGURATION_NAME);
                 extractedConfiguration.setCanBeResolved(false);
-                extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+                extractedConfiguration.getAttributes()
+                    .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
+                // The "composite" configuration is specifically used for resolving transformed artifacts in an included build
+                var compositeConfiguration = sub.getConfigurations().create(COMPOSITE_CONFIGURATION_NAME);
+                compositeConfiguration.setCanBeResolved(false);
+                compositeConfiguration.getAttributes()
+                    .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+                compositeConfiguration.getAttributes().attribute(Attribute.of("composite", Boolean.class), true);
+                sub.getArtifacts().add(COMPOSITE_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 sub.getTasks().register("extractedAssemble", task ->
                 // We keep extracted configuration resolvable false to keep
                 // resolveAllDependencies simple so we rely only on its build dependencies here.

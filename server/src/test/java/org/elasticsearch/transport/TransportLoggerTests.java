@@ -13,9 +13,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -44,30 +45,34 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandler() throws IOException {
-        final String writePattern =
-            ".*\\[length: \\d+" +
-                ", request id: \\d+" +
-                ", type: request" +
-                ", version: .*" +
-                ", header size: \\d+B" +
-                ", action: cluster:monitor/stats]" +
-                " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation =
-            new MockLogAppender.PatternSeenEventExpectation(
-                "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
+        final String writePattern = ".*\\[length: \\d+"
+            + ", request id: \\d+"
+            + ", type: request"
+            + ", version: .*"
+            + ", header size: \\d+B"
+            + ", action: cluster:monitor/stats]"
+            + " WRITE: \\d+B";
+        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+            "hot threads request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            writePattern
+        );
 
-        final String readPattern =
-            ".*\\[length: \\d+" +
-                ", request id: \\d+" +
-                ", type: request" +
-                ", version: .*" +
-                ", header size: \\d+B" +
-                ", action: cluster:monitor/stats]" +
-                " READ: \\d+B";
+        final String readPattern = ".*\\[length: \\d+"
+            + ", request id: \\d+"
+            + ", type: request"
+            + ", version: .*"
+            + ", header size: \\d+B"
+            + ", action: cluster:monitor/stats]"
+            + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation =
-            new MockLogAppender.PatternSeenEventExpectation(
-                "cluster monitor request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
+        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+            "cluster monitor request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            readPattern
+        );
 
         appender.addExpectation(writeExpectation);
         appender.addExpectation(readExpectation);
@@ -78,10 +83,18 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     private BytesReference buildRequest() throws IOException {
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            OutboundMessage.Request request = new OutboundMessage.Request(new ThreadContext(Settings.EMPTY), new ClusterStatsRequest(),
-                Version.CURRENT, ClusterStatsAction.NAME, randomInt(30), false, compress);
+        try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
+            OutboundMessage.Request request = new OutboundMessage.Request(
+                new ThreadContext(Settings.EMPTY),
+                new ClusterStatsRequest(),
+                Version.CURRENT,
+                ClusterStatsAction.NAME,
+                randomInt(30),
+                false,
+                compress
+            );
             return request.serialize(bytesStreamOutput);
         }
     }

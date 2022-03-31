@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
@@ -40,23 +40,37 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             return request;
         }
-        //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        return SearchRequest.subSearchRequest(new TaskId("node", 1), request, request.indices(),
-            randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
+        // clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
+        return SearchRequest.subSearchRequest(
+            new TaskId("node", 1),
+            request,
+            request.indices(),
+            randomAlphaOfLengthBetween(5, 10),
+            randomNonNegativeLong(),
+            randomBoolean()
+        );
     }
 
     public void testWithLocalReduction() {
         final TaskId taskId = new TaskId("n", 1);
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(
-            taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean())
+        );
         SearchRequest request = new SearchRequest();
         expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request,
-            new String[]{null}, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request,
-            Strings.EMPTY_ARRAY, null, 0, randomBoolean()));
-        expectThrows(IllegalArgumentException.class, () -> SearchRequest.subSearchRequest(taskId, request,
-            Strings.EMPTY_ARRAY, "", -1, randomBoolean()));
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, "", 0, randomBoolean())
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, null, 0, randomBoolean())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", -1, randomBoolean())
+        );
         SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
@@ -97,13 +111,13 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         e = expectThrows(NullPointerException.class, () -> searchRequest.indicesOptions(null));
         assertEquals("indicesOptions must not be null", e.getMessage());
 
-        e = expectThrows(NullPointerException.class, () -> searchRequest.searchType((SearchType)null));
+        e = expectThrows(NullPointerException.class, () -> searchRequest.searchType((SearchType) null));
         assertEquals("searchType must not be null", e.getMessage());
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.source(null));
         assertEquals("source must not be null", e.getMessage());
 
-        e = expectThrows(NullPointerException.class, () -> searchRequest.scroll((TimeValue)null));
+        e = expectThrows(NullPointerException.class, () -> searchRequest.scroll((TimeValue) null));
         assertEquals("keepAlive must not be null", e.getMessage());
     }
 
@@ -162,9 +176,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             // Reader context with scroll
-            SearchRequest searchRequest = new SearchRequest()
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")))
-                .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+            ).scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -189,8 +203,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             if (isMinCompatibleShardVersion && shouldSetCcsMinimizeRoundtrips) {
                 assertNotNull(validationErrors);
                 assertEquals(1, validationErrors.validationErrors().size());
-                assertEquals("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
-                    validationErrors.validationErrors().get(0));
+                assertEquals(
+                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
+                    validationErrors.validationErrors().get(0)
+                );
             } else {
                 assertNull(validationErrors);
             }
@@ -213,15 +229,30 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest mutation = new SearchRequest(searchRequest);
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAlphaOfLength(10) })));
-        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(
+            () -> mutation.indicesOptions(
+                randomValueOtherThan(
+                    searchRequest.indicesOptions(),
+                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                )
+            )
+        );
         mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), ESTestCase::randomBoolean))));
-        mutators.add(() -> mutation
-                .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))));
-        mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
-            () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
+        mutators.add(
+            () -> mutation.scroll(
+                randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))
+            )
+        );
+        mutators.add(
+            () -> mutation.searchType(
+                randomValueOtherThan(
+                    searchRequest.searchType(),
+                    () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH)
+                )
+            )
+        );
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         randomFrom(mutators).run();
@@ -233,8 +264,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testDescriptionIncludesScroll() {
-        assertThat(toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
-            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]"));
+        assertThat(
+            toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
+            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
+        );
     }
 
     private String toDescription(SearchRequest request) {

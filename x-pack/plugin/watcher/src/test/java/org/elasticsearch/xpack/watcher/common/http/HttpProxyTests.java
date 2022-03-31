@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.watcher.common.http;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -35,9 +35,14 @@ public class HttpProxyTests extends ESTestCase {
             builder.field("scheme", scheme);
         }
         builder.endObject();
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput())) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                )
+        ) {
             parser.nextToken();
             HttpProxy proxy = HttpProxy.parse(parser);
             assertThat(proxy.getHost(), is(host));
@@ -52,47 +57,63 @@ public class HttpProxyTests extends ESTestCase {
 
     public void testParserValidScheme() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("host", "localhost").field("port", 12345).field("scheme", "invalid")
-                .endObject();
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput())) {
+            .field("host", "localhost")
+            .field("port", 12345)
+            .field("scheme", "invalid")
+            .endObject();
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                )
+        ) {
             parser.nextToken();
             expectThrows(IllegalArgumentException.class, () -> HttpProxy.parse(parser));
         }
     }
 
     public void testParserValidPortRange() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("host", "localhost").field("port", -1)
-                .endObject();
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput())) {
+        XContentBuilder builder = jsonBuilder().startObject().field("host", "localhost").field("port", -1).endObject();
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                )
+        ) {
             parser.nextToken();
             expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
         }
     }
 
     public void testParserNoHost() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("port", -1)
-                .endObject();
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput())) {
+        XContentBuilder builder = jsonBuilder().startObject().field("port", -1).endObject();
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                )
+        ) {
             parser.nextToken();
             expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
         }
     }
 
     public void testParserNoPort() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("host", "localhost")
-                .endObject();
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput())) {
+        XContentBuilder builder = jsonBuilder().startObject().field("host", "localhost").endObject();
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                )
+        ) {
             parser.nextToken();
             expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
         }

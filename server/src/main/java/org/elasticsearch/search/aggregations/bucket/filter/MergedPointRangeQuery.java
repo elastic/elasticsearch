@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -178,6 +179,13 @@ public class MergedPointRangeQuery extends Query {
         MergedPointRangeQuery other = (MergedPointRangeQuery) obj;
         return delegateForMultiValuedSegments.equals(other.delegateForMultiValuedSegments)
             && delegateForSingleValuedSegments.equals(other.delegateForSingleValuedSegments);
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            this.delegateForMultiValuedSegments.visit(visitor);
+        }
     }
 
     @Override

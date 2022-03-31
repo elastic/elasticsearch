@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Builder for {@link DeletePrivilegesRequest}
  */
 public final class DeletePrivilegesRequestBuilder extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse>
-        implements WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
 
     public DeletePrivilegesRequestBuilder(ElasticsearchClient client) {
         super(client, DeletePrivilegesAction.INSTANCE, new DeletePrivilegesRequest());

@@ -8,7 +8,7 @@
 package org.elasticsearch.client.common;
 
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -31,8 +31,7 @@ public final class TimeUtil {
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new Date(DateFormatters.from(DateTimeFormatter.ISO_INSTANT.parse(parser.text())).toInstant().toEpochMilli());
         }
-        throw new IllegalArgumentException(
-            "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
+        throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
     }
 
     /**
@@ -49,8 +48,7 @@ public final class TimeUtil {
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return DateFormatters.from(DateTimeFormatter.ISO_INSTANT.parse(parser.text())).toInstant();
         }
-        throw new IllegalArgumentException(
-            "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
+        throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
     }
 
 }

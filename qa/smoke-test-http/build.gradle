@@ -12,11 +12,10 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:2.8.11"
-  testImplementation project(':modules:transport-netty4') // for http
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   testImplementation project(':plugins:transport-nio') // for http
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }

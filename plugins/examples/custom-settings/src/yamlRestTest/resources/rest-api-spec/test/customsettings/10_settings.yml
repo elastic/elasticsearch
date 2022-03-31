@@ -23,7 +23,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             custom:
               bool: true
               validated: "updated"
@@ -32,15 +32,15 @@
   - do:
       cluster.get_settings: {}
 
-  - is_true: transient.custom.bool
-  - match: { transient.custom.validated: "updated" }
+  - is_true: persistent.custom.bool
+  - match: { persistent.custom.validated: "updated" }
 
   # Try to update the "validated" setting with a forbidden value
   - do:
       catch: bad_request
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             custom:
               validated: "forbidden"
 
@@ -48,7 +48,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             custom:
               bool: null
               validated: null

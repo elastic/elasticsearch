@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +28,11 @@ public class InternalKSTestAggregation extends InternalAggregation {
         this.modeValues = modeValues;
     }
 
+    public InternalKSTestAggregation(StreamInput in) throws IOException {
+        super(in);
+        this.modeValues = in.readMap(StreamInput::readString, StreamInput::readDouble);
+    }
+
     @Override
     public String getWriteableName() {
         return BucketCountKSTestAggregationBuilder.NAME.getPreferredName();
@@ -36,8 +43,12 @@ public class InternalKSTestAggregation extends InternalAggregation {
         out.writeMap(modeValues, StreamOutput::writeString, StreamOutput::writeDouble);
     }
 
+    Map<String, Double> getModeValues() {
+        return modeValues;
+    }
+
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException("Reducing a bucket_count_ks_test aggregation is not supported");
     }
 

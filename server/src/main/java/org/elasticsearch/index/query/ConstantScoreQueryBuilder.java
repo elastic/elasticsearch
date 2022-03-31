@@ -10,12 +10,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -90,8 +91,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                     query = parseInnerQueryBuilder(parser);
                     queryFound = true;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[constant_score] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -99,8 +102,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[constant_score] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "]");
@@ -152,5 +157,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         InnerHitContextBuilder.extractInnerHits(filterBuilder, innerHits);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

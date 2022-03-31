@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -25,11 +26,10 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.HashMap;
 
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<PutShutdownNodeAction.Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
@@ -64,23 +64,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(), new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
-                if (currentShutdownMetadata == null) {
-                    currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
-                }
-
-                // Verify that there's not already a shutdown metadata for this node
-                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
-                if (existingRecord != null) {
-                    logger.info(
-                        "updating existing shutdown record for node [{}] of type [{}] with reason [{}] with new type [{}] and reason [{}]",
-                        existingRecord.getNodeId(),
-                        existingRecord.getType(),
-                        existingRecord.getReason(),
-                        request.getType(),
-                        request.getReason()
-                    );
-                }
+                var currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
 
                 final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());
 
@@ -94,6 +78,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     .setTargetNodeName(request.getTargetNodeName())
                     .build();
 
+                // Verify that there's not already a shutdown metadata for this node
+                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
+                if (existingRecord != null) {
+                    logger.info("updating existing shutdown record {} with new record {}", existingRecord, newNodeMetadata);
+                } else {
+                    logger.info("creating shutdown record {}", newNodeMetadata);
+                }
+
                 return ClusterState.builder(currentState)
                     .metadata(
                         Metadata.builder(currentState.metadata())
@@ -103,13 +95,13 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
                     || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
                     clusterService.getRerouteService()
@@ -143,11 +135,16 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             }
-        });
+        }, newExecutor());
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutShutdownNodeAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

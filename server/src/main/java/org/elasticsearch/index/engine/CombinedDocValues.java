@@ -28,7 +28,9 @@ final class CombinedDocValues {
         this.versionDV = Objects.requireNonNull(leafReader.getNumericDocValues(VersionFieldMapper.NAME), "VersionDV is missing");
         this.seqNoDV = Objects.requireNonNull(leafReader.getNumericDocValues(SeqNoFieldMapper.NAME), "SeqNoDV is missing");
         this.primaryTermDV = Objects.requireNonNull(
-            leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME), "PrimaryTermDV is missing");
+            leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME),
+            "PrimaryTermDV is missing"
+        );
         this.tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
         this.recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
     }

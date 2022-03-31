@@ -1,0 +1,271 @@
+---
+setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      indices.create:
+        index: tsdb
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                          rx:
+                            type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: tsdb
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+  - do:
+      indices.create:
+        index: tsdb_new
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                          rx:
+                            type: long
+
+---
+from tsdb to standard:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: standard
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      search:
+        index: standard
+        body:
+          sort: '@timestamp'
+
+  - match: {hits.total.value: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}
+
+---
+from tsdb to tsdb:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: tsdb_new
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      search:
+        index: tsdb_new
+        body:
+          sort: '@timestamp'
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 4}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}
+---
+from standard to tsdb:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  # Populate the standard index
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: standard
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  # Now test reindexing from it to tsdb
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: tsdb_new
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: tsdb_new
+        body:
+          sort: '@timestamp'
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 4}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}
+
+---
+from tsdb to tsdb modifying timestamp:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      catch: bad_request # TODO make this work
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: tsdb_new
+          script:
+            source: ctx._source["@timestamp"] = ctx._source["@timestamp"].replace("-04-", "-05-")
+
+---
+from tsdb to tsdb modifying dimension:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      catch: bad_request # TODO make this work
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: tsdb_new
+          script:
+            source: ctx._source["metricset"] = "bubbles"

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
@@ -41,7 +41,6 @@ public class PlanExecutor {
     private final CircuitBreaker circuitBreaker;
 
     private final Metrics metrics;
-
 
     public PlanExecutor(Client client, IndexResolver indexResolver, CircuitBreaker circuitBreaker) {
         this.client = client;

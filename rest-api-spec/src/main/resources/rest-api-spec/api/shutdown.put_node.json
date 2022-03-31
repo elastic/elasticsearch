@@ -2,10 +2,10 @@
   "shutdown.put_node":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current",
-      "description":"Adds a node to be shut down"
+      "description":"Adds a node to be shut down. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
     },
-    "stability":"experimental",
-    "visibility":"public",
+    "stability":"stable",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

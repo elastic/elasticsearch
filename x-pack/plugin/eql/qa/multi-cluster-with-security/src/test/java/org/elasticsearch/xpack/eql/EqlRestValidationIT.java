@@ -22,14 +22,23 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
 
     protected void assertErrorMessageWhenAllowNoIndicesIsFalse(String reqParameter) throws IOException {
         assertErrorMessage("inexistent1*", reqParameter, getInexistentIndexErrorMessage() + "[" + indexPattern("inexistent1*") + "]\"");
-        assertErrorMessage("inexistent1*,inexistent2*", reqParameter, getInexistentIndexErrorMessage() +
-            "[" + indexPattern("inexistent1*") + "]\"");
-        assertErrorMessage("test_eql,inexistent*", reqParameter, getInexistentIndexErrorMessage() +
-            "[" + indexPattern("inexistent*") + "]\"");
-        //TODO: revisit the next two tests when https://github.com/elastic/elasticsearch/issues/64190 is closed
+        assertErrorMessage(
+            "inexistent1*,inexistent2*",
+            reqParameter,
+            getInexistentIndexErrorMessage() + "[" + indexPattern("inexistent1*") + "]\""
+        );
+        assertErrorMessage(
+            "test_eql,inexistent*",
+            reqParameter,
+            getInexistentIndexErrorMessage() + "[" + indexPattern("inexistent*") + "]\""
+        );
+        // TODO: revisit the next two tests when https://github.com/elastic/elasticsearch/issues/64190 is closed
         assertErrorMessage("inexistent", reqParameter, getInexistentIndexErrorMessage() + "[" + indexPattern("inexistent") + "]\"");
-        assertErrorMessage("inexistent1,inexistent2", reqParameter, getInexistentIndexErrorMessage() +
-            "[" + indexPattern("inexistent1") + "," + indexPattern("inexistent2") + "]\"");
+        assertErrorMessage(
+            "inexistent1,inexistent2",
+            reqParameter,
+            getInexistentIndexErrorMessage() + "[" + indexPattern("inexistent1") + "," + indexPattern("inexistent2") + "]\""
+        );
     }
 
     @Override

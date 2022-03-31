@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -35,10 +35,9 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.stub;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
@@ -54,15 +53,19 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
-            stub(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).toAnswer(answer -> {
-                var listener = (ActionListener<XPackInfoFeatureResponse>)answer.getArguments()[2];
+            when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
+                var listener = (ActionListener<XPackInfoFeatureResponse>) answer.getArguments()[2];
                 listener.onResponse(new XPackInfoFeatureResponse(featureSet));
                 return null;
             });
         }
 
-        TransportXPackInfoAction action = new TransportXPackInfoAction(mock(TransportService.class), mock(ActionFilters.class),
-            licenseService, client) {
+        TransportXPackInfoAction action = new TransportXPackInfoAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            licenseService,
+            client
+        ) {
             @Override
             protected List<XPackInfoFeatureAction> infoActions() {
                 return new ArrayList<>(featureSets.keySet());

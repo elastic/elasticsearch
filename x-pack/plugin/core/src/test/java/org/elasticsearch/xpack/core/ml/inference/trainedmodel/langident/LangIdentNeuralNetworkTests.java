@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.junit.Before;
 
@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
 
 public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<LangIdentNeuralNetwork> {
 
@@ -46,9 +45,7 @@ public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<Lan
     }
 
     public static LangIdentNeuralNetwork createRandom() {
-        return new LangIdentNeuralNetwork(randomAlphaOfLength(10),
-            LangNetLayerTests.createRandom(),
-            LangNetLayerTests.createRandom());
+        return new LangIdentNeuralNetwork(randomAlphaOfLength(10), LangNetLayerTests.createRandom(), LangNetLayerTests.createRandom());
     }
 
     @Override

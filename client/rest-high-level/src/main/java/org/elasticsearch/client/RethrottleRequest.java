@@ -39,7 +39,7 @@ public class RethrottleRequest implements Validatable {
     public RethrottleRequest(TaskId taskId, float requestsPerSecond) {
         Objects.requireNonNull(taskId, "taskId cannot be null");
         if (requestsPerSecond <= 0) {
-            throw new IllegalArgumentException("requestsPerSecond needs to be positive value but was [" + requestsPerSecond+"]");
+            throw new IllegalArgumentException("requestsPerSecond needs to be positive value but was [" + requestsPerSecond + "]");
         }
         this.taskId = taskId;
         this.requestsPerSecond = requestsPerSecond;
@@ -61,6 +61,6 @@ public class RethrottleRequest implements Validatable {
 
     @Override
     public String toString() {
-        return "RethrottleRequest: taskID = " + taskId +"; reqestsPerSecond = " + requestsPerSecond;
+        return "RethrottleRequest: taskID = " + taskId + "; reqestsPerSecond = " + requestsPerSecond;
     }
 }

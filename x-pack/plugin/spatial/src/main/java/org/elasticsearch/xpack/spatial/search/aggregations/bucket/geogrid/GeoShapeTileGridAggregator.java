@@ -18,9 +18,17 @@ import java.io.IOException;
 import java.util.Map;
 
 public class GeoShapeTileGridAggregator extends GeoTileGridAggregator {
-    public GeoShapeTileGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, int requiredSize,
-                                      int shardSize, AggregationContext context, Aggregator parent,
-                                      CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    public GeoShapeTileGridAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        int requiredSize,
+        int shardSize,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, valuesSource, requiredSize, shardSize, context, parent, cardinality, metadata);
     }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**

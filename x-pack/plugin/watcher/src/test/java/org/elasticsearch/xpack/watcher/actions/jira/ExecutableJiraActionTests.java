@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -81,11 +81,10 @@ public class ExecutableJiraActionTests extends ESTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(new Payload.Simple())
-                .time(wid.watchId(), now)
-                .buildMock();
+        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId()).wid(wid)
+            .payload(new Payload.Simple())
+            .time(wid.watchId(), now)
+            .buildMock();
 
         ExecutableJiraAction executable = new ExecutableJiraAction(action, logger, service, new UpperCaseTextTemplateEngine());
         executable.execute("foo", ctx, new Payload.Simple());
@@ -226,39 +225,34 @@ public class ExecutableJiraActionTests extends ESTestCase {
     }
 
     public void testExecutionFieldsStringArrays() throws Exception {
-        Settings build = Settings.builder()
-                .putList("k0", "a", "b", "c")
-                .put("k1", "v1")
-                .build();
+        Settings build = Settings.builder().putList("k0", "a", "b", "c").put("k1", "v1").build();
         Map<String, String> defaults = build.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> build.get(k)));
 
         Map<String, Object> fields = new HashMap<>();
         fields.put("k2", "v2");
-        fields.put("k3", new String[]{"d", "e", "f"});
+        fields.put("k3", new String[] { "d", "e", "f" });
 
         JiraAction.Simulated result = simulateExecution(fields, defaults);
 
         assertThat(result.getFields().get("K1"), equalTo("V1"));
         assertThat(result.getFields().get("K2"), equalTo("V2"));
-        assertArrayEquals((Object[]) result.getFields().get("K3"), new Object[]{"D", "E", "F"});
+        assertArrayEquals((Object[]) result.getFields().get("K3"), new Object[] { "D", "E", "F" });
     }
 
     public void testExecutionFieldsStringArraysNotOverridden() throws Exception {
-        Settings build = Settings.builder()
-                .putList("k0", "a", "b", "c")
-                .build();
+        Settings build = Settings.builder().putList("k0", "a", "b", "c").build();
         Map<String, String> defaults = build.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> build.get(k)));
         Map<String, Object> fields = new HashMap<>();
         fields.put("k1", "v1");
-        fields.put("k0", new String[]{"d", "e", "f"}); // should not be overridden byt the defaults
+        fields.put("k0", new String[] { "d", "e", "f" }); // should not be overridden byt the defaults
 
         JiraAction.Simulated result = simulateExecution(fields, defaults);
 
         final Map<String, Object> expected = new HashMap<>();
-        expected.put("K0", new String[]{"D", "E", "F"});
+        expected.put("K0", new String[] { "D", "E", "F" });
         expected.put("K1", "V1");
 
-        assertArrayEquals((Object[]) result.getFields().get("K0"), new Object[]{"D", "E", "F"});
+        assertArrayEquals((Object[]) result.getFields().get("K0"), new Object[] { "D", "E", "F" });
         assertThat(result.getFields().get("K1"), equalTo("V1"));
     }
 
@@ -268,8 +262,8 @@ public class ExecutableJiraActionTests extends ESTestCase {
         secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "elastic");
         secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), "secret");
         Settings.Builder settings = Settings.builder()
-                .setSecureSettings(secureSettings)
-                .putProperties(accountFields, s -> "issue_defaults." + s);
+            .setSecureSettings(secureSettings)
+            .putProperties(accountFields, s -> "issue_defaults." + s);
 
         JiraAccount account = new JiraAccount("account", settings.build(), mock(HttpClient.class));
 
@@ -292,12 +286,11 @@ public class ExecutableJiraActionTests extends ESTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
-        return mockExecutionContextBuilder("watch1")
-                .wid(wid)
-                .payload(new Payload.Simple())
-                .time("watch1", now)
-                .metadata(metadata)
-                .buildMock();
+        return mockExecutionContextBuilder("watch1").wid(wid)
+            .payload(new Payload.Simple())
+            .time("watch1", now)
+            .metadata(metadata)
+            .buildMock();
     }
 
     /**

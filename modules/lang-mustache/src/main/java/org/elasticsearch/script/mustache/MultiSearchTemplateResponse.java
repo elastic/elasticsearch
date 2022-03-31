@@ -12,19 +12,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 
 public class MultiSearchTemplateResponse extends ActionResponse implements Iterable<MultiSearchTemplateResponse.Item>, ToXContentObject {
@@ -115,7 +115,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     @Override
     public Iterator<Item> iterator() {
-        return Arrays.stream(items).iterator();
+        return Iterators.forArray(items);
     }
 
     /**
@@ -164,14 +164,14 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     }
 
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
-        //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
+        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
         org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
         Item[] templateResponses = new Item[responses.length];
         int i = 0;
         for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
             SearchTemplateResponse stResponse = null;
-            if(item.getResponse() != null){
+            if (item.getResponse() != null) {
                 stResponse = new SearchTemplateResponse();
                 stResponse.setResponse(item.getResponse());
             }

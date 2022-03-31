@@ -24,8 +24,15 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability, NameId id,
-                              boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String name,
+        DataType type,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 

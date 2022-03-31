@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.common.search.aggregations;
 
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Helps long-valued {@link org.elasticsearch.search.sort.BucketedSort.ExtraData} track "empty" slots. It attempts to have

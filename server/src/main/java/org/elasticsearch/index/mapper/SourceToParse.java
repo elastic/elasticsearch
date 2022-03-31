@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.Objects;
@@ -19,8 +19,6 @@ import java.util.Objects;
 public class SourceToParse {
 
     private final BytesReference source;
-
-    private final String index;
 
     private final String id;
 
@@ -30,10 +28,14 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
-                         Map<String, String> dynamicTemplates) {
-        this.index = Objects.requireNonNull(index);
-        this.id = Objects.requireNonNull(id);
+    public SourceToParse(
+        @Nullable String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates
+    ) {
+        this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
@@ -42,18 +44,25 @@ public class SourceToParse {
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
     }
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
-        this(index, id, source, xContentType, null, Map.of());
+    public SourceToParse(String id, BytesReference source, XContentType xContentType) {
+        this(id, source, xContentType, null, Map.of());
     }
 
     public BytesReference source() {
         return this.source;
     }
 
-    public String index() {
-        return this.index;
-    }
-
+    /**
+     * The {@code _id} provided on the request or calculated on the
+     * coordinating node. If the index is in {@code time_series} mode then
+     * the coordinating node will not calculate the {@code _id}. In that
+     * case this will be {@code null} if one isn't sent on the request.
+     * <p>
+     * Use {@link DocumentParserContext#documentDescription()} to generate
+     * a description of the document for errors instead of calling this
+     * method.
+     */
+    @Nullable
     public String id() {
         return this.id;
     }
@@ -71,10 +80,5 @@ public class SourceToParse {
 
     public XContentType getXContentType() {
         return this.xContentType;
-    }
-
-    public enum Origin {
-        PRIMARY,
-        REPLICA
     }
 }

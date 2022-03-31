@@ -13,5 +13,18 @@ public final class SecuritySettingsSourceField {
     public static final String TEST_PASSWORD = "x-pack-test-password";
     public static final String TEST_INVALID_PASSWORD = "invalid-test-password";
 
+    public static final String ES_TEST_ROOT_ROLE = "_es_test_root";
+    public static final String ES_TEST_ROOT_ROLE_YML = """
+        _es_test_root:
+          cluster: [ "ALL" ]
+          indices:
+            - names: [ "*" ]
+              allow_restricted_indices: true
+              privileges: [ "ALL" ]
+          run_as: [ "*" ]
+          # The _es_test_root role doesn't have any application privileges because that would require loading data (Application Privileges)
+          # from the security index, which can causes problems if the index is not available
+        """;
+
     private SecuritySettingsSourceField() {}
 }

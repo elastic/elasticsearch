@@ -16,6 +16,7 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -28,7 +29,6 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,6 +45,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import javax.inject.Inject;
 
 /**
  * Checks for patterns in source files for the project which are forbidden.
@@ -89,6 +91,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     }
 
     @InputFiles
+    @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getFiles() {

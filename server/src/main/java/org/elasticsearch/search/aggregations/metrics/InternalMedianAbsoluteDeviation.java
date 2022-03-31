@@ -10,9 +10,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,8 +43,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     private final double medianAbsoluteDeviation;
 
     InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
-        super(name, metadata);
-        this.format = Objects.requireNonNull(format);
+        super(name, Objects.requireNonNull(format), metadata);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
 
         this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
@@ -50,7 +51,6 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     public InternalMedianAbsoluteDeviation(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         valuesSketch = TDigestState.read(in);
         medianAbsoluteDeviation = in.readDouble();
     }
@@ -63,7 +63,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         final TDigestState valueMerged = new TDigestState(valuesSketch.compression());
         for (InternalAggregation aggregation : aggregations) {
             final InternalMedianAbsoluteDeviation madAggregation = (InternalMedianAbsoluteDeviation) aggregation;
@@ -71,6 +71,11 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         }
 
         return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

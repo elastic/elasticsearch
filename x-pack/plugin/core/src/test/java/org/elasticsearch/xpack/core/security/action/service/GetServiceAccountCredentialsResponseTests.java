@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,7 +52,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
         final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8)))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         final GetServiceAccountCredentialsNodesResponse fileTokensResponse = randomGetServiceAccountFileTokensResponse();
         return new GetServiceAccountCredentialsResponse(principal, indexTokenInfos, fileTokensResponse);
     }
@@ -65,8 +64,8 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder),
-            false, builder.contentType()).v2();
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
 
         assertThat(responseMap.get("service_account"), equalTo(response.getPrincipal()));
         assertThat(responseMap.get("count"), equalTo(tokenInfos.size()));
@@ -121,14 +120,15 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final DiscoveryNode discoveryNode = new DiscoveryNode(
             randomAlphaOfLength(8) + i,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            Version.CURRENT);
+            Version.CURRENT
+        );
         return new GetServiceAccountCredentialsNodesResponse.Node(
             discoveryNode,
-            randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(String[]::new));
+            randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(String[]::new)
+        );
     }
 
     private List<TokenInfo> getAllTokenInfos(GetServiceAccountCredentialsResponse response) {
-        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream())
-            .collect(toUnmodifiableList());
+        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream()).toList();
     }
 }

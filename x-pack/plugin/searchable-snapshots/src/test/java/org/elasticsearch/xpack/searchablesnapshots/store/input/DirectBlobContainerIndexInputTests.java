@@ -37,10 +37,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -80,7 +79,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyInt())).thenAnswer(invocationOnMock -> {
+        when(blobContainer.readBlob(anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
             String name = (String) invocationOnMock.getArguments()[0];
             long position = (long) invocationOnMock.getArguments()[1];
             long length = (long) invocationOnMock.getArguments()[2];
@@ -133,8 +132,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             fileInfo,
             randomIOContext(),
             new IndexInputStats(1L, fileInfo.length(), fileInfo.length(), fileInfo.length(), () -> 0L),
-            minimumReadSize,
-            randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
+            minimumReadSize
         );
         assertEquals(input.length, indexInput.length());
         return indexInput;
@@ -177,16 +175,12 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             randomReadAndSlice(indexInput, firstReadLen);
             expectThrows(IOException.class, () -> {
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        indexInput.seek(Integer.MAX_VALUE + 4L);
-                        break;
-                    case 1:
-                        indexInput.seek(-randomIntBetween(1, 10));
-                        break;
-                    default:
+                    case 0 -> indexInput.seek(Integer.MAX_VALUE + 4L);
+                    case 1 -> indexInput.seek(-randomIntBetween(1, 10));
+                    default -> {
                         int seek = input.length + randomIntBetween(1, 100);
                         indexInput.seek(seek);
-                        break;
+                    }
                 }
             });
         }

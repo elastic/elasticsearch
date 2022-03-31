@@ -15,6 +15,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -111,7 +112,14 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
         return script.equals(other.script) && fieldName.equals(other.fieldName);
     }
 
-    final Explanation explainMatch(float boost, String description) {
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(fieldName)) {
+            visitor.visitLeaf(this);
+        }
+    }
+
+    static Explanation explainMatch(float boost, String description) {
         return Explanation.match(
             boost,
             description,

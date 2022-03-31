@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -17,13 +16,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -166,11 +164,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             this.lifecyclePolicy = new LifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-                this.usage = new ItemUsage(in);
-            } else {
-                this.usage = new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
-            }
+            this.usage = new ItemUsage(in);
         }
 
         @Override
@@ -178,9 +172,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             lifecyclePolicy.writeTo(out);
             out.writeVLong(version);
             out.writeString(modifiedDate);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-                this.usage.writeTo(out);
-            }
+            this.usage.writeTo(out);
         }
 
         public LifecyclePolicy getLifecyclePolicy() {
@@ -213,10 +205,10 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                 return false;
             }
             LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
-            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(modifiedDate, other.modifiedDate) &&
-                Objects.equals(usage, other.usage);
+            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy)
+                && Objects.equals(version, other.version)
+                && Objects.equals(modifiedDate, other.modifiedDate)
+                && Objects.equals(usage, other.usage);
         }
     }
 

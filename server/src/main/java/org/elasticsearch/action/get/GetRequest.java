@@ -27,14 +27,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.elasticsearch.client.Requests#getRequest(String)}.
+ * {@link org.elasticsearch.client.internal.Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
- * @see org.elasticsearch.client.Requests#getRequest(String)
- * @see org.elasticsearch.client.Client#get(GetRequest)
+ * @see org.elasticsearch.client.internal.Requests#getRequest(String)
+ * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
@@ -69,7 +69,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
     }
 
     public GetRequest() {}
@@ -99,8 +99,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             validationException = addValidationError("id is missing", validationException);
         }
         if (versionType.validateVersionForReads(version) == false) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
-                    + versionType.name() + "]", validationException);
+            validationException = ValidateActions.addValidationError(
+                "illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                validationException
+            );
         }
         return validationException;
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.internal.BwcVersions;
-import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -29,12 +28,9 @@ import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
 
-import javax.inject.Inject;
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
@@ -42,18 +38,18 @@ import java.nio.file.Files;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.inject.Inject;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
-    private static Integer _defaultParallel = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
@@ -84,6 +80,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         File runtimeJavaHome = findRuntimeJavaHome();
+        boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome) == false;
 
         File rootDir = project.getRootDir();
         GitInfo gitInfo = GitInfo.gitInfo(rootDir);
@@ -91,8 +88,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         BuildParams.init(params -> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
-            params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
-            params.setIsRuntimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            // TODO: Temporarily hard-code this to 17 until we upgrade to Gradle 7.3 and bump minimumRuntimeVersion
+            params.setRuntimeJavaVersion(
+                determineJavaVersion(
+                    "runtime java.home",
+                    runtimeJavaHome,
+                    isRuntimeJavaHomeSet ? JavaVersion.VERSION_17 : Jvm.current().getJavaVersion()
+                )
+            );
+            params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
             JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome).getLocation());
             params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
             params.setJavaVersions(getAvailableJavaVersions());
@@ -107,7 +111,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setBwcVersions(providers.provider(() -> resolveBwcVersions(rootDir)));
+            AtomicReference<BwcVersions> cache = new AtomicReference<>();
+            params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
         });
 
         // Enforce the minimum compiler version
@@ -258,7 +263,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private String findJavaHome(String version) {
-        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv").forUseAtConfigurationTime();
+        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv");
         String javaHomeEnvVar = getJavaHomeEnvVarName(version);
 
         // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet
@@ -294,60 +299,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return "JAVA" + version + "_HOME";
     }
 
-    private static int findDefaultParallel(Project project) {
-        // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
-        // It's safe to store this in a static variable since it's just a primitive so leaking memory isn't an issue
-        if (_defaultParallel == null) {
-            File cpuInfoFile = new File("/proc/cpuinfo");
-            if (cpuInfoFile.exists()) {
-                // Count physical cores on any Linux distro ( don't count hyper-threading )
-                Map<String, Integer> socketToCore = new HashMap<>();
-                String currentID = "";
-
-                try (BufferedReader reader = new BufferedReader(new FileReader(cpuInfoFile))) {
-                    for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                        if (line.contains(":")) {
-                            List<String> parts = Arrays.stream(line.split(":", 2)).map(String::trim).collect(Collectors.toList());
-                            String name = parts.get(0);
-                            String value = parts.get(1);
-                            // the ID of the CPU socket
-                            if (name.equals("physical id")) {
-                                currentID = value;
-                            }
-                            // Number of cores not including hyper-threading
-                            if (name.equals("cpu cores")) {
-                                assert currentID.isEmpty() == false;
-                                socketToCore.put("currentID", Integer.valueOf(value));
-                                currentID = "";
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                _defaultParallel = socketToCore.values().stream().mapToInt(i -> i).sum();
-            } else if (OS.current() == OS.MAC) {
-                // Ask macOS to count physical CPUs for us
-                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-                project.exec(spec -> {
-                    spec.setExecutable("sysctl");
-                    spec.args("-n", "hw.physicalcpu");
-                    spec.setStandardOutput(stdout);
-                });
-
-                _defaultParallel = Integer.parseInt(stdout.toString().trim());
-            }
-
-            _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
-        }
-
-        return _defaultParallel;
-    }
-
-
     public static String getResourceContents(String resourcePath) {
         try (
-                BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
+            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
         ) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -373,7 +327,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         @Override
         public JvmInstallationMetadata getMetadata(File file) {
             JvmInstallationMetadata metadata = delegate.getMetadata(file);
-            if(metadata instanceof JvmInstallationMetadata.FailureInstallationMetadata) {
+            if (metadata instanceof JvmInstallationMetadata.FailureInstallationMetadata) {
                 throw new GradleException("Jvm Metadata cannot be resolved for " + metadata.getJavaHome().toString());
             }
             return metadata;

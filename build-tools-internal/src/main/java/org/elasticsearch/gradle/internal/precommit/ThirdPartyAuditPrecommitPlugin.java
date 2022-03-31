@@ -8,11 +8,11 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
@@ -30,7 +30,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
-        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.1");
+        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.2");
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
         if (project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {
             // Internal projects are not all plugins, so make sure the check is available
@@ -46,13 +46,26 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
             t.copy("forbidden/third-party-audit.txt");
         });
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
-        audit.configure(t -> {
+        // usually only one task is created. but this construct makes our integTests easier to setup
+        project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
+            Configuration runtimeConfiguration = project.getConfigurations().getByName("runtimeClasspath");
+            Configuration compileOnly = project.getConfigurations()
+                .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+            t.setClasspath(runtimeConfiguration.plus(compileOnly));
+            t.setJarsToScan(runtimeConfiguration.fileCollection(dep -> {
+                // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
+                // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
+                // err on the side of scanning these to make sure we don't miss anything
+                return dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
+            }));
             t.dependsOn(resourcesTask);
             t.setJavaHome(Jvm.current().getJavaHome().getPath());
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
+            t.setJdkJarHellClasspath(jdkJarHellConfig);
+            t.setForbiddenAPIsClasspath(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));
         });
-        project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> t.setJdkJarHellClasspath(jdkJarHellConfig));
         return audit;
     }
+
 }

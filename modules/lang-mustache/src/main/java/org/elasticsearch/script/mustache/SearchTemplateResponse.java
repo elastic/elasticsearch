@@ -10,16 +10,16 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,8 +34,7 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
     /** Contains the search response, if any **/
     private SearchResponse response;
 
-    SearchTemplateResponse() {
-    }
+    SearchTemplateResponse() {}
 
     SearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
@@ -80,17 +79,13 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
         if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
             Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)
-                .value(source);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
             searchTemplateResponse.setSource(BytesReference.bytes(builder));
         } else {
             XContentType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType)
-                .map(contentAsMap);
-            XContentParser searchResponseParser = contentType.xContent().createParser(
-                parser.getXContentRegistry(),
-                parser.getDeprecationHandler(),
-                BytesReference.bytes(builder).streamInput());
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
+            XContentParser searchResponseParser = contentType.xContent()
+                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
 
             SearchResponse searchResponse = SearchResponse.fromXContent(searchResponseParser);
             searchTemplateResponse.setResponse(searchResponse);
@@ -104,7 +99,7 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
             response.toXContent(builder, params);
         } else {
             builder.startObject();
-            //we can assume the template is always json as we convert it before compiling it
+            // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {
                 builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
             }

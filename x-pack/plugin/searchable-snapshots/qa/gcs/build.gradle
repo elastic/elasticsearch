@@ -12,11 +12,9 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
   testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
-  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -96,7 +94,6 @@ tasks.named("integTest").configure {
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.path
 
   keystore 'gcs.client.searchable_snapshots.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
@@ -111,6 +108,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+  setting 'xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive', '0ms'
 
   setting 'xpack.security.enabled', 'false'
 }

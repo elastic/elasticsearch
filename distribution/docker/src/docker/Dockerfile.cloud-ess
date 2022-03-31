@@ -10,3 +10,4 @@ RUN chmod 0444 /opt/plugins/archive/*
 FROM ${base_image}
 
 COPY --from=builder /opt/plugins /opt/plugins
+ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive

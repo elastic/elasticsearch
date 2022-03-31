@@ -178,3 +178,20 @@ ROUND(AVG(salary)):d|   rounded:i   | AVG(salary):d |   COUNT(*):l
 69904.0             |69904          |69904.0        |1              
 68547.0             |68547          |68547.0        |1   
 ;
+
+roundInlineWithBigLong
+SELECT ROUND(8998798798798798798) m;
+
+m:l
+-------------------
+8998798798798798798
+;
+
+
+roundInlineWithBigLong2
+SELECT ROUND(8998798798798798798, -1) m;
+
+m:l
+-------------------
+8998798798798798800
+;

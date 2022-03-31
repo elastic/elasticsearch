@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
@@ -55,10 +55,10 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     public void testFailOnEmptyIndex() throws IOException {
-        boolean lenient = randomBoolean();
+        boolean lenient2 = randomBoolean();
         String json = "{ \"index\": \"\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            DestConfig dest = DestConfig.fromXContent(parser, lenient);
+            DestConfig dest = DestConfig.fromXContent(parser, lenient2);
             assertThat(dest.getIndex(), is(emptyString()));
             ValidationException validationException = dest.validate(null);
             assertThat(validationException, is(notNullValue()));

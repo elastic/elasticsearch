@@ -9,13 +9,13 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -101,9 +101,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldDataStats that = (FieldDataStats) o;
-        return memorySize == that.memorySize &&
-            evictions == that.evictions &&
-            Objects.equals(fields, that.fields);
+        return memorySize == that.memorySize && evictions == that.evictions && Objects.equals(fields, that.fields);
     }
 
     @Override

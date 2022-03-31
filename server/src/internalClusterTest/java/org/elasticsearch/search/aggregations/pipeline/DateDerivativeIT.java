@@ -33,11 +33,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -432,7 +432,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(1.0));
+        assertThat(sum.value(), equalTo(1.0));
         SimpleValue deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, nullValue());
         assertThat((ZonedDateTime) propertiesKeys[0], equalTo(key));
@@ -447,7 +447,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(5.0));
+        assertThat(sum.value(), equalTo(5.0));
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(4.0));
@@ -470,7 +470,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(15.0));
+        assertThat(sum.value(), equalTo(15.0));
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(10.0));

@@ -10,9 +10,9 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,16 +44,12 @@ public final class GrantApiKeyRequest implements Validatable, ToXContentObject {
                 "password",
                 Objects.requireNonNull(username, "Username may not be null"),
                 Objects.requireNonNull(password, "Password may not be null"),
-                null);
+                null
+            );
         }
 
         public static Grant accessTokenGrant(String accessToken) {
-            return new Grant(
-                "access_token",
-                null,
-                null,
-                Objects.requireNonNull(accessToken, "Access token may not be null")
-            );
+            return new Grant("access_token", null, null, Objects.requireNonNull(accessToken, "Access token may not be null"));
         }
 
         public String getGrantType() {
@@ -145,8 +141,7 @@ public final class GrantApiKeyRequest implements Validatable, ToXContentObject {
             return false;
         }
         final GrantApiKeyRequest that = (GrantApiKeyRequest) o;
-        return Objects.equals(this.grant, that.grant)
-            && Objects.equals(this.apiKeyRequest, that.apiKeyRequest);
+        return Objects.equals(this.grant, that.grant) && Objects.equals(this.apiKeyRequest, that.apiKeyRequest);
     }
 
     @Override

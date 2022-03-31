@@ -13,8 +13,15 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -37,25 +44,30 @@ import java.util.Objects;
  */
 public final class EnrichCache {
 
-    private final Cache<CacheKey, SearchResponse> cache;
+    private final Cache<CacheKey, List<Map<?, ?>>> cache;
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
-        this.cache = CacheBuilder.<CacheKey, SearchResponse>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
-    SearchResponse get(SearchRequest searchRequest) {
+    List<Map<?, ?>> get(SearchRequest searchRequest) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
-        return cache.get(cacheKey);
+        List<Map<?, ?>> response = cache.get(cacheKey);
+        if (response != null) {
+            return deepCopy(response, false);
+        } else {
+            return null;
+        }
     }
 
-    void put(SearchRequest searchRequest, SearchResponse searchResponse) {
+    void put(SearchRequest searchRequest, List<Map<?, ?>> response) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
-        cache.put(cacheKey, searchResponse);
+        cache.put(cacheKey, response);
     }
 
     void setMetadata(Metadata metadata) {
@@ -76,7 +88,42 @@ public final class EnrichCache {
     private String getEnrichIndexKey(SearchRequest searchRequest) {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
-        return ia.getIndices().get(0).getIndex().getName();
+        return ia.getIndices().get(0).getName();
+    }
+
+    List<Map<?, ?>> toCacheValue(SearchResponse response) {
+        List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
+        for (SearchHit hit : response.getHits()) {
+            result.add(deepCopy(hit.getSourceAsMap(), true));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T deepCopy(T value, boolean unmodifiable) {
+        return (T) innerDeepCopy(value, unmodifiable);
+    }
+
+    private static Object innerDeepCopy(Object value, boolean unmodifiable) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copy.put(entry.getKey(), innerDeepCopy(entry.getValue(), unmodifiable));
+            }
+            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
+        } else if (value instanceof List<?> listValue) {
+            List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object itemValue : listValue) {
+                copy.add(innerDeepCopy(itemValue, unmodifiable));
+            }
+            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
+        } else if (value instanceof byte[] bytes) {
+            return Arrays.copyOf(bytes, bytes.length);
+        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            return value;
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     private static class CacheKey {

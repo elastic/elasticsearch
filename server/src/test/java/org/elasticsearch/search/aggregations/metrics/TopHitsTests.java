@@ -9,9 +9,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -22,6 +19,9 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,32 +106,19 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             for (int i = 0; i < excludes.length; i++) {
                 excludes[i] = randomAlphaOfLengthBetween(5, 20);
             }
-            switch (branch) {
-                case 0:
-                    fetchSourceContext = new FetchSourceContext(randomBoolean());
-                    break;
-                case 1:
-                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                    break;
-                case 2:
-                    fetchSourceContext = new FetchSourceContext(
-                        true,
-                        new String[] { randomAlphaOfLengthBetween(5, 20) },
-                        new String[] { randomAlphaOfLengthBetween(5, 20) }
-                    );
-                    break;
-                case 3:
-                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                    break;
-                case 4:
-                    fetchSourceContext = new FetchSourceContext(true, includes, null);
-                    break;
-                case 5:
-                    fetchSourceContext = new FetchSourceContext(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
-                    break;
-                default:
-                    throw new IllegalStateException();
-            }
+            fetchSourceContext = switch (branch) {
+                case 0 -> FetchSourceContext.of(randomBoolean());
+                case 1 -> FetchSourceContext.of(true, includes, excludes);
+                case 2 -> FetchSourceContext.of(
+                    true,
+                    new String[] { randomAlphaOfLengthBetween(5, 20) },
+                    new String[] { randomAlphaOfLengthBetween(5, 20) }
+                );
+                case 3 -> FetchSourceContext.of(true, includes, excludes);
+                case 4 -> FetchSourceContext.of(true, includes, null);
+                case 5 -> FetchSourceContext.of(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
+                default -> throw new IllegalStateException();
+            };
             factory.fetchSource(fetchSourceContext);
         }
         if (randomBoolean()) {
@@ -139,29 +126,17 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             for (int i = 0; i < numSorts; i++) {
                 int branch = randomInt(5);
                 switch (branch) {
-                    case 0:
-                        factory.sort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
-                        break;
-                    case 1:
-                        factory.sort(
-                            SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
-                                .order(randomFrom(SortOrder.values()))
-                        );
-                        break;
-                    case 2:
-                        factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-                        break;
-                    case 3:
-                        factory.sort(
-                            SortBuilders.scriptSort(mockScript("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values()))
-                        );
-                        break;
-                    case 4:
-                        factory.sort(randomAlphaOfLengthBetween(5, 20));
-                        break;
-                    case 5:
-                        factory.sort(randomAlphaOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
-                        break;
+                    case 0 -> factory.sort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
+                    case 1 -> factory.sort(
+                        SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
+                            .order(randomFrom(SortOrder.values()))
+                    );
+                    case 2 -> factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+                    case 3 -> factory.sort(
+                        SortBuilders.scriptSort(mockScript("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values()))
+                    );
+                    case 4 -> factory.sort(randomAlphaOfLengthBetween(5, 20));
+                    case 5 -> factory.sort(randomAlphaOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
                 }
             }
         }
@@ -173,25 +148,26 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
     }
 
     public void testFailWithSubAgg() throws Exception {
-        String source = "{\n"
-            + "    \"top-tags\": {\n"
-            + "      \"terms\": {\n"
-            + "        \"field\": \"tags\"\n"
-            + "      },\n"
-            + "      \"aggs\": {\n"
-            + "        \"top_tags_hits\": {\n"
-            + "          \"top_hits\": {},\n"
-            + "          \"aggs\": {\n"
-            + "            \"max\": {\n"
-            + "              \"max\": {\n"
-            + "                \"field\": \"age\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "top-tags": {
+                  "terms": {
+                    "field": "tags"
+                  },
+                  "aggs": {
+                    "top_tags_hits": {
+                      "top_hits": {},
+                      "aggs": {
+                        "max": {
+                          "max": {
+                            "field": "age"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));

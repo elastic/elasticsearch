@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -53,8 +53,11 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     interface DataSummary {
         long estimateChunk();
+
         boolean hasData();
+
         long earliestTime();
+
         long getDataTimeSpread();
     }
 
@@ -78,10 +81,11 @@ public class ChunkedDataExtractor implements DataExtractor {
     private DataExtractor currentExtractor;
 
     public ChunkedDataExtractor(
-            Client client,
-            DataExtractorFactory dataExtractorFactory,
-            ChunkedDataExtractorContext context,
-            DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        DataExtractorFactory dataExtractorFactory,
+        ChunkedDataExtractorContext context,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         this.client = Objects.requireNonNull(client);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
@@ -98,11 +102,11 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (isCancelled()) {
             return currentHasNext;
         }
-        return currentHasNext ||  currentEnd < context.end;
+        return currentHasNext || currentEnd < context.end;
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -122,19 +126,33 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
             chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug("[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
-                    context.jobId, dataSummary.getClass().getSimpleName(), dataSummary.getDataTimeSpread(), chunkSpan);
+            LOGGER.debug(
+                "[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
+                context.jobId,
+                dataSummary.getClass().getSimpleName(),
+                dataSummary.getDataTimeSpread(),
+                chunkSpan
+            );
         } else {
             // search is over
             currentEnd = context.end;
+            LOGGER.debug("[{}] Chunked search configured: no data found", context.jobId);
         }
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
-    private Optional<InputStream> getNextStream() throws IOException {
+    private Result getNextStream() throws IOException {
+        SearchInterval lastSearchInterval = new SearchInterval(context.start, context.end);
         while (hasNext()) {
             boolean isNewSearch = false;
 
@@ -144,9 +162,10 @@ public class ChunkedDataExtractor implements DataExtractor {
                 isNewSearch = true;
             }
 
-            Optional<InputStream> nextStream = currentExtractor.next();
-            if (nextStream.isPresent()) {
-                return nextStream;
+            Result result = currentExtractor.next();
+            lastSearchInterval = result.searchInterval();
+            if (result.data().isPresent()) {
+                return result;
             }
 
             if (isNewSearch && hasNext()) {
@@ -155,7 +174,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 setUpChunkedSearch();
             }
         }
-        return Optional.empty();
+        return new Result(lastSearchInterval, Optional.empty());
     }
 
     private void advanceTime() {
@@ -215,9 +234,9 @@ public class ChunkedDataExtractor implements DataExtractor {
             if (totalHits > 0) {
                 Aggregations aggregations = searchResponse.getAggregations();
                 Min min = aggregations.get(EARLIEST_TIME);
-                earliestTime = (long) min.getValue();
+                earliestTime = (long) min.value();
                 Max max = aggregations.get(LATEST_TIME);
-                latestTime = (long) max.getValue();
+                latestTime = (long) max.value();
             }
             return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
         }
@@ -240,12 +259,11 @@ public class ChunkedDataExtractor implements DataExtractor {
             }
             Min min = aggregations.get(EARLIEST_TIME);
             Max max = aggregations.get(LATEST_TIME);
-            return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);
+            return new AggregatedDataSummary(min.value(), max.value(), context.histogramInterval);
         }
 
         private SearchSourceBuilder rangeSearchBuilder() {
-            return new SearchSourceBuilder()
-                .size(0)
+            return new SearchSourceBuilder().size(0)
                 .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
                 .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
@@ -253,8 +271,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private SearchRequestBuilder rangeSearchRequest() {
-            return new SearchRequestBuilder(client, SearchAction.INSTANCE)
-                .setIndices(context.indices)
+            return new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(context.indices)
                 .setIndicesOptions(context.indicesOptions)
                 .setSource(rangeSearchBuilder())
                 .setAllowPartialSearchResults(false)
@@ -293,7 +310,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         /**
-         *  The heuristic here is that we want a time interval where we expect roughly scrollSize documents
+         * The heuristic here is that we want a time interval where we expect roughly scrollSize documents
          * (assuming data are uniformly spread over time).
          * We have totalHits documents over dataTimeSpread (latestTime - earliestTime), we want scrollSize documents over chunk.
          * Thus, the interval would be (scrollSize * dataTimeSpread) / totalHits.
@@ -348,12 +365,12 @@ public class ChunkedDataExtractor implements DataExtractor {
 
         @Override
         public long earliestTime() {
-            return (long)earliestTime;
+            return (long) earliestTime;
         }
 
         @Override
         public long getDataTimeSpread() {
-            return (long)latestTime - (long)earliestTime;
+            return (long) latestTime - (long) earliestTime;
         }
     }
 }

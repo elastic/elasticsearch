@@ -29,9 +29,7 @@ import java.util.Collections;
 public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
     public void testSimpleFilter() throws IOException {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.f.type", "predicate_token_filter")
@@ -50,7 +48,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
         };
 
         @SuppressWarnings("unchecked")
-        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap()){
+        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
@@ -61,16 +59,13 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
-        AnalysisModule module
-            = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
+        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
 
         IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = analyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[]{
-                "Oh", "what", "to", "be"
-            });
+            assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[] { "Oh", "what", "to", "be" });
         }
 
     }

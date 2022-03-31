@@ -9,20 +9,20 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -68,79 +68,56 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
             .put("index.analysis.analyzer.text_shingle.tokenizer", "whitespace")
             .put("index.analysis.analyzer.text_shingle.filter", "lowercase, shingle")
             .put("index.analysis.analyzer.text_shingle_unigram.tokenizer", "whitespace")
-            .put("index.analysis.analyzer.text_shingle_unigram.filter",
-                "lowercase, shingle_unigram")
+            .put("index.analysis.analyzer.text_shingle_unigram.filter", "lowercase, shingle_unigram")
             .build();
-        indexService = createIndex("test", settings, "t",
-            "text_shingle", "type=text,analyzer=text_shingle",
-            "text_shingle_unigram", "type=text,analyzer=text_shingle_unigram");
+        indexService = createIndex(
+            "test",
+            settings,
+            "t",
+            "text_shingle",
+            "type=text,analyzer=text_shingle",
+            "text_shingle_unigram",
+            "type=text,analyzer=text_shingle_unigram"
+        );
         searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
 
         // parsed queries for "text_shingle_unigram:(foo bar baz)" with query parsers
         // that ignores position length attribute
-         expectedQueryWithUnigram= new BooleanQuery.Builder()
+        expectedQueryWithUnigram = new BooleanQuery.Builder().add(
+            new SynonymQuery.Builder("text_shingle_unigram").addTerm(new Term("text_shingle_unigram", "foo"))
+                .addTerm(new Term("text_shingle_unigram", "foo bar"))
+                .build(),
+            BooleanClause.Occur.SHOULD
+        )
             .add(
-                new SynonymQuery(
-                    new Term("text_shingle_unigram", "foo"),
-                    new Term("text_shingle_unigram", "foo bar")
-                ), BooleanClause.Occur.SHOULD)
-            .add(
-                new SynonymQuery(
-                    new Term("text_shingle_unigram", "bar"),
-                    new Term("text_shingle_unigram", "bar baz")
-            ), BooleanClause.Occur.SHOULD)
-            .add(
-                new TermQuery(
-                    new Term("text_shingle_unigram", "baz")
-                ), BooleanClause.Occur.SHOULD)
+                new SynonymQuery.Builder("text_shingle_unigram").addTerm(new Term("text_shingle_unigram", "bar"))
+                    .addTerm(new Term("text_shingle_unigram", "bar baz"))
+                    .build(),
+                BooleanClause.Occur.SHOULD
+            )
+            .add(new TermQuery(new Term("text_shingle_unigram", "baz")), BooleanClause.Occur.SHOULD)
             .build();
 
         // parsed query for "text_shingle_unigram:\"foo bar baz\" with query parsers
         // that ignores position length attribute
-        expectedPhraseQueryWithUnigram = new MultiPhraseQuery.Builder()
-            .add(
-                new Term[] {
-                    new Term("text_shingle_unigram", "foo"),
-                    new Term("text_shingle_unigram", "foo bar")
-                }, 0)
-            .add(
-                new Term[] {
-                    new Term("text_shingle_unigram", "bar"),
-                    new Term("text_shingle_unigram", "bar baz")
-                }, 1)
-            .add(
-                new Term[] {
-                    new Term("text_shingle_unigram", "baz"),
-                }, 2)
+        expectedPhraseQueryWithUnigram = new MultiPhraseQuery.Builder().add(
+            new Term[] { new Term("text_shingle_unigram", "foo"), new Term("text_shingle_unigram", "foo bar") },
+            0
+        )
+            .add(new Term[] { new Term("text_shingle_unigram", "bar"), new Term("text_shingle_unigram", "bar baz") }, 1)
+            .add(new Term[] { new Term("text_shingle_unigram", "baz"), }, 2)
             .build();
 
         // parsed query for "text_shingle:(foo bar baz)
-        expectedQuery = new BooleanQuery.Builder()
-            .add(
-                new TermQuery(new Term("text_shingle", "foo bar")),
-                BooleanClause.Occur.SHOULD
-            )
-            .add(
-                new TermQuery(new Term("text_shingle","bar baz")),
-                BooleanClause.Occur.SHOULD
-            )
-            .add(
-                new TermQuery(new Term("text_shingle","baz biz")),
-                BooleanClause.Occur.SHOULD
-            )
+        expectedQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("text_shingle", "foo bar")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text_shingle", "bar baz")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text_shingle", "baz biz")), BooleanClause.Occur.SHOULD)
             .build();
 
         // parsed query for "text_shingle:"foo bar baz"
-        expectedPhraseQuery = new PhraseQuery.Builder()
-            .add(
-                new Term("text_shingle", "foo bar")
-            )
-            .add(
-                new Term("text_shingle","bar baz")
-            )
-            .add(
-                new Term("text_shingle","baz biz")
-            )
+        expectedPhraseQuery = new PhraseQuery.Builder().add(new Term("text_shingle", "foo bar"))
+            .add(new Term("text_shingle", "bar baz"))
+            .add(new Term("text_shingle", "baz biz"))
             .build();
     }
 
@@ -153,20 +130,17 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testMatchPhraseQuery() throws IOException {
-        MatchPhraseQueryBuilder builder =
-            new MatchPhraseQueryBuilder("text_shingle_unigram", "foo bar baz");
+        MatchPhraseQueryBuilder builder = new MatchPhraseQueryBuilder("text_shingle_unigram", "foo bar baz");
         Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
-        builder =
-            new MatchPhraseQueryBuilder("text_shingle", "foo bar baz biz");
+        builder = new MatchPhraseQueryBuilder("text_shingle", "foo bar baz biz");
         query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQuery, equalTo(query));
     }
 
     public void testMatchQuery() throws IOException {
-        MatchQueryBuilder builder =
-            new MatchQueryBuilder("text_shingle_unigram", "foo bar baz");
+        MatchQueryBuilder builder = new MatchQueryBuilder("text_shingle_unigram", "foo bar baz");
         Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
@@ -176,8 +150,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiMatchQuery() throws IOException {
-        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar baz",
-            "text_shingle_unigram");
+        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar baz", "text_shingle_unigram");
         Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 

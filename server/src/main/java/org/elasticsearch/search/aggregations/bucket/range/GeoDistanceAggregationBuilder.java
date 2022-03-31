@@ -8,17 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -30,6 +26,11 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -265,6 +266,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         unit = DistanceUnit.readFromStream(in);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     // for parsing
     GeoDistanceAggregationBuilder(String name) {
         this(name, null, InternalGeoDistance.FACTORY);
@@ -496,6 +502,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(distanceType, other.distanceType)
             && Objects.equals(unit, other.unit);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
 }

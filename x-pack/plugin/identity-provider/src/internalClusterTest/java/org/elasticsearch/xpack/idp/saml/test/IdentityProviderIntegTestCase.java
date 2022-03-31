@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.idp.saml.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
@@ -21,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -72,25 +73,27 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     // Local Security Cluster user
     public static final String SAMPLE_USER_NAME = "es_user";
     public static final String SAMPLE_USER_PASSWORD = "es_user_password";
-    public static final String SAMPLE_USER_PASSWORD_HASHED =
-        new String(Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_USER_PASSWORD.toCharArray())));
+    public static final String SAMPLE_USER_PASSWORD_HASHED = new String(
+        Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_USER_PASSWORD.toCharArray()))
+    );
     public static final String SAMPLE_USER_ROLE = "es_user_role";
     // User that is authenticated to the Security Cluster in order to perform SSO to cloud resources
     public static final String SAMPLE_IDPUSER_NAME = "idp_user";
     public static final String SAMPLE_IDPUSER_PASSWORD = "idp_user_password";
-    public static final String SAMPLE_IDPUSER_PASSWORD_HASHED =
-        new String(Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_IDPUSER_PASSWORD.toCharArray())));
+    public static final String SAMPLE_IDPUSER_PASSWORD_HASHED = new String(
+        Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_IDPUSER_PASSWORD.toCharArray()))
+    );
     public static final String SAMPLE_IDPUSER_ROLE = "idp_user_role";
     // Cloud console user that calls all IDP related APIs
     public static final String CONSOLE_USER_NAME = "console_user";
     public static final String CONSOLE_USER_PASSWORD = "console_user_password";
-    public static final String CONSOLE_USER_PASSWORD_HASHED =
-        new String(Hasher.resolve("bcrypt9").hash(new SecureString(CONSOLE_USER_PASSWORD.toCharArray())));
+    public static final String CONSOLE_USER_PASSWORD_HASHED = new String(
+        Hasher.resolve("bcrypt9").hash(new SecureString(CONSOLE_USER_PASSWORD.toCharArray()))
+    );
     public static final String CONSOLE_USER_ROLE = "console_user_role";
     public static final String SP_ENTITY_ID = "ec:abcdef:123456";
     public static final RequestOptions REQUEST_OPTIONS_AS_CONSOLE_USER = RequestOptions.DEFAULT.toBuilder()
-        .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME,
-            new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
+        .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME, new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
         .build();
     private static Path PARENT_DIR;
 
@@ -182,8 +185,10 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Function<Client, Client> getClientWrapper() {
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-            basicAuthHeaderValue(SAMPLE_USER_NAME, new SecureString(SAMPLE_USER_PASSWORD.toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue(SAMPLE_USER_NAME, new SecureString(SAMPLE_USER_PASSWORD.toCharArray()))
+        );
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
@@ -198,39 +203,59 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     private String configRoles() {
         // test role allows for everything
-        return SAMPLE_USER_ROLE + ":\n" +
-            "  cluster: [ ALL ]\n" +
-            "  indices:\n" +
-            "    - names: '*'\n" +
-            "      allow_restricted_indices: true\n" +
-            "      privileges: [ ALL ]\n" +
-            "\n" +
-            // IDP end user doesn't need any privileges on the security cluster
-            SAMPLE_IDPUSER_ROLE + ":\n" +
-            // Could switch to grant apikey for user and call this as console_user
-            "  cluster: ['cluster:admin/xpack/security/api_key/create']\n" +
-            "  indices: []\n" +
-            "  applications:\n " +
-            "    - application: elastic-cloud\n" +
-            "       resources: [ '" + SP_ENTITY_ID + "' ]\n" +
-            "       privileges: [ 'sso:superuser' ]\n" +
-            "\n" +
-            // Console user should be able to call all IDP related endpoints and register application privileges
-            CONSOLE_USER_ROLE + ":\n" +
-            "  cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]\n" +
-            "  indices: []\n";
+        // IDP end user doesn't need any privileges on the security cluster
+        // Could switch to grant apikey for user and call this as console_user
+        // Console user should be able to call all IDP related endpoints and register application privileges
+        return """
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: '*'
+                  allow_restricted_indices: true
+                  privileges: [ ALL ]
+
+            %s:
+              cluster: ['cluster:admin/xpack/security/api_key/create']
+              indices: []
+              applications:
+                 - application: elastic-cloud
+                   resources: [ '%s' ]
+                   privileges: [ 'sso:superuser' ]
+
+            %s:
+              cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]
+              indices: []
+            """.formatted(SAMPLE_USER_ROLE, SAMPLE_IDPUSER_ROLE, SP_ENTITY_ID, CONSOLE_USER_ROLE);
     }
 
     private String configUsers() {
-        return SAMPLE_USER_NAME + ":" + SAMPLE_USER_PASSWORD_HASHED + "\n" +
-            SAMPLE_IDPUSER_NAME + ":" + SAMPLE_IDPUSER_PASSWORD_HASHED + "\n" +
-            CONSOLE_USER_NAME + ":" + CONSOLE_USER_PASSWORD_HASHED + "\n";
+        return SAMPLE_USER_NAME
+            + ":"
+            + SAMPLE_USER_PASSWORD_HASHED
+            + "\n"
+            + SAMPLE_IDPUSER_NAME
+            + ":"
+            + SAMPLE_IDPUSER_PASSWORD_HASHED
+            + "\n"
+            + CONSOLE_USER_NAME
+            + ":"
+            + CONSOLE_USER_PASSWORD_HASHED
+            + "\n";
     }
 
     private String configUsersRoles() {
-        return SAMPLE_USER_ROLE + ":" + SAMPLE_USER_NAME + "\n" +
-            SAMPLE_IDPUSER_ROLE + ":" + SAMPLE_IDPUSER_NAME + "\n" +
-            CONSOLE_USER_ROLE + ":" + CONSOLE_USER_NAME + "\n";
+        return SAMPLE_USER_ROLE
+            + ":"
+            + SAMPLE_USER_NAME
+            + "\n"
+            + SAMPLE_IDPUSER_ROLE
+            + ":"
+            + SAMPLE_IDPUSER_NAME
+            + "\n"
+            + CONSOLE_USER_ROLE
+            + ":"
+            + CONSOLE_USER_NAME
+            + "\n";
     }
 
     Path nodePath(Path confDir, final int nodeOrdinal) {

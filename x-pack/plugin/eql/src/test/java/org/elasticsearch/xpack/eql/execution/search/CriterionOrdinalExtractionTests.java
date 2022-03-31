@@ -76,22 +76,36 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
 
     public void testImplicitTiebreakerMissing() throws Exception {
         SearchHit hit = searchHit(randomTimestamp(), null, new Object[0]);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), tsExtractor, null,
-            implicitTbExtractor, randomBoolean());
+        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+            0,
+            null,
+            emptyList(),
+            tsExtractor,
+            null,
+            implicitTbExtractor,
+            randomBoolean()
+        );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
         assertTrue(exception.getMessage().startsWith("Expected at least one sorting value in the search hit, but got none"));
     }
 
     public void testImplicitTiebreakerNotANumber() throws Exception {
         SearchHit hit = searchHit(randomTimestamp(), null, new Object[] { "test string" });
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), tsExtractor, null,
-            implicitTbExtractor, randomBoolean());
+        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+            0,
+            null,
+            emptyList(),
+            tsExtractor,
+            null,
+            implicitTbExtractor,
+            randomBoolean()
+        );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
         assertTrue(exception.getMessage().startsWith("Expected _shard_doc/implicit tiebreaker as long but got [test string]"));
     }
 
     public void testTiebreakerNotComparable() throws Exception {
-        final Object o = randomDateTimeZone();
+        final Object o = randomZone();
         HitExtractor badExtractor = new HitExtractor() {
             @Override
             public Object extract(SearchHit hit) {
@@ -109,12 +123,18 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
-            }
+            public void writeTo(StreamOutput out) throws IOException {}
         };
         SearchHit hit = searchHit(randomTimestamp(), o);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), tsExtractor, badExtractor,
-            implicitTbExtractor, false);
+        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+            0,
+            null,
+            emptyList(),
+            tsExtractor,
+            badExtractor,
+            implicitTbExtractor,
+            false
+        );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
         assertTrue(exception.getMessage().startsWith("Expected tiebreaker"));
     }
@@ -138,7 +158,14 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     private Ordinal ordinal(SearchHit hit, boolean withTiebreaker) {
-        return new Criterion<BoxedQueryRequest>(0, null, emptyList(), tsExtractor, withTiebreaker ? tbExtractor : null,
-            implicitTbExtractor, false).ordinal(hit);
+        return new Criterion<BoxedQueryRequest>(
+            0,
+            null,
+            emptyList(),
+            tsExtractor,
+            withTiebreaker ? tbExtractor : null,
+            implicitTbExtractor,
+            false
+        ).ordinal(hit);
     }
 }

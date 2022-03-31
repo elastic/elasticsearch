@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.cli;
 /**
  * Throwing this except will cause the CLI to terminate
  */
-public class FatalCliException  extends RuntimeException {
+public class FatalCliException extends RuntimeException {
     public FatalCliException(String message, Throwable cause) {
         super(message, cause);
     }

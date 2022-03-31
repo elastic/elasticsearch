@@ -468,7 +468,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeTimeValue(pageTimeout);
         out.writeOptionalNamedWriteable(filter);
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeMap(runtimeMappings);
+            out.writeGenericMap(runtimeMappings);
         }
     }
 

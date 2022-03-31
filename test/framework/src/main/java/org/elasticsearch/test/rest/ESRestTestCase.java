@@ -25,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -48,11 +49,11 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -268,7 +269,20 @@ public abstract class ESRestTestCase extends ESTestCase {
                     + "to which to send REST requests"
             );
         }
+
         return cluster;
+    }
+
+    protected String getTestReadinessPorts() {
+        String ports = System.getProperty("tests.cluster.readiness");
+        if (ports == null) {
+            throw new RuntimeException(
+                "Must specify [tests.rest.cluster.readiness] system property with a comma delimited list "
+                    + "to which to send readiness requests"
+            );
+        }
+
+        return ports;
     }
 
     /**
@@ -904,9 +918,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream()
-            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-            .collect(Collectors.toUnmodifiableList());
+        List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
             assertOK(adminClient().performRequest(deleteRequest));
@@ -1961,5 +1973,46 @@ public abstract class ESRestTestCase extends ESTestCase {
             return response.getStatusLine().getStatusCode() == 404;
         }
         return false;
+    }
+
+    protected FieldCapabilitiesResponse fieldCaps(
+        List<String> indices,
+        List<String> fields,
+        QueryBuilder indexFilter,
+        String fieldTypes,
+        String fieldFilters
+    ) throws IOException {
+        return fieldCaps(client(), indices, fields, indexFilter, fieldTypes, fieldFilters);
+    }
+
+    protected FieldCapabilitiesResponse fieldCaps(
+        RestClient restClient,
+        List<String> indices,
+        List<String> fields,
+        QueryBuilder indexFilter,
+        String fieldTypes,
+        String fieldFilters
+    ) throws IOException {
+        Request request = new Request("POST", "/_field_caps");
+        request.addParameter("index", String.join(",", indices));
+        request.addParameter("fields", String.join(",", fields));
+        if (fieldTypes != null) {
+            request.addParameter("types", fieldTypes);
+        }
+        if (fieldFilters != null) {
+            request.addParameter("filters", fieldFilters);
+        }
+        if (indexFilter != null) {
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("index_filter", indexFilter);
+            body.endObject();
+            request.setJsonEntity(Strings.toString(body));
+        }
+        Response response = restClient.performRequest(request);
+        assertOK(response);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
+            return FieldCapabilitiesResponse.fromXContent(parser);
+        }
     }
 }

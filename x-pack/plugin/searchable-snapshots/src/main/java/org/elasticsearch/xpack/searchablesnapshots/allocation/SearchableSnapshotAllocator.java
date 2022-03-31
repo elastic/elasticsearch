@@ -460,7 +460,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         return augmented;
     }
 
-    private MatchingNodes findMatchingNodes(
+    private static MatchingNodes findMatchingNodes(
         ShardRouting shard,
         RoutingAllocation allocation,
         AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> data,

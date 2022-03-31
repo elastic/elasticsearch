@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
-import java.io.IOException;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -56,14 +55,14 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) throws IOException {
+    public ClusterState execute(ClusterState currentState) {
         IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        LifecycleExecutionState indexILMData = idxMeta.getLifecycleExecutionState();
-        if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(indexILMData))) {
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+        if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
             return IndexLifecycleTransition.moveClusterStateToErrorStep(index, currentState, cause, nowSupplier, stepLookupFunction);
         } else {
             // either the policy has changed or the step is now

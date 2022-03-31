@@ -108,7 +108,8 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 continue;
             }
             final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(state.metadata().index(index).getSettings());
-            for (IndexShardRoutingTable routing : indexShardRoutingTables) {
+            for (int i = 0; i < indexShardRoutingTables.size(); i++) {
+                IndexShardRoutingTable routing = indexShardRoutingTables.shard(i);
                 final int shardId = routing.shardId().id();
                 ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
@@ -285,7 +286,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             /**
              * A shard exists/existed in a node only if shard state file exists in the node
              */
-            private boolean shardExistsInNode(final NodeGatewayStartedShards response) {
+            private static boolean shardExistsInNode(final NodeGatewayStartedShards response) {
                 return response.storeException() != null || response.allocationId() != null;
             }
 

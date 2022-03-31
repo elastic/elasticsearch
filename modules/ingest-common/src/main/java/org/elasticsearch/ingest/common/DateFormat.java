@@ -61,7 +61,7 @@ enum DateFormat {
             return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
-        private long parseMillis(String date) {
+        private static long parseMillis(String date) {
             if (date.startsWith("@")) {
                 date = date.substring(1);
             }

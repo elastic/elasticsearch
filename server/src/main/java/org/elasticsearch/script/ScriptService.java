@@ -467,7 +467,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         /** the full keys for the contexts in the context affix setting */
         protected static List<String> fullKeys(Setting.AffixSetting<?> affix, List<String> contexts) {
-            return contexts.stream().map(ctx -> affix.getConcreteSettingForNamespace(ctx).getKey()).collect(Collectors.toList());
+            return contexts.stream().map(ctx -> affix.getConcreteSettingForNamespace(ctx).getKey()).toList();
         }
 
         /**
@@ -499,7 +499,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
          * All context specific settings
          */
         public List<String> contextSettings() {
-            List<String> contextSettings = fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts);
+            List<String> contextSettings = new ArrayList<>(fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts));
             contextSettings.addAll(fullKeys(SCRIPT_CACHE_SIZE_SETTING, sizeContexts));
             contextSettings.addAll(fullKeys(SCRIPT_CACHE_EXPIRE_SETTING, expireContexts));
             return contextSettings;
@@ -745,7 +745,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }, newExecutor());
     }
 
-    public void deleteStoredScript(
+    public static void deleteStoredScript(
         ClusterService clusterService,
         DeleteStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
@@ -767,7 +767,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         return ClusterStateTaskExecutor.unbatched();
     }
 
-    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+    public static StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
         ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {

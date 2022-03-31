@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -68,17 +67,18 @@ public class JoinHelper {
     public static final String JOIN_VALIDATE_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
+    private final AllocationService allocationService;
     private final MasterService masterService;
     private final TransportService transportService;
-    private volatile JoinTaskExecutor joinTaskExecutor;
+    private final JoinTaskExecutor joinTaskExecutor;
+    private final LongSupplier currentTermSupplier;
+    private final RerouteService rerouteService;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
     private final Map<DiscoveryNode, Releasable> joinConnections = new HashMap<>(); // synchronized on itself
-
-    private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
     JoinHelper(
         Settings settings,
@@ -94,40 +94,14 @@ public class JoinHelper {
         NodeHealthService nodeHealthService,
         JoinReasonService joinReasonService
     ) {
+        this.allocationService = allocationService;
         this.masterService = masterService;
         this.transportService = transportService;
+        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+        this.currentTermSupplier = currentTermSupplier;
+        this.rerouteService = rerouteService;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
-        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, rerouteService) {
-
-            private final long term = currentTermSupplier.getAsLong();
-
-            @Override
-            public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
-                // The current state that MasterService uses might have been updated by a (different) master in a higher term already
-                // Stop processing the current cluster state update, as there's no point in continuing to compute it as
-                // it will later be rejected by Coordinator.publish(...) anyhow
-                if (currentState.term() > term) {
-                    logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
-                    throw new NotMasterException(
-                        "Higher term encountered (current: " + currentState.term() + " > used: " + term + "), there is a newer master"
-                    );
-                } else if (currentState.nodes().getMasterNodeId() == null
-                    && joinTaskContexts.stream().anyMatch(t -> t.getTask().isBecomingMaster())) {
-                        assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
-                        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
-                            .term(term)
-                            .build();
-                        final Metadata metadata = Metadata.builder(currentState.metadata())
-                            .coordinationMetadata(coordinationMetadata)
-                            .build();
-                        currentState = ClusterState.builder(currentState).metadata(metadata).build();
-                    } else if (currentState.nodes().isLocalNodeElectedMaster()) {
-                        assert currentState.term() == term : "term should be stable for the same master";
-                    }
-                return super.execute(currentState, joinTaskContexts);
-            }
-        };
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -370,8 +344,12 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTask task = JoinTask.singleNode(sender, joinReasonService.getJoinReason(sender, Mode.LEADER), joinListener);
-            assert joinTaskExecutor != null;
+            final JoinTask task = JoinTask.singleNode(
+                sender,
+                joinReasonService.getJoinReason(sender, Mode.LEADER),
+                joinListener,
+                currentTermSupplier.getAsLong()
+            );
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
@@ -433,18 +411,16 @@ public class JoinHelper {
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         listener
                     );
-                }));
-
-                joinTaskExecutor = joinTaskExecutorGenerator.get();
+                }), currentTermSupplier.getAsLong());
                 masterService.submitStateUpdateTask(
                     "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
                     joinTask,
                     ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor
+
                 );
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
-                joinTaskExecutor = null;
                 joinRequestAccumulator.values()
                     .forEach(joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException("became follower")));
             }

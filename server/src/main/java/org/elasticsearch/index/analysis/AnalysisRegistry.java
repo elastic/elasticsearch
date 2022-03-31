@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -393,7 +392,7 @@ public final class AnalysisRegistry implements Closeable {
         );
     }
 
-    private <T> AnalysisProvider<T> getProvider(
+    private static <T> AnalysisProvider<T> getProvider(
         Component componentType,
         String componentName,
         IndexSettings indexSettings,
@@ -581,13 +580,11 @@ public final class AnalysisRegistry implements Closeable {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(
-                analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory) a)).collect(Collectors.toList())
-            );
+            IOUtils.close(analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory) a)).toList());
         }
     }
 
-    public IndexAnalyzers build(
+    public static IndexAnalyzers build(
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -713,7 +710,7 @@ public final class AnalysisRegistry implements Closeable {
         return analyzer;
     }
 
-    private void processNormalizerFactory(
+    private static void processNormalizerFactory(
         String name,
         AnalyzerProvider<?> normalizerFactory,
         Map<String, NamedAnalyzer> normalizers,

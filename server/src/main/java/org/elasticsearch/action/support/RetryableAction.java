@@ -118,7 +118,7 @@ public abstract class RetryableAction<Response> {
         return Math.min(previousDelayBound * 2, Integer.MAX_VALUE);
     }
 
-    protected long minimumDelayMillis() {
+    protected static long minimumDelayMillis() {
         return 0L;
     }
 

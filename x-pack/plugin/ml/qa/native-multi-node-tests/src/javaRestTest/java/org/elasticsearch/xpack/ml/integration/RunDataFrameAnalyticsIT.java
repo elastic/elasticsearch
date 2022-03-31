@@ -272,7 +272,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         GetSettingsResponse docValueLimitSetting = client().admin().indices().getSettings(getSettingsRequest).actionGet();
         int docValueLimit = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(
-            docValueLimitSetting.getIndexToSettings().valuesIt().next()
+            docValueLimitSetting.getIndexToSettings().values().iterator().next()
         );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();

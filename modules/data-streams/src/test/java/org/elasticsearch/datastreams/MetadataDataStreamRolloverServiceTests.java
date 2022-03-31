@@ -53,7 +53,6 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         String dataStreamName = "logs-my-app";
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,
@@ -147,12 +146,11 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     }
 
     public void testRolloverAndMigrateDataStream() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,
@@ -233,11 +231,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     }
 
     public void testChangingIndexModeFromTimeSeriesToSomethingElseNoEffectOnExistingDataStreams() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,

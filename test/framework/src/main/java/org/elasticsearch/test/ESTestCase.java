@@ -284,13 +284,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             .filter(unsupportedTZIdsPredicate.negate())
             .filter(unsupportedZoneIdsPredicate.negate())
             .sorted()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
-        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds()
-            .stream()
-            .filter(unsupportedZoneIdsPredicate.negate())
-            .sorted()
-            .collect(Collectors.toUnmodifiableList());
+        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")
@@ -1740,5 +1736,4 @@ public abstract class ESTestCase extends LuceneTestCase {
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }
-
 }

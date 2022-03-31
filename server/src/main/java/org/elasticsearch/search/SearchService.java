@@ -242,8 +242,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final DfsPhase dfsPhase = new DfsPhase();
 
-    private final QueryPhase queryPhase;
-
     private final FetchPhase fetchPhase;
 
     private volatile long defaultKeepAlive;
@@ -289,7 +287,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
-        this.queryPhase = new QueryPhase();
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
@@ -302,7 +299,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
 
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING, this::setKeepAlives, this::validateKeepAlives);
+            .addSettingsUpdateConsumer(
+                DEFAULT_KEEPALIVE_SETTING,
+                MAX_KEEPALIVE_SETTING,
+                this::setKeepAlives,
+                SearchService::validateKeepAlives
+            );
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
@@ -324,7 +326,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
     }
 
-    private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
+    private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
             throw new IllegalArgumentException(
                 "Default keep alive setting for request ["
@@ -454,12 +456,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
-        final boolean canCache = indicesService.canCache(request, context);
+        final boolean canCache = IndicesService.canCache(request, context);
         context.getSearchExecutionContext().freezeContext();
         if (canCache) {
-            indicesService.loadIntoContext(request, context, queryPhase);
+            indicesService.loadIntoContext(request, context);
         } else {
-            queryPhase.execute(context);
+            QueryPhase.execute(context);
         }
     }
 
@@ -610,7 +612,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
+    private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
         executor.execute(ActionRunnable.supply(listener, executable::get));
     }
 
@@ -685,7 +687,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ) {
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
-                queryPhase.execute(searchContext);
+                QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
@@ -708,7 +710,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(request.dfs());
-                queryPhase.execute(searchContext);
+                QueryPhase.execute(searchContext);
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     // no hits, we can release the context since there will be no fetch phase
                     freeReaderContext(readerContext.id());
@@ -765,7 +767,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
-                queryPhase.execute(searchContext);
+                QueryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
                 return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
@@ -1125,7 +1127,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
-    private boolean isScrollContext(ReaderContext context) {
+    private static boolean isScrollContext(ReaderContext context) {
         return context instanceof LegacyReaderContext && context.singleSession() == false;
     }
 
@@ -1356,7 +1358,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_T_F
      */
-    private void shortcutDocIdsToLoad(SearchContext context) {
+    private static void shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
         int docsOffset = 0;
         final Suggest suggest = context.queryResult().suggest();
@@ -1397,7 +1399,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
     }
 
-    private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
+    private static void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();

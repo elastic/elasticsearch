@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -767,6 +768,39 @@ public class BytesStreamsTests extends ESTestCase {
             }
 
             try (StreamInput streamInput = output.bytes().streamInput()) {
+                for (int i = 0; i < numStrings; i++) {
+                    String s = streamInput.readString();
+                    assertEquals(strings.get(i), s);
+                }
+            }
+        }
+    }
+
+    public void testWriteRandomStringsWithSlicing() throws IOException {
+        final int iters = scaledRandomIntBetween(5, 20);
+        for (int iter = 0; iter < iters; iter++) {
+            List<String> strings = new ArrayList<>();
+            int numStrings = randomIntBetween(100, 1000);
+            final List<BytesReference> slices = new ArrayList<>();
+            BytesStreamOutput output = new BytesStreamOutput(0);
+            for (int i = 0; i < numStrings; i++) {
+                String s = randomRealisticUnicodeOfLengthBetween(0, 2048);
+                strings.add(s);
+                output.writeString(s);
+                if (randomBoolean() && randomBoolean()) {
+                    final BytesReference copy = output.copyBytes();
+                    if (randomBoolean() && copy.length() > 2) {
+                        final int sliceIndex = randomIntBetween(0, copy.length() / 2);
+                        slices.add(copy.slice(0, sliceIndex));
+                        slices.add(copy.slice(sliceIndex, copy.length() - sliceIndex));
+                    } else {
+                        slices.add(copy);
+                    }
+                    output = new BytesStreamOutput();
+                }
+            }
+            slices.add(randomBoolean() ? output.bytes() : output.copyBytes());
+            try (StreamInput streamInput = CompositeBytesReference.of(slices.toArray(BytesReference[]::new)).streamInput()) {
                 for (int i = 0; i < numStrings; i++) {
                     String s = streamInput.readString();
                     assertEquals(strings.get(i), s);

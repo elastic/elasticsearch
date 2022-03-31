@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -296,5 +298,34 @@ public class IpFieldMapperTests extends MapperTestCase {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        if (randomBoolean()) {
+            String v = generateRandomInputValue(null);
+            return new SyntheticSourceExample(v, v, this::minimalMapping);
+        }
+        List<InetAddress> values = randomList(1, 5, () -> randomIp(randomBoolean()));
+        List<String> in = values.stream().map(NetworkAddress::format).toList();
+        Object out = values.size() == 1
+            ? in.get(0)
+            : values.stream()
+                .map(InetAddressPoint::encode)
+                .sorted(Arrays::compareUnsigned)
+                .map(InetAddressPoint::decode)
+                .map(NetworkAddress::format)
+                .toList();
+        return new SyntheticSourceExample(in, out, this::minimalMapping);
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
+                b -> b.field("type", "ip").field("doc_values", false)
+            )
+        );
     }
 }

@@ -1005,41 +1005,59 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        return new SourceLoader.SyntheticFieldLoader() {
+        return new BytesSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            public Leaf leaf(LeafReader reader) throws IOException {
-                SortedSetDocValues leaf = DocValues.getSortedSet(reader, name());
-                return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                    private boolean hasValue;
-
-                    @Override
-                    public void advanceToDoc(int docId) throws IOException {
-                        hasValue = leaf.advanceExact(docId);
-                    }
-
-                    @Override
-                    public boolean hasValue() {
-                        return hasValue;
-                    }
-
-                    @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        long first = leaf.nextOrd();
-                        long next = leaf.nextOrd();
-                        if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                            b.field(simpleName, leaf.lookupOrd(first).utf8ToString());
-                            return;
-                        }
-                        b.startArray(simpleName);
-                        b.value(leaf.lookupOrd(first).utf8ToString());
-                        b.value(leaf.lookupOrd(next).utf8ToString());
-                        while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                            b.value(leaf.lookupOrd(next).utf8ToString());
-                        }
-                        b.endArray();
-                    }
-                };
+            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
+                b.value(value.utf8ToString());
             }
         };
+    }
+
+    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+
+        public BytesSyntheticFieldLoader(String name, String simpleName) {
+            this.name = name;
+            this.simpleName = simpleName;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader) throws IOException {
+            SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private boolean hasValue;
+
+                @Override
+                public void advanceToDoc(int docId) throws IOException {
+                    hasValue = leaf.advanceExact(docId);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return hasValue;
+                }
+
+                @Override
+                public void load(XContentBuilder b) throws IOException {
+                    long first = leaf.nextOrd();
+                    long next = leaf.nextOrd();
+                    if (next == SortedSetDocValues.NO_MORE_ORDS) {
+                        b.field(simpleName);
+                        loadNextValue(b, leaf.lookupOrd(first));
+                        return;
+                    }
+                    b.startArray(simpleName);
+                    loadNextValue(b, leaf.lookupOrd(first));
+                    loadNextValue(b, leaf.lookupOrd(next));
+                    while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
+                        loadNextValue(b, leaf.lookupOrd(next));
+                    }
+                    b.endArray();
+                }
+            };
+        }
+
+        protected abstract void loadNextValue(XContentBuilder b, BytesRef value) throws IOException;
     }
 }

@@ -23,9 +23,10 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.14.2',
-  'azureCore': '1.24.1',
-  'azureCoreHttpNetty': '1.11.6',
+  'azure': '12.14.4',
+  'azureCommon': '12.14.3',
+  'azureCore': '1.25.0',
+  'azureCoreHttpNetty': '1.11.7',
   'azureJackson': '2.13.1',
 
   'jakartaActivation': '1.2.1',
@@ -40,7 +41,7 @@ versions << [
 
 dependencies {
   api "com.azure:azure-storage-blob:${versions.azure}"
-  api "com.azure:azure-storage-common:${versions.azure}"
+  api "com.azure:azure-storage-common:${versions.azureCommon}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
 

@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
@@ -91,14 +95,17 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
 
     @Override
     protected void handleFailure(Exception e) {
-        logger.warn(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed to to move from step [{}] to error step.",
-                policy,
-                index,
-                currentStepKey
-            ),
-            e
+        final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
+            "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.",
+            policy,
+            index.getName(),
+            currentStepKey
         );
+        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+            logger.debug(messageSupplier, e);
+        } else {
+            logger.error(messageSupplier, e);
+            assert false : new AssertionError("unexpected exception", e);
+        }
     }
 }

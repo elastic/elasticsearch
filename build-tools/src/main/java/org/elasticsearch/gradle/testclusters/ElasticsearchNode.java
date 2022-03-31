@@ -916,8 +916,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // Direct the stdout and stderr to the ES log file. This should not contend with the actual ES
-        // process once it is started since there we close replace stdout/stderr handles once logging is setup.
+        // Direct the stderr to the ES log file. This should capture any jvm problems to start.
+        // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esLogFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
 

@@ -140,7 +140,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 os
             );
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, randomizeContentType());
+            restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient, false);
             adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
@@ -160,6 +160,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType
+    ) {
+        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType());
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
@@ -405,17 +413,17 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.skipVersion())
         );
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.skipVersion())
         );
         // skip test if test section is disabled
         assumeFalse(
             testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.skipVersion())
         );
         // skip test if os is excluded
         assumeFalse(

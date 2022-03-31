@@ -49,6 +49,7 @@ public class ClientYamlTestExecutionContext {
     private ClientYamlTestResponse response;
 
     private final boolean randomizeContentType;
+    private Version skipVersion;
 
     ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
@@ -211,6 +212,24 @@ public class ClientYamlTestExecutionContext {
      */
     public Version esVersion() {
         return clientYamlTestClient.getEsVersion();
+    }
+
+    /**
+     * @return the version that skipping tests is based on, usually the same as {@link #esVersion()}
+     */
+    public Version skipVersion() {
+        if (this.skipVersion == null) {
+            return clientYamlTestClient.getEsVersion();
+        } else {
+            return this.skipVersion;
+        }
+    }
+
+    /**
+     * sets the version that skipping tests is based on
+     */
+    public void setSkipVersion(Version skipVersion) {
+        this.skipVersion = skipVersion;
     }
 
     public Version masterVersion() {

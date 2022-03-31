@@ -13,11 +13,39 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Version;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    private static Version remoteEsVersion = null;
+
+    @BeforeClass
+    public static void determineRemoteClusterMinimumVersion() {
+        String remoteClusterVersion = System.getProperty("tests.rest.remote-cluster-version");
+        if (remoteClusterVersion != null) {
+            remoteEsVersion = Version.fromString(remoteClusterVersion);
+        }
+    }
+
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType
+    ) {
+        ClientYamlTestExecutionContext restTestExecutionContext = super.createRestTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType()
+        );
+        restTestExecutionContext.setSkipVersion(remoteEsVersion);
+        return restTestExecutionContext;
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

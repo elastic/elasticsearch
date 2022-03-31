@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The nio transport.'
-  classname 'org.elasticsearch.plugin.transport.nio/org.elasticsearch.transport.nio.NioTransportPlugin'
+  classname 'org.elasticsearch.transport.nio/org.elasticsearch.transport.nio.NioTransportPlugin'
 }
 
 dependencies {

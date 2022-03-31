@@ -53,7 +53,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         iwc.setIndexSort(
             new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
+                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG, true)
             )
         );
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
@@ -109,7 +109,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         if (currentTSID != null) {
                             assertTrue(currentTSID + "->" + latestTSID.utf8ToString(), latestTSID.compareTo(currentTSID) >= 0);
                             if (latestTSID.equals(currentTSID)) {
-                                assertTrue(currentTimestamp + "->" + latestTimestamp, latestTimestamp >= currentTimestamp);
+                                assertTrue(currentTimestamp + "->" + latestTimestamp, latestTimestamp <= currentTimestamp);
                             }
                         }
                         currentTimestamp = latestTimestamp;

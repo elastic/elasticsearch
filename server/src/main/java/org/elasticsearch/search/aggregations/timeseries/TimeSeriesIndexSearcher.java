@@ -73,7 +73,7 @@ public class TimeSeriesIndexSearcher {
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
             @Override
             protected boolean lessThan(LeafWalker a, LeafWalker b) {
-                return a.timestamp < b.timestamp;
+                return a.timestamp > b.timestamp;
             }
         };
 

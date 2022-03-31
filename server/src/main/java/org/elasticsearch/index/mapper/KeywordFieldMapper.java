@@ -72,7 +72,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
-import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.

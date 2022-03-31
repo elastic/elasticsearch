@@ -16,9 +16,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.GetIndexRequest;
-import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
-import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -191,21 +188,23 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
         RestHighLevelClient client = newHighLevelClient();
         // Checks that the monitoring index templates have been installed
-        GetIndexTemplatesRequest templateRequest = new GetIndexTemplatesRequest(MONITORING_PATTERN);
+        Request templateRequest = new Request("GET", "/_index_template/" + MONITORING_PATTERN);
         assertBusy(() -> {
             try {
-                GetIndexTemplatesResponse response = client.indices().getIndexTemplate(templateRequest, RequestOptions.DEFAULT);
-                assertThat(response.getIndexTemplates().size(), greaterThanOrEqualTo(2));
+                var response = responseAsMap(client.getLowLevelClient().performRequest(templateRequest));
+                List<?> templates = ObjectPath.evaluate(response, "index_templates");
+                assertThat(templates.size(), greaterThanOrEqualTo(2));
             } catch (Exception e) {
                 fail("template not ready yet: " + e.getMessage());
             }
         });
 
-        GetIndexRequest indexRequest = new GetIndexRequest(MONITORING_PATTERN);
+        Request indexRequest = new Request("HEAD", MONITORING_PATTERN);
         // Waits for monitoring indices to be created
         assertBusy(() -> {
             try {
-                assertThat(client.indices().exists(indexRequest, RequestOptions.DEFAULT), equalTo(true));
+                Response response = client.getLowLevelClient().performRequest(indexRequest);
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             } catch (Exception e) {
                 fail("monitoring index not created yet: " + e.getMessage());
             }

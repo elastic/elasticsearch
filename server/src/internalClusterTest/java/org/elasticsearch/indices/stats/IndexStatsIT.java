@@ -79,7 +79,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -1387,57 +1386,52 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         // start threads that will get stats concurrently with indexing
-        try {
-            updateClusterSettings(Settings.builder().put(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey(), numberOfStatsThreads + 1));
-            for (int i = 0; i < numberOfStatsThreads; i++) {
-                final Thread thread = new Thread(() -> {
+        for (int i = 0; i < numberOfStatsThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    failed.set(true);
+                    executionFailures.get().add(e);
+                    latch.countDown();
+                }
+                final IndicesStatsRequest request = new IndicesStatsRequest();
+                request.all();
+                request.indices(new String[0]);
+                while (stop.get() == false) {
                     try {
-                        barrier.await();
-                    } catch (final BrokenBarrierException | InterruptedException e) {
+                        final IndicesStatsResponse response = client().admin().indices().stats(request).get();
+                        if (response.getFailedShards() > 0) {
+                            failed.set(true);
+                            shardFailures.get().addAll(Arrays.asList(response.getShardFailures()));
+                            latch.countDown();
+                        }
+                    } catch (final ExecutionException | InterruptedException e) {
                         failed.set(true);
                         executionFailures.get().add(e);
                         latch.countDown();
                     }
-                    final IndicesStatsRequest request = new IndicesStatsRequest();
-                    request.all();
-                    request.indices(new String[0]);
-                    while (stop.get() == false) {
-                        try {
-                            final IndicesStatsResponse response = client().admin().indices().stats(request).get();
-                            if (response.getFailedShards() > 0) {
-                                failed.set(true);
-                                shardFailures.get().addAll(Arrays.asList(response.getShardFailures()));
-                                latch.countDown();
-                            }
-                        } catch (final ExecutionException | InterruptedException e) {
-                            failed.set(true);
-                            executionFailures.get().add(e);
-                            latch.countDown();
-                        }
-                    }
-                });
-                thread.setName("stats-" + i);
-                threads.add(thread);
-                thread.start();
-            }
-
-            // release the hounds
-            barrier.await();
-
-            // wait for a failure, or for fifteen seconds to elapse
-            latch.await(15, TimeUnit.SECONDS);
-
-            // stop all threads and wait for them to complete
-            stop.set(true);
-            for (final Thread thread : threads) {
-                thread.join();
-            }
-
-            assertThat(shardFailures.get(), emptyCollectionOf(DefaultShardOperationFailedException.class));
-            assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));
-        } finally {
-            updateClusterSettings(Settings.builder().putNull(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey()));
+                }
+            });
+            thread.setName("stats-" + i);
+            threads.add(thread);
+            thread.start();
         }
+
+        // release the hounds
+        barrier.await();
+
+        // wait for a failure, or for fifteen seconds to elapse
+        latch.await(15, TimeUnit.SECONDS);
+
+        // stop all threads and wait for them to complete
+        stop.set(true);
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+
+        assertThat(shardFailures.get(), emptyCollectionOf(DefaultShardOperationFailedException.class));
+        assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));
     }
 
     /**

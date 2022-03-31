@@ -7,8 +7,8 @@ esplugin {
 }
 
 versions << [
-  'google'              : '1.41.4',
-  'google_api_client'   : '1.33.2',
+  'google'              : '1.41.5',
+  'google_api_client'   : '1.33.4',
   'api_services_compute': 'v1-rev235-1.25.0',
   'google_oauth_client' : '1.33.1',
 ]
